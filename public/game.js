@@ -5877,7 +5877,7 @@ function update(dt){
 
   for(const h of heroes){
     if(h.dead){ h.update(dt); continue; }
-    if(h !== playerHero && !h.isDummy) updateEnemyAI(h, dt);
+    if(h !== playerHero && !h.isDummy && !h.isOnlineRemote) updateEnemyAI(h, dt);
     h.update(dt);
   }
   updateMo3giMines(dt);
@@ -11225,8 +11225,8 @@ requestAnimationFrame(loop);
   const originalStartGame = startGame;
   const originalUpdate = update;
   update = function(){
-    if(authoritativeMode){ applyAuthoritativeState(); return; }
     originalUpdate.apply(this, arguments);
+    if(authoritativeMode) applyAuthoritativeState();
   };
 
   function sendInput(action){
@@ -11252,5 +11252,7 @@ requestAnimationFrame(loop);
   setInterval(() => {
     attachAuthoritativeSocket();
     if(authoritativeMode && playerHero) sendInput({type:'aim', angle:playerHero.facing});
+    const entry = document.getElementById('online-entry');
+    if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
   }, 50);
 })();
