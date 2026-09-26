@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Shadow Rampage Multiplayer</title>
+  <style>
+    html,body{margin:0;min-height:100%;overflow:hidden;background:#081018;color:#e9f2ff;font:14px system-ui,sans-serif}
+    canvas{display:block;width:100vw;height:100vh;background:#101c24;cursor:crosshair}
+    #status{position:fixed;left:16px;top:14px;padding:8px 12px;background:#071019cc;border:1px solid #5ecbff;border-radius:6px;pointer-events:none}
+  </style>
+</head>
+<body>
+  <canvas id="game" tabindex="0"></canvas>
+  <div id="status">Подключение...</div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/game.js"></script>
+</body>
+</html>
