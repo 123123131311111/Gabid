@@ -11187,9 +11187,17 @@ requestAnimationFrame(loop);
     const heroIndex = HERO_DEFS.findIndex(item => item.id === local.heroId);
     const pick = item => HERO_DEFS.findIndex(hero => hero.id === item.heroId);
     const picks = [pick(enemyTeam[0]), pick(ownTeam[1]), pick(ownTeam[2]), pick(enemyTeam[1]), pick(enemyTeam[2])];
-    onlineStarted = true;
-    startGame(heroIndex >= 0 ? heroIndex : 0, picks);
-    sendOnlineState();
+    try {
+      onlineStarted = true;
+      menuStage = 'home';
+      startGame(heroIndex >= 0 ? heroIndex : 0, picks);
+      sendOnlineState();
+    } catch(error) {
+      onlineStarted = false;
+      console.error('Не удалось запустить онлайн-матч:', error);
+      const status = document.getElementById('match-status');
+      if(status) status.textContent = 'Ошибка запуска матча: ' + error.message;
+    }
     const entry = document.getElementById('online-entry');
     if(entry) entry.style.display = 'none';
   }
@@ -11269,6 +11277,8 @@ requestAnimationFrame(loop);
       status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.members.length + '/6';
       renderRoom(next);
     });
+    socket.on('room:error', data => { status.textContent = data.message; start.disabled = false; });
+    socket.on('room:started', () => { status.textContent = 'Матч запускается...'; start.disabled = true; });
     socket.on('match:begin', data => { started = true; picker.hidden = true; window.__shadowOnlineMatch = data; canvas.focus(); });
     socket.on('connect_error', () => { status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить'; socket = null; });
     socket.on('disconnect', () => { if(!started) status.textContent = 'Соединение потеряно'; });
@@ -11321,7 +11331,9 @@ requestAnimationFrame(loop);
     {id:'illusionist',name:'Иллюзионист'},{id:'mageHunter',name:'Охотник на магов'},
     {id:'regina',name:'Ригина'},{id:'dawnMaiden',name:'Рассветная дева'},
     {id:'exileKnight',name:'Рыцарь-изгнанник'},{id:'juggernaut',name:'Джаггернаут'},
-    {id:'sniper',name:'Снайпер'},{id:'earthshaker',name:'Шмедик'}
+    {id:'sniper',name:'Снайпер'},{id:'earthshaker',name:'Шмедик'},
+    {id:'mo3gi',name:'Мо3ги'},{id:'tribupainer',name:'Трибупейнер'},
+    {id:'juvsyut',name:'Джувсют'},{id:'chip',name:'Чип'}
   ];
 })();
 </script>

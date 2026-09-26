@@ -109,8 +109,10 @@ io.on('connection', socket => {
   });
   socket.on('room:start', () => {
     const room = roomFor(socket);
-    if(!room || room.started || room.hostId !== socket.id) return;
+    if(!room || room.started) return socket.emit('room:error', {message:'Комната уже запущена или не найдена.'});
+    if(room.hostId !== socket.id) return socket.emit('room:error', {message:'Начать матч может только владелец комнаты.'});
     startRoom(room);
+    socket.emit('room:started');
   });
   socket.on('player:state', data => {
     const player = players.get(socket.id);
