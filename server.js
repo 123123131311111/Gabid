@@ -64,7 +64,7 @@ function startRoom(room){
   room.started = true;
   room.state = Object.create(null);
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
-  const roster = Object.values(room.players).map(player => ({...player}));
+  const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
   for(const member of Object.values(room.players)) if(!member.bot)
     io.to(member.id).emit('match:begin', {id:member.id, roomId:room.id, roster, state:gameState(room)});
 }

@@ -70,7 +70,7 @@
     });
     socket.on('room:error', data => { status.textContent = data.message; start.disabled = false; });
     socket.on('room:started', () => { status.textContent = 'Матч запускается...'; start.disabled = true; });
-    socket.on('match:begin', data => { started = true; picker.hidden = true; window.__shadowOnlineMatch = data; canvas.focus(); });
+    socket.on('match:begin', data => { started = true; window.__shadowOnlineMatch = data; canvas.focus(); });
     socket.on('connect_error', () => { status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить'; socket = null; });
     socket.on('disconnect', () => { if(!started) status.textContent = 'Соединение потеряно'; });
     socket.emit('match:join');

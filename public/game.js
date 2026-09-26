@@ -11134,21 +11134,55 @@ requestAnimationFrame(loop);
   }
 
   function beginAuthoritativeMatch(payload){
-    if(onlineId || !payload || !Array.isArray(payload.roster)) return;
-    onlineId = payload.id;
-    onlineRoster = payload.roster;
-    const local = onlineRoster.find(member => member.id === onlineId);
-    const own = onlineRoster.filter(member => member.team === (local ? local.team : 0));
-    const enemy = onlineRoster.filter(member => member.team !== (local ? local.team : 0));
-    const heroIndex = HERO_DEFS.findIndex(hero => hero.id === (local && local.heroId));
-    const heroIndexOf = member => HERO_DEFS.findIndex(hero => hero.id === member.heroId);
+    if(onlineId) return;
+    if(!payload || !Array.isArray(payload.roster) || payload.roster.length !== 6){
+      showMatchStartError('Сервер прислал неполный состав команды.');
+      return;
+    }
+    const local = payload.roster.find(member => member.id === payload.id);
+    if(!local){
+      showMatchStartError('Ваш герой не найден в составе матча.');
+      return;
+    }
+    const own = payload.roster.filter(member => member.team === local.team);
+    const enemy = payload.roster.filter(member => member.team !== local.team);
+    if(own.length !== 3 || enemy.length !== 3){
+      showMatchStartError('Состав команд некорректен: нужно 3 на 3.');
+      return;
+    }
+    const heroIdOf = member => member.hero || member.heroId;
+    const heroIndex = HERO_DEFS.findIndex(hero => hero.id === heroIdOf(local));
+    const heroIndexOf = member => HERO_DEFS.findIndex(hero => hero.id === heroIdOf(member));
     const picks = [heroIndexOf(enemy[0]), heroIndexOf(own[1]), heroIndexOf(own[2]), heroIndexOf(enemy[1]), heroIndexOf(enemy[2])];
-    originalStartGame(heroIndex >= 0 ? heroIndex : 0, picks);
-    authoritativeMode = true;
-    bindRosterHeroes();
-    serverGameState = payload.state || null;
-    applyAuthoritativeState();
-    document.getElementById('mode-picker')?.setAttribute('hidden','');
+    if(heroIndex < 0 || picks.some(index => index < 0)){
+      showMatchStartError('Сервер прислал неизвестного героя.');
+      return;
+    }
+    try {
+      onlineId = payload.id;
+      onlineRoster = payload.roster;
+      originalStartGame(heroIndex, picks);
+      authoritativeMode = true;
+      bindRosterHeroes();
+      serverGameState = payload.state || null;
+      applyAuthoritativeState();
+      document.getElementById('mode-picker')?.setAttribute('hidden','');
+    } catch(error) {
+      onlineId = null;
+      onlineRoster = null;
+      authoritativeMode = false;
+      gameState = 'menu';
+      menuStage = 'home';
+      console.error('Не удалось запустить матч:', error);
+      showMatchStartError(error.message || 'Неизвестная ошибка.');
+    }
+  }
+
+  function showMatchStartError(message){
+    const picker = document.getElementById('mode-picker');
+    const status = document.getElementById('match-status');
+    if(picker) picker.hidden = false;
+    if(status) status.textContent = 'Не удалось запустить матч: ' + message;
   }
 
   function bindRosterHeroes(){
