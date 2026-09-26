@@ -10,6 +10,10 @@ const PORT = process.env.PORT || 3000;
 const MAX_SLOTS = 6;
 const WORLD_SIZE = 5000;
 const TICK_RATE = 60;
+const TEAM_SPAWNS = [
+  [{x:700,y:2900},{x:520,y:2880},{x:720,y:3120}],
+  [{x:2900,y:700},{x:2900,y:500},{x:2960,y:600}]
+];
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const rooms = Object.create(null);
 const socketRooms = new Map();
@@ -40,9 +44,9 @@ function lobbyPayload(room){
 }
 function emitLobby(room){ io.to(room.id).emit('lobbyUpdate', lobbyPayload(room)); }
 function spawnPlayer(member){
-  const baseX = member.team === 0 ? 560 : WORLD_SIZE - 560;
+  const spawn = TEAM_SPAWNS[member.team][member.slot % 3];
   return {id:member.id, team:member.team, bot:member.bot, heroId:member.hero || 'shadow',
-    x:baseX, y:member.team === 0 ? 2500 + (member.slot * 70) : 2500 - ((member.slot - 3) * 70),
+    x:spawn.x, y:spawn.y,
     angle:member.team === 0 ? 0 : Math.PI, hp:900, maxHp:900, gold:600, alive:true,
     moveTarget:null, keys:Object.create(null), speed:210, cooldown:0};
 }

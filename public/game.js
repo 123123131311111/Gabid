@@ -11233,13 +11233,16 @@ requestAnimationFrame(loop);
     if(!socket || !socket.connected) return;
     socket.emit('playerInput', action);
   }
+  function onlineKeyFromEvent(event){
+    return PHYSICAL_KEY_LETTER[event.code] || (event.key || '').toLowerCase();
+  }
   window.addEventListener('keydown', event => {
     if(!authoritativeMode) return;
-    sendInput({type:'key', key:event.key.toLowerCase(), down:true, angle:playerHero ? playerHero.facing : 0});
+    sendInput({type:'key', key:onlineKeyFromEvent(event), down:true, angle:playerHero ? playerHero.facing : 0});
   }, true);
   window.addEventListener('keyup', event => {
     if(!authoritativeMode) return;
-    sendInput({type:'key', key:event.key.toLowerCase(), down:false});
+    sendInput({type:'key', key:onlineKeyFromEvent(event), down:false});
   }, true);
   canvas.addEventListener('mousemove', () => {
     if(authoritativeMode && playerHero) sendInput({angle:playerHero.facing});
