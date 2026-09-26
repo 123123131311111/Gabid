@@ -75,12 +75,12 @@
     socket.on('disconnect', () => { if(!started) status.textContent = 'Соединение потеряно'; });
     socket.emit('match:join');
   });
-  start.addEventListener('click', () => { if(socket && room && room.hostId === socket.id) socket.emit('room:start'); });
+  start.addEventListener('click', () => { if(socket && room && room.players.length >= 2 && room.hostId === socket.id) socket.emit('room:start'); });
 
   function renderRoom(next){
     roomState.innerHTML = '';
     const title = document.createElement('div');
-    title.textContent = next.hostId === socket.id ? 'Ты владелец комнаты. Выбери героя и нажми старт.' : 'Выбери свободный слот и героя. Ждём владельца комнаты.';
+    title.textContent = next.players.length < 2 ? 'Нужен ещё хотя бы один игрок. Ботов в онлайн-матче нет.' : (next.hostId === socket.id ? 'Ты владелец комнаты. Можно запускать матч.' : 'Ждём старта от владельца комнаты.');
     roomState.appendChild(title);
     const selectedHeroes = new Set(next.players.map(member => member.hero).filter(Boolean));
     for(let slot=0; slot<6; slot++){
@@ -92,7 +92,7 @@
       row.appendChild(label);
       if(member){
         const name = document.createElement('span');
-        name.textContent = member.id === socket.id ? 'Ты' : (member.bot ? 'Бот' : 'Игрок');
+        name.textContent = member.id === socket.id ? 'Ты' : 'Игрок';
         row.appendChild(name);
         if(member.id === socket.id){
           const select = document.createElement('select');
@@ -113,6 +113,8 @@
       roomState.appendChild(row);
     }
     start.style.display = next.hostId === socket.id ? 'block' : 'none';
+    start.disabled = next.players.length < 2;
+    start.textContent = next.players.length < 2 ? 'НУЖЕН ЕЩЁ ИГРОК' : 'СТАРТ МАТЧА';
   }
 
   const HERO_IDS_FOR_ROOM = [

@@ -9,24 +9,13 @@ const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000 });
 const PORT = process.env.PORT || 3000;
 const MAX_SLOTS = 6;
 const WORLD_SIZE = 5000;
-const TICK_RATE = 60;
-const TEAM_LANES = [
-  [
-    [{x:700,y:2900},{x:1800,y:1800},{x:2900,y:700}],
-    [{x:520,y:2880},{x:400,y:900},{x:900,y:400},{x:2900,y:500}],
-    [{x:720,y:3120},{x:3100,y:3120},{x:3220,y:2900},{x:3220,y:900},{x:2960,y:600}]
-  ],
-  [
-    [{x:2900,y:700},{x:1800,y:1800},{x:700,y:2900}],
-    [{x:2900,y:500},{x:900,y:400},{x:400,y:900},{x:520,y:2880}],
-    [{x:2960,y:600},{x:3220,y:900},{x:3220,y:2900},{x:3100,y:3120},{x:720,y:3120}]
-  ]
-];
-const TEAM_SPAWNS = [
-  TEAM_LANES[0].map(lane => lane[0]),
-  TEAM_LANES[1].map(lane => lane[0])
-];
+const TICK_RATE = 30;
+const MAP_SCALE = 1.42;
+const mapPoint = (x,y) => ({x:(x-1800)*MAP_SCALE+WORLD_SIZE/2,y:(y-1800)*MAP_SCALE+WORLD_SIZE/2});
+const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y));
+const SPAWN_RADIUS = 180;
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
+const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
 const rooms = Object.create(null);
 const socketRooms = new Map();
 let nextBulletId = 1;
@@ -46,9 +35,15 @@ function createRoom(hostId){
   return room;
 }
 function findOpenRoom(){ return Object.values(rooms).find(room => !room.started && Object.keys(room.players).length < MAX_SLOTS); }
-function heroNames(room){ return Object.values(room.players).map(player => player.hero).filter(Boolean); }
-function createLobbyPlayer(id, slot, bot=false){
-  return {id, slot, team:slot < 3 ? 0 : 1, bot, hero:null};
+function createLobbyPlayer(id, slot){
+  return {id, slot, team:slot < 3 ? 0 : 1, bot:false, hero:DEFAULT_HEROES[slot]};
+}
+function nextOpenSlot(room){
+  const players = Object.values(room.players);
+  const counts = [players.filter(player => player.team === 0).length, players.filter(player => player.team === 1).length];
+  const preferredTeam = counts[0] <= counts[1] ? 0 : 1;
+  const slots = preferredTeam === 0 ? [0,1,2,3,4,5] : [3,4,5,0,1,2];
+  return slots.find(slot => !players.some(player => player.slot === slot));
 }
 function lobbyPayload(room){
   return {roomId:room.id, hostId:room.hostId, started:room.started,
@@ -56,60 +51,40 @@ function lobbyPayload(room){
 }
 function emitLobby(room){ io.to(room.id).emit('lobbyUpdate', lobbyPayload(room)); }
 function spawnPlayer(member){
-  const lane = member.slot % 3;
-  const spawn = TEAM_SPAWNS[member.team][lane];
+  const base = BASES[member.team];
+  const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % 3)-1)*0.35;
+  const spawn = {x:base.x+Math.cos(angle)*SPAWN_RADIUS,y:base.y+Math.sin(angle)*SPAWN_RADIUS};
   return {id:member.id, slot:member.slot, team:member.team, bot:member.bot, heroId:member.hero || 'shadow',
     x:spawn.x, y:spawn.y,
     angle:member.team === 0 ? 0 : Math.PI, hp:900, maxHp:900, gold:600, alive:true,
     moveTarget:null, keys:Object.create(null), speed:210, cooldown:0,
-    lane, waypointIndex:1, respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0};
-}
-function chooseBots(room){
-  const used = new Set(heroNames(room));
-  const freeHeroes = HERO_IDS.filter(hero => !used.has(hero));
-  for(let slot=0; slot<MAX_SLOTS; slot++){
-    const occupied = Object.values(room.players).some(player => player.slot === slot);
-    if(occupied) continue;
-    const id = `bot-${room.id}-${slot}`;
-    room.players[id] = createLobbyPlayer(id, slot, true);
-    room.players[id].hero = freeHeroes.shift() || HERO_IDS[slot];
-  }
-  for(const player of Object.values(room.players)) if(!player.hero) player.hero = freeHeroes.shift() || HERO_IDS[0];
+    respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0};
 }
 function startRoom(room){
-  if(!room || room.started) return;
-  chooseBots(room);
+  if(!room || room.started) return false;
+  const players = Object.values(room.players);
+  const teamCounts = [players.filter(player => player.team === 0).length, players.filter(player => player.team === 1).length];
+  if(players.length < 2 || players.length > MAX_SLOTS || Math.abs(teamCounts[0]-teamCounts[1]) > 1) return false;
   room.started = true;
   room.state = Object.create(null);
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
   const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
-  for(const member of Object.values(room.players)) if(!member.bot)
+  for(const member of Object.values(room.players))
     io.to(member.id).emit('match:begin', {id:member.id, roomId:room.id, roster, state:gameState(room)});
+  return true;
 }
 function gameState(room){
   return {tick:room.tick || 0, players:Object.values(room.state || {}).map(player => ({
     id:player.id, slot:player.slot, team:player.team, bot:player.bot, heroId:player.heroId,
     x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
     gold:player.gold, alive:player.alive
-  })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle,owner:bullet.owner}))};
-}
-function nearestEnemy(room, player){
-  return Object.values(room.state).filter(other => other.alive && other.team !== player.team)
-    .sort((a,b) => Math.hypot(a.x-player.x,a.y-player.y) - Math.hypot(b.x-player.x,b.y-player.y))[0];
-}
-function nearestLaneEnemy(room, player){
-  const enemies = Object.values(room.state).filter(other => other.alive && other.team !== player.team);
-  const human = enemies.filter(other => !other.bot)
-    .sort((a,b) => Math.hypot(a.x-player.x,a.y-player.y) - Math.hypot(b.x-player.x,b.y-player.y))[0];
-  if(human && Math.hypot(human.x-player.x,human.y-player.y) < 900) return human;
-  return enemies.filter(other => other.slot % 3 === player.lane)
-    .sort((a,b) => Math.hypot(a.x-player.x,a.y-player.y) - Math.hypot(b.x-player.x,b.y-player.y))[0] || null;
+  })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle}))};
 }
 function handleInput(socket, input){
   const room = roomOf(socket); const player = room?.state?.[socket.id];
-  if(!room || !player || player.bot || !input) return;
+  if(!room || !player || !input) return;
   if(Number.isFinite(input.angle)) player.angle = input.angle;
-  if(input.type === 'key') player.keys[input.key] = !!input.down;
+  if(input.type === 'key' && typeof input.key === 'string' && /^(?:[wasd]|arrow(?:up|down|left|right))$/.test(input.key)) player.keys[input.key] = !!input.down;
   if(input.type === 'move' && input.moveTarget) player.moveTarget = {
     x:clamp(Number(input.moveTarget.x) || player.x, 40, WORLD_SIZE-40),
     y:clamp(Number(input.moveTarget.y) || player.y, 40, WORLD_SIZE-40)
@@ -119,6 +94,28 @@ function handleInput(socket, input){
     player.cooldown = 0.28;
     room.bullets.push({id:nextBulletId++,x:player.x,y:player.y,team:player.team,angle:player.angle,life:1.4,owner:player.id});
   }
+}
+function handlePlayerStats(socket, stats){
+  const room = roomOf(socket); const player = room?.state?.[socket.id];
+  if(!room || !player || !stats) return;
+  if(Number.isFinite(stats.maxHp)) player.maxHp = clamp(stats.maxHp,1,1000000);
+  if(player.alive && Number.isFinite(stats.hp)){
+    const reportedHp = clamp(stats.hp,0,player.maxHp);
+    if(!Number.isFinite(player.lastReportedHp)) player.hp = reportedHp;
+    else if(reportedHp <= player.lastReportedHp) player.hp = Math.min(player.hp,reportedHp);
+    else player.hp = Math.max(player.hp,reportedHp);
+    player.lastReportedHp = reportedHp;
+  }
+  if(Number.isFinite(stats.gold)) player.gold = clamp(stats.gold,0,100000000);
+  if(player.hp <= 0 && player.alive){ player.alive = false; player.respawnTimer = 5; }
+}
+function handlePlayerDamage(socket, data){
+  const room = roomOf(socket);
+  const attacker = room?.state?.[socket.id];
+  const target = room?.state?.[data?.targetId];
+  if(!attacker || !target || !attacker.alive || !target.alive || attacker.team === target.team || !Number.isFinite(data.amount)) return;
+  target.hp = Math.max(0,target.hp-clamp(data.amount,0,5000));
+  if(target.hp === 0){ target.alive = false; target.respawnTimer = 5; }
 }
 function tickRoom(room, dt){
   if(!room.started || !room.state) return;
@@ -136,30 +133,6 @@ function tickRoom(room, dt){
       player.keys = Object.create(null);
       player.cooldown = 0;
       continue;
-    }
-    if(player.bot){
-      const target = nearestLaneEnemy(room, player);
-      if(target){
-        const dx = target.x-player.x, dy = target.y-player.y;
-        const distance = Math.hypot(dx,dy);
-        player.angle = Math.atan2(dy,dx);
-        if(distance > 440){
-          player.moveTarget = {x:target.x-Math.cos(player.angle)*300, y:target.y-Math.sin(player.angle)*300};
-        } else player.moveTarget = null;
-        if(distance <= 950 && player.cooldown <= 0){
-          player.cooldown = 0.85;
-          room.bullets.push({id:nextBulletId++,x:player.x,y:player.y,team:player.team,angle:player.angle,life:1.4,owner:player.id});
-        }
-      } else {
-        const lane = TEAM_LANES[player.team][player.lane];
-        let waypoint = lane[Math.min(player.waypointIndex, lane.length-1)];
-        if(Math.hypot(waypoint.x-player.x,waypoint.y-player.y) < 140 && player.waypointIndex < lane.length-1){
-          player.waypointIndex++;
-          waypoint = lane[player.waypointIndex];
-        }
-        player.moveTarget = {x:waypoint.x,y:waypoint.y};
-        player.angle = Math.atan2(waypoint.y-player.y,waypoint.x-player.x);
-      }
     }
     const keys = player.keys || {};
     const keyX = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
@@ -187,9 +160,9 @@ io.on('connection', socket => {
   socket.on('match:join', () => {
     if(roomOf(socket)) return emitLobby(roomOf(socket));
     const room = findOpenRoom() || createRoom(socket.id);
-    const used = new Set(Object.values(room.players).map(player => player.slot));
-    let slot = 0; while(used.has(slot)) slot++;
-    room.players[socket.id] = createLobbyPlayer(socket.id, slot, false);
+    const slot = nextOpenSlot(room);
+    if(!Number.isInteger(slot)) return socket.emit('room:error',{message:'Комната заполнена.'});
+    room.players[socket.id] = createLobbyPlayer(socket.id, slot);
     socketRooms.set(socket.id, room.id); socket.join(room.id); emitLobby(room);
   });
   socket.on('room:select', data => {
@@ -197,7 +170,12 @@ io.on('connection', socket => {
     if(!room || room.started || !player) return;
     if(Number.isInteger(data.slot) && data.slot >= 0 && data.slot < MAX_SLOTS &&
        !Object.values(room.players).some(other => other.id !== socket.id && other.slot === data.slot)){
-      player.slot = data.slot; player.team = data.slot < 3 ? 0 : 1;
+      const nextTeam = data.slot < 3 ? 0 : 1;
+      const players = Object.values(room.players);
+      const counts = [players.filter(other => other.team === 0 && other.id !== socket.id).length,
+        players.filter(other => other.team === 1 && other.id !== socket.id).length];
+      counts[nextTeam]++;
+      if(Math.abs(counts[0]-counts[1]) <= 1){ player.slot = data.slot; player.team = nextTeam; }
     }
     if(typeof data.heroId === 'string' && HERO_IDS.includes(data.heroId) &&
        !Object.values(room.players).some(other => other.id !== socket.id && other.hero === data.heroId)) player.hero = data.heroId;
@@ -207,20 +185,24 @@ io.on('connection', socket => {
     const room = roomOf(socket);
     if(!room || room.started) return socket.emit('room:error',{message:'Комната уже запущена.'});
     if(room.hostId !== socket.id) return socket.emit('room:error',{message:'Стартовать может только хост.'});
-    startRoom(room); io.to(room.id).emit('room:started');
+    if(Object.keys(room.players).length < 2) return socket.emit('room:error',{message:'Нужен хотя бы ещё один игрок.'});
+    if(!startRoom(room)) return socket.emit('room:error',{message:'Распределите игроков по командам поровну.'});
+    socket.emit('room:started');
   });
   socket.on('playerInput', input => handleInput(socket, input));
+  socket.on('playerStats', stats => handlePlayerStats(socket, stats));
+  socket.on('playerDamage', data => handlePlayerDamage(socket, data));
   socket.on('disconnect', () => {
     const room = roomOf(socket); socketRooms.delete(socket.id); if(!room) return;
-    const leaving = room.players[socket.id]; delete room.players[socket.id];
+    delete room.players[socket.id];
     if(!room.started){
       if(room.hostId === socket.id) room.hostId = Object.keys(room.players)[0] || null;
       if(Object.keys(room.players).length) emitLobby(room); else delete rooms[room.id];
     } else if(room.state){
-      const botId = `bot-${room.id}-replacement-${Date.now()}`;
-      const bot = createLobbyPlayer(botId, leaving?.slot ?? 0, true); bot.hero = leaving?.hero || 'shadow';
-      room.players[botId] = bot; room.state[botId] = spawnPlayer(bot);
-      io.to(room.id).emit('match:player-left',{message:'Игрок отключился. Его слот перешёл боту.'});
+      delete room.state[socket.id];
+      io.to(room.id).emit('match:player-left',{message:'Игрок отключился.'});
+      if(Object.keys(room.players).length) io.to(room.id).emit('gameState',gameState(room));
+      else delete rooms[room.id];
     }
   });
 });

@@ -1366,6 +1366,11 @@ function applyDamage(target, amount, source){
   const dmg = source && source.trueDamage
     ? Math.max(1, amount)
     : Math.max(1, amount * armorMult(armor) * structureBonus);
+  const onlineSocket = window.__shadowOnlineSocket;
+  if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && sourceHero &&
+     sourceHero.isPlayer && sourceHero.onlinePlayerId && sourceHero.onlinePlayerId !== target.onlinePlayerId){
+    onlineSocket.emit('playerDamage',{targetId:target.onlinePlayerId,amount:dmg});
+  }
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
     target.damageContributors.set(sourceHero, (target.damageContributors.get(sourceHero) || 0) + dmg);
   }
@@ -11119,6 +11124,7 @@ requestAnimationFrame(loop);
   let socket = null;
   let onlineId = null;
   let onlineRoster = null;
+  let rosterSignature = '';
   let serverGameState = null;
   let authoritativeMode = false;
   const remoteHeroes = new Map();
@@ -11129,14 +11135,20 @@ requestAnimationFrame(loop);
     if(!candidate || candidate === socket) return;
     socket = candidate;
     socket.on('match:begin', beginAuthoritativeMatch);
-    socket.on('gameState', state => { serverGameState = state; });
+    socket.on('gameState', state => {
+      serverGameState = state;
+      syncRosterFromState(state);
+    });
+    socket.on('match:player-left', data => {
+      addText(playerHero ? playerHero.x : WORLD/2, playerHero ? playerHero.y : WORLD/2, data.message, '#ffd568', 2, 16);
+    });
     if(window.__shadowOnlineMatch) beginAuthoritativeMatch(window.__shadowOnlineMatch);
   }
 
   function beginAuthoritativeMatch(payload){
     if(onlineId) return;
-    if(!payload || !Array.isArray(payload.roster) || payload.roster.length !== 6){
-      showMatchStartError('Сервер прислал неполный состав команды.');
+    if(!payload || !Array.isArray(payload.roster) || payload.roster.length < 2 || payload.roster.length > 6){
+      showMatchStartError('Для матча нужны от 2 до 6 игроков.');
       return;
     }
     const local = payload.roster.find(member => member.id === payload.id);
@@ -11144,16 +11156,23 @@ requestAnimationFrame(loop);
       showMatchStartError('Ваш герой не найден в составе матча.');
       return;
     }
-    const own = payload.roster.filter(member => member.team === local.team);
-    const enemy = payload.roster.filter(member => member.team !== local.team);
-    if(own.length !== 3 || enemy.length !== 3){
-      showMatchStartError('Состав команд некорректен: нужно 3 на 3.');
+    const bySlot = (left,right) => left.slot-right.slot;
+    const own = payload.roster.filter(member => member.team === local.team).sort(bySlot);
+    const enemy = payload.roster.filter(member => member.team !== local.team).sort(bySlot);
+    if(!own.length || !enemy.length || own.length > 3 || enemy.length > 3 || Math.abs(own.length-enemy.length)>1){
+      showMatchStartError('Нужно от 1 до 3 игроков в каждой команде.');
       return;
     }
     const heroIdOf = member => member.hero || member.heroId;
     const heroIndex = HERO_DEFS.findIndex(hero => hero.id === heroIdOf(local));
     const heroIndexOf = member => HERO_DEFS.findIndex(hero => hero.id === heroIdOf(member));
-    const picks = [heroIndexOf(enemy[0]), heroIndexOf(own[1]), heroIndexOf(own[2]), heroIndexOf(enemy[1]), heroIndexOf(enemy[2])];
+    const ownOthers = own.filter(member => member.id !== local.id);
+    const fallback = heroIndex;
+    const picks = [enemy[0] ? heroIndexOf(enemy[0]) : fallback,
+      ownOthers[0] ? heroIndexOf(ownOthers[0]) : fallback,
+      ownOthers[1] ? heroIndexOf(ownOthers[1]) : fallback,
+      enemy[1] ? heroIndexOf(enemy[1]) : fallback,
+      enemy[2] ? heroIndexOf(enemy[2]) : fallback];
     if(heroIndex < 0 || picks.some(index => index < 0)){
       showMatchStartError('Сервер прислал неизвестного героя.');
       return;
@@ -11161,11 +11180,19 @@ requestAnimationFrame(loop);
     try {
       onlineId = payload.id;
       onlineRoster = payload.roster;
+      rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
       authoritativeMode = true;
       bindRosterHeroes();
       serverGameState = payload.state || null;
+      const localState = serverGameState && serverGameState.players.find(player => player.id === onlineId);
+      if(localState && playerHero){
+        localState.hp = playerHero.hp;
+        localState.maxHp = playerHero.maxHp;
+        localState.gold = playerHero.coins;
+      }
       applyAuthoritativeState();
+      sendPlayerStats();
       document.getElementById('mode-picker')?.setAttribute('hidden','');
     } catch(error) {
       onlineId = null;
@@ -11186,34 +11213,76 @@ requestAnimationFrame(loop);
   }
 
   function bindRosterHeroes(){
-    if(!onlineRoster || heroes.length < 6) return;
+    if(!onlineRoster || !heroes.length) return;
     const local = onlineRoster.find(member => member.id === onlineId);
-    const own = onlineRoster.filter(member => member.team === (local ? local.team : 0));
-    const enemy = onlineRoster.filter(member => member.team !== (local ? local.team : 0));
-    const slots = [local, own[1], own[2], enemy[0], enemy[1], enemy[2]];
+    if(!local) return;
+    const bySlot = (left,right) => left.slot-right.slot;
+    const own = onlineRoster.filter(member => member.team === local.team).sort(bySlot);
+    const enemy = onlineRoster.filter(member => member.team !== local.team).sort(bySlot);
+    const ownOthers = own.filter(member => member.id !== local.id);
+    const slots = [
+      {member:local,hero:playerHero},
+      {member:ownOthers[0],hero:heroes[1]},
+      {member:ownOthers[1],hero:heroes[2]},
+      {member:enemy[0],hero:heroes[3]},
+      {member:enemy[1],hero:heroes[4]},
+      {member:enemy[2],hero:heroes[5]}
+    ].filter(slot => slot.member && slot.hero);
+    const currentIds = new Set(slots.map(slot => slot.member.id));
+    for(const [id,hero] of remoteHeroes){
+      if(currentIds.has(id)) continue;
+      remoteHeroes.delete(id);
+      units = units.filter(unit => unit !== hero);
+      heroes = heroes.filter(unit => unit !== hero);
+    }
+    for(const {member,hero} of slots){
+      if(remoteHeroes.has(member.id)) continue;
+      remoteHeroes.set(member.id,hero);
+    }
     const localTeam = local ? local.team : 0;
-    slots.forEach((member, index) => {
-      if(!member || !heroes[index]) return;
-      const hero = heroes[index];
+    for(const {member} of slots){
+      const hero = remoteHeroes.get(member.id);
+      if(!hero) continue;
       hero.team = member.team === localTeam ? 0 : 1;
       hero.isOnlineRemote = member.id !== onlineId;
-      hero.isOnlineBot = !!member.bot;
-      hero.updateAI = function(){};
-      hero.updateCombat = function(){};
-      remoteHeroes.set(member.id, hero);
-    });
+      hero.isPlayer = member.id === onlineId;
+      hero.onlinePlayerId = member.id;
+      if(hero.isOnlineRemote){
+        hero.updateAI = function(){};
+        hero.updateCombat = function(){};
+      } else {
+        delete hero.updateAI;
+        delete hero.updateCombat;
+      }
+    }
+    const activeHeroes = new Set(remoteHeroes.values());
+    units = units.filter(unit => unit.type !== 'hero' || activeHeroes.has(unit));
+    heroes = heroes.filter(hero => activeHeroes.has(hero));
     playerHero = remoteHeroes.get(onlineId) || playerHero;
+  }
+
+  function syncRosterFromState(state){
+    if(!authoritativeMode || !state || !Array.isArray(state.players)) return;
+    const nextRoster = state.players.map(player => ({
+      id:player.id, slot:player.slot, team:player.team, bot:false,
+      hero:player.heroId, heroId:player.heroId
+    }));
+    if(!nextRoster.some(member => member.id === onlineId)) return;
+    const signature = nextRoster.map(member => `${member.id}:${member.slot}:${member.team}:${member.heroId}`).join('|');
+    if(signature === rosterSignature) return;
+    rosterSignature = signature;
+    onlineRoster = nextRoster;
+    bindRosterHeroes();
   }
 
   function applyAuthoritativeState(){
     if(!authoritativeMode || !serverGameState || !Array.isArray(serverGameState.players)) return;
-    bindRosterHeroes();
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
       hero.x = remote.x; hero.y = remote.y; hero.facing = remote.angle;
       hero.hp = remote.hp; hero.maxHp = remote.maxHp; hero.dead = !remote.alive;
-      hero.coins = remote.gold || hero.coins;
+      if(Number.isFinite(remote.gold)) hero.coins = remote.gold;
     }
     for(const bullet of serverGameState.bullets || []){
       if(remoteBulletIds.has(bullet.id)) continue;
@@ -11233,6 +11302,10 @@ requestAnimationFrame(loop);
   function sendInput(action){
     if(!socket || !socket.connected) return;
     socket.emit('playerInput', action);
+  }
+  function sendPlayerStats(){
+    if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
+    socket.emit('playerStats',{hp:playerHero.hp,maxHp:playerHero.maxHp,gold:playerHero.coins});
   }
   function onlineKeyFromEvent(event){
     return PHYSICAL_KEY_LETTER[event.code] || (event.key || '').toLowerCase();
@@ -11256,6 +11329,7 @@ requestAnimationFrame(loop);
   setInterval(() => {
     attachAuthoritativeSocket();
     if(authoritativeMode && playerHero) sendInput({type:'aim', angle:playerHero.facing});
+    if(authoritativeMode) sendPlayerStats();
     const entry = document.getElementById('online-entry');
     if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
   }, 50);
