@@ -11191,6 +11191,18 @@ requestAnimationFrame(loop);
       onlineStarted = true;
       menuStage = 'home';
       startGame(heroIndex >= 0 ? heroIndex : 0, picks);
+      const originalSlots = [playerHero, heroes[1], heroes[2], heroes[3], heroes[4], heroes[5]];
+      const rosterOrder = [local, ownTeam[1], ownTeam[2], enemyTeam[0], enemyTeam[1], enemyTeam[2]];
+      for(let index=1; index<rosterOrder.length; index++){
+        const member = rosterOrder[index];
+        const hero = originalSlots[index];
+        if(!member || !hero || member.bot) continue;
+        hero.isOnlineRemote = true;
+        hero.updateAI = function(){};
+        hero.updateCombat = function(){};
+        hero.team = member.team === onlineTeam ? 0 : 1;
+        remoteHeroes.set(member.id, hero);
+      }
       sendOnlineState();
     } catch(error) {
       onlineStarted = false;
@@ -11223,11 +11235,10 @@ requestAnimationFrame(loop);
     if(remoteBulletIds.size > 300) remoteBulletIds.clear();
     for(const remote of state.players){
       if(remote.id === onlineId) continue;
-        if(remote.bot) continue;
       let hero = remoteHeroes.get(remote.id);
       if(!hero){
-        hero = heroes.find(item => item !== playerHero && !item.isOnlineRemote && item.team === remote.team)
-          || heroes.find(item => item !== playerHero && !item.isOnlineRemote);
+        if(remote.bot) continue;
+        hero = heroes.find(item => item !== playerHero && !item.isOnlineRemote && item.def && item.def.id === remote.heroId);
         if(!hero) continue;
         hero.isOnlineRemote = true;
         hero.updateAI = function(){};
