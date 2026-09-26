@@ -1278,6 +1278,10 @@ const SCEPTER_UPGRADES = {
 
 function applyDamage(target, amount, source){
   if(!target || target.dead) return;
+  const sourceHero = source && source.coins !== undefined
+    ? source
+    : (source && source.source && source.source.coins !== undefined ? source.source : null);
+  if(target.onlinePlayerId && sourceHero && sourceHero.isPlayer && sourceHero.team === target.team) return;
   if(target.invulnerable) return;
   /* Blade Fury блокирует заклинания, но не обычные физические атаки. */
   if(target.buffs && target.buffs.some(buff => buff.type === 'bladeFury') &&
@@ -1315,9 +1319,6 @@ function applyDamage(target, amount, source){
   }
   const dawnShardShield = target.buffs && target.buffs.find(buff => buff.type === 'dawnShardShield');
   if(dawnShardShield && source && source.team !== target.team) amount *= 1 - dawnShardShield.val;
-  const sourceHero = source && source.coins !== undefined
-    ? source
-    : (source && source.source && source.source.coins !== undefined ? source.source : null);
   if(sourceHero && hasScepterSkillBoost(sourceHero) && !(source && source.attack)) amount *= 1.2;
   if(sourceHero && source && source.attack && sourceHero.def){
     if(sourceHero.def.id === 'mageHunter' && sourceHero.skills && sourceHero.skills[0] && sourceHero.skills[0].level > 0 && target.type === 'hero'){
@@ -1367,8 +1368,9 @@ function applyDamage(target, amount, source){
     ? Math.max(1, amount)
     : Math.max(1, amount * armorMult(armor) * structureBonus);
   const onlineSocket = window.__shadowOnlineSocket;
-  if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && sourceHero &&
-     sourceHero.isPlayer && sourceHero.onlinePlayerId && sourceHero.onlinePlayerId !== target.onlinePlayerId){
+    if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && sourceHero &&
+      sourceHero.isPlayer && sourceHero.onlinePlayerId && sourceHero.onlinePlayerId !== target.onlinePlayerId &&
+      sourceHero.team !== target.team){
     onlineSocket.emit('playerDamage',{targetId:target.onlinePlayerId,amount:dmg});
   }
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
@@ -4961,7 +4963,7 @@ class Hero extends Unit {
     if(this.dead){
       for(const s of this.skills) if(s.cd > 0) s.cd = Math.max(0, s.cd - dt);
       for(const key of Object.keys(this.spellCooldowns)) this.spellCooldowns[key] = Math.max(0, this.spellCooldowns[key] - dt);
-      this.respawnTimer -= dt;
+      this.respawnTimer = Math.max(0,this.respawnTimer-dt);
       if(this.respawnTimer <= 0){
         this.dead = false;
         this.hp = this.maxHp; this.mp = this.maxMp;
@@ -11126,6 +11128,8 @@ requestAnimationFrame(loop);
   let onlineRoster = null;
   let rosterSignature = '';
   let serverGameState = null;
+  let serverDamageVersion = -1;
+  let statsSequence = 0;
   let authoritativeMode = false;
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
@@ -11139,6 +11143,7 @@ requestAnimationFrame(loop);
       serverGameState = state;
       syncRosterFromState(state);
     });
+    socket.on('playerVitals', applyLocalVitals);
     socket.on('match:player-left', data => {
       addText(playerHero ? playerHero.x : WORLD/2, playerHero ? playerHero.y : WORLD/2, data.message, '#ffd568', 2, 16);
     });
@@ -11190,6 +11195,7 @@ requestAnimationFrame(loop);
         localState.hp = playerHero.hp;
         localState.maxHp = playerHero.maxHp;
         localState.gold = playerHero.coins;
+        serverDamageVersion = Number.isInteger(localState.damageVersion) ? localState.damageVersion : 0;
       }
       applyAuthoritativeState();
       sendPlayerStats();
@@ -11281,8 +11287,16 @@ requestAnimationFrame(loop);
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
       hero.x = remote.x; hero.y = remote.y; hero.facing = remote.angle;
-      hero.hp = remote.hp; hero.maxHp = remote.maxHp; hero.dead = !remote.alive;
-      if(Number.isFinite(remote.gold)) hero.coins = remote.gold;
+      if(remote.id === onlineId){
+        if(Number.isInteger(remote.damageVersion) && remote.damageVersion >= serverDamageVersion &&
+           (!remote.alive || hero.dead || remote.damageVersion > serverDamageVersion)) applyLocalVitals(remote);
+      } else {
+        hero.hp = remote.hp;
+        hero.maxHp = remote.maxHp;
+        hero.dead = !remote.alive;
+        hero.respawnTimer = Math.max(0,Number(remote.respawnTimer)||0);
+        if(Number.isFinite(remote.gold)) hero.coins = remote.gold;
+      }
     }
     for(const bullet of serverGameState.bullets || []){
       if(remoteBulletIds.has(bullet.id)) continue;
@@ -11305,7 +11319,34 @@ requestAnimationFrame(loop);
   }
   function sendPlayerStats(){
     if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
-    socket.emit('playerStats',{hp:playerHero.hp,maxHp:playerHero.maxHp,gold:playerHero.coins});
+    socket.emit('playerStats',{
+      hp:playerHero.hp,maxHp:playerHero.maxHp,gold:playerHero.coins,
+      alive:!playerHero.dead,respawnTimer:Math.max(0,playerHero.respawnTimer||0),
+      damageVersion:serverDamageVersion,sequence:++statsSequence
+    });
+  }
+  function applyLocalVitals(vitals){
+    if(!vitals || vitals.id !== onlineId || !playerHero) return;
+    if(Number.isInteger(vitals.damageVersion) && vitals.damageVersion < serverDamageVersion) return;
+    if(Number.isInteger(vitals.damageVersion)) serverDamageVersion = vitals.damageVersion;
+    if(Number.isFinite(vitals.maxHp)) playerHero.maxHp = vitals.maxHp;
+    if(vitals.alive === false){
+      if(!playerHero.dead){
+        playerHero.dead = true;
+        playerHero.deaths++;
+        playerHero.killStreak = 0;
+        playerHero.lastHeroKillTime = -Infinity;
+      }
+      playerHero.hp = 0;
+      playerHero.respawnTimer = Math.max(0,Number(vitals.respawnTimer)||0);
+      return;
+    }
+    if(vitals.alive === true && playerHero.dead){
+      playerHero.respawnTimer = 0;
+      playerHero.update(0);
+    }
+    if(Number.isFinite(vitals.hp)) playerHero.hp = vitals.hp;
+    if(Number.isFinite(vitals.respawnTimer)) playerHero.respawnTimer = Math.max(0,vitals.respawnTimer);
   }
   function onlineKeyFromEvent(event){
     return PHYSICAL_KEY_LETTER[event.code] || (event.key || '').toLowerCase();

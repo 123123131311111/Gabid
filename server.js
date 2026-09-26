@@ -58,7 +58,7 @@ function spawnPlayer(member){
     x:spawn.x, y:spawn.y,
     angle:member.team === 0 ? 0 : Math.PI, hp:900, maxHp:900, gold:600, alive:true,
     moveTarget:null, keys:Object.create(null), speed:210, cooldown:0,
-    respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0};
+    respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0, damageVersion:0, lastStatsSequence:0};
 }
 function startRoom(room){
   if(!room || room.started) return false;
@@ -77,7 +77,8 @@ function gameState(room){
   return {tick:room.tick || 0, players:Object.values(room.state || {}).map(player => ({
     id:player.id, slot:player.slot, team:player.team, bot:player.bot, heroId:player.heroId,
     x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
-    gold:player.gold, alive:player.alive
+    gold:player.gold, alive:player.alive, respawnTimer:player.respawnTimer,
+    damageVersion:player.damageVersion
   })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle}))};
 }
 function handleInput(socket, input){
@@ -99,15 +100,25 @@ function handlePlayerStats(socket, stats){
   const room = roomOf(socket); const player = room?.state?.[socket.id];
   if(!room || !player || !stats) return;
   if(Number.isFinite(stats.maxHp)) player.maxHp = clamp(stats.maxHp,1,1000000);
-  if(player.alive && Number.isFinite(stats.hp)){
-    const reportedHp = clamp(stats.hp,0,player.maxHp);
-    if(!Number.isFinite(player.lastReportedHp)) player.hp = reportedHp;
-    else if(reportedHp <= player.lastReportedHp) player.hp = Math.min(player.hp,reportedHp);
-    else player.hp = Math.max(player.hp,reportedHp);
-    player.lastReportedHp = reportedHp;
-  }
   if(Number.isFinite(stats.gold)) player.gold = clamp(stats.gold,0,100000000);
-  if(player.hp <= 0 && player.alive){ player.alive = false; player.respawnTimer = 5; }
+  if(!Number.isInteger(stats.sequence) || stats.sequence <= player.lastStatsSequence ||
+     stats.damageVersion !== player.damageVersion) return;
+  player.lastStatsSequence = stats.sequence;
+  if(Number.isFinite(stats.hp)) player.hp = clamp(stats.hp,0,player.maxHp);
+  if(stats.alive === false || player.hp <= 0){
+    if(player.alive){
+      player.alive = false;
+      player.respawnTimer = clamp(Number(stats.respawnTimer) || 8,0,60);
+      player.damageVersion++;
+      emitPlayerVitals(room,player);
+    }
+  }
+}
+function emitPlayerVitals(room,player){
+  io.to(player.id).emit('playerVitals',{
+    id:player.id,hp:player.hp,maxHp:player.maxHp,alive:player.alive,
+    respawnTimer:player.respawnTimer,damageVersion:player.damageVersion
+  });
 }
 function handlePlayerDamage(socket, data){
   const room = roomOf(socket);
@@ -115,7 +126,9 @@ function handlePlayerDamage(socket, data){
   const target = room?.state?.[data?.targetId];
   if(!attacker || !target || !attacker.alive || !target.alive || attacker.team === target.team || !Number.isFinite(data.amount)) return;
   target.hp = Math.max(0,target.hp-clamp(data.amount,0,5000));
-  if(target.hp === 0){ target.alive = false; target.respawnTimer = 5; }
+  target.damageVersion++;
+  if(target.hp === 0){ target.alive = false; target.respawnTimer = 8; }
+  emitPlayerVitals(room,target);
 }
 function tickRoom(room, dt){
   if(!room.started || !room.state) return;
@@ -129,6 +142,7 @@ function tickRoom(room, dt){
       player.hp = player.maxHp;
       player.x = player.respawnX;
       player.y = player.respawnY;
+      player.damageVersion++;
       player.moveTarget = null;
       player.keys = Object.create(null);
       player.cooldown = 0;
@@ -149,6 +163,8 @@ function tickRoom(room, dt){
     if(hit){
       hit.hp = Math.max(0, hit.hp-80);
       if(hit.hp === 0){ hit.alive = false; hit.respawnTimer = 5; }
+      hit.damageVersion++;
+      emitPlayerVitals(room,hit);
       room.bullets.splice(i,1);
       continue;
     }
