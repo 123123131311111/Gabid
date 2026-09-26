@@ -5877,7 +5877,7 @@ function update(dt){
 
   for(const h of heroes){
     if(h.dead){ h.update(dt); continue; }
-    if(h !== playerHero && !h.isDummy && !h.isOnlineRemote) updateEnemyAI(h, dt);
+    if(h !== playerHero && !h.isDummy && (!h.isOnlineRemote || h.isOnlineBot)) updateEnemyAI(h, dt);
     h.update(dt);
   }
   updateMo3giMines(dt);
@@ -11197,6 +11197,7 @@ requestAnimationFrame(loop);
       const hero = heroes[index];
       hero.team = member.team === localTeam ? 0 : 1;
       hero.isOnlineRemote = member.id !== onlineId;
+      hero.isOnlineBot = !!member.bot;
       hero.updateAI = function(){};
       hero.updateCombat = function(){};
       remoteHeroes.set(member.id, hero);

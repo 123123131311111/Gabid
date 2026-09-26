@@ -11,8 +11,8 @@ const MAX_SLOTS = 6;
 const WORLD_SIZE = 5000;
 const TICK_RATE = 60;
 const TEAM_SPAWNS = [
-  [{x:700,y:2900},{x:520,y:2880},{x:720,y:3120}],
-  [{x:2900,y:700},{x:2900,y:500},{x:2960,y:600}]
+  [{x:590,y:3010},{x:500,y:3000},{x:600,y:3120}],
+  [{x:3010,y:590},{x:3010,y:490},{x:3040,y:540}]
 ];
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const rooms = Object.create(null);
@@ -107,10 +107,17 @@ function tickRoom(room, dt){
     if(player.bot){
       const target = nearestEnemy(room, player);
       if(target){
-        player.angle = Math.atan2(target.y-player.y, target.x-player.x);
-        if(Math.hypot(target.x-player.x,target.y-player.y) > 700)
-          player.moveTarget = {x:target.x, y:target.y};
-      }
+        const dx = target.x-player.x, dy = target.y-player.y;
+        const distance = Math.hypot(dx,dy);
+        player.angle = Math.atan2(dy,dx);
+        if(distance > 340){
+          player.moveTarget = {x:target.x-Math.cos(player.angle)*300, y:target.y-Math.sin(player.angle)*300};
+        } else player.moveTarget = null;
+        if(distance <= 950 && player.cooldown <= 0){
+          player.cooldown = 0.85;
+          room.bullets.push({id:nextBulletId++,x:player.x,y:player.y,team:player.team,angle:player.angle,life:1.4,owner:player.id});
+        }
+      } else player.moveTarget = null;
     }
     const keys = player.keys || {};
     const keyX = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
