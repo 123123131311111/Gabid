@@ -58,6 +58,8 @@ function spawnPlayer(member){
     x:spawn.x, y:spawn.y,
     angle:member.team === 0 ? 0 : Math.PI, hp:900, maxHp:900, gold:600, alive:true,
     moveTarget:null, keys:Object.create(null), speed:210, cooldown:0,
+    attackTargetId:null, attackRange:210,
+    clientDriven:false,lastClientPositionAt:0,
     respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0, damageVersion:0, lastStatsSequence:0};
 }
 function startRoom(room){
@@ -85,11 +87,44 @@ function handleInput(socket, input){
   const room = roomOf(socket); const player = room?.state?.[socket.id];
   if(!room || !player || !input) return;
   if(Number.isFinite(input.angle)) player.angle = input.angle;
-  if(input.type === 'key' && typeof input.key === 'string' && /^(?:[wasd]|arrow(?:up|down|left|right))$/.test(input.key)) player.keys[input.key] = !!input.down;
-  if(input.type === 'move' && input.moveTarget) player.moveTarget = {
-    x:clamp(Number(input.moveTarget.x) || player.x, 40, WORLD_SIZE-40),
-    y:clamp(Number(input.moveTarget.y) || player.y, 40, WORLD_SIZE-40)
-  };
+  if(Number.isFinite(input.speed)) player.speed = clamp(input.speed,80,900);
+  if(Number.isFinite(input.attackRange)) player.attackRange = clamp(input.attackRange,40,1400);
+  if(input.type === 'position' && Number.isFinite(input.x) && Number.isFinite(input.y) && player.alive){
+    const now=Date.now();
+    const elapsed=player.lastClientPositionAt ? Math.min(0.5,(now-player.lastClientPositionAt)/1000) : 0.5;
+    const maxStep=player.speed*elapsed*2.2+36;
+    if(!player.clientDriven || Math.hypot(input.x-player.x,input.y-player.y)<=maxStep){
+      player.x=clamp(input.x,40,WORLD_SIZE-40);
+      player.y=clamp(input.y,40,WORLD_SIZE-40);
+      player.clientDriven=true;
+      player.lastClientPositionAt=now;
+      if(Number.isFinite(input.angle)) player.angle=input.angle;
+    }
+  }
+  if(input.type === 'key' && typeof input.key === 'string' && /^(?:[wasd]|arrow(?:up|down|left|right))$/.test(input.key)){
+    player.keys[input.key] = !!input.down;
+    if(input.down){ player.attackTargetId=null; player.attackTargetPoint=null; }
+  }
+  if(input.type === 'attackTarget'){
+    const target=room.state[input.targetId];
+    player.attackTargetId=target && target.alive && target.team!==player.team ? target.id : null;
+    player.attackTargetPoint=!player.attackTargetId&&Number.isFinite(input.targetX)&&Number.isFinite(input.targetY)
+      ? {x:clamp(input.targetX,40,WORLD_SIZE-40),y:clamp(input.targetY,40,WORLD_SIZE-40)} : null;
+    player.moveTarget=null;
+  }
+  if(input.type === 'clearTarget'){
+    player.attackTargetId=null;
+    player.attackTargetPoint=null;
+    player.moveTarget=null;
+  }
+  if(input.type === 'move' && input.moveTarget){
+    player.attackTargetId=null;
+    player.attackTargetPoint=null;
+    player.moveTarget = {
+      x:clamp(Number(input.moveTarget.x) || player.x, 40, WORLD_SIZE-40),
+      y:clamp(Number(input.moveTarget.y) || player.y, 40, WORLD_SIZE-40)
+    };
+  }
   if(input.type === 'aim') player.moveTarget = player.moveTarget;
   if(input.type === 'shoot' && player.cooldown <= 0 && player.alive){
     player.cooldown = 0.28;
@@ -137,6 +172,8 @@ function handlePlayerSkill(socket,data){
   if(Number.isFinite(data.x)) caster.x=clamp(data.x,40,WORLD_SIZE-40);
   if(Number.isFinite(data.y)) caster.y=clamp(data.y,40,WORLD_SIZE-40);
   if(Number.isFinite(data.angle)) caster.angle=data.angle;
+  caster.clientDriven=true;
+  caster.lastClientPositionAt=Date.now();
   const effects=[];
   for(const effect of Array.isArray(data.effects)?data.effects:[]){
     const target=room.state[effect?.targetId];
@@ -160,6 +197,47 @@ function handlePlayerSkill(socket,data){
     ty:Number.isFinite(data.ty)?clamp(data.ty,0,WORLD_SIZE):null,effects
   });
 }
+function handlePlayerSnapshot(socket,data){
+  const room=roomOf(socket);
+  const player=room?.state?.[socket.id];
+  if(!room||!player||!data||data.heroId!==player.heroId) return;
+  if(data.teleport===true && Number.isFinite(data.x) && Number.isFinite(data.y)){
+    player.x=clamp(data.x,40,WORLD_SIZE-40);
+    player.y=clamp(data.y,40,WORLD_SIZE-40);
+    player.moveTarget=null;
+    player.clientDriven=true;
+    player.lastClientPositionAt=Date.now();
+  }
+  const effects=[];
+  for(const effect of Array.isArray(data.effects)?data.effects:[]){
+    const target=room.state[effect?.targetId];
+    if(!target||target.team===player.team||!effect.state) continue;
+    const state=effect.state;
+    for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
+    }
+    if(Array.isArray(state.buffs)) target.skillBuffs=state.buffs.slice(0,24);
+    effects.push({targetId:target.id,state});
+  }
+  const snapshot={
+    id:socket.id,heroId:player.heroId,
+    level:clamp(Number(data.level)||1,1,30),xp:clamp(Number(data.xp)||0,0,100000000),
+    mp:clamp(Number(data.mp)||0,0,1000000),maxMp:clamp(Number(data.maxMp)||0,0,1000000),
+    inventory:Array.isArray(data.inventory)?data.inventory.slice(0,6).map(item=>item&&({
+      id:String(item.id||'').slice(0,48),cooldown:clamp(Number(item.cooldown)||0,0,3600),activeTimer:clamp(Number(item.activeTimer)||0,0,3600)
+    })):[],
+    skills:Array.isArray(data.skills)?data.skills.slice(0,8).map(skill=>({
+      id:String(skill.id||'').slice(0,48),level:clamp(Number(skill.level)||0,0,10),cd:clamp(Number(skill.cd)||0,0,3600)
+    })):[],
+    buffs:Array.isArray(data.buffs)?data.buffs.slice(0,24).map(buff=>({
+      type:String(buff.type||'').slice(0,40),val:Number.isFinite(buff.val)?clamp(buff.val,-10000,10000):undefined,
+      t:Number.isFinite(buff.t)?clamp(buff.t,0,120):undefined,multiplier:Number.isFinite(buff.multiplier)?clamp(buff.multiplier,0,20):undefined,
+      damage:Number.isFinite(buff.damage)?clamp(buff.damage,0,10000):undefined
+    })):[],
+    bkbActive:clamp(Number(data.bkbActive)||0,0,120),timurPillow:clamp(Number(data.timurPillow)||0,0,120),effects
+  };
+  socket.to(room.id).emit('playerSnapshot',snapshot);
+}
 function tickRoom(room, dt){
   if(!room.started || !room.state) return;
   room.tick = (room.tick || 0) + 1;
@@ -176,7 +254,27 @@ function tickRoom(room, dt){
       player.moveTarget = null;
       player.keys = Object.create(null);
       player.cooldown = 0;
+      player.lastClientPositionAt=Date.now();
       continue;
+    }
+    if(player.clientDriven) continue;
+    const attackTarget=player.attackTargetId && room.state[player.attackTargetId];
+    if(attackTarget && attackTarget.alive && attackTarget.team!==player.team){
+      const dx=player.x-attackTarget.x,dy=player.y-attackTarget.y;
+      const distance=Math.hypot(dx,dy)||1;
+      const desired=Math.max(24,player.attackRange+24);
+      if(distance>desired){
+        player.moveTarget={x:attackTarget.x+dx/distance*desired,y:attackTarget.y+dy/distance*desired};
+      }else player.moveTarget=null;
+    }else if(player.attackTargetPoint){
+      const dx=player.x-player.attackTargetPoint.x,dy=player.y-player.attackTargetPoint.y;
+      const distance=Math.hypot(dx,dy)||1;
+      const desired=Math.max(24,player.attackRange+28);
+      if(distance>desired){
+        player.moveTarget={x:player.attackTargetPoint.x+dx/distance*desired,y:player.attackTargetPoint.y+dy/distance*desired};
+      }else player.moveTarget=null;
+    }else if(player.attackTargetId){
+      player.attackTargetId=null;
     }
     const keys = player.keys || {};
     const keyX = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
@@ -239,6 +337,7 @@ io.on('connection', socket => {
   socket.on('playerStats', stats => handlePlayerStats(socket, stats));
   socket.on('playerDamage', data => handlePlayerDamage(socket, data));
   socket.on('playerSkill', data => handlePlayerSkill(socket,data));
+  socket.on('playerSnapshot', data => handlePlayerSnapshot(socket,data));
   socket.on('disconnect', () => {
     const room = roomOf(socket); socketRooms.delete(socket.id); if(!room) return;
     delete room.players[socket.id];

@@ -6497,6 +6497,7 @@ canvas.addEventListener('mousedown', e => {
     } else {
       control.attackTarget = null;
       control.moveTarget = {x:w.x, y:w.y};
+      if(typeof window.__shadowOnlineClearTarget === 'function') window.__shadowOnlineClearTarget();
       fxRing(w.x, w.y, 26, '#7fffa0', 0.35);
     }
   }
@@ -11186,6 +11187,7 @@ requestAnimationFrame(loop);
   let serverGameState = null;
   let serverDamageVersion = -1;
   let statsSequence = 0;
+  let lastSnapshotSignature = '';
   let authoritativeMode = false;
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
@@ -11199,6 +11201,7 @@ requestAnimationFrame(loop);
       serverGameState = state;
       syncRosterFromState(state);
     });
+    socket.on('playerSnapshot', applyRemotePlayerSnapshot);
     socket.on('playerVitals', applyLocalVitals);
     socket.on('playerSkill', applyRemoteSkill);
     socket.on('match:player-left', data => {
@@ -11257,6 +11260,7 @@ requestAnimationFrame(loop);
       }
       applyAuthoritativeState();
       sendPlayerStats();
+      sendPlayerSnapshot(true);
       document.getElementById('mode-picker')?.setAttribute('hidden','');
     } catch(error) {
       onlineId = null;
@@ -11339,12 +11343,17 @@ requestAnimationFrame(loop);
     bindRosterHeroes();
   }
 
-  function applyAuthoritativeState(){
+  function applyAuthoritativeState(frameDt=1/60){
     if(!authoritativeMode || !serverGameState || !Array.isArray(serverGameState.players)) return;
+    const dt=Math.min(0.1,Math.max(0,Number(frameDt)||0));
+    const blend=1-Math.exp(-14*dt);
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
-      hero.x = remote.x; hero.y = remote.y; hero.facing = remote.angle;
+      const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
+      if(error>700){ hero.x=remote.x; hero.y=remote.y; }
+      else { hero.x+=(remote.x-hero.x)*blend; hero.y+=(remote.y-hero.y)*blend; }
+      hero.facing = remote.angle;
       if(remote.id === onlineId){
         if(Number.isInteger(remote.damageVersion) && remote.damageVersion >= serverDamageVersion &&
            (!remote.alive || hero.dead || remote.damageVersion > serverDamageVersion)) applyLocalVitals(remote);
@@ -11385,6 +11394,7 @@ requestAnimationFrame(loop);
     socket.emit('playerSkill',{
       heroId:hero.def.id,skillId,slot,x:hero.x,y:hero.y,angle:hero.facing,tx,ty,effects
     });
+    sendPlayerSnapshot(true);
   }
 
   function applyRemoteSkill(event){
@@ -11408,28 +11418,95 @@ requestAnimationFrame(loop);
 
   function moveOnlineHeroToAttackRange(target){
     if(!authoritativeMode || !playerHero || !target || target.dead) return;
-    const dx=playerHero.x-target.x,dy=playerHero.y-target.y;
-    const distance=Math.hypot(dx,dy)||1;
-    const stopDistance=Math.max(30,playerHero.getAttackRange()+target.radius*0.6-8);
-    sendInput({type:'move',moveTarget:{
-      x:clamp(target.x+dx/distance*stopDistance,40,WORLD-40),
-      y:clamp(target.y+dy/distance*stopDistance,40,WORLD-40)
-    }});
+    sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
+      speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
+  }
+  function clearOnlineAttackTarget(){
+    if(authoritativeMode) sendInput({type:'clearTarget'});
   }
   window.__shadowOnlineSkillCast=sendSkillCast;
   window.__shadowOnlineAttackTarget=moveOnlineHeroToAttackRange;
+  window.__shadowOnlineClearTarget=clearOnlineAttackTarget;
 
   const originalStartGame = startGame;
   const originalUpdate = update;
   update = function(){
     originalUpdate.apply(this, arguments);
-    if(authoritativeMode) applyAuthoritativeState();
+    if(authoritativeMode) applyAuthoritativeState(arguments[0]);
   };
 
   function sendInput(action){
     if(!socket || !socket.connected) return;
     socket.emit('playerInput', action);
   }
+  function sendPlayerSnapshot(force=false,teleport=false){
+    if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
+    const effects=[];
+    for(const [targetId,target] of remoteHeroes){
+      if(targetId===onlineId || target.team===playerHero.team) continue;
+      effects.push({targetId,state:skillEffectState(target)});
+    }
+    const snapshot={
+      heroId:playerHero.def.id,level:playerHero.level,xp:playerHero.xp,
+      x:playerHero.x,y:playerHero.y,teleport,
+      hp:playerHero.hp,maxHp:playerHero.maxHp,mp:playerHero.mp,maxMp:playerHero.maxMp,
+      inventory:playerHero.inventory.map(item=>item&&({id:item.id,cooldown:item.cooldown||0,activeTimer:item.activeTimer||0})),
+      skills:playerHero.skills.map(skill=>({id:skill.id,level:skill.level,cd:skill.cd||0})),
+      buffs:playerHero.buffs.slice(0,24).map(buff=>({type:buff.type,val:buff.val,t:buff.t,multiplier:buff.multiplier,damage:buff.damage})),
+      bkbActive:playerHero.bkbActive||0,timurPillow:playerHero.timurPillow||0,effects
+    };
+    const quantize=value=>Math.round((Number(value)||0)*5)/5;
+    const signature=JSON.stringify({
+      level:snapshot.level,inventory:snapshot.inventory.map(item=>item&&[item.id,quantize(item.cooldown),quantize(item.activeTimer)]),
+      skills:snapshot.skills.map(skill=>[skill.id,skill.level,quantize(skill.cd)]),
+      buffs:snapshot.buffs.map(buff=>[buff.type,quantize(buff.val),quantize(buff.t)]),
+      effects:snapshot.effects.map(effect=>[effect.targetId,effect.state.mp,effect.state.stunTimer,effect.state.silenceTimer,effect.state.buffs.map(buff=>[buff.type,quantize(buff.t)])]),
+      bkb:quantize(snapshot.bkbActive),pillow:quantize(snapshot.timurPillow)
+    });
+    if(!force && signature===lastSnapshotSignature) return;
+    lastSnapshotSignature=signature;
+    socket.emit('playerSnapshot',snapshot);
+  }
+  const originalUseInventoryItem=useInventoryItem;
+  useInventoryItem=function(hero,index){
+    const beforeX=hero.x,beforeY=hero.y;
+    const used=originalUseInventoryItem.apply(this,arguments);
+    if(used && hero===playerHero) sendPlayerSnapshot(true,Math.hypot(hero.x-beforeX,hero.y-beforeY)>120);
+    return used;
+  };
+  const originalBuyShopItem=buyShopItem;
+  buyShopItem=function(id){
+    const bought=originalBuyShopItem.apply(this,arguments);
+    if(bought) sendPlayerSnapshot(true);
+    return bought;
+  };
+  function applyRemotePlayerSnapshot(snapshot){
+    if(!authoritativeMode || !snapshot || snapshot.id===onlineId) return;
+    const hero=remoteHeroes.get(snapshot.id);
+    if(!hero) return;
+    if(Number.isFinite(snapshot.level)) hero.level=snapshot.level;
+    if(Number.isFinite(snapshot.xp)) hero.xp=snapshot.xp;
+    for(const key of ['hp','maxHp','mp','maxMp','bkbActive','timurPillow'])
+      if(Number.isFinite(snapshot[key])) hero[key]=snapshot[key];
+    if(Array.isArray(snapshot.inventory)) hero.inventory=snapshot.inventory.slice(0,6).map(item=>item&&({
+      ...createInventoryItem(item.id),cooldown:Number(item.cooldown)||0,activeTimer:Number(item.activeTimer)||0
+    }));
+    if(Array.isArray(snapshot.skills)){
+      for(const remoteSkill of snapshot.skills){
+        const skill=hero.skills.find(item=>item.id===remoteSkill.id);
+        if(skill){skill.level=remoteSkill.level;skill.cd=remoteSkill.cd;}
+      }
+    }
+    if(Array.isArray(snapshot.buffs)) hero.buffs=snapshot.buffs.map(buff=>({...buff}));
+    for(const effect of snapshot.effects||[]){
+      const target=remoteHeroes.get(effect.targetId),state=effect.state;
+      if(!target || target.onlinePlayerId!==onlineId || !state) continue;
+      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
+        if(Number.isFinite(state[key])) target[key]=state[key];
+      if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
+    }
+  }
+  window.__shadowOnlineItemUsed=sendPlayerSnapshot;
   function sendPlayerStats(){
     if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
     socket.emit('playerStats',{
@@ -11437,6 +11514,11 @@ requestAnimationFrame(loop);
       alive:!playerHero.dead,respawnTimer:Math.max(0,playerHero.respawnTimer||0),
       damageVersion:serverDamageVersion,sequence:++statsSequence
     });
+  }
+  function sendPlayerPosition(){
+    if(!socket || !socket.connected || !authoritativeMode || !playerHero || playerHero.dead) return;
+    sendInput({type:'position',x:playerHero.x,y:playerHero.y,angle:playerHero.facing,
+      speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
   }
   function applyLocalVitals(vitals){
     if(!vitals || vitals.id !== onlineId || !playerHero) return;
@@ -11477,13 +11559,24 @@ requestAnimationFrame(loop);
   }, true);
   canvas.addEventListener('mousedown', event => {
     if(!authoritativeMode || !playerHero) return;
-    if(event.button === 2) sendInput({type:'move', moveTarget:{x:mouse.wx,y:mouse.wy}, angle:playerHero.facing});
+    if(event.button === 2){
+      if(playerHero.attackTarget && !playerHero.attackTarget.dead)
+        moveOnlineHeroToAttackRange(playerHero.attackTarget);
+      else sendInput({type:'move', moveTarget:{x:mouse.wx,y:mouse.wy}, angle:playerHero.facing});
+    }
     if(event.button === 0) sendInput({type:'shoot', angle:playerHero.facing});
   }, true);
   setInterval(() => {
     attachAuthoritativeSocket();
     if(authoritativeMode && playerHero) sendInput({type:'aim', angle:playerHero.facing});
+    if(authoritativeMode) sendPlayerPosition();
     if(authoritativeMode) sendPlayerStats();
+    if(authoritativeMode) sendPlayerSnapshot(false);
+    if(authoritativeMode && playerHero && playerHero.attackTarget && !playerHero.attackTarget.dead){
+      const target=playerHero.attackTarget;
+      sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
+        speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
+    }
     const entry = document.getElementById('online-entry');
     if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
   }, 50);
