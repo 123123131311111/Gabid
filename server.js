@@ -14,6 +14,9 @@ const players = new Map();
 const bullets = [];
 let matchTimer = null;
 let nextBulletId = 1;
+let draftTimer = null;
+let activeMatch = null;
+const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -45,8 +48,31 @@ function startMatch(){
     const player = createPlayer(id, index < 3 ? 0 : 1, id.startsWith('bot-'));
     players.set(id, player);
   }
-  for(const id of ids) if(!id.startsWith('bot-')) io.to(id).emit('match:start', {id, state:publicState()});
+  activeMatch = {ids, choices:new Map()};
+  for(const id of ids) if(!id.startsWith('bot-')) io.to(id).emit('match:start', {id, players:ids.filter(item => !item.startsWith('bot-')).length, state:publicState(), heroes:HERO_IDS});
+  draftTimer = setTimeout(finalizeDraft, 20000);
   matchTimer = null;
+}
+function finalizeDraft(){
+  if(!activeMatch) return;
+  const accepted = new Set();
+  const freeHeroes = HERO_IDS.slice();
+  for(const id of activeMatch.ids){
+    const choice = activeMatch.choices.get(id);
+    if(choice && HERO_IDS.includes(choice) && !accepted.has(choice)){
+      accepted.add(choice);
+      const index = freeHeroes.indexOf(choice);
+      if(index >= 0) freeHeroes.splice(index, 1);
+    } else activeMatch.choices.set(id, freeHeroes.shift() || HERO_IDS[0]);
+  }
+  for(const id of activeMatch.ids){
+    const player = players.get(id);
+    if(player) player.heroId = activeMatch.choices.get(id);
+  }
+  const roster = activeMatch.ids.map(id => ({id, heroId:activeMatch.choices.get(id), team:players.get(id)?.team ?? 0}));
+  for(const id of activeMatch.ids) if(!id.startsWith('bot-')) io.to(id).emit('match:begin', {id, roster, state:publicState()});
+  activeMatch = null;
+  draftTimer = null;
 }
 function queuePlayer(socket){
   if(!queue.includes(socket.id)) queue.push(socket.id);
@@ -57,6 +83,14 @@ function queuePlayer(socket){
 
 io.on('connection', socket => {
   socket.on('match:join', () => queuePlayer(socket));
+  socket.on('hero:select', data => {
+    if(!activeMatch || !activeMatch.ids.includes(socket.id) || !HERO_IDS.includes(data.heroId)) return;
+    if([...activeMatch.choices.entries()].some(([id, hero]) => id !== socket.id && hero === data.heroId)) return;
+    activeMatch.choices.set(socket.id, data.heroId);
+    const humans = activeMatch.ids.filter(id => !id.startsWith('bot-'));
+    for(const id of humans) io.to(id).emit('draft:state', {selected:[...activeMatch.choices.entries()]});
+    if(humans.every(id => activeMatch.choices.has(id))) finalizeDraft();
+  });
   socket.on('player:state', data => {
     const player = players.get(socket.id);
     if(!player || player.bot) return;
@@ -79,6 +113,10 @@ io.on('connection', socket => {
     const queuedIndex = queue.indexOf(socket.id);
     if(queuedIndex >= 0) queue.splice(queuedIndex, 1);
     players.delete(socket.id);
+    if(activeMatch){
+      activeMatch.choices.delete(socket.id);
+      activeMatch.ids = activeMatch.ids.filter(id => id !== socket.id);
+    }
     emitQueue();
     io.emit('match:player-left', {message:'Игрок отключился, его место занял бот.'});
   });

@@ -11153,7 +11153,9 @@ requestAnimationFrame(loop);
 (() => {
   let attachedSocket = null;
   let onlineId = null;
+  let onlineTeam = 0;
   let onlineStarted = false;
+  let onlineDraftActive = false;
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
 
@@ -11162,16 +11164,39 @@ requestAnimationFrame(loop);
     if(!socket || socket === attachedSocket) return;
     attachedSocket = socket;
     socket.on('match:start', beginOnlineMatch);
+    socket.on('match:begin', finishOnlineDraft);
     socket.on('world:state', applyOnlineState);
     socket.on('match:player-left', data => addText(WORLD/2, WORLD/2, data.message, '#ffd568', 2, 16));
     if(window.__shadowOnlineMatch) beginOnlineMatch(window.__shadowOnlineMatch);
   }
 
   function beginOnlineMatch(match){
-    if(onlineStarted) return;
-    onlineStarted = true;
+    if(onlineDraftActive || onlineStarted) return;
     onlineId = match.id;
-    startGame(0);
+    onlineDraftActive = true;
+    menuStage = 'draft';
+    draftTime = 20;
+    draftPlayerIndex = -1;
+    selectedHeroIndex = 0;
+    draftBotIndices = [];
+    const entry = document.getElementById('online-entry');
+    if(entry) entry.style.display = 'none';
+  }
+
+  function finishOnlineDraft(match){
+    if(!onlineDraftActive || !match.roster) return;
+    const local = match.roster.find(item => item.id === onlineId);
+    if(!local) return;
+    onlineTeam = local.team;
+    const ownTeam = match.roster.filter(item => item.team === local.team);
+    const enemyTeam = match.roster.filter(item => item.team !== local.team);
+    const heroIndex = HERO_DEFS.findIndex(item => item.id === local.heroId);
+    const pick = item => HERO_DEFS.findIndex(hero => hero.id === item.heroId);
+    const picks = [pick(enemyTeam[0]), pick(ownTeam[1]), pick(ownTeam[2]), pick(enemyTeam[1]), pick(enemyTeam[2])];
+    onlineDraftActive = false;
+    onlineStarted = true;
+    menuStage = 'home';
+    startGame(heroIndex >= 0 ? heroIndex : 0, picks);
     sendOnlineState();
   }
 
@@ -11196,6 +11221,7 @@ requestAnimationFrame(loop);
     if(remoteBulletIds.size > 300) remoteBulletIds.clear();
     for(const remote of state.players){
       if(remote.id === onlineId) continue;
+        if(remote.bot) continue;
       let hero = remoteHeroes.get(remote.id);
       if(!hero){
         hero = heroes.find(item => item !== playerHero && !item.isOnlineRemote && item.team === remote.team)
@@ -11206,17 +11232,36 @@ requestAnimationFrame(loop);
         hero.updateCombat = function(){};
         remoteHeroes.set(remote.id, hero);
       }
-      hero.team = remote.team;
+      hero.team = remote.team === onlineTeam ? 0 : 1;
       hero.x = remote.x; hero.y = remote.y; hero.facing = remote.angle;
       hero.hp = remote.hp; hero.maxHp = remote.maxHp; hero.dead = !remote.alive;
     }
   }
 
+  const originalMenuClick = handleMenuClick;
+  handleMenuClick = function(mx, my){
+    const before = draftPlayerIndex;
+    originalMenuClick(mx, my);
+    if(onlineDraftActive && menuStage === 'draft' && draftPlayerIndex >= 0 && draftPlayerIndex !== before){
+      attachedSocket.emit('hero:select', {heroId:HERO_DEFS[draftPlayerIndex].id});
+    }
+  };
+  const originalUpdateDraft = updateDraft;
+  updateDraft = function(dt){
+    if(!onlineDraftActive){ originalUpdateDraft(dt); return; }
+    draftTime = Math.max(0, draftTime - dt);
+  };
+
   canvas.addEventListener('mousedown', event => {
     if(event.button === 0 && attachedSocket && playerHero)
       attachedSocket.emit('player:shoot', {angle:playerHero.facing});
   }, true);
-  setInterval(() => { attachOnline(); sendOnlineState(); }, 50);
+  setInterval(() => {
+    attachOnline();
+    sendOnlineState();
+    const entry = document.getElementById('online-entry');
+    if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
+  }, 50);
 })();
 </script>
 <script>
