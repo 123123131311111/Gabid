@@ -1411,9 +1411,9 @@ function applyDamage(target, amount, source){
     ? Math.max(1, amount)
     : Math.max(1, amount * armorMult(armor) * structureBonus);
   const onlineSocket = window.__shadowOnlineSocket;
-    if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && sourceHero &&
-      sourceHero.isPlayer && sourceHero.onlinePlayerId && sourceHero.onlinePlayerId !== target.onlinePlayerId &&
-      sourceHero.team !== target.team){
+      const onlineSourceTeam = sourceHero ? sourceHero.team : source && source.team;
+      if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && onlineSourceTeam === 0 &&
+        onlineSocket.id !== target.onlinePlayerId){
     onlineSocket.emit('playerDamage',{targetId:target.onlinePlayerId,amount:dmg});
   }
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
@@ -5278,6 +5278,8 @@ function castSkill(hero, slot, tx, ty){
       if(hero.def && hero.def.id === 'earthshaker' && !def.passive){
         triggerAftershockPulse(hero);
       }
+      if(hero === playerHero && typeof window.__shadowOnlineSkillCast === 'function')
+        window.__shadowOnlineSkillCast(hero,slot,s.id,tx,ty);
     }
   }
   catch(err){ console.error('Ошибка каста:', err); }
@@ -6487,6 +6489,8 @@ canvas.addEventListener('mousedown', e => {
       }
       if(isBuilding(tgt) && !canDamageStructure(tgt, null, true)){
         addText(tgt.x, tgt.y - 58, structureBlockReason(tgt), '#ffcc70', 1.4, 14);
+      } else if(typeof window.__shadowOnlineAttackTarget === 'function'){
+        window.__shadowOnlineAttackTarget(tgt);
       }
     } else if(tgt && !tgt.dead){
       inspectUnit = tgt;
@@ -11196,6 +11200,7 @@ requestAnimationFrame(loop);
       syncRosterFromState(state);
     });
     socket.on('playerVitals', applyLocalVitals);
+    socket.on('playerSkill', applyRemoteSkill);
     socket.on('match:player-left', data => {
       addText(playerHero ? playerHero.x : WORLD/2, playerHero ? playerHero.y : WORLD/2, data.message, '#ffd568', 2, 16);
     });
@@ -11358,6 +11363,61 @@ requestAnimationFrame(loop);
     }
     if(remoteBulletIds.size > 1000) remoteBulletIds.clear();
   }
+
+  function skillEffectState(hero){
+    return {
+      mp:hero.mp,maxMp:hero.maxMp,stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
+      slow:hero.slow,slowT:hero.slowT,attackSlow:hero.attackSlow,attackSlowT:hero.attackSlowT,
+      liftTimer:hero.liftTimer,knockbackX:hero.knockbackX,knockbackY:hero.knockbackY,knockbackTimer:hero.knockbackTimer,
+      buffs:(hero.buffs||[]).slice(0,24).map(buff=>({
+        type:buff.type,val:buff.val,t:buff.t,multiplier:buff.multiplier,damage:buff.damage
+      }))
+    };
+  }
+
+  function sendSkillCast(hero,slot,skillId,tx,ty){
+    if(!socket || !socket.connected || !authoritativeMode) return;
+    const effects=[];
+    for(const [targetId,target] of remoteHeroes){
+      if(targetId===onlineId || target.team===hero.team) continue;
+      effects.push({targetId,state:skillEffectState(target)});
+    }
+    socket.emit('playerSkill',{
+      heroId:hero.def.id,skillId,slot,x:hero.x,y:hero.y,angle:hero.facing,tx,ty,effects
+    });
+  }
+
+  function applyRemoteSkill(event){
+    if(!authoritativeMode || !event || event.id===onlineId) return;
+    const caster=remoteHeroes.get(event.id);
+    if(caster){
+      caster.x=event.x; caster.y=event.y; caster.facing=event.angle;
+      const skill=caster.skills.find(item=>item.id===event.skillId);
+      if(skill) castSkillVisual(caster,skill,event.tx,event.ty);
+    }
+    for(const effect of event.effects||[]){
+      const target=remoteHeroes.get(effect.targetId);
+      const state=effect.state;
+      if(!target || target.onlinePlayerId!==onlineId || !state) continue;
+      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+        if(Number.isFinite(state[key])) target[key]=state[key];
+      }
+      if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
+    }
+  }
+
+  function moveOnlineHeroToAttackRange(target){
+    if(!authoritativeMode || !playerHero || !target || target.dead) return;
+    const dx=playerHero.x-target.x,dy=playerHero.y-target.y;
+    const distance=Math.hypot(dx,dy)||1;
+    const stopDistance=Math.max(30,playerHero.getAttackRange()+target.radius*0.6-8);
+    sendInput({type:'move',moveTarget:{
+      x:clamp(target.x+dx/distance*stopDistance,40,WORLD-40),
+      y:clamp(target.y+dy/distance*stopDistance,40,WORLD-40)
+    }});
+  }
+  window.__shadowOnlineSkillCast=sendSkillCast;
+  window.__shadowOnlineAttackTarget=moveOnlineHeroToAttackRange;
 
   const originalStartGame = startGame;
   const originalUpdate = update;

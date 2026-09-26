@@ -130,6 +130,36 @@ function handlePlayerDamage(socket, data){
   if(target.hp === 0){ target.alive = false; target.respawnTimer = 8; }
   emitPlayerVitals(room,target);
 }
+function handlePlayerSkill(socket,data){
+  const room=roomOf(socket);
+  const caster=room?.state?.[socket.id];
+  if(!room||!caster||!caster.alive||!data||typeof data.skillId!=='string'||data.skillId.length>80) return;
+  if(Number.isFinite(data.x)) caster.x=clamp(data.x,40,WORLD_SIZE-40);
+  if(Number.isFinite(data.y)) caster.y=clamp(data.y,40,WORLD_SIZE-40);
+  if(Number.isFinite(data.angle)) caster.angle=data.angle;
+  const effects=[];
+  for(const effect of Array.isArray(data.effects)?data.effects:[]){
+    const target=room.state[effect?.targetId];
+    if(!target||target.team===caster.team||!effect.state) continue;
+    const state=effect.state;
+    for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
+    }
+    if(Array.isArray(state.buffs)){
+      target.skillBuffs=state.buffs.slice(0,24).map(buff=>({
+        type:String(buff.type||'').slice(0,40),val:Number.isFinite(buff.val)?clamp(buff.val,-10000,10000):undefined,
+        t:Number.isFinite(buff.t)?clamp(buff.t,0,120):undefined,multiplier:Number.isFinite(buff.multiplier)?clamp(buff.multiplier,0,20):undefined,
+        damage:Number.isFinite(buff.damage)?clamp(buff.damage,0,10000):undefined
+      }));
+    }
+    effects.push({targetId:target.id,state});
+  }
+  io.to(room.id).emit('playerSkill',{
+    id:socket.id,heroId:caster.heroId,skillId:data.skillId,slot:data.slot,
+    x:caster.x,y:caster.y,angle:caster.angle,tx:Number.isFinite(data.tx)?clamp(data.tx,0,WORLD_SIZE):null,
+    ty:Number.isFinite(data.ty)?clamp(data.ty,0,WORLD_SIZE):null,effects
+  });
+}
 function tickRoom(room, dt){
   if(!room.started || !room.state) return;
   room.tick = (room.tick || 0) + 1;
@@ -208,6 +238,7 @@ io.on('connection', socket => {
   socket.on('playerInput', input => handleInput(socket, input));
   socket.on('playerStats', stats => handlePlayerStats(socket, stats));
   socket.on('playerDamage', data => handlePlayerDamage(socket, data));
+  socket.on('playerSkill', data => handlePlayerSkill(socket,data));
   socket.on('disconnect', () => {
     const room = roomOf(socket); socketRooms.delete(socket.id); if(!room) return;
     delete room.players[socket.id];
