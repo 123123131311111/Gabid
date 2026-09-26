@@ -1,8 +1,8 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>DOTA 3v3 вЂ” HTML5 вЂў Shadow Rampage</title>
+<title>DOTA 3v3 — HTML5 • Shadow Rampage</title>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#000;
             font-family:'Segoe UI',Arial,sans-serif;user-select:none;}
@@ -28,16 +28,16 @@
 </head>
 <body>
 <canvas id="game" tabindex="0"></canvas>
-<button id="online-entry" type="button">РћРќР›РђР™Рќ 3 РќРђ 3</button>
+<button id="online-entry" type="button">ОНЛАЙН 3 НА 3</button>
 <section id="mode-picker" hidden>
   <div class="mode-panel">
     <div>SHADOW RAMPAGE</div>
-    <h1>РћРЅР»Р°Р№РЅ 3 РЅР° 3</h1>
-    <p id="match-status">РќР°Р¶РјРё РєРЅРѕРїРєСѓ, С‡С‚РѕР±С‹ СЃРѕР·РґР°С‚СЊ РёР»Рё РЅР°Р№С‚Рё РєРѕРјРЅР°С‚Сѓ.</p>
+    <h1>Онлайн 3 на 3</h1>
+    <p id="match-status">Нажми кнопку, чтобы создать или найти комнату.</p>
     <div id="room-state"></div>
     <div class="mode-actions">
-      <button type="button" id="online-button">РќР°Р№С‚Рё РёРіСЂРѕРєРѕРІ</button>
-      <button type="button" id="room-start">РЎРўРђР Рў РњРђРўР§Рђ</button>
+      <button type="button" id="online-button">Найти игроков</button>
+      <button type="button" id="room-start">СТАРТ МАТЧА</button>
     </div>
   </div>
 </section>
@@ -58,21 +58,21 @@
   button.addEventListener('click', () => {
     if(socket) return;
     button.disabled = true;
-    button.textContent = 'РЎРѕР·РґР°РЅРёРµ РєРѕРјРЅР°С‚С‹...';
-    status.textContent = 'РџРѕРґРєР»СЋС‡РµРЅРёРµ Рє СЃРµСЂРІРµСЂСѓ';
+    button.textContent = 'Создание комнаты...';
+    status.textContent = 'Подключение к серверу';
     socket = io();
     window.__shadowOnlineSocket = socket;
     socket.on('lobbyUpdate', next => {
       room = next;
       button.style.display = 'none';
-      status.textContent = 'РљРѕРјРЅР°С‚Р° ' + next.roomId + ' вЂў РёРіСЂРѕРєРѕРІ: ' + next.players.length + '/6';
+      status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.players.length + '/6';
       renderRoom(next);
     });
     socket.on('room:error', data => { status.textContent = data.message; start.disabled = false; });
-    socket.on('room:started', () => { status.textContent = 'РњР°С‚С‡ Р·Р°РїСѓСЃРєР°РµС‚СЃСЏ...'; start.disabled = true; });
+    socket.on('room:started', () => { status.textContent = 'Матч запускается...'; start.disabled = true; });
     socket.on('match:begin', data => { started = true; picker.hidden = true; window.__shadowOnlineMatch = data; canvas.focus(); });
-    socket.on('connect_error', () => { status.textContent = 'РЎРµСЂРІРµСЂ РЅРµРґРѕСЃС‚СѓРїРµРЅ'; button.disabled = false; button.textContent = 'РџРѕРІС‚РѕСЂРёС‚СЊ'; socket = null; });
-    socket.on('disconnect', () => { if(!started) status.textContent = 'РЎРѕРµРґРёРЅРµРЅРёРµ РїРѕС‚РµСЂСЏРЅРѕ'; });
+    socket.on('connect_error', () => { status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить'; socket = null; });
+    socket.on('disconnect', () => { if(!started) status.textContent = 'Соединение потеряно'; });
     socket.emit('match:join');
   });
   start.addEventListener('click', () => { if(socket && room && room.hostId === socket.id) socket.emit('room:start'); });
@@ -80,7 +80,7 @@
   function renderRoom(next){
     roomState.innerHTML = '';
     const title = document.createElement('div');
-    title.textContent = next.hostId === socket.id ? 'РўС‹ РІР»Р°РґРµР»РµС† РєРѕРјРЅР°С‚С‹. Р’С‹Р±РµСЂРё РіРµСЂРѕСЏ Рё РЅР°Р¶РјРё СЃС‚Р°СЂС‚.' : 'Р’С‹Р±РµСЂРё СЃРІРѕР±РѕРґРЅС‹Р№ СЃР»РѕС‚ Рё РіРµСЂРѕСЏ. Р–РґС‘Рј РІР»Р°РґРµР»СЊС†Р° РєРѕРјРЅР°С‚С‹.';
+    title.textContent = next.hostId === socket.id ? 'Ты владелец комнаты. Выбери героя и нажми старт.' : 'Выбери свободный слот и героя. Ждём владельца комнаты.';
     roomState.appendChild(title);
     const selectedHeroes = new Set(next.players.map(member => member.hero).filter(Boolean));
     for(let slot=0; slot<6; slot++){
@@ -88,11 +88,11 @@
       const row = document.createElement('div');
       row.className = 'room-slot' + (member && member.id === socket.id ? ' mine' : '');
       const label = document.createElement('strong');
-      label.textContent = (slot < 3 ? 'РЎРІРµС‚ ' : 'РўСЊРјР° ') + ((slot % 3) + 1);
+      label.textContent = (slot < 3 ? 'Свет ' : 'Тьма ') + ((slot % 3) + 1);
       row.appendChild(label);
       if(member){
         const name = document.createElement('span');
-        name.textContent = member.id === socket.id ? 'РўС‹' : (member.bot ? 'Р‘РѕС‚' : 'РРіСЂРѕРє');
+        name.textContent = member.id === socket.id ? 'Ты' : (member.bot ? 'Бот' : 'Игрок');
         row.appendChild(name);
         if(member.id === socket.id){
           const select = document.createElement('select');
@@ -104,9 +104,9 @@
           });
           select.addEventListener('change', () => socket.emit('room:select', {heroId:select.value}));
           row.appendChild(select);
-        } else row.appendChild(document.createTextNode(' вЂў ' + (member.hero || 'РІС‹Р±РёСЂР°РµС‚ РіРµСЂРѕСЏ')));
+        } else row.appendChild(document.createTextNode(' • ' + (member.hero || 'выбирает героя')));
       } else {
-        const take = document.createElement('button'); take.textContent = 'Р—РђРќРЇРўР¬ РЎР›РћРў';
+        const take = document.createElement('button'); take.textContent = 'ЗАНЯТЬ СЛОТ';
         take.addEventListener('click', () => socket.emit('room:select', {slot}));
         row.appendChild(take);
       }
@@ -116,15 +116,15 @@
   }
 
   const HERO_IDS_FOR_ROOM = [
-    {id:'shadow',name:'РЁР°РґРѕСѓ'},{id:'ilya',name:'РР»СЊСЏ'},{id:'golly',name:'Р“РѕР»Р»Рё'},
-    {id:'pyro',name:'РџРёСЂРѕРјР°РЅС‚'},{id:'warlord',name:'Р’РѕР¶РґСЊ'},{id:'grisha',name:'Р“СЂРёС€Р°'},
-    {id:'sasych',name:'РЎР°СЃС‹С‡'},{id:'malit',name:'РњР°Р»РёС‚'},{id:'arcady',name:'РђСЂРєР°РґРёР№'},
-    {id:'illusionist',name:'РР»Р»СЋР·РёРѕРЅРёСЃС‚'},{id:'mageHunter',name:'РћС…РѕС‚РЅРёРє РЅР° РјР°РіРѕРІ'},
-    {id:'regina',name:'Р РёРіРёРЅР°'},{id:'dawnMaiden',name:'Р Р°СЃСЃРІРµС‚РЅР°СЏ РґРµРІР°'},
-    {id:'exileKnight',name:'Р С‹С†Р°СЂСЊ-РёР·РіРЅР°РЅРЅРёРє'},{id:'juggernaut',name:'Р”Р¶Р°РіРіРµСЂРЅР°СѓС‚'},
-    {id:'sniper',name:'РЎРЅР°Р№РїРµСЂ'},{id:'earthshaker',name:'РЁРјРµРґРёРє'},
-    {id:'mo3gi',name:'РњРѕ3РіРё'},{id:'tribupainer',name:'РўСЂРёР±СѓРїРµР№РЅРµСЂ'},
-    {id:'juvsyut',name:'Р”Р¶СѓРІСЃСЋС‚'},{id:'chip',name:'Р§РёРї'}
+    {id:'shadow',name:'Шадоу'},{id:'ilya',name:'Илья'},{id:'golly',name:'Голли'},
+    {id:'pyro',name:'Пиромант'},{id:'warlord',name:'Вождь'},{id:'grisha',name:'Гриша'},
+    {id:'sasych',name:'Сасыч'},{id:'malit',name:'Малит'},{id:'arcady',name:'Аркадий'},
+    {id:'illusionist',name:'Иллюзионист'},{id:'mageHunter',name:'Охотник на магов'},
+    {id:'regina',name:'Ригина'},{id:'dawnMaiden',name:'Рассветная дева'},
+    {id:'exileKnight',name:'Рыцарь-изгнанник'},{id:'juggernaut',name:'Джаггернаут'},
+    {id:'sniper',name:'Снайпер'},{id:'earthshaker',name:'Шмедик'},
+    {id:'mo3gi',name:'Мо3ги'},{id:'tribupainer',name:'Трибупейнер'},
+    {id:'juvsyut',name:'Джувсют'},{id:'chip',name:'Чип'}
   ];
 })();
 </script>
