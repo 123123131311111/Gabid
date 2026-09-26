@@ -15,7 +15,11 @@ const rooms = Object.create(null);
 const socketRooms = new Map();
 let nextBulletId = 1;
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath){
+    if(/\.(?:html|js)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-store');
+  }
+}));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const makeRoomId = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const roomOf = socket => rooms[socketRooms.get(socket.id)];
