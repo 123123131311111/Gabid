@@ -1,8 +1,8 @@
 {
-  "name": "shadow-rampage-multiplayer",
-  "version": "1.0.0",
+  "name": "shadow-rampage-3v3",
+  "version": "0.5.0",
   "private": true,
-  "description": "Real-time 3v3 HTML5 Canvas multiplayer prototype",
+  "description": "Standalone Shadow Rampage 3v3 HTML5 game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
