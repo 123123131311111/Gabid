@@ -17,6 +17,12 @@
   .mode-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;}
   .mode-actions button{min-height:52px;padding:10px 14px;color:#081018;font:bold 13px 'Segoe UI',Arial;background:linear-gradient(#8be9fd,#d7b36a);border:1px solid #fff0c7;cursor:pointer;}
   .mode-actions button:hover{filter:brightness(1.16);}
+  #room-state{margin:18px 0;text-align:left;color:rgba(255,255,255,.8);font-size:12px;line-height:1.5;}
+  #room-state .room-slot{display:flex;align-items:center;gap:8px;margin:5px 0;padding:7px 9px;background:rgba(139,233,253,.08);border:1px solid rgba(139,233,253,.25);}
+  #room-state .room-slot strong{width:42px;color:#ffd568;}
+  #room-state .room-slot select{margin-left:auto;max-width:150px;background:#101b2a;color:#fff;border:1px solid #8be9fd;padding:4px;}
+  #room-state .room-slot.mine{border-color:#ffd568;}
+  #room-start{display:none;width:100%;}
   @media(max-width:560px){.mode-panel{padding:28px 20px}.mode-actions{grid-template-columns:1fr}}
 </style>
 </head>
@@ -27,9 +33,11 @@
   <div class="mode-panel">
     <div>SHADOW RAMPAGE</div>
     <h1>Онлайн 3 на 3</h1>
-    <p id="match-status">Нажми кнопку, чтобы найти игроков. Свободные места займут боты.</p>
+    <p id="match-status">Нажми кнопку, чтобы создать или найти комнату.</p>
+    <div id="room-state"></div>
     <div class="mode-actions">
       <button type="button" id="online-button">Найти игроков</button>
+      <button type="button" id="room-start">СТАРТ МАТЧА</button>
     </div>
   </div>
 </section>
@@ -11155,7 +11163,6 @@ requestAnimationFrame(loop);
   let onlineId = null;
   let onlineTeam = 0;
   let onlineStarted = false;
-  let onlineDraftActive = false;
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
 
@@ -11163,28 +11170,15 @@ requestAnimationFrame(loop);
     const socket = window.__shadowOnlineSocket;
     if(!socket || socket === attachedSocket) return;
     attachedSocket = socket;
-    socket.on('match:start', beginOnlineMatch);
-    socket.on('match:begin', finishOnlineDraft);
+    socket.on('match:begin', beginOnlineMatch);
     socket.on('world:state', applyOnlineState);
     socket.on('match:player-left', data => addText(WORLD/2, WORLD/2, data.message, '#ffd568', 2, 16));
     if(window.__shadowOnlineMatch) beginOnlineMatch(window.__shadowOnlineMatch);
   }
 
   function beginOnlineMatch(match){
-    if(onlineDraftActive || onlineStarted) return;
+    if(onlineStarted || !match.roster) return;
     onlineId = match.id;
-    onlineDraftActive = true;
-    menuStage = 'draft';
-    draftTime = 20;
-    draftPlayerIndex = -1;
-    selectedHeroIndex = 0;
-    draftBotIndices = [];
-    const entry = document.getElementById('online-entry');
-    if(entry) entry.style.display = 'none';
-  }
-
-  function finishOnlineDraft(match){
-    if(!onlineDraftActive || !match.roster) return;
     const local = match.roster.find(item => item.id === onlineId);
     if(!local) return;
     onlineTeam = local.team;
@@ -11193,11 +11187,11 @@ requestAnimationFrame(loop);
     const heroIndex = HERO_DEFS.findIndex(item => item.id === local.heroId);
     const pick = item => HERO_DEFS.findIndex(hero => hero.id === item.heroId);
     const picks = [pick(enemyTeam[0]), pick(ownTeam[1]), pick(ownTeam[2]), pick(enemyTeam[1]), pick(enemyTeam[2])];
-    onlineDraftActive = false;
     onlineStarted = true;
-    menuStage = 'home';
     startGame(heroIndex >= 0 ? heroIndex : 0, picks);
     sendOnlineState();
+    const entry = document.getElementById('online-entry');
+    if(entry) entry.style.display = 'none';
   }
 
   function sendOnlineState(){
@@ -11238,20 +11232,6 @@ requestAnimationFrame(loop);
     }
   }
 
-  const originalMenuClick = handleMenuClick;
-  handleMenuClick = function(mx, my){
-    const before = draftPlayerIndex;
-    originalMenuClick(mx, my);
-    if(onlineDraftActive && menuStage === 'draft' && draftPlayerIndex >= 0 && draftPlayerIndex !== before){
-      attachedSocket.emit('hero:select', {heroId:HERO_DEFS[draftPlayerIndex].id});
-    }
-  };
-  const originalUpdateDraft = updateDraft;
-  updateDraft = function(dt){
-    if(!onlineDraftActive){ originalUpdateDraft(dt); return; }
-    draftTime = Math.max(0, draftTime - dt);
-  };
-
   canvas.addEventListener('mousedown', event => {
     if(event.button === 0 && attachedSocket && playerHero)
       attachedSocket.emit('player:shoot', {angle:playerHero.facing});
@@ -11269,27 +11249,80 @@ requestAnimationFrame(loop);
   const picker = document.getElementById('mode-picker');
   const entry = document.getElementById('online-entry');
   const button = document.getElementById('online-button');
+  const start = document.getElementById('room-start');
   const status = document.getElementById('match-status');
+  const roomState = document.getElementById('room-state');
   let socket = null;
-  let searching = false;
+  let room = null;
+  let started = false;
   entry.addEventListener('click', () => { picker.hidden = false; });
   button.addEventListener('click', () => {
-    if(searching) return;
-    searching = true;
+    if(socket) return;
     button.disabled = true;
-    button.textContent = 'Поиск игроков...';
-    status.textContent = 'Подключение к серверу...';
+    button.textContent = 'Создание комнаты...';
+    status.textContent = 'Подключение к серверу';
     socket = io();
-    socket.on('match:queue', data => { status.textContent = 'Ищем игроков: ' + data.players + '/6'; });
-    socket.on('match:start', data => {
-      window.__shadowOnlineSocket = socket;
-      window.__shadowOnlineMatch = data;
-      picker.hidden = true;
-      canvas.focus();
+    window.__shadowOnlineSocket = socket;
+    socket.on('room:state', next => {
+      room = next;
+      button.style.display = 'none';
+      status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.members.length + '/6';
+      renderRoom(next);
     });
-    socket.on('connect_error', () => { status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить поиск'; searching = false; });
+    socket.on('match:begin', data => { started = true; picker.hidden = true; window.__shadowOnlineMatch = data; canvas.focus(); });
+    socket.on('connect_error', () => { status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить'; socket = null; });
+    socket.on('disconnect', () => { if(!started) status.textContent = 'Соединение потеряно'; });
     socket.emit('match:join');
   });
+  start.addEventListener('click', () => { if(socket && room && room.hostId === socket.id) socket.emit('room:start'); });
+
+  function renderRoom(next){
+    roomState.innerHTML = '';
+    const title = document.createElement('div');
+    title.textContent = next.hostId === socket.id ? 'Ты владелец комнаты. Выбери героя и нажми старт.' : 'Выбери свободный слот и героя. Ждём владельца комнаты.';
+    roomState.appendChild(title);
+    const selectedHeroes = new Set(next.members.map(member => member.heroId).filter(Boolean));
+    for(let slot=0; slot<6; slot++){
+      const member = next.members.find(item => item.slot === slot);
+      const row = document.createElement('div');
+      row.className = 'room-slot' + (member && member.id === socket.id ? ' mine' : '');
+      const label = document.createElement('strong');
+      label.textContent = (slot < 3 ? 'Свет ' : 'Тьма ') + ((slot % 3) + 1);
+      row.appendChild(label);
+      if(member){
+        const name = document.createElement('span');
+        name.textContent = member.id === socket.id ? 'Ты' : (member.bot ? 'Бот' : 'Игрок');
+        row.appendChild(name);
+        if(member.id === socket.id){
+          const select = document.createElement('select');
+          HERO_IDS_FOR_ROOM.forEach(hero => {
+            const option = document.createElement('option'); option.value = hero.id; option.textContent = hero.name;
+            option.disabled = selectedHeroes.has(hero.id) && hero.id !== member.heroId;
+            if(hero.id === member.heroId) option.selected = true;
+            select.appendChild(option);
+          });
+          select.addEventListener('change', () => socket.emit('room:select', {heroId:select.value}));
+          row.appendChild(select);
+        } else row.appendChild(document.createTextNode(' • ' + (member.heroId || 'выбирает героя')));
+      } else {
+        const take = document.createElement('button'); take.textContent = 'ЗАНЯТЬ СЛОТ';
+        take.addEventListener('click', () => socket.emit('room:select', {slot}));
+        row.appendChild(take);
+      }
+      roomState.appendChild(row);
+    }
+    start.style.display = next.hostId === socket.id ? 'block' : 'none';
+  }
+
+  const HERO_IDS_FOR_ROOM = [
+    {id:'shadow',name:'Шадоу'},{id:'ilya',name:'Илья'},{id:'golly',name:'Голли'},
+    {id:'pyro',name:'Пиромант'},{id:'warlord',name:'Вождь'},{id:'grisha',name:'Гриша'},
+    {id:'sasych',name:'Сасыч'},{id:'malit',name:'Малит'},{id:'arcady',name:'Аркадий'},
+    {id:'illusionist',name:'Иллюзионист'},{id:'mageHunter',name:'Охотник на магов'},
+    {id:'regina',name:'Ригина'},{id:'dawnMaiden',name:'Рассветная дева'},
+    {id:'exileKnight',name:'Рыцарь-изгнанник'},{id:'juggernaut',name:'Джаггернаут'},
+    {id:'sniper',name:'Снайпер'},{id:'earthshaker',name:'Шмедик'}
+  ];
 })();
 </script>
 </body>
