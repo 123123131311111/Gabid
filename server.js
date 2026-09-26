@@ -91,7 +91,7 @@ function gameState(room){
     id:player.id, slot:player.slot, team:player.team, bot:player.bot, heroId:player.heroId,
     x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
     gold:player.gold, alive:player.alive
-  })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle}))};
+  })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle,owner:bullet.owner}))};
 }
 function nearestEnemy(room, player){
   return Object.values(room.state).filter(other => other.alive && other.team !== player.team)
@@ -207,7 +207,7 @@ io.on('connection', socket => {
     const room = roomOf(socket);
     if(!room || room.started) return socket.emit('room:error',{message:'Комната уже запущена.'});
     if(room.hostId !== socket.id) return socket.emit('room:error',{message:'Стартовать может только хост.'});
-    startRoom(room); socket.emit('room:started');
+    startRoom(room); io.to(room.id).emit('room:started');
   });
   socket.on('playerInput', input => handleInput(socket, input));
   socket.on('disconnect', () => {
