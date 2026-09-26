@@ -329,6 +329,9 @@ let storeOpen = false;
 let storePhraseOwned = false;
 let storeChipOwned = false;
 let storeAudioOwned = false;
+let storeFeedimidiOwned = false;
+let storeNineteenOwned = false;
+let storeAbuuuOwned = false;
 let storePhraseIndex = 0;
 let phraseWheelOpen = false;
 let phraseWheelSelection = -1;
@@ -1046,6 +1049,9 @@ function playStorePhrase(){
   if(storePhraseOwned) phrases.push('legacy');
   if(storeChipOwned) phrases.push('chip');
   if(storeAudioOwned) phrases.push('pesik');
+  if(storeFeedimidiOwned) phrases.push('feedimidi');
+  if(storeNineteenOwned) phrases.push('nineteen');
+  if(storeAbuuuOwned) phrases.push('abuuu');
   if(!phrases.length) return;
   const phrase = phrases[storePhraseIndex % phrases.length];
   storePhraseIndex++;
@@ -1053,11 +1059,41 @@ function playStorePhrase(){
 }
 
 const PHRASE_WHEEL_ITEMS = [
-  {id:'chip', label:'ЧИП-КОРОЛЬ', text:'А Чип короооооооль!', color:'#ff9fbd'},
-  {id:'legacy', label:'КОРОЛЯ НЕ УБИТЬ', text:'Короля не убить!', color:'#ffd568'},
-  {id:'pesik', label:'ПЁСИК, ПЁСИК', text:'Пёсик, пёсик! Ав-ав-ав!', color:'#8be9fd'},
-  {id:'kisi', label:'КИСИ-КИСИ МЯУ', text:'Киси-киси, мяу-мяу! Киси-киси, мяу-мяу-мяу!', color:'#d8a6ff'}
+  {id:'chip', label:'ЧИП', text:'А Чип короооооооль!', color:'#ff9fbd'},
+  {id:'legacy', label:'КОРОЛЯ', text:'Короля не убить!', color:'#ffd568'},
+  {id:'pesik', label:'ПЁСИК', text:'Пёсик, пёсик! Ав-ав-ав!', color:'#8be9fd'},
+  {id:'kisi', label:'КИСИ', text:'Киси-киси, мяу-мяу! Киси-киси, мяу-мяу-мяу!', color:'#d8a6ff'},
+  {id:'feedimidi', label:'ФИДИ МИДИ', text:'Фиди миди', color:'#ffd568'},
+  {id:'nineteen', label:'МНЕ 19 ЛЕТ', text:'Пацаны, мне 19 лет', color:'#bda8ff'},
+  {id:'abuuu', label:'АБУУУУ РАРАРАР', text:'АБУУУУУУУУ! РА-РА-РА!', color:'#ff8278'}
 ];
+const STORE_PHRASE_CARDS = [
+  {id:'legacy',title:'КЛАССИКА',desc:'Короля не убить!',color:'#ffd568'},
+  {id:'chip',title:'КОРОЛЬ-ЧИП',desc:'А Чип короооооооль!',color:'#ff9fbd'},
+  {id:'pesik',title:'АНИМЕ-ФРАЗА',desc:'Пёсик, пёсик — ав-ав-ав!',color:'#8be9fd'},
+  {id:'feedimidi',title:'ФИДИ МИДИ',desc:'Фиди миди',color:'#ffd568'},
+  {id:'nineteen',title:'ПАЦАНЫ, МНЕ 19',desc:'Страшная реплика',color:'#bda8ff'},
+  {id:'abuuu',title:'АБУУУУ РАРАРАР',desc:'Кричалка',color:'#ff8278'}
+];
+
+function isStorePhraseOwned(id){
+  if(id==='legacy') return storePhraseOwned;
+  if(id==='chip') return storeChipOwned;
+  if(id==='pesik') return storeAudioOwned;
+  if(id==='feedimidi') return storeFeedimidiOwned;
+  if(id==='nineteen') return storeNineteenOwned;
+  if(id==='abuuu') return storeAbuuuOwned;
+  return false;
+}
+
+function unlockStorePhrase(id){
+  if(id==='legacy') storePhraseOwned=true;
+  if(id==='chip') storeChipOwned=true;
+  if(id==='pesik') storeAudioOwned=true;
+  if(id==='feedimidi') storeFeedimidiOwned=true;
+  if(id==='nineteen') storeNineteenOwned=true;
+  if(id==='abuuu') storeAbuuuOwned=true;
+}
 
 function updatePhraseWheelSelection(){
   if(!phraseWheelOpen) return;
@@ -1085,13 +1121,19 @@ function speakStorePhrase(variant='chip'){
   const isPesik = variant === 'pesik';
   const isLegacy = variant === 'legacy';
   const isKisi = variant === 'kisi';
-  const settings = isLegacy
+  const settings = variant === 'feedimidi'
+    ? {text:'Фиди миди', rate:0.78, pitch:0.42, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
+    : (variant === 'nineteen'
+      ? {text:'Пацаны, мне 19 лет', rate:0.72, pitch:0.38, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
+      : (variant === 'abuuu'
+        ? {text:'АБУУУУУУУУ! РА-РА-РА!', rate:1.22, pitch:1.62, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
+        : (isLegacy
     ? {text:'Короля... не убить!', rate:0.76, pitch:0.58, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
     : (isPesik
       ? {text:'Пёсик, пёсик! Ав-ав-ав!', rate:1.16, pitch:1.58, pattern:/female|жен|anime|anna|milena|irina|girl|young/i}
       : (isKisi
         ? {text:'Киси-киси, мяу-мяу! Киси-киси, мяу-мяу-мяу!', rate:1.5, pitch:1.7, pattern:/female|жен|anime|anna|milena|irina|girl|young|cute/i}
-        : {text:'А Чип короооооооль!', rate:0.78, pitch:0.48, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}));
+        : {text:'А Чип короооооооль!', rate:0.78, pitch:0.48, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i})))));
 
   const speak = attempt => {
     try {
@@ -1282,6 +1324,7 @@ function applyDamage(target, amount, source){
     ? source
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
   if(target.onlinePlayerId && sourceHero && sourceHero.isPlayer && sourceHero.team === target.team) return;
+  if(isBuilding(target) && source && Number.isInteger(source.team) && source.team === target.team) return;
   if(target.invulnerable) return;
   /* Blade Fury блокирует заклинания, но не обычные физические атаки. */
   if(target.buffs && target.buffs.some(buff => buff.type === 'bladeFury') &&
@@ -5371,6 +5414,19 @@ function startGame(playerIndex, draftPicks=null){
   cam.y = playerHero.y;
   gameState = 'playing';
   canvas.focus();
+}
+
+function orientOnlineMapForTeam(globalTeam){
+  if(globalTeam !== 1) return;
+  [BASES[0],BASES[1]] = [BASES[1],BASES[0]];
+  for(const lane of LANES) lane.reverse();
+  for(const tower of TOWER_SPOTS) tower.team = 1-tower.team;
+  for(const unit of units){
+    if(unit.type === 'tower' || unit.type === 'ancient' || unit.type === 'barracks') unit.team = 1-unit.team;
+  }
+  barracksDestroyed = [barracksDestroyed[1],barracksDestroyed[0]];
+  megaCreeps = [megaCreeps[1],megaCreeps[0]];
+  structureProgress = [structureProgress[1],structureProgress[0]];
 }
 
 /* =========================================================
@@ -10196,7 +10252,7 @@ function drawPhraseWheel(){
     const lx = cx + Math.cos(labelAngle)*labelRadius;
     const ly = cy + Math.sin(labelAngle)*labelRadius;
     ctx.fillStyle = selected ? '#10131b' : '#fff';
-    ctx.font = 'bold 13px Segoe UI, Arial';
+    ctx.font = 'bold 11px Segoe UI, Arial';
     ctx.fillText(item.label, lx, ly);
   }
 
@@ -10321,13 +10377,11 @@ function handleMenuClick(mx, my){
   if(storeOpen){
     const panel={x:VW/2-330,y:VH/2-250,w:660,h:500};
     const close={x:panel.x+230,y:panel.y+426,w:200,h:44};
-    const legacy={x:panel.x+18,y:panel.y+170,w:194,h:100};
-    const chip={x:panel.x+234,y:panel.y+170,w:194,h:100};
-    const audio={x:panel.x+450,y:panel.y+170,w:194,h:100};
     if(mx>=close.x&&mx<=close.x+close.w&&my>=close.y&&my<=close.y+close.h){storeOpen=false;return;}
-    if(mx>=legacy.x&&mx<=legacy.x+legacy.w&&my>=legacy.y&&my<=legacy.y+legacy.h){storePhraseOwned=true;return;}
-    if(mx>=chip.x&&mx<=chip.x+chip.w&&my>=chip.y&&my<=chip.y+chip.h){storeChipOwned=true;return;}
-    if(mx>=audio.x&&mx<=audio.x+audio.w&&my>=audio.y&&my<=audio.y+audio.h){storeAudioOwned=true;return;}
+    for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
+      const card={x:panel.x+18+(index%3)*216,y:panel.y+150+Math.floor(index/3)*116,w:194,h:100};
+      if(mx>=card.x&&mx<=card.x+card.w&&my>=card.y&&my<=card.y+card.h){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
+    }
     return;
   }
   const changelogButton = menuChangelogRect();
@@ -10697,17 +10751,15 @@ function drawStorePanel(){
   ctx.strokeStyle='#8be9fd'; ctx.lineWidth=2.5; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
   ctx.textAlign='center'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 28px Georgia, serif'; ctx.fillText('МАГАЗИН ФРАЗ',VW/2,panel.y+54);
   ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='13px Segoe UI, Arial'; ctx.fillText('Откройте фразу и используйте её в катке клавишей K',VW/2,panel.y+82);
-  const cards=[
-    {x:panel.x+18,title:'КЛАССИКА',desc:'Короля не убить!',owned:storePhraseOwned,color:'#ffd568'},
-    {x:panel.x+234,title:'КОРОЛЬ-ЧИП',desc:'А Чип короооооооль!',owned:storeChipOwned,color:'#ff9fbd'},
-    {x:panel.x+450,title:'АНИМЕ-ФРАЗА',desc:'Пёсик, пёсик — ав-ав-ав!',owned:storeAudioOwned,color:'#8be9fd'}
-  ];
-  cards.forEach(card=>{
-    ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(card.x,panel.y+170,194,100);
-    ctx.strokeStyle=card.owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(card.x,panel.y+170,194,100);
-    ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(card.title,card.x+14,panel.y+194);
-    ctx.fillStyle='#fff'; ctx.font='bold '+(card.desc.length>20?'11':'14')+'px Segoe UI, Arial'; ctx.fillText(card.desc,card.x+14,panel.y+220);
-    ctx.fillStyle=card.owned?'#72e6a5':'#ffd568'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(card.owned?'ПОЛУЧЕНО':'ПОЛУЧИТЬ БЕСПЛАТНО',card.x+14,panel.y+244);
+  STORE_PHRASE_CARDS.forEach((card,index)=>{
+    const x=panel.x+18+(index%3)*216;
+    const y=panel.y+150+Math.floor(index/3)*116;
+    const owned=isStorePhraseOwned(card.id);
+    ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(x,y,194,100);
+    ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(x,y,194,100);
+    ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(card.title,x+12,y+24);
+    ctx.fillStyle='#fff'; ctx.font='bold '+(card.desc.length>20?'11':'14')+'px Segoe UI, Arial'; ctx.fillText(card.desc,x+12,y+50);
+    ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'ПОЛУЧИТЬ БЕСПЛАТНО',x+12,y+76);
   });
   const close={x:panel.x+230,y:panel.y+426,w:200,h:44}; drawMenuButton(close,'ЗАКРЫТЬ',{active:true});
   ctx.restore();
@@ -11187,6 +11239,7 @@ requestAnimationFrame(loop);
       onlineRoster = payload.roster;
       rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
+      orientOnlineMapForTeam(local.team);
       authoritativeMode = true;
       bindRosterHeroes();
       serverGameState = payload.state || null;
