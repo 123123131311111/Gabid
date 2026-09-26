@@ -10,9 +10,21 @@ const PORT = process.env.PORT || 3000;
 const MAX_SLOTS = 6;
 const WORLD_SIZE = 5000;
 const TICK_RATE = 60;
+const TEAM_LANES = [
+  [
+    [{x:700,y:2900},{x:1800,y:1800},{x:2900,y:700}],
+    [{x:520,y:2880},{x:400,y:900},{x:900,y:400},{x:2900,y:500}],
+    [{x:720,y:3120},{x:3100,y:3120},{x:3220,y:2900},{x:3220,y:900},{x:2960,y:600}]
+  ],
+  [
+    [{x:2900,y:700},{x:1800,y:1800},{x:700,y:2900}],
+    [{x:2900,y:500},{x:900,y:400},{x:400,y:900},{x:520,y:2880}],
+    [{x:2960,y:600},{x:3220,y:900},{x:3220,y:2900},{x:3100,y:3120},{x:720,y:3120}]
+  ]
+];
 const TEAM_SPAWNS = [
-  [{x:590,y:3010},{x:500,y:3000},{x:600,y:3120}],
-  [{x:3010,y:590},{x:3010,y:490},{x:3040,y:540}]
+  TEAM_LANES[0].map(lane => lane[0]),
+  TEAM_LANES[1].map(lane => lane[0])
 ];
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const rooms = Object.create(null);
@@ -44,11 +56,13 @@ function lobbyPayload(room){
 }
 function emitLobby(room){ io.to(room.id).emit('lobbyUpdate', lobbyPayload(room)); }
 function spawnPlayer(member){
-  const spawn = TEAM_SPAWNS[member.team][member.slot % 3];
-  return {id:member.id, team:member.team, bot:member.bot, heroId:member.hero || 'shadow',
+  const lane = member.slot % 3;
+  const spawn = TEAM_SPAWNS[member.team][lane];
+  return {id:member.id, slot:member.slot, team:member.team, bot:member.bot, heroId:member.hero || 'shadow',
     x:spawn.x, y:spawn.y,
     angle:member.team === 0 ? 0 : Math.PI, hp:900, maxHp:900, gold:600, alive:true,
-    moveTarget:null, keys:Object.create(null), speed:210, cooldown:0};
+    moveTarget:null, keys:Object.create(null), speed:210, cooldown:0,
+    lane, waypointIndex:1, respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0};
 }
 function chooseBots(room){
   const used = new Set(heroNames(room));
@@ -74,7 +88,7 @@ function startRoom(room){
 }
 function gameState(room){
   return {tick:room.tick || 0, players:Object.values(room.state || {}).map(player => ({
-    id:player.id, team:player.team, bot:player.bot, heroId:player.heroId,
+    id:player.id, slot:player.slot, team:player.team, bot:player.bot, heroId:player.heroId,
     x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
     gold:player.gold, alive:player.alive
   })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle}))};
@@ -82,6 +96,14 @@ function gameState(room){
 function nearestEnemy(room, player){
   return Object.values(room.state).filter(other => other.alive && other.team !== player.team)
     .sort((a,b) => Math.hypot(a.x-player.x,a.y-player.y) - Math.hypot(b.x-player.x,b.y-player.y))[0];
+}
+function nearestLaneEnemy(room, player){
+  const enemies = Object.values(room.state).filter(other => other.alive && other.team !== player.team);
+  const human = enemies.filter(other => !other.bot)
+    .sort((a,b) => Math.hypot(a.x-player.x,a.y-player.y) - Math.hypot(b.x-player.x,b.y-player.y))[0];
+  if(human && Math.hypot(human.x-player.x,human.y-player.y) < 900) return human;
+  return enemies.filter(other => other.slot % 3 === player.lane)
+    .sort((a,b) => Math.hypot(a.x-player.x,a.y-player.y) - Math.hypot(b.x-player.x,b.y-player.y))[0] || null;
 }
 function handleInput(socket, input){
   const room = roomOf(socket); const player = room?.state?.[socket.id];
@@ -103,21 +125,41 @@ function tickRoom(room, dt){
   room.tick = (room.tick || 0) + 1;
   for(const player of Object.values(room.state)){
     player.cooldown = Math.max(0, player.cooldown - dt);
-    if(!player.alive) continue;
+    if(!player.alive){
+      player.respawnTimer = Math.max(0, (player.respawnTimer || 0) - dt);
+      if(player.respawnTimer > 0) continue;
+      player.alive = true;
+      player.hp = player.maxHp;
+      player.x = player.respawnX;
+      player.y = player.respawnY;
+      player.moveTarget = null;
+      player.keys = Object.create(null);
+      player.cooldown = 0;
+      continue;
+    }
     if(player.bot){
-      const target = nearestEnemy(room, player);
+      const target = nearestLaneEnemy(room, player);
       if(target){
         const dx = target.x-player.x, dy = target.y-player.y;
         const distance = Math.hypot(dx,dy);
         player.angle = Math.atan2(dy,dx);
-        if(distance > 340){
+        if(distance > 440){
           player.moveTarget = {x:target.x-Math.cos(player.angle)*300, y:target.y-Math.sin(player.angle)*300};
         } else player.moveTarget = null;
         if(distance <= 950 && player.cooldown <= 0){
           player.cooldown = 0.85;
           room.bullets.push({id:nextBulletId++,x:player.x,y:player.y,team:player.team,angle:player.angle,life:1.4,owner:player.id});
         }
-      } else player.moveTarget = null;
+      } else {
+        const lane = TEAM_LANES[player.team][player.lane];
+        let waypoint = lane[Math.min(player.waypointIndex, lane.length-1)];
+        if(Math.hypot(waypoint.x-player.x,waypoint.y-player.y) < 140 && player.waypointIndex < lane.length-1){
+          player.waypointIndex++;
+          waypoint = lane[player.waypointIndex];
+        }
+        player.moveTarget = {x:waypoint.x,y:waypoint.y};
+        player.angle = Math.atan2(waypoint.y-player.y,waypoint.x-player.x);
+      }
     }
     const keys = player.keys || {};
     const keyX = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
@@ -131,7 +173,12 @@ function tickRoom(room, dt){
     const bullet = room.bullets[i];
     bullet.x += Math.cos(bullet.angle)*900*dt; bullet.y += Math.sin(bullet.angle)*900*dt; bullet.life -= dt;
     const hit = Object.values(room.state).find(player => player.alive && player.team !== bullet.team && Math.hypot(player.x-bullet.x,player.y-bullet.y) < 28);
-    if(hit){ hit.hp = Math.max(0, hit.hp-80); if(hit.hp === 0) hit.alive = false; room.bullets.splice(i,1); continue; }
+    if(hit){
+      hit.hp = Math.max(0, hit.hp-80);
+      if(hit.hp === 0){ hit.alive = false; hit.respawnTimer = 5; }
+      room.bullets.splice(i,1);
+      continue;
+    }
     if(bullet.life <= 0 || bullet.x < 0 || bullet.x > WORLD_SIZE || bullet.y < 0 || bullet.y > WORLD_SIZE) room.bullets.splice(i,1);
   }
 }
