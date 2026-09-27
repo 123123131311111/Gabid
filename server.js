@@ -10,9 +10,13 @@ const PORT = process.env.PORT || 3000;
 const MAX_SLOTS = 6;
 const WORLD_SIZE = 5000;
 const TICK_RATE = 30;
-const MAP_SCALE = 1.42;
-const mapPoint = (x,y) => ({x:(x-1800)*MAP_SCALE+WORLD_SIZE/2,y:(y-1800)*MAP_SCALE+WORLD_SIZE/2});
-const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y));
+/* Координаты фонтанов должны буквально совпадать с клиентскими BASES
+   (public/game.js), иначе сервер спавнит/респавнит игрока в точке,
+   которой на экране просто не существует: клиент её тут же "исправляет"
+   на свою собственную (правильную) позицию, но каждый респавн сервер
+   опять откатывает игрока в неверную точку — из-за этого другие игроки
+   видят зависания/телепортации, а лечение и урон у фонтана не работают. */
+const BASES = [{x:480,y:3120},{x:3120,y:480}];
 const SPAWN_RADIUS = 180;
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
@@ -91,9 +95,14 @@ function handleInput(socket, input){
   if(Number.isFinite(input.attackRange)) player.attackRange = clamp(input.attackRange,40,1400);
   if(input.type === 'position' && Number.isFinite(input.x) && Number.isFinite(input.y) && player.alive){
     const now=Date.now();
-    const elapsed=player.lastClientPositionAt ? Math.min(0.5,(now-player.lastClientPositionAt)/1000) : 0.5;
+    const rawElapsed=player.lastClientPositionAt ? (now-player.lastClientPositionAt)/1000 : 0.5;
+    const elapsed=Math.min(0.5,rawElapsed);
     const maxStep=player.speed*elapsed*2.2+36;
-    if(!player.clientDriven || Math.hypot(input.x-player.x,input.y-player.y)<=maxStep){
+    const distance=Math.hypot(input.x-player.x,input.y-player.y);
+    /* Если пакет отвергается больше секунды подряд (рассинхрон карты,
+       лаг, баг), просто принимаем позицию клиента — иначе игрок
+       "зависает"/телепортируется для остальных, пока не докопит шаги. */
+    if(!player.clientDriven || distance<=maxStep || rawElapsed>1){
       player.x=clamp(input.x,40,WORLD_SIZE-40);
       player.y=clamp(input.y,40,WORLD_SIZE-40);
       player.clientDriven=true;
@@ -258,6 +267,12 @@ function tickRoom(room, dt){
       player.moveTarget = null;
       player.keys = Object.create(null);
       player.cooldown = 0;
+      /* Сбрасываем клиентское владение позицией: следующий пакет с
+         реальными координатами от клиента (взятыми у его же фонтана)
+         примется безусловно, вместо того чтобы сервер держал игрока
+         "примёрзшим" к точке респавна, пока клиент не подойдёт к ней
+         маленькими шагами. */
+      player.clientDriven = false;
       player.lastClientPositionAt=Date.now();
       continue;
     }

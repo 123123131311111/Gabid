@@ -329,6 +329,9 @@ let storeOpen = false;
 let storePhraseOwned = false;
 let storeChipOwned = false;
 let storeAudioOwned = false;
+let storeFeedimidiOwned = false;
+let storeNineteenOwned = false;
+let storeAbuuuOwned = false;
 let storePhraseIndex = 0;
 let phraseWheelOpen = false;
 let phraseWheelSelection = -1;
@@ -1046,6 +1049,9 @@ function playStorePhrase(){
   if(storePhraseOwned) phrases.push('legacy');
   if(storeChipOwned) phrases.push('chip');
   if(storeAudioOwned) phrases.push('pesik');
+  if(storeFeedimidiOwned) phrases.push('feedimidi');
+  if(storeNineteenOwned) phrases.push('nineteen');
+  if(storeAbuuuOwned) phrases.push('abuuu');
   if(!phrases.length) return;
   const phrase = phrases[storePhraseIndex % phrases.length];
   storePhraseIndex++;
@@ -1053,11 +1059,41 @@ function playStorePhrase(){
 }
 
 const PHRASE_WHEEL_ITEMS = [
-  {id:'chip', label:'ЧИП-КОРОЛЬ', text:'А Чип короооооооль!', color:'#ff9fbd'},
-  {id:'legacy', label:'КОРОЛЯ НЕ УБИТЬ', text:'Короля не убить!', color:'#ffd568'},
-  {id:'pesik', label:'ПЁСИК, ПЁСИК', text:'Пёсик, пёсик! Ав-ав-ав!', color:'#8be9fd'},
-  {id:'kisi', label:'КИСИ-КИСИ МЯУ', text:'Киси-киси, мяу-мяу! Киси-киси, мяу-мяу-мяу!', color:'#d8a6ff'}
+  {id:'chip', label:'ЧИП', text:'А Чип короооооооль!', color:'#ff9fbd'},
+  {id:'legacy', label:'КОРОЛЯ', text:'Короля не убить!', color:'#ffd568'},
+  {id:'pesik', label:'ПЁСИК', text:'Пёсик, пёсик! Ав-ав-ав!', color:'#8be9fd'},
+  {id:'kisi', label:'КИСИ', text:'Киси-киси, мяу-мяу! Киси-киси, мяу-мяу-мяу!', color:'#d8a6ff'},
+  {id:'feedimidi', label:'ФИДИ МИДИ', text:'Фиди миди', color:'#ffd568'},
+  {id:'nineteen', label:'МНЕ 19 ЛЕТ', text:'Пацаны, мне 19 лет', color:'#bda8ff'},
+  {id:'abuuu', label:'АБУУУУ РАРАРАР', text:'АБУУУУУУУУ! РА-РА-РА!', color:'#ff8278'}
 ];
+const STORE_PHRASE_CARDS = [
+  {id:'legacy',title:'КЛАССИКА',desc:'Короля не убить!',color:'#ffd568'},
+  {id:'chip',title:'КОРОЛЬ-ЧИП',desc:'А Чип короооооооль!',color:'#ff9fbd'},
+  {id:'pesik',title:'АНИМЕ-ФРАЗА',desc:'Пёсик, пёсик — ав-ав-ав!',color:'#8be9fd'},
+  {id:'feedimidi',title:'ФИДИ МИДИ',desc:'Фиди миди',color:'#ffd568'},
+  {id:'nineteen',title:'ПАЦАНЫ, МНЕ 19',desc:'Страшная реплика',color:'#bda8ff'},
+  {id:'abuuu',title:'АБУУУУ РАРАРАР',desc:'Кричалка',color:'#ff8278'}
+];
+
+function isStorePhraseOwned(id){
+  if(id==='legacy') return storePhraseOwned;
+  if(id==='chip') return storeChipOwned;
+  if(id==='pesik') return storeAudioOwned;
+  if(id==='feedimidi') return storeFeedimidiOwned;
+  if(id==='nineteen') return storeNineteenOwned;
+  if(id==='abuuu') return storeAbuuuOwned;
+  return false;
+}
+
+function unlockStorePhrase(id){
+  if(id==='legacy') storePhraseOwned=true;
+  if(id==='chip') storeChipOwned=true;
+  if(id==='pesik') storeAudioOwned=true;
+  if(id==='feedimidi') storeFeedimidiOwned=true;
+  if(id==='nineteen') storeNineteenOwned=true;
+  if(id==='abuuu') storeAbuuuOwned=true;
+}
 
 function updatePhraseWheelSelection(){
   if(!phraseWheelOpen) return;
@@ -1085,13 +1121,19 @@ function speakStorePhrase(variant='chip'){
   const isPesik = variant === 'pesik';
   const isLegacy = variant === 'legacy';
   const isKisi = variant === 'kisi';
-  const settings = isLegacy
+  const settings = variant === 'feedimidi'
+    ? {text:'Фиди миди', rate:0.78, pitch:0.42, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
+    : (variant === 'nineteen'
+      ? {text:'Пацаны, мне 19 лет', rate:0.72, pitch:0.38, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
+      : (variant === 'abuuu'
+        ? {text:'АБУУУУУУУУ! РА-РА-РА!', rate:1.22, pitch:1.62, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
+        : (isLegacy
     ? {text:'Короля... не убить!', rate:0.76, pitch:0.58, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
     : (isPesik
       ? {text:'Пёсик, пёсик! Ав-ав-ав!', rate:1.16, pitch:1.58, pattern:/female|жен|anime|anna|milena|irina|girl|young/i}
       : (isKisi
         ? {text:'Киси-киси, мяу-мяу! Киси-киси, мяу-мяу-мяу!', rate:1.5, pitch:1.7, pattern:/female|жен|anime|anna|milena|irina|girl|young|cute/i}
-        : {text:'А Чип короооооооль!', rate:0.78, pitch:0.48, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}));
+        : {text:'А Чип короооооооль!', rate:0.78, pitch:0.48, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i})))));
 
   const speak = attempt => {
     try {
@@ -1278,6 +1320,12 @@ const SCEPTER_UPGRADES = {
 
 function applyDamage(target, amount, source){
   if(!target || target.dead) return;
+  const sourceHero = source && source.coins !== undefined
+    ? source
+    : (source && source.source && source.source.coins !== undefined ? source.source : null);
+  if(target.onlinePlayerId && sourceHero && sourceHero.isOnlineReplicatedCast) return;
+  if(target.onlinePlayerId && sourceHero && sourceHero.isPlayer && sourceHero.team === target.team) return;
+  if(isBuilding(target) && source && Number.isInteger(source.team) && source.team === target.team) return;
   if(target.invulnerable) return;
   /* Blade Fury блокирует заклинания, но не обычные физические атаки. */
   if(target.buffs && target.buffs.some(buff => buff.type === 'bladeFury') &&
@@ -1315,9 +1363,6 @@ function applyDamage(target, amount, source){
   }
   const dawnShardShield = target.buffs && target.buffs.find(buff => buff.type === 'dawnShardShield');
   if(dawnShardShield && source && source.team !== target.team) amount *= 1 - dawnShardShield.val;
-  const sourceHero = source && source.coins !== undefined
-    ? source
-    : (source && source.source && source.source.coins !== undefined ? source.source : null);
   if(sourceHero && hasScepterSkillBoost(sourceHero) && !(source && source.attack)) amount *= 1.2;
   if(sourceHero && source && source.attack && sourceHero.def){
     if(sourceHero.def.id === 'mageHunter' && sourceHero.skills && sourceHero.skills[0] && sourceHero.skills[0].level > 0 && target.type === 'hero'){
@@ -1366,6 +1411,12 @@ function applyDamage(target, amount, source){
   const dmg = source && source.trueDamage
     ? Math.max(1, amount)
     : Math.max(1, amount * armorMult(armor) * structureBonus);
+  const onlineSocket = window.__shadowOnlineSocket;
+      const onlineSourceTeam = sourceHero ? sourceHero.team : source && source.team;
+      if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && onlineSourceTeam === 0 &&
+        onlineSocket.id !== target.onlinePlayerId){
+    onlineSocket.emit('playerDamage',{targetId:target.onlinePlayerId,amount:dmg});
+  }
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
     target.damageContributors.set(sourceHero, (target.damageContributors.get(sourceHero) || 0) + dmg);
   }
@@ -4956,7 +5007,7 @@ class Hero extends Unit {
     if(this.dead){
       for(const s of this.skills) if(s.cd > 0) s.cd = Math.max(0, s.cd - dt);
       for(const key of Object.keys(this.spellCooldowns)) this.spellCooldowns[key] = Math.max(0, this.spellCooldowns[key] - dt);
-      this.respawnTimer -= dt;
+      this.respawnTimer = Math.max(0,this.respawnTimer-dt);
       if(this.respawnTimer <= 0){
         this.dead = false;
         this.hp = this.maxHp; this.mp = this.maxMp;
@@ -5228,6 +5279,8 @@ function castSkill(hero, slot, tx, ty){
       if(hero.def && hero.def.id === 'earthshaker' && !def.passive){
         triggerAftershockPulse(hero);
       }
+      if(hero === playerHero && typeof window.__shadowOnlineSkillCast === 'function')
+        window.__shadowOnlineSkillCast(hero,slot,s.id,tx,ty);
     }
   }
   catch(err){ console.error('Ошибка каста:', err); }
@@ -5364,6 +5417,19 @@ function startGame(playerIndex, draftPicks=null){
   cam.y = playerHero.y;
   gameState = 'playing';
   canvas.focus();
+}
+
+function orientOnlineMapForTeam(globalTeam){
+  if(globalTeam !== 1) return;
+  [BASES[0],BASES[1]] = [BASES[1],BASES[0]];
+  for(const lane of LANES) lane.reverse();
+  for(const tower of TOWER_SPOTS) tower.team = 1-tower.team;
+  for(const unit of units){
+    if(unit.type === 'tower' || unit.type === 'ancient' || unit.type === 'barracks') unit.team = 1-unit.team;
+  }
+  barracksDestroyed = [barracksDestroyed[1],barracksDestroyed[0]];
+  megaCreeps = [megaCreeps[1],megaCreeps[0]];
+  structureProgress = [structureProgress[1],structureProgress[0]];
 }
 
 /* =========================================================
@@ -5877,7 +5943,7 @@ function update(dt){
 
   for(const h of heroes){
     if(h.dead){ h.update(dt); continue; }
-    if(h !== playerHero && !h.isDummy && !h.isOnlineRemote) updateEnemyAI(h, dt);
+    if(h !== playerHero && !h.isDummy && (!h.isOnlineRemote || h.isOnlineBot)) updateEnemyAI(h, dt);
     h.update(dt);
   }
   updateMo3giMines(dt);
@@ -6424,12 +6490,15 @@ canvas.addEventListener('mousedown', e => {
       }
       if(isBuilding(tgt) && !canDamageStructure(tgt, null, true)){
         addText(tgt.x, tgt.y - 58, structureBlockReason(tgt), '#ffcc70', 1.4, 14);
+      } else if(typeof window.__shadowOnlineAttackTarget === 'function'){
+        window.__shadowOnlineAttackTarget(tgt);
       }
     } else if(tgt && !tgt.dead){
       inspectUnit = tgt;
     } else {
       control.attackTarget = null;
       control.moveTarget = {x:w.x, y:w.y};
+      if(typeof window.__shadowOnlineClearTarget === 'function') window.__shadowOnlineClearTarget();
       fxRing(w.x, w.y, 26, '#7fffa0', 0.35);
     }
   }
@@ -10189,7 +10258,7 @@ function drawPhraseWheel(){
     const lx = cx + Math.cos(labelAngle)*labelRadius;
     const ly = cy + Math.sin(labelAngle)*labelRadius;
     ctx.fillStyle = selected ? '#10131b' : '#fff';
-    ctx.font = 'bold 13px Segoe UI, Arial';
+    ctx.font = 'bold 11px Segoe UI, Arial';
     ctx.fillText(item.label, lx, ly);
   }
 
@@ -10314,13 +10383,11 @@ function handleMenuClick(mx, my){
   if(storeOpen){
     const panel={x:VW/2-330,y:VH/2-250,w:660,h:500};
     const close={x:panel.x+230,y:panel.y+426,w:200,h:44};
-    const legacy={x:panel.x+18,y:panel.y+170,w:194,h:100};
-    const chip={x:panel.x+234,y:panel.y+170,w:194,h:100};
-    const audio={x:panel.x+450,y:panel.y+170,w:194,h:100};
     if(mx>=close.x&&mx<=close.x+close.w&&my>=close.y&&my<=close.y+close.h){storeOpen=false;return;}
-    if(mx>=legacy.x&&mx<=legacy.x+legacy.w&&my>=legacy.y&&my<=legacy.y+legacy.h){storePhraseOwned=true;return;}
-    if(mx>=chip.x&&mx<=chip.x+chip.w&&my>=chip.y&&my<=chip.y+chip.h){storeChipOwned=true;return;}
-    if(mx>=audio.x&&mx<=audio.x+audio.w&&my>=audio.y&&my<=audio.y+audio.h){storeAudioOwned=true;return;}
+    for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
+      const card={x:panel.x+18+(index%3)*216,y:panel.y+150+Math.floor(index/3)*116,w:194,h:100};
+      if(mx>=card.x&&mx<=card.x+card.w&&my>=card.y&&my<=card.y+card.h){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
+    }
     return;
   }
   const changelogButton = menuChangelogRect();
@@ -10690,17 +10757,15 @@ function drawStorePanel(){
   ctx.strokeStyle='#8be9fd'; ctx.lineWidth=2.5; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
   ctx.textAlign='center'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 28px Georgia, serif'; ctx.fillText('МАГАЗИН ФРАЗ',VW/2,panel.y+54);
   ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='13px Segoe UI, Arial'; ctx.fillText('Откройте фразу и используйте её в катке клавишей K',VW/2,panel.y+82);
-  const cards=[
-    {x:panel.x+18,title:'КЛАССИКА',desc:'Короля не убить!',owned:storePhraseOwned,color:'#ffd568'},
-    {x:panel.x+234,title:'КОРОЛЬ-ЧИП',desc:'А Чип короооооооль!',owned:storeChipOwned,color:'#ff9fbd'},
-    {x:panel.x+450,title:'АНИМЕ-ФРАЗА',desc:'Пёсик, пёсик — ав-ав-ав!',owned:storeAudioOwned,color:'#8be9fd'}
-  ];
-  cards.forEach(card=>{
-    ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(card.x,panel.y+170,194,100);
-    ctx.strokeStyle=card.owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(card.x,panel.y+170,194,100);
-    ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(card.title,card.x+14,panel.y+194);
-    ctx.fillStyle='#fff'; ctx.font='bold '+(card.desc.length>20?'11':'14')+'px Segoe UI, Arial'; ctx.fillText(card.desc,card.x+14,panel.y+220);
-    ctx.fillStyle=card.owned?'#72e6a5':'#ffd568'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(card.owned?'ПОЛУЧЕНО':'ПОЛУЧИТЬ БЕСПЛАТНО',card.x+14,panel.y+244);
+  STORE_PHRASE_CARDS.forEach((card,index)=>{
+    const x=panel.x+18+(index%3)*216;
+    const y=panel.y+150+Math.floor(index/3)*116;
+    const owned=isStorePhraseOwned(card.id);
+    ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(x,y,194,100);
+    ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(x,y,194,100);
+    ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(card.title,x+12,y+24);
+    ctx.fillStyle='#fff'; ctx.font='bold '+(card.desc.length>20?'11':'14')+'px Segoe UI, Arial'; ctx.fillText(card.desc,x+12,y+50);
+    ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'ПОЛУЧИТЬ БЕСПЛАТНО',x+12,y+76);
   });
   const close={x:panel.x+230,y:panel.y+426,w:200,h:44}; drawMenuButton(close,'ЗАКРЫТЬ',{active:true});
   ctx.restore();
@@ -11114,58 +11179,42 @@ resize();
 
 requestAnimationFrame(loop);
 
-/* Authoritative online adapter: the server is the only simulation source.
-   Local movement is client-predicted and softly reconciled against the
-   server so it feels instant; every other hero is rendered from a short
-   interpolation buffer so network jitter doesn't show up as stutter. */
+/* Authoritative online adapter: the server is the only simulation source. */
 (() => {
   let socket = null;
   let onlineId = null;
   let onlineRoster = null;
+  let rosterSignature = '';
   let serverGameState = null;
+  let serverDamageVersion = -1;
+  let statsSequence = 0;
+  let lastSnapshotSignature = '';
   let authoritativeMode = false;
   const remoteHeroes = new Map();
-  const visualBullets = new Map(); // id -> {x,y,angle,team,age}
-  const seenBulletIds = new Set();
-  const snapshots = []; // {t, state}
-  const RENDER_DELAY = 90; // ms of deliberate buffering for smooth interpolation
-  const SNAPSHOT_BUFFER_MS = 1000;
-  const SERVER_MOVE_SPEED = 210; // must match server.js spawnPlayer speed
-  const SERVER_BULLET_SPEED = 900; // must match server.js tickRoom bullet speed
-  const SERVER_BULLET_LIFE = 1.4; // must match server.js bullet life
-
-  const localKeys = Object.create(null);
-  let localMoveTarget = null;
-  let localWasAlive = true;
+  const remoteBulletIds = new Set();
 
   function attachAuthoritativeSocket(){
     const candidate = window.__shadowOnlineSocket;
     if(!candidate || candidate === socket) return;
     socket = candidate;
     socket.on('match:begin', beginAuthoritativeMatch);
-    socket.on('gameState', onServerState);
+    socket.on('gameState', state => {
+      serverGameState = state;
+      syncRosterFromState(state);
+    });
+    socket.on('playerSnapshot', applyRemotePlayerSnapshot);
+    socket.on('playerVitals', applyLocalVitals);
+    socket.on('playerSkill', applyRemoteSkill);
+    socket.on('match:player-left', data => {
+      addText(playerHero ? playerHero.x : WORLD/2, playerHero ? playerHero.y : WORLD/2, data.message, '#ffd568', 2, 16);
+    });
     if(window.__shadowOnlineMatch) beginAuthoritativeMatch(window.__shadowOnlineMatch);
-  }
-
-  function onServerState(state){
-    serverGameState = state;
-    const now = performance.now();
-    snapshots.push({t: now, state});
-    while(snapshots.length > 2 && snapshots[1].t < now - SNAPSHOT_BUFFER_MS) snapshots.shift();
-    for(const bullet of state.bullets || []){
-      if(seenBulletIds.has(bullet.id)) continue;
-      seenBulletIds.add(bullet.id);
-      visualBullets.set(bullet.id, {x:bullet.x, y:bullet.y, angle:bullet.angle, team:bullet.team, age:0});
-      const owner = remoteHeroes.get(bullet.owner);
-      if(owner && !owner.dead){ owner.isAttacking = true; owner.attackAnimProgress = 0; }
-    }
-    if(seenBulletIds.size > 4000) seenBulletIds.clear();
   }
 
   function beginAuthoritativeMatch(payload){
     if(onlineId) return;
-    if(!payload || !Array.isArray(payload.roster) || payload.roster.length !== 6){
-      showMatchStartError('Сервер прислал неполный состав команды.');
+    if(!payload || !Array.isArray(payload.roster) || payload.roster.length < 2 || payload.roster.length > 6){
+      showMatchStartError('Для матча нужны от 2 до 6 игроков.');
       return;
     }
     const local = payload.roster.find(member => member.id === payload.id);
@@ -11173,16 +11222,23 @@ requestAnimationFrame(loop);
       showMatchStartError('Ваш герой не найден в составе матча.');
       return;
     }
-    const own = payload.roster.filter(member => member.team === local.team);
-    const enemy = payload.roster.filter(member => member.team !== local.team);
-    if(own.length !== 3 || enemy.length !== 3){
-      showMatchStartError('Состав команд некорректен: нужно 3 на 3.');
+    const bySlot = (left,right) => left.slot-right.slot;
+    const own = payload.roster.filter(member => member.team === local.team).sort(bySlot);
+    const enemy = payload.roster.filter(member => member.team !== local.team).sort(bySlot);
+    if(!own.length || !enemy.length || own.length > 3 || enemy.length > 3 || Math.abs(own.length-enemy.length)>1){
+      showMatchStartError('Нужно от 1 до 3 игроков в каждой команде.');
       return;
     }
     const heroIdOf = member => member.hero || member.heroId;
     const heroIndex = HERO_DEFS.findIndex(hero => hero.id === heroIdOf(local));
     const heroIndexOf = member => HERO_DEFS.findIndex(hero => hero.id === heroIdOf(member));
-    const picks = [heroIndexOf(enemy[0]), heroIndexOf(own[1]), heroIndexOf(own[2]), heroIndexOf(enemy[1]), heroIndexOf(enemy[2])];
+    const ownOthers = own.filter(member => member.id !== local.id);
+    const fallback = heroIndex;
+    const picks = [enemy[0] ? heroIndexOf(enemy[0]) : fallback,
+      ownOthers[0] ? heroIndexOf(ownOthers[0]) : fallback,
+      ownOthers[1] ? heroIndexOf(ownOthers[1]) : fallback,
+      enemy[1] ? heroIndexOf(enemy[1]) : fallback,
+      enemy[2] ? heroIndexOf(enemy[2]) : fallback];
     if(heroIndex < 0 || picks.some(index => index < 0)){
       showMatchStartError('Сервер прислал неизвестного героя.');
       return;
@@ -11190,15 +11246,35 @@ requestAnimationFrame(loop);
     try {
       onlineId = payload.id;
       onlineRoster = payload.roster;
+      rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
+      orientOnlineMapForTeam(local.team);
       authoritativeMode = true;
-      localWasAlive = true;
-      localMoveTarget = null;
-      for(const key in localKeys) delete localKeys[key];
       bindRosterHeroes();
       serverGameState = payload.state || null;
-      if(serverGameState) snapshots.push({t: performance.now(), state: serverGameState});
-      hardSyncFromLatest();
+      /* Расставляем всех героев (себя и союзника/противника) точно там,
+         где их заспавнил сервер — у своего фонтана (Свет/Тьма), а не
+         на миду, как в обычном одиночном старте. */
+      if(serverGameState && Array.isArray(serverGameState.players)){
+        for(const remote of serverGameState.players){
+          const hero = remoteHeroes.get(remote.id);
+          if(!hero || !Number.isFinite(remote.x) || !Number.isFinite(remote.y)) continue;
+          hero.x = remote.x; hero.y = remote.y;
+          if(Number.isFinite(remote.angle)) hero.facing = remote.angle;
+          hero.moveTarget = null; hero.attackTarget = null;
+        }
+      }
+      if(playerHero){ cam.x = playerHero.x; cam.y = playerHero.y; }
+      const localState = serverGameState && serverGameState.players.find(player => player.id === onlineId);
+      if(localState && playerHero){
+        localState.hp = playerHero.hp;
+        localState.maxHp = playerHero.maxHp;
+        localState.gold = playerHero.coins;
+        serverDamageVersion = Number.isInteger(localState.damageVersion) ? localState.damageVersion : 0;
+      }
+      applyAuthoritativeState();
+      sendPlayerStats();
+      sendPlayerSnapshot(true);
       document.getElementById('mode-picker')?.setAttribute('hidden','');
     } catch(error) {
       onlineId = null;
@@ -11219,225 +11295,295 @@ requestAnimationFrame(loop);
   }
 
   function bindRosterHeroes(){
-    if(!onlineRoster || heroes.length < 6) return;
+    if(!onlineRoster || !heroes.length) return;
     const local = onlineRoster.find(member => member.id === onlineId);
-    const own = onlineRoster.filter(member => member.team === (local ? local.team : 0));
-    const enemy = onlineRoster.filter(member => member.team !== (local ? local.team : 0));
-    const slots = [local, own[1], own[2], enemy[0], enemy[1], enemy[2]];
+    if(!local) return;
+    const bySlot = (left,right) => left.slot-right.slot;
+    const own = onlineRoster.filter(member => member.team === local.team).sort(bySlot);
+    const enemy = onlineRoster.filter(member => member.team !== local.team).sort(bySlot);
+    const ownOthers = own.filter(member => member.id !== local.id);
+    const slots = [
+      {member:local,hero:playerHero},
+      {member:ownOthers[0],hero:heroes[1]},
+      {member:ownOthers[1],hero:heroes[2]},
+      {member:enemy[0],hero:heroes[3]},
+      {member:enemy[1],hero:heroes[4]},
+      {member:enemy[2],hero:heroes[5]}
+    ].filter(slot => slot.member && slot.hero);
+    const currentIds = new Set(slots.map(slot => slot.member.id));
+    for(const [id,hero] of remoteHeroes){
+      if(currentIds.has(id)) continue;
+      remoteHeroes.delete(id);
+      units = units.filter(unit => unit !== hero);
+      heroes = heroes.filter(unit => unit !== hero);
+    }
+    for(const {member,hero} of slots){
+      if(remoteHeroes.has(member.id)) continue;
+      remoteHeroes.set(member.id,hero);
+    }
     const localTeam = local ? local.team : 0;
-    slots.forEach((member, index) => {
-      if(!member || !heroes[index]) return;
-      const hero = heroes[index];
+    for(const {member} of slots){
+      const hero = remoteHeroes.get(member.id);
+      if(!hero) continue;
       hero.team = member.team === localTeam ? 0 : 1;
       hero.isOnlineRemote = member.id !== onlineId;
-      hero.isOnlineBot = !!member.bot;
-      hero.updateAI = function(){};
-      hero.updateCombat = function(){};
-      remoteHeroes.set(member.id, hero);
-    });
+      hero.isPlayer = member.id === onlineId;
+      hero.onlinePlayerId = member.id;
+      if(hero.isOnlineRemote){
+        hero.updateAI = function(){};
+        hero.updateCombat = function(){};
+      } else {
+        delete hero.updateAI;
+        delete hero.updateCombat;
+      }
+    }
+    const activeHeroes = new Set(remoteHeroes.values());
+    units = units.filter(unit => unit.type !== 'hero' || activeHeroes.has(unit));
+    heroes = heroes.filter(hero => activeHeroes.has(hero));
     playerHero = remoteHeroes.get(onlineId) || playerHero;
   }
 
-  /* Sets every hero straight to the newest known server position, used only
-     on match start / respawn-type jumps so nothing has to visibly tween in
-     from an undefined spot. */
-  function hardSyncFromLatest(){
-    if(!serverGameState || !Array.isArray(serverGameState.players)) return;
+  function syncRosterFromState(state){
+    if(!authoritativeMode || !state || !Array.isArray(state.players)) return;
+    const nextRoster = state.players.map(player => ({
+      id:player.id, slot:player.slot, team:player.team, bot:false,
+      hero:player.heroId, heroId:player.heroId
+    }));
+    if(!nextRoster.some(member => member.id === onlineId)) return;
+    const signature = nextRoster.map(member => `${member.id}:${member.slot}:${member.team}:${member.heroId}`).join('|');
+    if(signature === rosterSignature) return;
+    rosterSignature = signature;
+    onlineRoster = nextRoster;
+    bindRosterHeroes();
+  }
+
+  function applyAuthoritativeState(frameDt=1/60){
+    if(!authoritativeMode || !serverGameState || !Array.isArray(serverGameState.players)) return;
+    const dt=Math.min(0.1,Math.max(0,Number(frameDt)||0));
+    const blend=1-Math.exp(-14*dt);
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
-      hero.x = remote.x; hero.y = remote.y; hero.facing = remote.angle;
-      hero.hp = remote.hp; hero.maxHp = remote.maxHp; hero.dead = !remote.alive;
-      hero.coins = remote.gold || hero.coins;
-      hero.moving = false;
-    }
-  }
-
-  function findPlayer(state, id){
-    if(!state || !Array.isArray(state.players)) return null;
-    return state.players.find(p => p.id === id) || null;
-  }
-
-  function lerp(a,b,t){ return a + (b-a)*t; }
-  function lerpAngle(a,b,t){
-    let diff = ((b - a + Math.PI*3) % (Math.PI*2)) - Math.PI;
-    return a + diff*t;
-  }
-
-  /* Mirrors the exact walk-cycle bookkeeping from Unit.updateMove() so
-     online heroes (bots included) still animate instead of gliding. */
-  function advanceWalkAnim(hero, dt, movedDist){
-    hero.moving = movedDist > 0.4;
-    if(hero.moving){
-      const strideSpeed = Math.max(28, hero.getSpeed ? hero.getSpeed() : SERVER_MOVE_SPEED);
-      hero.walkPhase = (hero.walkPhase || 0) + (movedDist/dt) / (strideSpeed*0.62) * dt;
-      hero.footstepTimer = (hero.footstepTimer || 0) - dt;
-      if(hero.footstepTimer <= 0){
-        hero.footstepTimer = clamp(46/(strideSpeed*0.62), 0.14, 0.42);
-        const footAngle = hero.facing + Math.PI/2 * (Math.sin(hero.walkPhase*Math.PI*2) > 0 ? 1 : -1);
-        const fx = hero.x + Math.cos(footAngle)*hero.radius*0.42 - Math.cos(hero.facing)*hero.radius*0.3;
-        const fy = hero.y + Math.sin(footAngle)*hero.radius*0.42 - Math.sin(hero.facing)*hero.radius*0.3 + hero.radius*0.55;
-        spawnFootstepDust(fx, fy, hero.footstepColor || 'rgba(196,182,140,0.55)');
-        spawnGrassBend(fx, fy, hero.facing);
+      if(remote.id !== onlineId){
+        const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
+        if(error>700){ hero.x=remote.x; hero.y=remote.y; }
+        else { hero.x+=(remote.x-hero.x)*blend; hero.y+=(remote.y-hero.y)*blend; }
       }
-    } else {
-      hero.footstepTimer = 0;
-    }
-  }
-
-  /* Local player: dead-reckon the same movement rules the server runs
-     (WASD or click-to-move, no obstacle collision, same fixed speed), then
-     aim strictly at the mouse cursor like a top-down shooter. */
-  function predictLocalMovement(dt){
-    const hero = playerHero;
-    if(!hero || hero.dead){ return; }
-    const preX = hero.x, preY = hero.y;
-    const keyX = (localKeys.d || localKeys.arrowright ? 1:0) - (localKeys.a || localKeys.arrowleft ? 1:0);
-    const keyY = (localKeys.s || localKeys.arrowdown ? 1:0) - (localKeys.w || localKeys.arrowup ? 1:0);
-    let dx = keyX, dy = keyY;
-    if(!dx && !dy && localMoveTarget){
-      dx = localMoveTarget.x - hero.x; dy = localMoveTarget.y - hero.y;
-      if(Math.hypot(dx,dy) < 8) localMoveTarget = null;
-    }
-    const length = Math.hypot(dx,dy) || 1;
-    if(dx || dy){
-      hero.x = clamp(hero.x + dx/length*SERVER_MOVE_SPEED*dt, 40, WORLD-40);
-      hero.y = clamp(hero.y + dy/length*SERVER_MOVE_SPEED*dt, 40, WORLD-40);
-    }
-    if(mouse && Number.isFinite(mouse.wx) && Number.isFinite(mouse.wy)){
-      hero.facing = Math.atan2(mouse.wy - hero.y, mouse.wx - hero.x);
-    }
-    advanceWalkAnim(hero, dt, Math.hypot(hero.x-preX, hero.y-preY));
-  }
-
-  function reconcileLocalHero(latest){
-    const hero = playerHero;
-    if(!hero || !latest) return;
-    const aliveNow = !!latest.alive;
-    if(aliveNow !== localWasAlive || !aliveNow){
-      /* Died or just respawned: snap, don't tween, and drop any stale
-         move order so we don't walk off the respawn pad on our own. */
-      hero.x = latest.x; hero.y = latest.y;
-      localMoveTarget = null;
-    } else {
-      const errX = latest.x - hero.x, errY = latest.y - hero.y;
-      const errDist = Math.hypot(errX, errY);
-      if(errDist > 220){ hero.x = latest.x; hero.y = latest.y; }
-      else if(errDist > 1){ hero.x += errX*0.15; hero.y += errY*0.15; }
-    }
-    localWasAlive = aliveNow;
-    hero.hp = latest.hp; hero.maxHp = latest.maxHp; hero.dead = !aliveNow;
-    hero.coins = latest.gold || hero.coins;
-  }
-
-  function applyAuthoritativeState(dt){
-    if(!authoritativeMode || !serverGameState || !Array.isArray(serverGameState.players)) return;
-    bindRosterHeroes();
-
-    const renderTime = performance.now() - RENDER_DELAY;
-    let a = snapshots[0], b = snapshots[snapshots.length-1];
-    for(let i=0;i<snapshots.length-1;i++){
-      if(snapshots[i].t <= renderTime){ a = snapshots[i]; b = snapshots[i+1]; }
-    }
-    const span = Math.max(1, b.t - a.t);
-    const factor = clamp((renderTime - a.t)/span, 0, 1);
-
-    for(const [id, hero] of remoteHeroes){
-      if(id === onlineId) continue;
-      const pa = findPlayer(a.state, id);
-      const pb = findPlayer(b.state, id) || pa;
-      const from = pa || pb;
-      if(!from) continue;
-      const preX = hero.x, preY = hero.y;
-      if(pa && pb){
-        hero.x = lerp(pa.x, pb.x, factor);
-        hero.y = lerp(pa.y, pb.y, factor);
-        hero.facing = lerpAngle(pa.angle, pb.angle, factor);
-        hero.hp = lerp(pa.hp, pb.hp, factor);
+      hero.facing = remote.angle;
+      if(remote.id === onlineId){
+        if(Number.isInteger(remote.damageVersion) && remote.damageVersion >= serverDamageVersion &&
+           (!remote.alive || hero.dead || remote.damageVersion > serverDamageVersion)) applyLocalVitals(remote);
       } else {
-        hero.x = from.x; hero.y = from.y; hero.facing = from.angle; hero.hp = from.hp;
-      }
-      hero.maxHp = (pb || from).maxHp;
-      hero.coins = (pb || from).gold || hero.coins;
-      const wasDead = hero.dead;
-      hero.dead = !((pb || from).alive);
-      if(hero.dead && !wasDead){ hero.moving = false; hero.footstepTimer = 0; }
-      if(!hero.dead){
-        const movedDist = Math.hypot(hero.x-preX, hero.y-preY);
-        advanceWalkAnim(hero, dt || (1/60), movedDist);
+        hero.hp = remote.hp;
+        hero.maxHp = remote.maxHp;
+        hero.dead = !remote.alive;
+        hero.respawnTimer = Math.max(0,Number(remote.respawnTimer)||0);
+        if(Number.isFinite(remote.gold)) hero.coins = remote.gold;
       }
     }
+    for(const bullet of serverGameState.bullets || []){
+      if(remoteBulletIds.has(bullet.id)) continue;
+      remoteBulletIds.add(bullet.id);
+      fxRing(bullet.x, bullet.y, 16, bullet.team === 0 ? '#8be9fd' : '#ff8a3d', .12);
+    }
+    if(remoteBulletIds.size > 1000) remoteBulletIds.clear();
+  }
 
-    const localLatest = findPlayer(serverGameState, onlineId);
-    if(localLatest) reconcileLocalHero(localLatest);
+  function skillEffectState(hero){
+    return {
+      x:hero.x,y:hero.y,
+      mp:hero.mp,maxMp:hero.maxMp,stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
+      slow:hero.slow,slowT:hero.slowT,attackSlow:hero.attackSlow,attackSlowT:hero.attackSlowT,
+      liftTimer:hero.liftTimer,knockbackX:hero.knockbackX,knockbackY:hero.knockbackY,knockbackTimer:hero.knockbackTimer,
+      buffs:(hero.buffs||[]).slice(0,24).map(buff=>({
+        type:buff.type,val:buff.val,t:buff.t,multiplier:buff.multiplier,damage:buff.damage
+      }))
+    };
+  }
 
-    for(const [id, bullet] of visualBullets){
-      bullet.age += dt || (1/60);
-      bullet.x += Math.cos(bullet.angle) * SERVER_BULLET_SPEED * (dt || (1/60));
-      bullet.y += Math.sin(bullet.angle) * SERVER_BULLET_SPEED * (dt || (1/60));
-      const stillOnServer = (serverGameState.bullets || []).some(sb => sb.id === id);
-      if(!stillOnServer || bullet.age >= SERVER_BULLET_LIFE){
-        if(!stillOnServer) fxHit(bullet.x, bullet.y, bullet.team === 0 ? '#8be9fd' : '#ff8a3d');
-        visualBullets.delete(id);
+  function sendSkillCast(hero,slot,skillId,tx,ty){
+    if(!socket || !socket.connected || !authoritativeMode) return;
+    const effects=[];
+    for(const [targetId,target] of remoteHeroes){
+      if(targetId===onlineId || target.team===hero.team) continue;
+      effects.push({targetId,state:skillEffectState(target)});
+    }
+    sendPlayerSnapshot(true);
+    socket.emit('playerSkill',{
+      heroId:hero.def.id,skillId,slot,level:hero.skills[slot]?.level||1,
+      x:hero.x,y:hero.y,angle:hero.facing,tx,ty,effects
+    });
+  }
+
+  function applyRemoteSkill(event){
+    if(!authoritativeMode || !event || event.id===onlineId) return;
+    const caster=remoteHeroes.get(event.id);
+    if(caster){
+      caster.x=event.x; caster.y=event.y; caster.facing=event.angle;
+      const skill=caster.skills.find(item=>item.id===event.skillId);
+      if(skill){
+        if(Number.isFinite(event.level)) skill.level=event.level;
+        caster.castingSkillLevel=skill.level;
+        caster.scepterSkillBoost=hasScepter(caster)&&(event.slot===0||event.slot===1||skill.def.ult);
+        caster.isOnlineReplicatedCast=true;
+        try { skill.def.cast(caster,event.tx,event.ty,skill.level); }
+        catch(error){ console.warn('Не удалось воспроизвести онлайн-способность:',error); }
+        finally { caster.castingSkillLevel=0; caster.scepterSkillBoost=false; caster.isOnlineReplicatedCast=false; }
+        castSkillVisual(caster,skill,event.tx,event.ty);
       }
+    }
+    for(const effect of event.effects||[]){
+      const target=remoteHeroes.get(effect.targetId);
+      const state=effect.state;
+      if(!target || target.onlinePlayerId!==onlineId || !state) continue;
+      if(Number.isFinite(state.x)) target.x=state.x;
+      if(Number.isFinite(state.y)) target.y=state.y;
+      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+        if(Number.isFinite(state[key])) target[key]=state[key];
+      }
+      if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
     }
   }
 
-  function drawOnlineBullets(){
-    if(!authoritativeMode || !visualBullets.size) return;
-    for(const bullet of visualBullets.values()){
-      const color = bullet.team === 0 ? '#8be9fd' : '#ff8a3d';
-      ctx.save();
-      ctx.globalAlpha = 0.35;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(bullet.x - Math.cos(bullet.angle)*22, bullet.y - Math.sin(bullet.angle)*22);
-      ctx.lineTo(bullet.x, bullet.y);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.shadowBlur = 12; ctx.shadowColor = color;
-      ctx.fillStyle = color;
-      ctx.beginPath(); ctx.arc(bullet.x, bullet.y, 5, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
+  function moveOnlineHeroToAttackRange(target){
+    if(!authoritativeMode || !playerHero || !target || target.dead) return;
+    sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
+      speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
   }
+  function clearOnlineAttackTarget(){
+    if(authoritativeMode) sendInput({type:'clearTarget'});
+  }
+  window.__shadowOnlineSkillCast=sendSkillCast;
+  window.__shadowOnlineAttackTarget=moveOnlineHeroToAttackRange;
+  window.__shadowOnlineClearTarget=clearOnlineAttackTarget;
 
   const originalStartGame = startGame;
   const originalUpdate = update;
-  update = function(dt){
+  update = function(){
     originalUpdate.apply(this, arguments);
-    if(authoritativeMode){
-      predictLocalMovement(dt);
-      applyAuthoritativeState(dt);
-    }
-  };
-
-  const originalDrawWorldObjects = drawWorldObjects;
-  drawWorldObjects = function(){
-    originalDrawWorldObjects.apply(this, arguments);
-    drawOnlineBullets();
+    if(authoritativeMode) applyAuthoritativeState(arguments[0]);
   };
 
   function sendInput(action){
     if(!socket || !socket.connected) return;
     socket.emit('playerInput', action);
   }
+  function sendPlayerSnapshot(force=false,teleport=false){
+    if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
+    const effects=[];
+    for(const [targetId,target] of remoteHeroes){
+      if(targetId===onlineId || target.team===playerHero.team) continue;
+      effects.push({targetId,state:skillEffectState(target)});
+    }
+    const snapshot={
+      heroId:playerHero.def.id,level:playerHero.level,xp:playerHero.xp,
+      x:playerHero.x,y:playerHero.y,teleport,
+      hp:playerHero.hp,maxHp:playerHero.maxHp,mp:playerHero.mp,maxMp:playerHero.maxMp,
+      inventory:playerHero.inventory.map(item=>item&&({id:item.id,cooldown:item.cooldown||0,activeTimer:item.activeTimer||0})),
+      skills:playerHero.skills.map(skill=>({id:skill.id,level:skill.level,cd:skill.cd||0})),
+      buffs:playerHero.buffs.slice(0,24).map(buff=>({type:buff.type,val:buff.val,t:buff.t,multiplier:buff.multiplier,damage:buff.damage})),
+      bkbActive:playerHero.bkbActive||0,timurPillow:playerHero.timurPillow||0,effects
+    };
+    const quantize=value=>Math.round((Number(value)||0)*5)/5;
+    const signature=JSON.stringify({
+      level:snapshot.level,inventory:snapshot.inventory.map(item=>item&&[item.id,quantize(item.cooldown),quantize(item.activeTimer)]),
+      skills:snapshot.skills.map(skill=>[skill.id,skill.level,quantize(skill.cd)]),
+      buffs:snapshot.buffs.map(buff=>[buff.type,quantize(buff.val),quantize(buff.t)]),
+      effects:snapshot.effects.map(effect=>[effect.targetId,effect.state.mp,effect.state.stunTimer,effect.state.silenceTimer,effect.state.buffs.map(buff=>[buff.type,quantize(buff.t)])]),
+      bkb:quantize(snapshot.bkbActive),pillow:quantize(snapshot.timurPillow)
+    });
+    if(!force && signature===lastSnapshotSignature) return;
+    lastSnapshotSignature=signature;
+    socket.emit('playerSnapshot',snapshot);
+  }
+  const originalUseInventoryItem=useInventoryItem;
+  useInventoryItem=function(hero,index){
+    const beforeX=hero.x,beforeY=hero.y;
+    const used=originalUseInventoryItem.apply(this,arguments);
+    if(used && hero===playerHero) sendPlayerSnapshot(true,Math.hypot(hero.x-beforeX,hero.y-beforeY)>120);
+    return used;
+  };
+  const originalBuyShopItem=buyShopItem;
+  buyShopItem=function(id){
+    const bought=originalBuyShopItem.apply(this,arguments);
+    if(bought) sendPlayerSnapshot(true);
+    return bought;
+  };
+  function applyRemotePlayerSnapshot(snapshot){
+    if(!authoritativeMode || !snapshot || snapshot.id===onlineId) return;
+    const hero=remoteHeroes.get(snapshot.id);
+    if(!hero) return;
+    if(Number.isFinite(snapshot.level)) hero.level=snapshot.level;
+    if(Number.isFinite(snapshot.xp)) hero.xp=snapshot.xp;
+    for(const key of ['hp','maxHp','mp','maxMp','bkbActive','timurPillow'])
+      if(Number.isFinite(snapshot[key])) hero[key]=snapshot[key];
+    if(Array.isArray(snapshot.inventory)) hero.inventory=snapshot.inventory.slice(0,6).map(item=>item&&({
+      ...createInventoryItem(item.id),cooldown:Number(item.cooldown)||0,activeTimer:Number(item.activeTimer)||0
+    }));
+    if(Array.isArray(snapshot.skills)){
+      for(const remoteSkill of snapshot.skills){
+        const skill=hero.skills.find(item=>item.id===remoteSkill.id);
+        if(skill){skill.level=remoteSkill.level;skill.cd=remoteSkill.cd;}
+      }
+    }
+    if(Array.isArray(snapshot.buffs)) hero.buffs=snapshot.buffs.map(buff=>({...buff}));
+    for(const effect of snapshot.effects||[]){
+      const target=remoteHeroes.get(effect.targetId),state=effect.state;
+      if(!target || target.onlinePlayerId!==onlineId || !state) continue;
+      if(Number.isFinite(state.x)) target.x=state.x;
+      if(Number.isFinite(state.y)) target.y=state.y;
+      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
+        if(Number.isFinite(state[key])) target[key]=state[key];
+      if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
+    }
+  }
+  window.__shadowOnlineItemUsed=sendPlayerSnapshot;
+  function sendPlayerStats(){
+    if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
+    socket.emit('playerStats',{
+      hp:playerHero.hp,maxHp:playerHero.maxHp,gold:playerHero.coins,
+      alive:!playerHero.dead,respawnTimer:Math.max(0,playerHero.respawnTimer||0),
+      damageVersion:serverDamageVersion,sequence:++statsSequence
+    });
+  }
+  function sendPlayerPosition(){
+    if(!socket || !socket.connected || !authoritativeMode || !playerHero || playerHero.dead) return;
+    sendInput({type:'position',x:playerHero.x,y:playerHero.y,angle:playerHero.facing,
+      speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
+  }
+  function applyLocalVitals(vitals){
+    if(!vitals || vitals.id !== onlineId || !playerHero) return;
+    if(Number.isInteger(vitals.damageVersion) && vitals.damageVersion < serverDamageVersion) return;
+    if(Number.isInteger(vitals.damageVersion)) serverDamageVersion = vitals.damageVersion;
+    if(Number.isFinite(vitals.maxHp)) playerHero.maxHp = vitals.maxHp;
+    if(vitals.alive === false){
+      if(!playerHero.dead){
+        playerHero.dead = true;
+        playerHero.deaths++;
+        playerHero.killStreak = 0;
+        playerHero.lastHeroKillTime = -Infinity;
+      }
+      playerHero.hp = 0;
+      playerHero.respawnTimer = Math.max(0,Number(vitals.respawnTimer)||0);
+      return;
+    }
+    if(vitals.alive === true && playerHero.dead){
+      playerHero.respawnTimer = 0;
+      playerHero.update(0);
+    }
+    if(Number.isFinite(vitals.hp)) playerHero.hp = vitals.hp;
+    if(Number.isFinite(vitals.respawnTimer)) playerHero.respawnTimer = Math.max(0,vitals.respawnTimer);
+  }
   function onlineKeyFromEvent(event){
     return PHYSICAL_KEY_LETTER[event.code] || (event.key || '').toLowerCase();
   }
   window.addEventListener('keydown', event => {
     if(!authoritativeMode) return;
-    const key = onlineKeyFromEvent(event);
-    localKeys[key] = true;
-    sendInput({type:'key', key, down:true, angle:playerHero ? playerHero.facing : 0});
+    sendInput({type:'key', key:onlineKeyFromEvent(event), down:true, angle:playerHero ? playerHero.facing : 0});
   }, true);
   window.addEventListener('keyup', event => {
     if(!authoritativeMode) return;
-    const key = onlineKeyFromEvent(event);
-    localKeys[key] = false;
-    sendInput({type:'key', key, down:false});
+    sendInput({type:'key', key:onlineKeyFromEvent(event), down:false});
   }, true);
   canvas.addEventListener('mousemove', () => {
     if(authoritativeMode && playerHero) sendInput({angle:playerHero.facing});
@@ -11445,14 +11591,23 @@ requestAnimationFrame(loop);
   canvas.addEventListener('mousedown', event => {
     if(!authoritativeMode || !playerHero) return;
     if(event.button === 2){
-      localMoveTarget = {x:mouse.wx, y:mouse.wy};
-      sendInput({type:'move', moveTarget:{x:mouse.wx,y:mouse.wy}, angle:playerHero.facing});
+      if(playerHero.attackTarget && !playerHero.attackTarget.dead)
+        moveOnlineHeroToAttackRange(playerHero.attackTarget);
+      else sendInput({type:'move', moveTarget:{x:mouse.wx,y:mouse.wy}, angle:playerHero.facing});
     }
     if(event.button === 0) sendInput({type:'shoot', angle:playerHero.facing});
   }, true);
   setInterval(() => {
     attachAuthoritativeSocket();
     if(authoritativeMode && playerHero) sendInput({type:'aim', angle:playerHero.facing});
+    if(authoritativeMode) sendPlayerPosition();
+    if(authoritativeMode) sendPlayerStats();
+    if(authoritativeMode) sendPlayerSnapshot(false);
+    if(authoritativeMode && playerHero && playerHero.attackTarget && !playerHero.attackTarget.dead){
+      const target=playerHero.attackTarget;
+      sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
+        speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
+    }
     const entry = document.getElementById('online-entry');
     if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
   }, 50);
