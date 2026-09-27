@@ -11186,18 +11186,27 @@ requestAnimationFrame(loop);
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
 
+  function normalizeOnlineTeam(team){
+    if(!Number.isInteger(team) || !onlineRoster || !onlineId) return team;
+    const local = onlineRoster.find(member => member.id === onlineId);
+    if(!local || !Number.isInteger(local.team)) return team;
+    return local.team === 1 ? 1 - team : team;
+  }
+
   function syncTowerState(sTower){
     if(!sTower || !Number.isFinite(sTower.hp) && !Number.isFinite(sTower.maxHp) && !sTower.id) return;
+    const normalizedTeam = Number.isInteger(sTower.team) ? normalizeOnlineTeam(sTower.team) : undefined;
     const tower = units.find(u =>
       (u.type === 'tower' || u.type === 'ancient') && (
         String(u.id) === String(sTower.id) ||
         (Number.isFinite(sTower.x) && Number.isFinite(sTower.y) && Number.isFinite(u.x) && Number.isFinite(u.y) && Math.abs(u.x - sTower.x) < 50 && Math.abs(u.y - sTower.y) < 50) ||
-        (Number.isFinite(sTower.team) && Number.isFinite(sTower.lane) && Number.isFinite(sTower.tier) && u.team === sTower.team && u.lane === sTower.lane && u.tier === sTower.tier)
+        (Number.isFinite(normalizedTeam) && Number.isFinite(sTower.lane) && Number.isFinite(sTower.tier) && u.team === normalizedTeam && u.lane === sTower.lane && u.tier === sTower.tier)
       )
     );
     if(!tower) return;
     tower.hp = Number.isFinite(sTower.hp) ? sTower.hp : tower.hp;
     tower.maxHp = Number.isFinite(sTower.maxHp) ? sTower.maxHp : tower.maxHp;
+    if(Number.isInteger(normalizedTeam)) tower.team = normalizedTeam;
     tower.alive = sTower.alive !== false && tower.hp > 0;
     tower.dead = !tower.alive;
     if(!tower.alive) tower.hp = 0;
