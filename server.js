@@ -73,7 +73,8 @@ function spawnPlayer(member){
     moveTarget:null, keys:Object.create(null), speed:210, cooldown:0,
     attackTargetId:null, attackRange:210,
     clientDriven:false,lastClientPositionAt:0,
-    respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0, damageVersion:0, lastStatsSequence:0};
+    respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0, damageVersion:0, lastStatsSequence:0,
+    mp:null, maxMp:null, skillCooldowns:Object.create(null)};
 }
 function startRoom(room){
   if(!room || room.started) return false;
@@ -111,15 +112,31 @@ function handleInput(socket, input){
   if(Number.isFinite(input.attackRange)) player.attackRange = clamp(input.attackRange,40,1400);
   if(input.type === 'position' && Number.isFinite(input.x) && Number.isFinite(input.y) && player.alive){
     const now=Date.now();
-    const elapsed=player.lastClientPositionAt ? Math.min(0.5,(now-player.lastClientPositionAt)/1000) : 0.5;
-    const maxStep=player.speed*elapsed*2.2+36;
-    if(!player.clientDriven || Math.hypot(input.x-player.x,input.y-player.y)<=maxStep){
-      player.x=clamp(input.x,40,WORLD_SIZE-40);
-      player.y=clamp(input.y,40,WORLD_SIZE-40);
-      player.clientDriven=true;
-      player.lastClientPositionAt=now;
-      if(Number.isFinite(input.angle)) player.angle=input.angle;
+    // elapsed измеряется от последнего ПРИНЯТОГО обновления сервером (не доверяем таймингу клиента),
+    // так что при сетевых просадках допустимый шаг растёт вместе с реальным временем, а не остаётся крошечным.
+    const elapsed=player.lastClientPositionAt ? Math.min(0.5,(now-player.lastClientPositionAt)/1000) : 0.15;
+    const maxStep=player.speed*elapsed*2.4+48;
+    const targetX=clamp(input.x,40,WORLD_SIZE-40), targetY=clamp(input.y,40,WORLD_SIZE-40);
+    if(!player.clientDriven){
+      player.x=targetX; player.y=targetY;
+    } else {
+      const dx=targetX-player.x, dy=targetY-player.y;
+      const dist=Math.hypot(dx,dy);
+      if(dist<=maxStep){
+        // В пределах правдоподобного шага — принимаем как есть, без "теленортации".
+        player.x=targetX; player.y=targetY;
+      } else {
+        // Пакет пришёл с подозрительно большим прыжком (лаг/спайк) — вместо того чтобы
+        // отбросить его целиком (из-за чего игрок "замирал" бы, а потом резко прыгал),
+        // просто продвигаем игрока в сторону заявленной точки на максимально допустимое
+        // расстояние. Через 1-2 тика позиция сама "дотягивается" до клиентской — плавно.
+        player.x=clamp(player.x+dx/dist*maxStep,40,WORLD_SIZE-40);
+        player.y=clamp(player.y+dy/dist*maxStep,40,WORLD_SIZE-40);
+      }
     }
+    player.clientDriven=true;
+    player.lastClientPositionAt=now;
+    if(Number.isFinite(input.angle)) player.angle=input.angle;
   }
   if(input.type === 'key' && typeof input.key === 'string' && /^(?:[wasd]|arrow(?:up|down|left|right))$/.test(input.key)){
     player.keys[input.key] = !!input.down;
@@ -156,9 +173,14 @@ function handlePlayerStats(socket, stats){
   if(!room || !player || !stats) return;
   if(Number.isFinite(stats.maxHp)) player.maxHp = clamp(stats.maxHp,1,1000000);
   if(Number.isFinite(stats.gold)) player.gold = clamp(stats.gold,0,100000000);
-  if(!Number.isInteger(stats.sequence) || stats.sequence <= player.lastStatsSequence ||
-     stats.damageVersion !== player.damageVersion) return;
+  // Раньше пакет с "устаревшим" damageVersion отбрасывался целиком — из-за этого HP на сервере
+  // могло надолго "залипнуть" на старом значении, а когда версии наконец совпадали, клиент видел
+  // резкий откат/скачок полосы здоровья. Теперь единственное условие упорядоченности — sequence
+  // (защита от применения пакетов не по порядку), а damageVersion лишь синхронизируется, не блокируя HP.
+  if(!Number.isInteger(stats.sequence) || stats.sequence <= player.lastStatsSequence) return;
   player.lastStatsSequence = stats.sequence;
+  if(Number.isInteger(stats.damageVersion) && stats.damageVersion > player.damageVersion)
+    player.damageVersion = stats.damageVersion;
   if(Number.isFinite(stats.hp)) player.hp = clamp(stats.hp,0,player.maxHp);
   if(stats.alive === false || player.hp <= 0){
     if(player.alive){
@@ -251,6 +273,19 @@ function handlePlayerSkill(socket,data){
   const room=roomOf(socket);
   const caster=room?.state?.[socket.id];
   if(!room||!caster||!caster.alive||!data||typeof data.skillId!=='string'||data.skillId.length>80) return;
+  const slotKey=Number.isInteger(data.slot)?data.slot:data.skillId;
+  const now=Date.now();
+  // Валидация кулдауна: сервер сам считает время следующего разрешённого каста по слоту способности,
+  // не доверяя клиенту "на слово". Небольшой запас (10%) страхует от рассинхрона часов клиент/сервер.
+  const readyAt=caster.skillCooldowns[slotKey]||0;
+  if(now<readyAt) return;
+  // Валидация манакоста: если сервер уже знает текущий mp игрока (из playerSnapshot), не даём
+  // скастовать способность, на которую заведомо не хватает маны.
+  const manaCost=Number.isFinite(data.manaCost)?clamp(data.manaCost,0,100000):0;
+  if(Number.isFinite(caster.mp) && caster.mp+0.01<manaCost) return;
+  const cdSeconds=clamp(Number(data.cdSeconds)||0,0,600);
+  caster.skillCooldowns[slotKey]=now+cdSeconds*900; // *0.9 от заявленного кд — запас на джиттер сети
+  if(Number.isFinite(caster.mp)) caster.mp=Math.max(0,caster.mp-manaCost);
   if(Number.isFinite(data.x)) caster.x=clamp(data.x,40,WORLD_SIZE-40);
   if(Number.isFinite(data.y)) caster.y=clamp(data.y,40,WORLD_SIZE-40);
   if(Number.isFinite(data.angle)) caster.angle=data.angle;
@@ -285,6 +320,8 @@ function handlePlayerSnapshot(socket,data){
   const room=roomOf(socket);
   const player=room?.state?.[socket.id];
   if(!room||!player||!data||data.heroId!==player.heroId) return;
+  if(Number.isFinite(data.mp)) player.mp=clamp(data.mp,0,1000000);
+  if(Number.isFinite(data.maxMp)) player.maxMp=clamp(data.maxMp,0,1000000);
   if(data.teleport===true && Number.isFinite(data.x) && Number.isFinite(data.y)){
     player.x=clamp(data.x,40,WORLD_SIZE-40);
     player.y=clamp(data.y,40,WORLD_SIZE-40);
