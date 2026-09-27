@@ -1417,6 +1417,16 @@ function applyDamage(target, amount, source){
         onlineSocket.id !== target.onlinePlayerId){
     onlineSocket.emit('playerDamage',{targetId:target.onlinePlayerId,amount:dmg});
   }
+      if(isBuilding(target) && sourceHero && sourceHero.isPlayer && sourceHero.team !== target.team &&
+         typeof window.__shadowOnlineStructureDamage === 'function'){
+        window.__shadowOnlineStructureDamage(target,dmg);
+      }
+      if(isBuilding(target) && typeof window.__shadowOnlineIsActive === 'function' && window.__shadowOnlineIsActive()){
+        target.hitFlash = 0.18;
+        addText(target.x + rnd(-12,12), target.y - target.radius - 6,
+                Math.round(dmg), '#ffd24a', 0.8, 15);
+        return;
+      }
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
     target.damageContributors.set(sourceHero, (target.damageContributors.get(sourceHero) || 0) + dmg);
   }
@@ -1554,8 +1564,10 @@ function killUnit(u, source){
     addText(u.x, u.y-60, 'УБИТ!', '#ff3b3b', 1.6, 26);
   }
   if(u.type === 'ancient'){
-    winner = u.team === 0 ? 1 : 0;
-    gameState = 'over';
+    if(typeof window.__shadowOnlineIsActive !== 'function' || !window.__shadowOnlineIsActive()){
+      winner = u.team === 0 ? 1 : 0;
+      gameState = 'over';
+    }
   }
 }
 
@@ -4826,20 +4838,7 @@ const HERO_DEFS = [
   }
 ];
 
-function offerTalent(hero){
-  const talents = HERO_TALENTS[hero.def.id] || [];
-  const tier = hero.talents.length;
-  if(!talents.length || tier >= 5) return;
-  const choices = [talents[tier], talents[(tier + 1) % talents.length]]
-    .filter((talent, index, list) => talent && !hero.talents.includes(talent[0]) && list.findIndex(item => item && item[0] === talent[0]) === index);
-  if(hero.isPlayer){
-    talentHero = hero;
-    talentChoices = choices;
-    talentOpen = true;
-  } else {
-    hero.applyTalent(choices[Math.floor(Math.random() * choices.length)]);
-  }
-}
+function offerTalent(){ }
 
 class Hero extends Unit {
   constructor(def, team){
@@ -6405,12 +6404,6 @@ canvas.addEventListener('mousedown', e => {
     e.preventDefault();
     return;
   }
-  const talentToggle=talentToggleRect();
-  if(mx>=talentToggle.x&&mx<=talentToggle.x+talentToggle.w&&my>=talentToggle.y&&my<=talentToggle.y+talentToggle.h){
-    talentTreeOpen=!talentTreeOpen;
-    return;
-  }
-  if(talentOpen){ handleTalentClick(mx, my); return; }
   if(!playerHero || playerHero.dead) return;
   if(handleMo3giControlClick(mx,my)) return;
 
@@ -9920,6 +9913,7 @@ function handleTalentClick(mx, my){
 }
 
 function drawTalentPanel(){
+  return;
   if(!playerHero) return;
   ctx.save();
   const treeX=Math.max(12,skillBarRect(0).x-156);
@@ -10306,10 +10300,11 @@ function drawScoreboard(){
 
 let menuHover = -1;
 function menuPlayRect(){ return {x:VW/2-150,y:VH/2-28,w:300,h:72}; }
-function menuChangelogRect(){ return {x:VW/2-155,y:VH/2+178,w:310,h:48}; }
+function menuOnlineRect(){ return {x:VW/2-150,y:VH/2+58,w:300,h:58}; }
+function menuChangelogRect(){ return {x:VW/2-155,y:VH/2+186,w:310,h:48}; }
 function menuSettingsRect(){ return {x:VW-174,y:22,w:150,h:42}; }
 function menuSettingsPanel(){ return {x:VW/2-280,y:VH/2-260,w:560,h:520}; }
-function menuStoreRect(){ return {x:VW/2-155,y:VH/2+292,w:310,h:48}; }
+function menuStoreRect(){ return {x:VW/2-155,y:VH/2+244,w:310,h:48}; }
 
 function drawMenuButton(rect, label, options={}){
   const hover = mouse.x>=rect.x && mouse.x<=rect.x+rect.w &&
@@ -10408,6 +10403,11 @@ function handleMenuClick(mx, my){
       beginDraft();
       return;
     }
+    const online = menuOnlineRect();
+    if(mx>=online.x && mx<=online.x+online.w && my>=online.y && my<=online.y+online.h){
+      window.__shadowOpenOnlinePicker?.();
+      return;
+    }
     const fighters = menuFightersRect();
     if(mx>=fighters.x && mx<=fighters.x+fighters.w && my>=fighters.y && my<=fighters.y+fighters.h){
       menuStage = 'heroes';
@@ -10478,7 +10478,7 @@ function menuCardRect(i){
 }
 function menuPreviousRect(){ return {x:VW/2-230,y:VH-68,w:92,h:38}; }
 function menuNextRect(){ return {x:VW/2+138,y:VH-68,w:92,h:38}; }
-function menuFightersRect(){ return {x:VW/2-155,y:VH/2+62,w:310,h:54}; }
+function menuFightersRect(){ return {x:VW/2-155,y:VH/2+124,w:310,h:54}; }
 function menuDetailBackRect(){ return {x:24,y:78,w:132,h:42}; }
 function menuDetailStartRect(){ return {x:VW-300,y:VH-76,w:260,h:50}; }
 function menuDetailTestRect(){ return {x:VW-300-276,y:VH-76,w:260,h:50}; }
@@ -10951,14 +10951,15 @@ function drawMenu(){
     ctx.fillText('Сражение героев, предметов и древних сил', VW/2, VH/2-92);
     const play = menuPlayRect();
     drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,radius:10});
+    const online = menuOnlineRect();
+    drawMenuButton(online,'ИГРАТЬ В МУЛЬТИПЛЕЕР',{primary:true,large:true,radius:9});
     const fightersButton = menuFightersRect();
     drawMenuButton(fightersButton,'⚔  БОЙЦЫ',{active:true,radius:8});
-    const changelog = {x:VW/2-155,y:VH/2+178,w:310,h:48};
+    const changelog = menuChangelogRect();
     drawMenuButton(changelog,'▣  CHANGELOG',{radius:8});
     const storeButton=menuStoreRect();
     drawMenuButton(storeButton,'♫  МАГАЗИН ФРАЗ',{radius:8});
     ctx.font = '14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
     return;
   }
 
@@ -11183,6 +11184,7 @@ requestAnimationFrame(loop);
 (() => {
   let socket = null;
   let onlineId = null;
+  let onlineGlobalTeam = 0;
   let onlineRoster = null;
   let rosterSignature = '';
   let serverGameState = null;
@@ -11190,6 +11192,7 @@ requestAnimationFrame(loop);
   let statsSequence = 0;
   let lastSnapshotSignature = '';
   let authoritativeMode = false;
+  let onlineWinnerApplied = false;
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
 
@@ -11245,6 +11248,8 @@ requestAnimationFrame(loop);
     }
     try {
       onlineId = payload.id;
+      onlineGlobalTeam = local.team;
+      onlineWinnerApplied = false;
       onlineRoster = payload.roster;
       rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
@@ -11254,6 +11259,9 @@ requestAnimationFrame(loop);
       serverGameState = payload.state || null;
       const localState = serverGameState && serverGameState.players.find(player => player.id === onlineId);
       if(localState && playerHero){
+        playerHero.x = localState.x;
+        playerHero.y = localState.y;
+        playerHero.moveTarget = null;
         localState.hp = playerHero.hp;
         localState.maxHp = playerHero.maxHp;
         localState.gold = playerHero.coins;
@@ -11373,7 +11381,47 @@ requestAnimationFrame(loop);
       remoteBulletIds.add(bullet.id);
       fxRing(bullet.x, bullet.y, 16, bullet.team === 0 ? '#8be9fd' : '#ff8a3d', .12);
     }
+    applyOnlineStructureState(serverGameState);
     if(remoteBulletIds.size > 1000) remoteBulletIds.clear();
+  }
+
+  function applyOnlineStructureState(state){
+    if(!Array.isArray(state.structures)) return;
+    for(const remote of state.structures){
+      const localTeam=remote.team===onlineGlobalTeam?0:1;
+      const structure=units.find(unit=>unit.team===localTeam&&unit.type===remote.type&&
+        (remote.type==='ancient'||(unit.lane===remote.lane&&unit.tier===remote.tier))&&
+        (remote.type!=='ancient'||unit.type==='ancient'));
+      if(!structure) continue;
+      if(remote.dead && !structure.dead){
+        structure.hp=0;
+        killUnit(structure,null);
+      }
+      structure.hp=remote.hp;
+      structure.maxHp=remote.maxHp;
+      structure.dead=remote.dead;
+    }
+    if(Array.isArray(state.structureProgress)){
+      for(let globalTeam=0;globalTeam<2;globalTeam++){
+        const localTeam=globalTeam===onlineGlobalTeam?0:1;
+        const progress=state.structureProgress[globalTeam];
+        if(progress) structureProgress[localTeam]={lane:progress.lane,step:progress.step,
+          lanes:progress.lanes.map(line=>({step:line.step}))};
+      }
+    }
+    if(Array.isArray(state.barracksDestroyed)){
+      for(let globalTeam=0;globalTeam<2;globalTeam++)
+        barracksDestroyed[globalTeam===onlineGlobalTeam?0:1]=state.barracksDestroyed[globalTeam];
+      megaCreeps[0]=barracksDestroyed[1]>=3;
+      megaCreeps[1]=barracksDestroyed[0]>=3;
+    }
+    if(Number.isInteger(state.winner)){
+      winner=state.winner===onlineGlobalTeam?0:1;
+      if(!onlineWinnerApplied){
+        gameState='over';
+        onlineWinnerApplied=true;
+      }
+    }
   }
 
   function skillEffectState(hero){
@@ -11440,6 +11488,13 @@ requestAnimationFrame(loop);
   function clearOnlineAttackTarget(){
     if(authoritativeMode) sendInput({type:'clearTarget'});
   }
+  function sendStructureDamage(target,amount){
+    if(!socket||!socket.connected||!authoritativeMode||!target) return;
+    socket.emit('structureDamage',{type:target.type,lane:Number.isInteger(target.lane)?target.lane:0,
+      tier:Number.isInteger(target.tier)?target.tier:0,amount});
+  }
+  window.__shadowOnlineStructureDamage=sendStructureDamage;
+  window.__shadowOnlineIsActive=()=>authoritativeMode;
   window.__shadowOnlineSkillCast=sendSkillCast;
   window.__shadowOnlineAttackTarget=moveOnlineHeroToAttackRange;
   window.__shadowOnlineClearTarget=clearOnlineAttackTarget;
@@ -11595,7 +11650,5 @@ requestAnimationFrame(loop);
       sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
         speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
     }
-    const entry = document.getElementById('online-entry');
-    if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
   }, 50);
 })();
