@@ -10946,7 +10946,7 @@ function drawMenu(){
     const play = menuPlayRect();
     drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,radius:10});
     const online = menuOnlineRect();
-    drawMenuButton(online,'ОНЛАЙН 3 НА 3',{primary:true,radius:9});
+    drawMenuButton(online,'ИГРАТЬ В МУЛЬТИПЛЕЕР',{primary:true,radius:9});
     const fightersButton = menuFightersRect();
     drawMenuButton(fightersButton,'⚔  БОЙЦЫ',{active:true,radius:8});
     const changelog = menuChangelogRect();
