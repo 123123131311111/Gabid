@@ -10,13 +10,9 @@ const PORT = process.env.PORT || 3000;
 const MAX_SLOTS = 6;
 const WORLD_SIZE = 5000;
 const TICK_RATE = 30;
-/* Координаты фонтанов должны буквально совпадать с клиентскими BASES
-   (public/game.js), иначе сервер спавнит/респавнит игрока в точке,
-   которой на экране просто не существует: клиент её тут же "исправляет"
-   на свою собственную (правильную) позицию, но каждый респавн сервер
-   опять откатывает игрока в неверную точку — из-за этого другие игроки
-   видят зависания/телепортации, а лечение и урон у фонтана не работают. */
-const BASES = [{x:480,y:3120},{x:3120,y:480}];
+const MAP_SCALE = 1.42;
+const mapPoint = (x,y) => ({x:(x-1800)*MAP_SCALE+WORLD_SIZE/2,y:(y-1800)*MAP_SCALE+WORLD_SIZE/2});
+const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y));
 const SPAWN_RADIUS = 180;
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
@@ -95,20 +91,26 @@ function handleInput(socket, input){
   if(Number.isFinite(input.attackRange)) player.attackRange = clamp(input.attackRange,40,1400);
   if(input.type === 'position' && Number.isFinite(input.x) && Number.isFinite(input.y) && player.alive){
     const now=Date.now();
-    const rawElapsed=player.lastClientPositionAt ? (now-player.lastClientPositionAt)/1000 : 0.5;
-    const elapsed=Math.min(0.5,rawElapsed);
-    const maxStep=player.speed*elapsed*2.2+36;
-    const distance=Math.hypot(input.x-player.x,input.y-player.y);
-    /* Если пакет отвергается больше секунды подряд (рассинхрон карты,
-       лаг, баг), просто принимаем позицию клиента — иначе игрок
-       "зависает"/телепортируется для остальных, пока не докопит шаги. */
-    if(!player.clientDriven || distance<=maxStep || rawElapsed>1){
-      player.x=clamp(input.x,40,WORLD_SIZE-40);
-      player.y=clamp(input.y,40,WORLD_SIZE-40);
-      player.clientDriven=true;
-      player.lastClientPositionAt=now;
-      if(Number.isFinite(input.angle)) player.angle=input.angle;
+    const elapsed=player.lastClientPositionAt ? Math.min(1,(now-player.lastClientPositionAt)/1000) : 1;
+    const maxStep=player.speed*elapsed*2.5+80;
+    const targetX=clamp(input.x,40,WORLD_SIZE-40);
+    const targetY=clamp(input.y,40,WORLD_SIZE-40);
+    const dist=Math.hypot(targetX-player.x,targetY-player.y);
+    if(!player.clientDriven || dist<=maxStep){
+      player.x=targetX;
+      player.y=targetY;
+    } else {
+      // Move as far as allowed instead of silently dropping the update, so the
+      // server position always keeps catching up and can never get permanently
+      // stuck (which used to cause other players to see it freeze then
+      // suddenly 'teleport').
+      const ratio=maxStep/dist;
+      player.x=clamp(player.x+(targetX-player.x)*ratio,40,WORLD_SIZE-40);
+      player.y=clamp(player.y+(targetY-player.y)*ratio,40,WORLD_SIZE-40);
     }
+    player.clientDriven=true;
+    player.lastClientPositionAt=now;
+    if(Number.isFinite(input.angle)) player.angle=input.angle;
   }
   if(input.type === 'key' && typeof input.key === 'string' && /^(?:[wasd]|arrow(?:up|down|left|right))$/.test(input.key)){
     player.keys[input.key] = !!input.down;
@@ -224,8 +226,6 @@ function handlePlayerSnapshot(socket,data){
     const target=room.state[effect?.targetId];
     if(!target||target.team===player.team||!effect.state) continue;
     const state=effect.state;
-    if(Number.isFinite(state.x)) target.x=clamp(state.x,40,WORLD_SIZE-40);
-    if(Number.isFinite(state.y)) target.y=clamp(state.y,40,WORLD_SIZE-40);
     for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
       if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
     }
@@ -263,17 +263,13 @@ function tickRoom(room, dt){
       player.hp = player.maxHp;
       player.x = player.respawnX;
       player.y = player.respawnY;
+      player.clientDriven = false;
       player.damageVersion++;
       player.moveTarget = null;
       player.keys = Object.create(null);
       player.cooldown = 0;
-      /* Сбрасываем клиентское владение позицией: следующий пакет с
-         реальными координатами от клиента (взятыми у его же фонтана)
-         примется безусловно, вместо того чтобы сервер держал игрока
-         "примёрзшим" к точке респавна, пока клиент не подойдёт к ней
-         маленькими шагами. */
-      player.clientDriven = false;
       player.lastClientPositionAt=Date.now();
+      emitPlayerVitals(room,player);
       continue;
     }
     if(player.clientDriven) continue;

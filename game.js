@@ -11252,21 +11252,11 @@ requestAnimationFrame(loop);
       authoritativeMode = true;
       bindRosterHeroes();
       serverGameState = payload.state || null;
-      /* Расставляем всех героев (себя и союзника/противника) точно там,
-         где их заспавнил сервер — у своего фонтана (Свет/Тьма), а не
-         на миду, как в обычном одиночном старте. */
-      if(serverGameState && Array.isArray(serverGameState.players)){
-        for(const remote of serverGameState.players){
-          const hero = remoteHeroes.get(remote.id);
-          if(!hero || !Number.isFinite(remote.x) || !Number.isFinite(remote.y)) continue;
-          hero.x = remote.x; hero.y = remote.y;
-          if(Number.isFinite(remote.angle)) hero.facing = remote.angle;
-          hero.moveTarget = null; hero.attackTarget = null;
-        }
-      }
-      if(playerHero){ cam.x = playerHero.x; cam.y = playerHero.y; }
       const localState = serverGameState && serverGameState.players.find(player => player.id === onlineId);
       if(localState && playerHero){
+        playerHero.x = localState.x;
+        playerHero.y = localState.y;
+        playerHero.moveTarget = null;
         localState.hp = playerHero.hp;
         localState.maxHp = playerHero.maxHp;
         localState.gold = playerHero.coins;
@@ -11405,7 +11395,9 @@ requestAnimationFrame(loop);
     if(!socket || !socket.connected || !authoritativeMode) return;
     const effects=[];
     for(const [targetId,target] of remoteHeroes){
-      if(targetId===onlineId || target.team===hero.team) continue;
+      // Include allies too (heals/buffs), not just enemies (damage/CC) - otherwise
+      // support skills never get an authoritative correction on the ally's own screen.
+      if(targetId===onlineId) continue;
       effects.push({targetId,state:skillEffectState(target)});
     }
     sendPlayerSnapshot(true);
@@ -11472,7 +11464,9 @@ requestAnimationFrame(loop);
     if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
     const effects=[];
     for(const [targetId,target] of remoteHeroes){
-      if(targetId===onlineId || target.team===playerHero.team) continue;
+      // Include allies too, so ongoing ally-targeted effects (heals, shields, auras)
+      // keep correcting on the ally's own screen, not just enemy debuffs.
+      if(targetId===onlineId) continue;
       effects.push({targetId,state:skillEffectState(target)});
     }
     const snapshot={
