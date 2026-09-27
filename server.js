@@ -190,10 +190,14 @@ function handlePlayerSkill(socket,data){
     const target=room.state[effect?.targetId];
     if(!target||target.team===caster.team||!effect.state) continue;
     const state=effect.state;
-    if(Number.isFinite(state.x)) target.x=clamp(state.x,40,WORLD_SIZE-40);
-    if(Number.isFinite(state.y)) target.y=clamp(state.y,40,WORLD_SIZE-40);
-    for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
-      if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
+    // x/y and mp/maxMp are intentionally never taken from this side-channel: they
+    // used to be copied straight from whatever the CASTER's browser believed
+    // about this target (only an approximate, laggy replica), and re-broadcasting
+    // that as fact caused constant teleporting/rubber-banding and mana that kept
+    // rewinding/refilling itself. Only real CC/buff state travels this way -
+    // position and mana always come from the target's own client.
+    for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(state[key])) target[key]=clamp(state[key],-10000,10000);
     }
     if(Array.isArray(state.buffs)){
       target.skillBuffs=state.buffs.slice(0,24).map(buff=>({
@@ -202,7 +206,12 @@ function handlePlayerSkill(socket,data){
         damage:Number.isFinite(buff.damage)?clamp(buff.damage,0,10000):undefined
       }));
     }
-    effects.push({targetId:target.id,state:{...state,x:target.x,y:target.y}});
+    effects.push({targetId:target.id,state:{
+      stunTimer:target.stunTimer,silenceTimer:target.silenceTimer,slow:target.slow,slowT:target.slowT,
+      attackSlow:target.attackSlow,attackSlowT:target.attackSlowT,liftTimer:target.liftTimer,
+      knockbackX:target.knockbackX,knockbackY:target.knockbackY,knockbackTimer:target.knockbackTimer,
+      buffs:target.skillBuffs||[]
+    }});
   }
   io.to(room.id).emit('playerSkill',{
     id:socket.id,heroId:caster.heroId,skillId:data.skillId,slot:data.slot,level:clamp(Number(data.level)||1,1,10),
@@ -226,11 +235,17 @@ function handlePlayerSnapshot(socket,data){
     const target=room.state[effect?.targetId];
     if(!target||target.team===player.team||!effect.state) continue;
     const state=effect.state;
-    for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
-      if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
+    // No x/y or mp/maxMp from this side-channel either - see handlePlayerSkill.
+    for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(state[key])) target[key]=clamp(state[key],-10000,10000);
     }
     if(Array.isArray(state.buffs)) target.skillBuffs=state.buffs.slice(0,24);
-    effects.push({targetId:target.id,state:{...state,x:target.x,y:target.y}});
+    effects.push({targetId:target.id,state:{
+      stunTimer:target.stunTimer,silenceTimer:target.silenceTimer,slow:target.slow,slowT:target.slowT,
+      attackSlow:target.attackSlow,attackSlowT:target.attackSlowT,liftTimer:target.liftTimer,
+      knockbackX:target.knockbackX,knockbackY:target.knockbackY,knockbackTimer:target.knockbackTimer,
+      buffs:target.skillBuffs||[]
+    }});
   }
   const snapshot={
     id:socket.id,heroId:player.heroId,

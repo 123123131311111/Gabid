@@ -11335,8 +11335,30 @@ requestAnimationFrame(loop);
       hero.isPlayer = member.id === onlineId;
       hero.onlinePlayerId = member.id;
       if(hero.isOnlineRemote){
-        hero.updateAI = function(){};
-        hero.updateCombat = function(){};
+        // Their real position/HP/mana already arrive over the network, so this
+        // hero must never decide where to walk or whom to fight among players -
+        // that used to fight the network sync every frame and is what caused the
+        // teleporting/jitter. But turning combat off completely meant teammates
+        // and enemies simulated on your own screen never fought back against lane
+        // creeps at all, so from your point of view creeps near them simply never
+        // died. This narrow stand-in only ever lets them swing at a lane creep
+        // that has already wandered into their (network-accurate) attack range -
+        // it never moves them and never targets another hero, so it can't bring
+        // back the rubber-banding.
+        hero.updateAI = function(){
+          const current = this.attackTarget;
+          if(current && (current.dead || current.team === this.team || current.type !== 'creep' ||
+             this.distTo(current) > this.getAttackRange() + current.radius + 20)){
+            this.attackTarget = null;
+          }
+          if(!this.attackTarget){
+            for(const u of units){
+              if(u === this || u.dead || u.type !== 'creep' || u.team === this.team) continue;
+              if(this.distTo(u) <= this.getAttackRange() + u.radius){ this.attackTarget = u; break; }
+            }
+          }
+        };
+        delete hero.updateCombat;
       } else {
         delete hero.updateAI;
         delete hero.updateCombat;
@@ -11395,9 +11417,16 @@ requestAnimationFrame(loop);
   }
 
   function skillEffectState(hero){
+    // IMPORTANT: never include x/y/mp/maxMp here. This state is built from OUR
+    // OWN (possibly stale/laggy) local replica of another player's hero, and
+    // used to get broadcast as if it were ground truth about that hero. That
+    // caused two very visible bugs: your own hero teleporting/rubber-banding
+    // whenever anyone nearby cast a skill (their stale copy of your position
+    // was pushed back onto your real hero), and your mana randomly rewinding
+    // or refilling (same thing, but with mp). Position and mana always come
+    // from a hero's own client; only genuine CC/buff state travels this way.
     return {
-      x:hero.x,y:hero.y,
-      mp:hero.mp,maxMp:hero.maxMp,stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
+      stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
       slow:hero.slow,slowT:hero.slowT,attackSlow:hero.attackSlow,attackSlowT:hero.attackSlowT,
       liftTimer:hero.liftTimer,knockbackX:hero.knockbackX,knockbackY:hero.knockbackY,knockbackTimer:hero.knockbackTimer,
       buffs:(hero.buffs||[]).slice(0,24).map(buff=>({
@@ -11443,9 +11472,8 @@ requestAnimationFrame(loop);
       const target=remoteHeroes.get(effect.targetId);
       const state=effect.state;
       if(!target || target.onlinePlayerId!==onlineId || !state) continue;
-      if(Number.isFinite(state.x)) target.x=state.x;
-      if(Number.isFinite(state.y)) target.y=state.y;
-      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      // No x/y/mp/maxMp here on purpose - see skillEffectState().
+      for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
         if(Number.isFinite(state[key])) target[key]=state[key];
       }
       if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
@@ -11539,9 +11567,8 @@ requestAnimationFrame(loop);
     for(const effect of snapshot.effects||[]){
       const target=remoteHeroes.get(effect.targetId),state=effect.state;
       if(!target || target.onlinePlayerId!==onlineId || !state) continue;
-      if(Number.isFinite(state.x)) target.x=state.x;
-      if(Number.isFinite(state.y)) target.y=state.y;
-      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
+      // No x/y/mp/maxMp here on purpose - see skillEffectState().
+      for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
         if(Number.isFinite(state[key])) target[key]=state[key];
       if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
     }
