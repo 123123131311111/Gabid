@@ -1417,6 +1417,10 @@ function applyDamage(target, amount, source){
         onlineSocket.id !== target.onlinePlayerId){
     onlineSocket.emit('playerDamage',{targetId:target.onlinePlayerId,amount:dmg});
   }
+      if(isBuilding(target) && sourceHero && sourceHero.isPlayer && sourceHero.team !== target.team &&
+         typeof window.__shadowOnlineStructureDamage === 'function'){
+        window.__shadowOnlineStructureDamage(target,dmg);
+      }
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
     target.damageContributors.set(sourceHero, (target.damageContributors.get(sourceHero) || 0) + dmg);
   }
@@ -1554,8 +1558,10 @@ function killUnit(u, source){
     addText(u.x, u.y-60, 'УБИТ!', '#ff3b3b', 1.6, 26);
   }
   if(u.type === 'ancient'){
-    winner = u.team === 0 ? 1 : 0;
-    gameState = 'over';
+    if(typeof window.__shadowOnlineIsActive !== 'function' || !window.__shadowOnlineIsActive()){
+      winner = u.team === 0 ? 1 : 0;
+      gameState = 'over';
+    }
   }
 }
 
@@ -4826,20 +4832,7 @@ const HERO_DEFS = [
   }
 ];
 
-function offerTalent(hero){
-  const talents = HERO_TALENTS[hero.def.id] || [];
-  const tier = hero.talents.length;
-  if(!talents.length || tier >= 5) return;
-  const choices = [talents[tier], talents[(tier + 1) % talents.length]]
-    .filter((talent, index, list) => talent && !hero.talents.includes(talent[0]) && list.findIndex(item => item && item[0] === talent[0]) === index);
-  if(hero.isPlayer){
-    talentHero = hero;
-    talentChoices = choices;
-    talentOpen = true;
-  } else {
-    hero.applyTalent(choices[Math.floor(Math.random() * choices.length)]);
-  }
-}
+function offerTalent(){ }
 
 class Hero extends Unit {
   constructor(def, team){
@@ -6405,12 +6398,6 @@ canvas.addEventListener('mousedown', e => {
     e.preventDefault();
     return;
   }
-  const talentToggle=talentToggleRect();
-  if(mx>=talentToggle.x&&mx<=talentToggle.x+talentToggle.w&&my>=talentToggle.y&&my<=talentToggle.y+talentToggle.h){
-    talentTreeOpen=!talentTreeOpen;
-    return;
-  }
-  if(talentOpen){ handleTalentClick(mx, my); return; }
   if(!playerHero || playerHero.dead) return;
   if(handleMo3giControlClick(mx,my)) return;
 
@@ -9920,6 +9907,7 @@ function handleTalentClick(mx, my){
 }
 
 function drawTalentPanel(){
+  return;
   if(!playerHero) return;
   ctx.save();
   const treeX=Math.max(12,skillBarRect(0).x-156);
@@ -10306,10 +10294,11 @@ function drawScoreboard(){
 
 let menuHover = -1;
 function menuPlayRect(){ return {x:VW/2-150,y:VH/2-28,w:300,h:72}; }
-function menuChangelogRect(){ return {x:VW/2-155,y:VH/2+178,w:310,h:48}; }
+function menuOnlineRect(){ return {x:VW/2-150,y:VH/2+62,w:300,h:52}; }
+function menuChangelogRect(){ return {x:VW/2-155,y:VH/2+186,w:310,h:48}; }
 function menuSettingsRect(){ return {x:VW-174,y:22,w:150,h:42}; }
 function menuSettingsPanel(){ return {x:VW/2-280,y:VH/2-260,w:560,h:520}; }
-function menuStoreRect(){ return {x:VW/2-155,y:VH/2+292,w:310,h:48}; }
+function menuStoreRect(){ return {x:VW/2-155,y:VH/2+244,w:310,h:48}; }
 
 function drawMenuButton(rect, label, options={}){
   const hover = mouse.x>=rect.x && mouse.x<=rect.x+rect.w &&
@@ -10408,6 +10397,11 @@ function handleMenuClick(mx, my){
       beginDraft();
       return;
     }
+    const online = menuOnlineRect();
+    if(mx>=online.x && mx<=online.x+online.w && my>=online.y && my<=online.y+online.h){
+      window.__shadowOpenOnlinePicker?.();
+      return;
+    }
     const fighters = menuFightersRect();
     if(mx>=fighters.x && mx<=fighters.x+fighters.w && my>=fighters.y && my<=fighters.y+fighters.h){
       menuStage = 'heroes';
@@ -10478,7 +10472,7 @@ function menuCardRect(i){
 }
 function menuPreviousRect(){ return {x:VW/2-230,y:VH-68,w:92,h:38}; }
 function menuNextRect(){ return {x:VW/2+138,y:VH-68,w:92,h:38}; }
-function menuFightersRect(){ return {x:VW/2-155,y:VH/2+62,w:310,h:54}; }
+function menuFightersRect(){ return {x:VW/2-155,y:VH/2+124,w:310,h:54}; }
 function menuDetailBackRect(){ return {x:24,y:78,w:132,h:42}; }
 function menuDetailStartRect(){ return {x:VW-300,y:VH-76,w:260,h:50}; }
 function menuDetailTestRect(){ return {x:VW-300-276,y:VH-76,w:260,h:50}; }
@@ -10951,14 +10945,15 @@ function drawMenu(){
     ctx.fillText('Сражение героев, предметов и древних сил', VW/2, VH/2-92);
     const play = menuPlayRect();
     drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,radius:10});
+    const online = menuOnlineRect();
+    drawMenuButton(online,'ОНЛАЙН 3 НА 3',{primary:true,radius:9});
     const fightersButton = menuFightersRect();
     drawMenuButton(fightersButton,'⚔  БОЙЦЫ',{active:true,radius:8});
-    const changelog = {x:VW/2-155,y:VH/2+178,w:310,h:48};
+    const changelog = menuChangelogRect();
     drawMenuButton(changelog,'▣  CHANGELOG',{radius:8});
     const storeButton=menuStoreRect();
     drawMenuButton(storeButton,'♫  МАГАЗИН ФРАЗ',{radius:8});
     ctx.font = '14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
     return;
   }
 
@@ -11183,6 +11178,7 @@ requestAnimationFrame(loop);
 (() => {
   let socket = null;
   let onlineId = null;
+  let onlineGlobalTeam = 0;
   let onlineRoster = null;
   let rosterSignature = '';
   let serverGameState = null;
@@ -11190,6 +11186,7 @@ requestAnimationFrame(loop);
   let statsSequence = 0;
   let lastSnapshotSignature = '';
   let authoritativeMode = false;
+  let onlineWinnerApplied = false;
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
 
@@ -11245,6 +11242,8 @@ requestAnimationFrame(loop);
     }
     try {
       onlineId = payload.id;
+      onlineGlobalTeam = local.team;
+      onlineWinnerApplied = false;
       onlineRoster = payload.roster;
       rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
@@ -11261,21 +11260,6 @@ requestAnimationFrame(loop);
         localState.maxHp = playerHero.maxHp;
         localState.gold = playerHero.coins;
         serverDamageVersion = Number.isInteger(localState.damageVersion) ? localState.damageVersion : 0;
-      }
-      // Hard-snap every teammate/enemy hero straight to their true server spot right
-      // away too, not just our own hero - otherwise a remote hero can sit at its
-      // offline placeholder position (wrong base) until a later event (e.g. its
-      // owner's first death/respawn) happens to force a resync.
-      if(serverGameState && Array.isArray(serverGameState.players)){
-        for(const remote of serverGameState.players){
-          if(remote.id === onlineId) continue;
-          const remoteHero = remoteHeroes.get(remote.id);
-          if(remoteHero && Number.isFinite(remote.x) && Number.isFinite(remote.y)){
-            remoteHero.x = remote.x;
-            remoteHero.y = remote.y;
-            remoteHero.moveTarget = null;
-          }
-        }
       }
       applyAuthoritativeState();
       sendPlayerStats();
@@ -11335,30 +11319,8 @@ requestAnimationFrame(loop);
       hero.isPlayer = member.id === onlineId;
       hero.onlinePlayerId = member.id;
       if(hero.isOnlineRemote){
-        // Their real position/HP/mana already arrive over the network, so this
-        // hero must never decide where to walk or whom to fight among players -
-        // that used to fight the network sync every frame and is what caused the
-        // teleporting/jitter. But turning combat off completely meant teammates
-        // and enemies simulated on your own screen never fought back against lane
-        // creeps at all, so from your point of view creeps near them simply never
-        // died. This narrow stand-in only ever lets them swing at a lane creep
-        // that has already wandered into their (network-accurate) attack range -
-        // it never moves them and never targets another hero, so it can't bring
-        // back the rubber-banding.
-        hero.updateAI = function(){
-          const current = this.attackTarget;
-          if(current && (current.dead || current.team === this.team || current.type !== 'creep' ||
-             this.distTo(current) > this.getAttackRange() + current.radius + 20)){
-            this.attackTarget = null;
-          }
-          if(!this.attackTarget){
-            for(const u of units){
-              if(u === this || u.dead || u.type !== 'creep' || u.team === this.team) continue;
-              if(this.distTo(u) <= this.getAttackRange() + u.radius){ this.attackTarget = u; break; }
-            }
-          }
-        };
-        delete hero.updateCombat;
+        hero.updateAI = function(){};
+        hero.updateCombat = function(){};
       } else {
         delete hero.updateAI;
         delete hero.updateCombat;
@@ -11387,13 +11349,13 @@ requestAnimationFrame(loop);
   function applyAuthoritativeState(frameDt=1/60){
     if(!authoritativeMode || !serverGameState || !Array.isArray(serverGameState.players)) return;
     const dt=Math.min(0.1,Math.max(0,Number(frameDt)||0));
-    const blend=1-Math.exp(-18*dt);
+    const blend=1-Math.exp(-14*dt);
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
       if(remote.id !== onlineId){
         const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
-        if(error>260){ hero.x=remote.x; hero.y=remote.y; }
+        if(error>700){ hero.x=remote.x; hero.y=remote.y; }
         else { hero.x+=(remote.x-hero.x)*blend; hero.y+=(remote.y-hero.y)*blend; }
       }
       hero.facing = remote.angle;
@@ -11413,20 +11375,49 @@ requestAnimationFrame(loop);
       remoteBulletIds.add(bullet.id);
       fxRing(bullet.x, bullet.y, 16, bullet.team === 0 ? '#8be9fd' : '#ff8a3d', .12);
     }
+    applyOnlineStructureState(serverGameState);
     if(remoteBulletIds.size > 1000) remoteBulletIds.clear();
   }
 
+  function applyOnlineStructureState(state){
+    if(!Array.isArray(state.structures)) return;
+    for(const remote of state.structures){
+      const localTeam=remote.team===onlineGlobalTeam?0:1;
+      const structure=units.find(unit=>unit.team===localTeam&&unit.type===remote.type&&
+        (remote.type==='ancient'||(unit.lane===remote.lane&&unit.tier===remote.tier))&&
+        (remote.type!=='ancient'||unit.type==='ancient'));
+      if(!structure) continue;
+      structure.hp=remote.hp;
+      structure.maxHp=remote.maxHp;
+      structure.dead=remote.dead;
+    }
+    if(Array.isArray(state.structureProgress)){
+      for(let globalTeam=0;globalTeam<2;globalTeam++){
+        const localTeam=globalTeam===onlineGlobalTeam?0:1;
+        const progress=state.structureProgress[globalTeam];
+        if(progress) structureProgress[localTeam]={lane:progress.lane,step:progress.step,
+          lanes:progress.lanes.map(line=>({step:line.step}))};
+      }
+    }
+    if(Array.isArray(state.barracksDestroyed)){
+      for(let globalTeam=0;globalTeam<2;globalTeam++)
+        barracksDestroyed[globalTeam===onlineGlobalTeam?0:1]=state.barracksDestroyed[globalTeam];
+      megaCreeps[0]=barracksDestroyed[1]>=3;
+      megaCreeps[1]=barracksDestroyed[0]>=3;
+    }
+    if(Number.isInteger(state.winner)){
+      winner=state.winner===onlineGlobalTeam?0:1;
+      if(!onlineWinnerApplied){
+        gameState='over';
+        onlineWinnerApplied=true;
+      }
+    }
+  }
+
   function skillEffectState(hero){
-    // IMPORTANT: never include x/y/mp/maxMp here. This state is built from OUR
-    // OWN (possibly stale/laggy) local replica of another player's hero, and
-    // used to get broadcast as if it were ground truth about that hero. That
-    // caused two very visible bugs: your own hero teleporting/rubber-banding
-    // whenever anyone nearby cast a skill (their stale copy of your position
-    // was pushed back onto your real hero), and your mana randomly rewinding
-    // or refilling (same thing, but with mp). Position and mana always come
-    // from a hero's own client; only genuine CC/buff state travels this way.
     return {
-      stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
+      x:hero.x,y:hero.y,
+      mp:hero.mp,maxMp:hero.maxMp,stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
       slow:hero.slow,slowT:hero.slowT,attackSlow:hero.attackSlow,attackSlowT:hero.attackSlowT,
       liftTimer:hero.liftTimer,knockbackX:hero.knockbackX,knockbackY:hero.knockbackY,knockbackTimer:hero.knockbackTimer,
       buffs:(hero.buffs||[]).slice(0,24).map(buff=>({
@@ -11439,9 +11430,7 @@ requestAnimationFrame(loop);
     if(!socket || !socket.connected || !authoritativeMode) return;
     const effects=[];
     for(const [targetId,target] of remoteHeroes){
-      // Include allies too (heals/buffs), not just enemies (damage/CC) - otherwise
-      // support skills never get an authoritative correction on the ally's own screen.
-      if(targetId===onlineId) continue;
+      if(targetId===onlineId || target.team===hero.team) continue;
       effects.push({targetId,state:skillEffectState(target)});
     }
     sendPlayerSnapshot(true);
@@ -11472,8 +11461,9 @@ requestAnimationFrame(loop);
       const target=remoteHeroes.get(effect.targetId);
       const state=effect.state;
       if(!target || target.onlinePlayerId!==onlineId || !state) continue;
-      // No x/y/mp/maxMp here on purpose - see skillEffectState().
-      for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(state.x)) target.x=state.x;
+      if(Number.isFinite(state.y)) target.y=state.y;
+      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
         if(Number.isFinite(state[key])) target[key]=state[key];
       }
       if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
@@ -11488,6 +11478,13 @@ requestAnimationFrame(loop);
   function clearOnlineAttackTarget(){
     if(authoritativeMode) sendInput({type:'clearTarget'});
   }
+  function sendStructureDamage(target,amount){
+    if(!socket||!socket.connected||!authoritativeMode||!target) return;
+    socket.emit('structureDamage',{type:target.type,lane:Number.isInteger(target.lane)?target.lane:0,
+      tier:Number.isInteger(target.tier)?target.tier:0,amount});
+  }
+  window.__shadowOnlineStructureDamage=sendStructureDamage;
+  window.__shadowOnlineIsActive=()=>authoritativeMode;
   window.__shadowOnlineSkillCast=sendSkillCast;
   window.__shadowOnlineAttackTarget=moveOnlineHeroToAttackRange;
   window.__shadowOnlineClearTarget=clearOnlineAttackTarget;
@@ -11507,9 +11504,7 @@ requestAnimationFrame(loop);
     if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
     const effects=[];
     for(const [targetId,target] of remoteHeroes){
-      // Include allies too, so ongoing ally-targeted effects (heals, shields, auras)
-      // keep correcting on the ally's own screen, not just enemy debuffs.
-      if(targetId===onlineId) continue;
+      if(targetId===onlineId || target.team===playerHero.team) continue;
       effects.push({targetId,state:skillEffectState(target)});
     }
     const snapshot={
@@ -11567,8 +11562,9 @@ requestAnimationFrame(loop);
     for(const effect of snapshot.effects||[]){
       const target=remoteHeroes.get(effect.targetId),state=effect.state;
       if(!target || target.onlinePlayerId!==onlineId || !state) continue;
-      // No x/y/mp/maxMp here on purpose - see skillEffectState().
-      for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
+      if(Number.isFinite(state.x)) target.x=state.x;
+      if(Number.isFinite(state.y)) target.y=state.y;
+      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
         if(Number.isFinite(state[key])) target[key]=state[key];
       if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
     }
@@ -11631,9 +11627,7 @@ requestAnimationFrame(loop);
         moveOnlineHeroToAttackRange(playerHero.attackTarget);
       else sendInput({type:'move', moveTarget:{x:mouse.wx,y:mouse.wy}, angle:playerHero.facing});
     }
-    // Left click is used for selecting/casting in this MOBA-style UI - it used to also
-    // fire a leftover 80-damage 'shoot' bullet from an earlier prototype, which caused
-    // random unexplained damage (including right after spawning). Removed.
+    if(event.button === 0) sendInput({type:'shoot', angle:playerHero.facing});
   }, true);
   setInterval(() => {
     attachAuthoritativeSocket();
@@ -11646,7 +11640,5 @@ requestAnimationFrame(loop);
       sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
         speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
     }
-    const entry = document.getElementById('online-entry');
-    if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
   }, 50);
 })();

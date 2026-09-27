@@ -13,7 +13,7 @@ const TICK_RATE = 30;
 const MAP_SCALE = 1.42;
 const mapPoint = (x,y) => ({x:(x-1800)*MAP_SCALE+WORLD_SIZE/2,y:(y-1800)*MAP_SCALE+WORLD_SIZE/2});
 const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y));
-const SPAWN_RADIUS = 70;
+const SPAWN_RADIUS = 180;
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
 const rooms = Object.create(null);
@@ -50,9 +50,20 @@ function lobbyPayload(room){
     players:Object.values(room.players).map(player => ({...player}))};
 }
 function emitLobby(room){ io.to(room.id).emit('lobbyUpdate', lobbyPayload(room)); }
+function createStructureState(){
+  const structures=[];
+  for(const team of [0,1]){
+    for(let lane=0;lane<3;lane++){
+      for(const tier of [1,2]) structures.push({team,type:'tower',lane,tier,hp:6000,maxHp:6000,dead:false});
+      structures.push({team,type:'barracks',lane,tier:0,hp:2800,maxHp:2800,dead:false});
+    }
+    structures.push({team,type:'ancient',lane:0,tier:0,hp:14400,maxHp:14400,dead:false});
+  }
+  return structures;
+}
 function spawnPlayer(member){
   const base = BASES[member.team];
-  const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % 3)-1)*0.55;
+  const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % 3)-1)*0.35;
   const spawn = {x:base.x+Math.cos(angle)*SPAWN_RADIUS,y:base.y+Math.sin(angle)*SPAWN_RADIUS};
   return {id:member.id, slot:member.slot, team:member.team, bot:member.bot, heroId:member.hero || 'shadow',
     x:spawn.x, y:spawn.y,
@@ -69,6 +80,10 @@ function startRoom(room){
   if(players.length < 2 || players.length > MAX_SLOTS || Math.abs(teamCounts[0]-teamCounts[1]) > 1) return false;
   room.started = true;
   room.state = Object.create(null);
+  room.structures = createStructureState();
+  room.structureProgress = [0,1].map(() => ({lane:null,step:0,lanes:Array.from({length:3},()=>({step:0}))}));
+  room.barracksDestroyed = [0,0];
+  room.winner = null;
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
   const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
   for(const member of Object.values(room.players))
@@ -81,7 +96,9 @@ function gameState(room){
     x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
     gold:player.gold, alive:player.alive, respawnTimer:player.respawnTimer,
     damageVersion:player.damageVersion
-  })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle}))};
+  })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle})),
+  structures:room.structures || [], structureProgress:room.structureProgress || [],
+  barracksDestroyed:room.barracksDestroyed || [0,0], winner:room.winner};
 }
 function handleInput(socket, input){
   const room = roomOf(socket); const player = room?.state?.[socket.id];
@@ -91,26 +108,15 @@ function handleInput(socket, input){
   if(Number.isFinite(input.attackRange)) player.attackRange = clamp(input.attackRange,40,1400);
   if(input.type === 'position' && Number.isFinite(input.x) && Number.isFinite(input.y) && player.alive){
     const now=Date.now();
-    const elapsed=player.lastClientPositionAt ? Math.min(1,(now-player.lastClientPositionAt)/1000) : 1;
-    const maxStep=player.speed*elapsed*2.5+80;
-    const targetX=clamp(input.x,40,WORLD_SIZE-40);
-    const targetY=clamp(input.y,40,WORLD_SIZE-40);
-    const dist=Math.hypot(targetX-player.x,targetY-player.y);
-    if(!player.clientDriven || dist<=maxStep){
-      player.x=targetX;
-      player.y=targetY;
-    } else {
-      // Move as far as allowed instead of silently dropping the update, so the
-      // server position always keeps catching up and can never get permanently
-      // stuck (which used to cause other players to see it freeze then
-      // suddenly 'teleport').
-      const ratio=maxStep/dist;
-      player.x=clamp(player.x+(targetX-player.x)*ratio,40,WORLD_SIZE-40);
-      player.y=clamp(player.y+(targetY-player.y)*ratio,40,WORLD_SIZE-40);
+    const elapsed=player.lastClientPositionAt ? Math.min(0.5,(now-player.lastClientPositionAt)/1000) : 0.5;
+    const maxStep=player.speed*elapsed*2.2+36;
+    if(!player.clientDriven || Math.hypot(input.x-player.x,input.y-player.y)<=maxStep){
+      player.x=clamp(input.x,40,WORLD_SIZE-40);
+      player.y=clamp(input.y,40,WORLD_SIZE-40);
+      player.clientDriven=true;
+      player.lastClientPositionAt=now;
+      if(Number.isFinite(input.angle)) player.angle=input.angle;
     }
-    player.clientDriven=true;
-    player.lastClientPositionAt=now;
-    if(Number.isFinite(input.angle)) player.angle=input.angle;
   }
   if(input.type === 'key' && typeof input.key === 'string' && /^(?:[wasd]|arrow(?:up|down|left|right))$/.test(input.key)){
     player.keys[input.key] = !!input.down;
@@ -176,6 +182,40 @@ function handlePlayerDamage(socket, data){
   if(target.hp === 0){ target.alive = false; target.respawnTimer = 8; }
   emitPlayerVitals(room,target);
 }
+function handleStructureDamage(socket,data){
+  const room=roomOf(socket);
+  const attacker=room?.state?.[socket.id];
+  if(!room||!attacker?.alive||room.winner!==null||!data||!Number.isFinite(data.amount)) return;
+  const type=data.type;
+  const lane=Number.isInteger(data.lane)?data.lane:-1;
+  const tier=Number.isInteger(data.tier)?data.tier:0;
+  if(!['tower','barracks','ancient'].includes(type)||lane<0||lane>2) return;
+  const team=1-attacker.team;
+  const structure=room.structures.find(item=>item.team===team&&item.type===type&&item.lane===lane&&item.tier===tier);
+  if(!structure||structure.dead) return;
+  const progress=room.structureProgress[team];
+  const laneProgress=progress.lanes[lane];
+  const allowed=type==='tower'
+    ? (tier===1&&laneProgress.step===0)||(tier===2&&laneProgress.step===1)
+    : type==='barracks' ? laneProgress.step===2
+    : progress.lanes.some(item=>item.step>=3);
+  if(!allowed) return;
+  structure.hp=Math.max(0,structure.hp-clamp(data.amount,0,5000));
+  if(structure.hp===0){
+    structure.dead=true;
+    if(type==='tower'){
+      laneProgress.step=tier===1?1:2;
+      progress.lane=lane;
+      progress.step=laneProgress.step;
+    } else if(type==='barracks'){
+      laneProgress.step=3;
+      progress.lane=lane;
+      progress.step=3;
+      room.barracksDestroyed[team]++;
+    } else room.winner=attacker.team;
+  }
+  io.to(room.id).emit('gameState',gameState(room));
+}
 function handlePlayerSkill(socket,data){
   const room=roomOf(socket);
   const caster=room?.state?.[socket.id];
@@ -190,14 +230,10 @@ function handlePlayerSkill(socket,data){
     const target=room.state[effect?.targetId];
     if(!target||target.team===caster.team||!effect.state) continue;
     const state=effect.state;
-    // x/y and mp/maxMp are intentionally never taken from this side-channel: they
-    // used to be copied straight from whatever the CASTER's browser believed
-    // about this target (only an approximate, laggy replica), and re-broadcasting
-    // that as fact caused constant teleporting/rubber-banding and mana that kept
-    // rewinding/refilling itself. Only real CC/buff state travels this way -
-    // position and mana always come from the target's own client.
-    for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
-      if(Number.isFinite(state[key])) target[key]=clamp(state[key],-10000,10000);
+    if(Number.isFinite(state.x)) target.x=clamp(state.x,40,WORLD_SIZE-40);
+    if(Number.isFinite(state.y)) target.y=clamp(state.y,40,WORLD_SIZE-40);
+    for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
     }
     if(Array.isArray(state.buffs)){
       target.skillBuffs=state.buffs.slice(0,24).map(buff=>({
@@ -206,12 +242,7 @@ function handlePlayerSkill(socket,data){
         damage:Number.isFinite(buff.damage)?clamp(buff.damage,0,10000):undefined
       }));
     }
-    effects.push({targetId:target.id,state:{
-      stunTimer:target.stunTimer,silenceTimer:target.silenceTimer,slow:target.slow,slowT:target.slowT,
-      attackSlow:target.attackSlow,attackSlowT:target.attackSlowT,liftTimer:target.liftTimer,
-      knockbackX:target.knockbackX,knockbackY:target.knockbackY,knockbackTimer:target.knockbackTimer,
-      buffs:target.skillBuffs||[]
-    }});
+    effects.push({targetId:target.id,state:{...state,x:target.x,y:target.y}});
   }
   io.to(room.id).emit('playerSkill',{
     id:socket.id,heroId:caster.heroId,skillId:data.skillId,slot:data.slot,level:clamp(Number(data.level)||1,1,10),
@@ -235,17 +266,11 @@ function handlePlayerSnapshot(socket,data){
     const target=room.state[effect?.targetId];
     if(!target||target.team===player.team||!effect.state) continue;
     const state=effect.state;
-    // No x/y or mp/maxMp from this side-channel either - see handlePlayerSkill.
-    for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
-      if(Number.isFinite(state[key])) target[key]=clamp(state[key],-10000,10000);
+    for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
     }
     if(Array.isArray(state.buffs)) target.skillBuffs=state.buffs.slice(0,24);
-    effects.push({targetId:target.id,state:{
-      stunTimer:target.stunTimer,silenceTimer:target.silenceTimer,slow:target.slow,slowT:target.slowT,
-      attackSlow:target.attackSlow,attackSlowT:target.attackSlowT,liftTimer:target.liftTimer,
-      knockbackX:target.knockbackX,knockbackY:target.knockbackY,knockbackTimer:target.knockbackTimer,
-      buffs:target.skillBuffs||[]
-    }});
+    effects.push({targetId:target.id,state:{...state,x:target.x,y:target.y}});
   }
   const snapshot={
     id:socket.id,heroId:player.heroId,
@@ -278,13 +303,11 @@ function tickRoom(room, dt){
       player.hp = player.maxHp;
       player.x = player.respawnX;
       player.y = player.respawnY;
-      player.clientDriven = false;
       player.damageVersion++;
       player.moveTarget = null;
       player.keys = Object.create(null);
       player.cooldown = 0;
       player.lastClientPositionAt=Date.now();
-      emitPlayerVitals(room,player);
       continue;
     }
     if(player.clientDriven) continue;
@@ -342,9 +365,10 @@ io.on('connection', socket => {
   socket.on('room:select', data => {
     const room = roomOf(socket); const player = room?.players?.[socket.id];
     if(!room || room.started || !player) return;
-    if(Number.isInteger(data.slot) && data.slot >= 0 && data.slot < MAX_SLOTS &&
+     if(Number.isInteger(data.slot) && data.slot >= 0 && data.slot < MAX_SLOTS &&
+       Math.floor(data.slot/3) === player.team &&
        !Object.values(room.players).some(other => other.id !== socket.id && other.slot === data.slot)){
-      const nextTeam = data.slot < 3 ? 0 : 1;
+      const nextTeam = player.team;
       const players = Object.values(room.players);
       const counts = [players.filter(other => other.team === 0 && other.id !== socket.id).length,
         players.filter(other => other.team === 1 && other.id !== socket.id).length];
@@ -366,6 +390,7 @@ io.on('connection', socket => {
   socket.on('playerInput', input => handleInput(socket, input));
   socket.on('playerStats', stats => handlePlayerStats(socket, stats));
   socket.on('playerDamage', data => handlePlayerDamage(socket, data));
+  socket.on('structureDamage', data => handleStructureDamage(socket,data));
   socket.on('playerSkill', data => handlePlayerSkill(socket,data));
   socket.on('playerSnapshot', data => handlePlayerSnapshot(socket,data));
   socket.on('disconnect', () => {
