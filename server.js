@@ -179,6 +179,8 @@ function handlePlayerSkill(socket,data){
     const target=room.state[effect?.targetId];
     if(!target||target.team===caster.team||!effect.state) continue;
     const state=effect.state;
+    if(Number.isFinite(state.x)) target.x=clamp(state.x,40,WORLD_SIZE-40);
+    if(Number.isFinite(state.y)) target.y=clamp(state.y,40,WORLD_SIZE-40);
     for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
       if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
     }
@@ -189,10 +191,10 @@ function handlePlayerSkill(socket,data){
         damage:Number.isFinite(buff.damage)?clamp(buff.damage,0,10000):undefined
       }));
     }
-    effects.push({targetId:target.id,state});
+    effects.push({targetId:target.id,state:{...state,x:target.x,y:target.y}});
   }
   io.to(room.id).emit('playerSkill',{
-    id:socket.id,heroId:caster.heroId,skillId:data.skillId,slot:data.slot,
+    id:socket.id,heroId:caster.heroId,skillId:data.skillId,slot:data.slot,level:clamp(Number(data.level)||1,1,10),
     x:caster.x,y:caster.y,angle:caster.angle,tx:Number.isFinite(data.tx)?clamp(data.tx,0,WORLD_SIZE):null,
     ty:Number.isFinite(data.ty)?clamp(data.ty,0,WORLD_SIZE):null,effects
   });
@@ -213,11 +215,13 @@ function handlePlayerSnapshot(socket,data){
     const target=room.state[effect?.targetId];
     if(!target||target.team===player.team||!effect.state) continue;
     const state=effect.state;
+    if(Number.isFinite(state.x)) target.x=clamp(state.x,40,WORLD_SIZE-40);
+    if(Number.isFinite(state.y)) target.y=clamp(state.y,40,WORLD_SIZE-40);
     for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
       if(Number.isFinite(state[key])) target[key]=clamp(state[key],key==='mp'||key==='maxMp'?0:-10000,key==='mp'||key==='maxMp'?100000:10000);
     }
     if(Array.isArray(state.buffs)) target.skillBuffs=state.buffs.slice(0,24);
-    effects.push({targetId:target.id,state});
+    effects.push({targetId:target.id,state:{...state,x:target.x,y:target.y}});
   }
   const snapshot={
     id:socket.id,heroId:player.heroId,

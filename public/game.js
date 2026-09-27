@@ -1323,6 +1323,7 @@ function applyDamage(target, amount, source){
   const sourceHero = source && source.coins !== undefined
     ? source
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
+  if(target.onlinePlayerId && sourceHero && sourceHero.isOnlineReplicatedCast) return;
   if(target.onlinePlayerId && sourceHero && sourceHero.isPlayer && sourceHero.team === target.team) return;
   if(isBuilding(target) && source && Number.isInteger(source.team) && source.team === target.team) return;
   if(target.invulnerable) return;
@@ -11350,9 +11351,11 @@ requestAnimationFrame(loop);
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
-      const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
-      if(error>700){ hero.x=remote.x; hero.y=remote.y; }
-      else { hero.x+=(remote.x-hero.x)*blend; hero.y+=(remote.y-hero.y)*blend; }
+      if(remote.id !== onlineId){
+        const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
+        if(error>700){ hero.x=remote.x; hero.y=remote.y; }
+        else { hero.x+=(remote.x-hero.x)*blend; hero.y+=(remote.y-hero.y)*blend; }
+      }
       hero.facing = remote.angle;
       if(remote.id === onlineId){
         if(Number.isInteger(remote.damageVersion) && remote.damageVersion >= serverDamageVersion &&
@@ -11375,6 +11378,7 @@ requestAnimationFrame(loop);
 
   function skillEffectState(hero){
     return {
+      x:hero.x,y:hero.y,
       mp:hero.mp,maxMp:hero.maxMp,stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
       slow:hero.slow,slowT:hero.slowT,attackSlow:hero.attackSlow,attackSlowT:hero.attackSlowT,
       liftTimer:hero.liftTimer,knockbackX:hero.knockbackX,knockbackY:hero.knockbackY,knockbackTimer:hero.knockbackTimer,
@@ -11391,10 +11395,11 @@ requestAnimationFrame(loop);
       if(targetId===onlineId || target.team===hero.team) continue;
       effects.push({targetId,state:skillEffectState(target)});
     }
-    socket.emit('playerSkill',{
-      heroId:hero.def.id,skillId,slot,x:hero.x,y:hero.y,angle:hero.facing,tx,ty,effects
-    });
     sendPlayerSnapshot(true);
+    socket.emit('playerSkill',{
+      heroId:hero.def.id,skillId,slot,level:hero.skills[slot]?.level||1,
+      x:hero.x,y:hero.y,angle:hero.facing,tx,ty,effects
+    });
   }
 
   function applyRemoteSkill(event){
@@ -11403,12 +11408,23 @@ requestAnimationFrame(loop);
     if(caster){
       caster.x=event.x; caster.y=event.y; caster.facing=event.angle;
       const skill=caster.skills.find(item=>item.id===event.skillId);
-      if(skill) castSkillVisual(caster,skill,event.tx,event.ty);
+      if(skill){
+        if(Number.isFinite(event.level)) skill.level=event.level;
+        caster.castingSkillLevel=skill.level;
+        caster.scepterSkillBoost=hasScepter(caster)&&(event.slot===0||event.slot===1||skill.def.ult);
+        caster.isOnlineReplicatedCast=true;
+        try { skill.def.cast(caster,event.tx,event.ty,skill.level); }
+        catch(error){ console.warn('Не удалось воспроизвести онлайн-способность:',error); }
+        finally { caster.castingSkillLevel=0; caster.scepterSkillBoost=false; caster.isOnlineReplicatedCast=false; }
+        castSkillVisual(caster,skill,event.tx,event.ty);
+      }
     }
     for(const effect of event.effects||[]){
       const target=remoteHeroes.get(effect.targetId);
       const state=effect.state;
       if(!target || target.onlinePlayerId!==onlineId || !state) continue;
+      if(Number.isFinite(state.x)) target.x=state.x;
+      if(Number.isFinite(state.y)) target.y=state.y;
       for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
         if(Number.isFinite(state[key])) target[key]=state[key];
       }
@@ -11501,6 +11517,8 @@ requestAnimationFrame(loop);
     for(const effect of snapshot.effects||[]){
       const target=remoteHeroes.get(effect.targetId),state=effect.state;
       if(!target || target.onlinePlayerId!==onlineId || !state) continue;
+      if(Number.isFinite(state.x)) target.x=state.x;
+      if(Number.isFinite(state.y)) target.y=state.y;
       for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
         if(Number.isFinite(state[key])) target[key]=state[key];
       if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
