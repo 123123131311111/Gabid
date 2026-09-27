@@ -11262,6 +11262,21 @@ requestAnimationFrame(loop);
         localState.gold = playerHero.coins;
         serverDamageVersion = Number.isInteger(localState.damageVersion) ? localState.damageVersion : 0;
       }
+      // Hard-snap every teammate/enemy hero straight to their true server spot right
+      // away too, not just our own hero - otherwise a remote hero can sit at its
+      // offline placeholder position (wrong base) until a later event (e.g. its
+      // owner's first death/respawn) happens to force a resync.
+      if(serverGameState && Array.isArray(serverGameState.players)){
+        for(const remote of serverGameState.players){
+          if(remote.id === onlineId) continue;
+          const remoteHero = remoteHeroes.get(remote.id);
+          if(remoteHero && Number.isFinite(remote.x) && Number.isFinite(remote.y)){
+            remoteHero.x = remote.x;
+            remoteHero.y = remote.y;
+            remoteHero.moveTarget = null;
+          }
+        }
+      }
       applyAuthoritativeState();
       sendPlayerStats();
       sendPlayerSnapshot(true);
@@ -11350,13 +11365,13 @@ requestAnimationFrame(loop);
   function applyAuthoritativeState(frameDt=1/60){
     if(!authoritativeMode || !serverGameState || !Array.isArray(serverGameState.players)) return;
     const dt=Math.min(0.1,Math.max(0,Number(frameDt)||0));
-    const blend=1-Math.exp(-14*dt);
+    const blend=1-Math.exp(-18*dt);
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
       if(remote.id !== onlineId){
         const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
-        if(error>700){ hero.x=remote.x; hero.y=remote.y; }
+        if(error>260){ hero.x=remote.x; hero.y=remote.y; }
         else { hero.x+=(remote.x-hero.x)*blend; hero.y+=(remote.y-hero.y)*blend; }
       }
       hero.facing = remote.angle;
