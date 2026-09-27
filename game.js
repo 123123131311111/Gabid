@@ -11589,7 +11589,9 @@ requestAnimationFrame(loop);
         moveOnlineHeroToAttackRange(playerHero.attackTarget);
       else sendInput({type:'move', moveTarget:{x:mouse.wx,y:mouse.wy}, angle:playerHero.facing});
     }
-    if(event.button === 0) sendInput({type:'shoot', angle:playerHero.facing});
+    // Left click is used for selecting/casting in this MOBA-style UI - it used to also
+    // fire a leftover 80-damage 'shoot' bullet from an earlier prototype, which caused
+    // random unexplained damage (including right after spawning). Removed.
   }, true);
   setInterval(() => {
     attachAuthoritativeSocket();

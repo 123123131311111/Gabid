@@ -13,7 +13,7 @@ const TICK_RATE = 30;
 const MAP_SCALE = 1.42;
 const mapPoint = (x,y) => ({x:(x-1800)*MAP_SCALE+WORLD_SIZE/2,y:(y-1800)*MAP_SCALE+WORLD_SIZE/2});
 const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y));
-const SPAWN_RADIUS = 180;
+const SPAWN_RADIUS = 70;
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
 const rooms = Object.create(null);
@@ -52,7 +52,7 @@ function lobbyPayload(room){
 function emitLobby(room){ io.to(room.id).emit('lobbyUpdate', lobbyPayload(room)); }
 function spawnPlayer(member){
   const base = BASES[member.team];
-  const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % 3)-1)*0.35;
+  const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % 3)-1)*0.55;
   const spawn = {x:base.x+Math.cos(angle)*SPAWN_RADIUS,y:base.y+Math.sin(angle)*SPAWN_RADIUS};
   return {id:member.id, slot:member.slot, team:member.team, bot:member.bot, heroId:member.hero || 'shadow',
     x:spawn.x, y:spawn.y,
