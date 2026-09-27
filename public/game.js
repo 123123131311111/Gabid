@@ -270,6 +270,7 @@ const TEAM_COL = ['#4caf50', '#e53935', '#b58a55'];
 const TEAM_NAME = ['Свет', 'Тьма'];
 const LANE_NAMES = ['МИД', 'ВЕРХ', 'НИЗ'];
 const MID_PUSH_TIME = 300;
+const makeTowerId = (team, lane, tier, base = false) => base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
 
 const BASES = [ {x:480, y:3120}, {x:3120, y:480} ];
 const BASE_HEAL_RADIUS = 420;
@@ -2926,7 +2927,7 @@ class Tower extends Unit {
     this.isBase=!!base;
     this.lane=lane;
     this.tier=base?0:tier;
-    this.id = base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
+    this.id = makeTowerId(team, lane, tier, base);
     this.isServerAuthoritative = true;
   }
   update(dt){
@@ -8823,7 +8824,10 @@ function drawWorldObjects(){
     ctx.restore();
   }
   const list = units.slice().sort((a,b) => a.y-b.y);
-  for(const u of list) drawUnitSafely(u);
+  for(const u of list){
+    if((u.type === 'tower' || u.type === 'ancient') && (!u.alive || u.hp <= 0 || u.dead)) continue;
+    drawUnitSafely(u);
+  }
 
   for(const p of projectiles){
     ctx.save();
@@ -11190,19 +11194,36 @@ requestAnimationFrame(loop);
       syncRosterFromState(state);
       if(Array.isArray(state?.towers)){
         for(const towerData of state.towers){
-          const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && u.id === towerData.id);
-          if(!tower) continue;
+          const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && (
+            String(u.id) === String(towerData.id) ||
+            (Number.isFinite(towerData.x) && Number.isFinite(towerData.y) && Number.isFinite(u.x) && Number.isFinite(u.y) && Math.abs(u.x - towerData.x) < 1 && Math.abs(u.y - towerData.y) < 1) ||
+            (Number.isFinite(towerData.team) && Number.isFinite(towerData.lane) && Number.isFinite(towerData.tier) && u.team === towerData.team && u.lane === towerData.lane && u.tier === towerData.tier)
+          ));
+          if(!tower){
+            console.log('Tower sync miss on gameState', towerData, units.filter(u => u.type === 'tower' || u.type === 'ancient').map(u => ({id:u.id, x:u.x, y:u.y, team:u.team, lane:u.lane, tier:u.tier, hp:u.hp, alive:u.alive})));
+            continue;
+          }
+          console.log('Tower update match:', !!tower, {towerId: tower.id, hp: tower.hp, serverHp: towerData.hp});
           tower.hp = Number.isFinite(towerData.hp) ? towerData.hp : tower.hp;
           tower.maxHp = Number.isFinite(towerData.maxHp) ? towerData.maxHp : tower.maxHp;
           tower.alive = towerData.alive !== false && tower.hp > 0;
           tower.dead = !tower.alive;
+          if(!tower.alive) tower.hp = 0;
         }
       }
     });
     socket.on('tower:update', data => {
       if(!data || !data.id) return;
-      const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && u.id === data.id);
-      if(!tower) return;
+      const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && (
+        String(u.id) === String(data.id) ||
+        (Number.isFinite(data.x) && Number.isFinite(data.y) && Number.isFinite(u.x) && Number.isFinite(u.y) && Math.abs(u.x - data.x) < 1 && Math.abs(u.y - data.y) < 1) ||
+        (Number.isFinite(data.team) && Number.isFinite(data.lane) && Number.isFinite(data.tier) && u.team === data.team && u.lane === data.lane && u.tier === data.tier)
+      ));
+      if(!tower){
+        console.log('Tower update miss', data, units.filter(u => u.type === 'tower' || u.type === 'ancient').map(u => ({id:u.id, x:u.x, y:u.y, team:u.team, lane:u.lane, tier:u.tier, hp:u.hp, alive:u.alive})));
+        return;
+      }
+      console.log('Tower update match:', !!tower, {towerId: tower.id, hp: tower.hp, serverHp: data.hp});
       tower.hp = Number.isFinite(data.hp) ? data.hp : tower.hp;
       tower.maxHp = Number.isFinite(data.maxHp) ? data.maxHp : tower.maxHp;
       tower.alive = data.alive !== false && tower.hp > 0;

@@ -16,6 +16,7 @@ const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y
 const SPAWN_RADIUS = 70;
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
+const makeTowerId = (team, lane, tier, base = false) => base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
 const TOWER_SPOTS = [
   {team:0,lane:0,tier:1,x:1550,y:2050},{team:0,lane:0,tier:2,x:1040,y:2560},
   {team:0,lane:1,tier:1,x:445,y:1600},{team:0,lane:1,tier:2,x:480,y:2350},
@@ -79,7 +80,7 @@ function startRoom(room){
   room.state = Object.create(null);
   room.towers = Object.create(null);
   for(const spot of TOWER_SPOTS){
-    const towerId = `tower:${spot.team}:${spot.lane}:${spot.tier}`;
+    const towerId = makeTowerId(spot.team, spot.lane, spot.tier, false);
     room.towers[towerId] = {
       id: towerId,
       team: spot.team,
@@ -98,8 +99,8 @@ function startRoom(room){
       facing: 0
     };
   }
-  room.towers['ancient:0'] = {id:'ancient:0',team:0,x:BASES[0].x,y:BASES[0].y,hp:14400,maxHp:14400,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
-  room.towers['ancient:1'] = {id:'ancient:1',team:1,x:BASES[1].x,y:BASES[1].y,hp:14400,maxHp:14400,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
+  room.towers[makeTowerId(0, null, null, true)] = {id:makeTowerId(0, null, null, true),team:0,x:BASES[0].x,y:BASES[0].y,hp:14400,maxHp:14400,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
+  room.towers[makeTowerId(1, null, null, true)] = {id:makeTowerId(1, null, null, true),team:1,x:BASES[1].x,y:BASES[1].y,hp:14400,maxHp:14400,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
   const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
   for(const member of Object.values(room.players))
@@ -116,7 +117,15 @@ function gameState(room){
       damageVersion:player.damageVersion
     })),
     towers:Object.values(room.towers || {}).map(tower => ({
-      id:tower.id, team:tower.team, hp:tower.hp, maxHp:tower.maxHp, alive:tower.alive
+      id:tower.id,
+      team:tower.team,
+      x:tower.x,
+      y:tower.y,
+      lane:tower.lane,
+      tier:tower.tier,
+      hp:tower.hp,
+      maxHp:tower.maxHp,
+      alive:tower.alive
     })),
     bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle}))
   };
