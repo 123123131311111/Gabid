@@ -16,6 +16,14 @@ const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y
 const SPAWN_RADIUS = 70;
 const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','juggernaut','earthshaker','sniper'];
 const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
+const TOWER_SPOTS = [
+  {team:0,lane:0,tier:1,x:1550,y:2050},{team:0,lane:0,tier:2,x:1040,y:2560},
+  {team:0,lane:1,tier:1,x:445,y:1600},{team:0,lane:1,tier:2,x:480,y:2350},
+  {team:0,lane:2,tier:1,x:1600,y:3120},{team:0,lane:2,tier:2,x:1000,y:3120},
+  {team:1,lane:0,tier:1,x:2000,y:1600},{team:1,lane:0,tier:2,x:2560,y:1040},
+  {team:1,lane:1,tier:1,x:2600,y:485},{team:1,lane:1,tier:2,x:2940,y:498},
+  {team:1,lane:2,tier:1,x:3110,y:3100},{team:1,lane:2,tier:2,x:3220,y:800}
+];
 const rooms = Object.create(null);
 const socketRooms = new Map();
 let nextBulletId = 1;
@@ -69,6 +77,29 @@ function startRoom(room){
   if(players.length < 2 || players.length > MAX_SLOTS || Math.abs(teamCounts[0]-teamCounts[1]) > 1) return false;
   room.started = true;
   room.state = Object.create(null);
+  room.towers = Object.create(null);
+  for(const spot of TOWER_SPOTS){
+    const towerId = `tower:${spot.team}:${spot.lane}:${spot.tier}`;
+    room.towers[towerId] = {
+      id: towerId,
+      team: spot.team,
+      x: spot.x,
+      y: spot.y,
+      hp: 6000,
+      maxHp: 6000,
+      atkRange: 560,
+      dmg: 82,
+      atkTime: 1.05,
+      cooldown: 0,
+      targetId: null,
+      alive: true,
+      lane: spot.lane,
+      tier: spot.tier,
+      facing: 0
+    };
+  }
+  room.towers['ancient:0'] = {id:'ancient:0',team:0,x:BASES[0].x,y:BASES[0].y,hp:14400,maxHp:14400,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
+  room.towers['ancient:1'] = {id:'ancient:1',team:1,x:BASES[1].x,y:BASES[1].y,hp:14400,maxHp:14400,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
   const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
   for(const member of Object.values(room.players))
@@ -266,6 +297,54 @@ function handlePlayerSnapshot(socket,data){
   };
   socket.to(room.id).emit('playerSnapshot',snapshot);
 }
+function tickTowerCombat(room, dt){
+  if(!room || !room.state || !room.towers) return;
+
+  for(const tower of Object.values(room.towers)){
+    if(!tower || !tower.alive) continue;
+    tower.cooldown = Math.max(0, (tower.cooldown || 0) - dt);
+
+    let target = null;
+    if(tower.targetId){
+      const candidate = room.state[tower.targetId];
+      if(candidate && candidate.alive && candidate.team !== tower.team &&
+         Math.hypot(candidate.x - tower.x, candidate.y - tower.y) <= tower.atkRange + 32){
+        target = candidate;
+      }
+    }
+    if(!target){
+      target = Object.values(room.state).find(player =>
+        player.alive &&
+        player.team !== tower.team &&
+        Math.hypot(player.x - tower.x, player.y - tower.y) <= tower.atkRange + 32
+      ) || null;
+    }
+    tower.targetId = target ? target.id : null;
+    if(!target || tower.cooldown > 0) continue;
+
+    tower.cooldown = tower.atkTime;
+    tower.facing = Math.atan2(target.y - tower.y, target.x - tower.x);
+    io.to(room.id).emit('tower:shot', {
+      id: tower.id,
+      x: tower.x,
+      y: tower.y,
+      targetId: target.id,
+      angle: tower.facing,
+      team: tower.team,
+      dmg: tower.dmg
+    });
+
+    target.hp = Math.max(0, target.hp - tower.dmg);
+    target.damageVersion = (target.damageVersion || 0) + 1;
+    if(target.hp <= 0){
+      target.hp = 0;
+      target.alive = false;
+      target.respawnTimer = 8;
+    }
+    emitPlayerVitals(room, target);
+  }
+}
+
 function tickRoom(room, dt){
   if(!room.started || !room.state) return;
   room.tick = (room.tick || 0) + 1;
@@ -314,6 +393,7 @@ function tickRoom(room, dt){
     const length = Math.hypot(dx,dy) || 1;
     if(dx || dy){ player.x = clamp(player.x + dx/length*player.speed*dt, 40, WORLD_SIZE-40); player.y = clamp(player.y + dy/length*player.speed*dt, 40, WORLD_SIZE-40); }
   }
+  tickTowerCombat(room, dt);
   for(let i=room.bullets.length-1;i>=0;i--){
     const bullet = room.bullets[i];
     bullet.x += Math.cos(bullet.angle)*900*dt; bullet.y += Math.sin(bullet.angle)*900*dt; bullet.life -= dt;
