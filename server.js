@@ -123,7 +123,13 @@ function gameState(room){
 }
 function emitTowerState(room, tower){
   if(!room || !tower) return;
-  io.to(room.id).emit('tower:update', {id:tower.id, hp:tower.hp, alive:tower.alive});
+  io.to(room.id).emit('tower:update', {
+    id:tower.id,
+    hp:tower.hp,
+    maxHp:tower.maxHp,
+    alive:tower.alive,
+    team:tower.team
+  });
 }
 function applyTowerDamage(room, tower, amount){
   if(!room || !tower || !tower.alive || !Number.isFinite(amount)) return;

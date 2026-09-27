@@ -11204,6 +11204,7 @@ requestAnimationFrame(loop);
       const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && u.id === data.id);
       if(!tower) return;
       tower.hp = Number.isFinite(data.hp) ? data.hp : tower.hp;
+      tower.maxHp = Number.isFinite(data.maxHp) ? data.maxHp : tower.maxHp;
       tower.alive = data.alive !== false && tower.hp > 0;
       tower.dead = !tower.alive;
       if(!tower.alive) tower.hp = 0;
