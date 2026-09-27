@@ -134,6 +134,10 @@ function emitTowerState(room, tower){
   if(!room || !tower) return;
   io.to(room.id).emit('tower:update', {
     id:tower.id,
+    x:tower.x,
+    y:tower.y,
+    lane:tower.lane,
+    tier:tower.tier,
     hp:tower.hp,
     maxHp:tower.maxHp,
     alive:tower.alive,
@@ -241,7 +245,7 @@ function handlePlayerDamage(socket, data){
   const attacker = room?.state?.[socket.id];
   const tower = room?.towers?.[data?.towerId];
   if(tower){
-    if(!attacker || !attacker.alive) return;
+    if(!attacker || !attacker.alive || attacker.team === tower.team) return;
     applyTowerDamage(room, tower, Number(data.amount) || 0);
     return;
   }

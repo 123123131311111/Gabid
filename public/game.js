@@ -2934,6 +2934,8 @@ class Tower extends Unit {
     this.tickTimers(dt);
     this.attackTarget = null;
     this.isAttacking = false;
+    // Клиент НЕ меняет HP башен локально — сервер является единственным источником правды.
+    if(this.hp <= 0){ this.hp = 0; this.alive = false; this.dead = true; }
   }
   findTarget(){
     return null;
@@ -11184,6 +11186,23 @@ requestAnimationFrame(loop);
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
 
+  function syncTowerState(sTower){
+    if(!sTower || !Number.isFinite(sTower.hp) && !Number.isFinite(sTower.maxHp) && !sTower.id) return;
+    const tower = units.find(u =>
+      (u.type === 'tower' || u.type === 'ancient') && (
+        String(u.id) === String(sTower.id) ||
+        (Number.isFinite(sTower.x) && Number.isFinite(sTower.y) && Number.isFinite(u.x) && Number.isFinite(u.y) && Math.abs(u.x - sTower.x) < 50 && Math.abs(u.y - sTower.y) < 50) ||
+        (Number.isFinite(sTower.team) && Number.isFinite(sTower.lane) && Number.isFinite(sTower.tier) && u.team === sTower.team && u.lane === sTower.lane && u.tier === sTower.tier)
+      )
+    );
+    if(!tower) return;
+    tower.hp = Number.isFinite(sTower.hp) ? sTower.hp : tower.hp;
+    tower.maxHp = Number.isFinite(sTower.maxHp) ? sTower.maxHp : tower.maxHp;
+    tower.alive = sTower.alive !== false && tower.hp > 0;
+    tower.dead = !tower.alive;
+    if(!tower.alive) tower.hp = 0;
+  }
+
   function attachAuthoritativeSocket(){
     const candidate = window.__shadowOnlineSocket;
     if(!candidate || candidate === socket) return;
@@ -11194,41 +11213,13 @@ requestAnimationFrame(loop);
       syncRosterFromState(state);
       if(Array.isArray(state?.towers)){
         for(const towerData of state.towers){
-          const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && (
-            String(u.id) === String(towerData.id) ||
-            (Number.isFinite(towerData.x) && Number.isFinite(towerData.y) && Number.isFinite(u.x) && Number.isFinite(u.y) && Math.abs(u.x - towerData.x) < 1 && Math.abs(u.y - towerData.y) < 1) ||
-            (Number.isFinite(towerData.team) && Number.isFinite(towerData.lane) && Number.isFinite(towerData.tier) && u.team === towerData.team && u.lane === towerData.lane && u.tier === towerData.tier)
-          ));
-          if(!tower){
-            console.log('Tower sync miss on gameState', towerData, units.filter(u => u.type === 'tower' || u.type === 'ancient').map(u => ({id:u.id, x:u.x, y:u.y, team:u.team, lane:u.lane, tier:u.tier, hp:u.hp, alive:u.alive})));
-            continue;
-          }
-          console.log('Tower update match:', !!tower, {towerId: tower.id, hp: tower.hp, serverHp: towerData.hp});
-          tower.hp = Number.isFinite(towerData.hp) ? towerData.hp : tower.hp;
-          tower.maxHp = Number.isFinite(towerData.maxHp) ? towerData.maxHp : tower.maxHp;
-          tower.alive = towerData.alive !== false && tower.hp > 0;
-          tower.dead = !tower.alive;
-          if(!tower.alive) tower.hp = 0;
+          syncTowerState(towerData);
         }
       }
     });
     socket.on('tower:update', data => {
       if(!data || !data.id) return;
-      const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && (
-        String(u.id) === String(data.id) ||
-        (Number.isFinite(data.x) && Number.isFinite(data.y) && Number.isFinite(u.x) && Number.isFinite(u.y) && Math.abs(u.x - data.x) < 1 && Math.abs(u.y - data.y) < 1) ||
-        (Number.isFinite(data.team) && Number.isFinite(data.lane) && Number.isFinite(data.tier) && u.team === data.team && u.lane === data.lane && u.tier === data.tier)
-      ));
-      if(!tower){
-        console.log('Tower update miss', data, units.filter(u => u.type === 'tower' || u.type === 'ancient').map(u => ({id:u.id, x:u.x, y:u.y, team:u.team, lane:u.lane, tier:u.tier, hp:u.hp, alive:u.alive})));
-        return;
-      }
-      console.log('Tower update match:', !!tower, {towerId: tower.id, hp: tower.hp, serverHp: data.hp});
-      tower.hp = Number.isFinite(data.hp) ? data.hp : tower.hp;
-      tower.maxHp = Number.isFinite(data.maxHp) ? data.maxHp : tower.maxHp;
-      tower.alive = data.alive !== false && tower.hp > 0;
-      tower.dead = !tower.alive;
-      if(!tower.alive) tower.hp = 0;
+      syncTowerState(data);
     });
     socket.on('tower:shot', event => {
       if(!event || !event.id) return;
