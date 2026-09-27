@@ -303,6 +303,7 @@ let visionTimer = 0;
 let gameState = 'menu';
 let menuStage = 'home';
 let menuHeroPage = 0;
+let nextOnlineSyncId = 1;
 let selectedHeroIndex = 0;
 let draftTime = 20;
 let draftPlayerIndex = -1;
@@ -587,10 +588,6 @@ let musicEnabled = (() => {
   try { return localStorage.getItem('dota-sens-menu-music') !== 'off'; }
   catch(err) { return true; }
 })();
-let talentOpen = false;
-let talentTreeOpen = false;
-let talentChoices = [];
-let talentHero = null;
 let chatMessages = [];
 let chatInputOpen = false;
 const CHAT_MAX_MESSAGES = 7;
@@ -709,22 +706,6 @@ const HERO_TAUNTS = {
     'Спасибо за бесплатный урок.',
     'Пауза закончилась, можно снова проигрывать.'
   ]
-};
-
-const HERO_TALENTS = {
-  pyro: [['+220 к здоровью', {maxHp:220, hp:220}], ['+20% к урону способностей', {spellAmp:0.20}], ['+30 к урону', {damage:30}], ['+15% к скорости', {speedPercent:0.15}], ['+500 к мане', {maxMp:500, mp:500}]],
-  warlord: [['+300 к здоровью', {maxHp:300, hp:300}], ['+25 к урону и +15 к скорости', {damage:25, speed:15}], ['+20 брони', {armor:20}], ['+20% к урону способностей', {spellAmp:0.20}], ['+35 к урону', {damage:35}]],
-  grisha: [['+250 к мане', {maxMp:250, mp:250}], ['+15% к урону способностей', {spellAmp:0.15}], ['+300 к здоровью', {maxHp:300, hp:300}], ['+25 к урону', {damage:25}], ['+20% к скорости', {speedPercent:0.20}]],
-  golly: [['+250 к здоровью', {maxHp:250, hp:250}], ['+12 брони', {armor:12}], ['+20 к урону', {damage:20}], ['+15% к урону способностей', {spellAmp:0.15}], ['+350 к здоровью', {maxHp:350, hp:350}]],
-  sasych: [['+18% к скорости', {speedPercent:0.18}], ['+250 к здоровью', {maxHp:250, hp:250}], ['+30 к урону', {damage:30}], ['+15% к урону способностей', {spellAmp:0.15}], ['+12 брони', {armor:12}]],
-  ilya: [['+350 к здоровью', {maxHp:350, hp:350}], ['+25 к урону ауры', {auraDamage:25}], ['+30 к урону', {damage:30}], ['+15 брони', {armor:15}], ['+20% к урону способностей', {spellAmp:0.20}]],
-  malit: [['+20 к броне', {armor:20}], ['+30 к урону и +12% к скорости', {damage:30, speedPercent:0.12}], ['+300 к здоровью', {maxHp:300, hp:300}], ['+20% к урону способностей', {spellAmp:0.20}], ['+40 к урону', {damage:40}]],
-  arcady: [['+250 к здоровью', {maxHp:250, hp:250}], ['+25% к урону способностей', {spellAmp:0.25}], ['+35 к урону', {damage:35}], ['+20 к скорости', {speed:20}], ['+150 к урону', {damage:150}]],
-  shadow: [['+250 к здоровью', {maxHp:250, hp:250}], ['+1 к душам за убийство крипов', {shadowSoulGain:1}], ['+15% к урону койлов', {spellAmp:0.15}], ['+20 к скорости', {speed:20}], ['+1 душа в залпе Реквиема', {ultimateSoulBonus:1}]],
-  illusionist: [['+250 к здоровью', {maxHp:250, hp:250}], ['+10% к урону иллюзий', {illusionDamage:0.10}], ['+2 сек к жизни иллюзий', {illusionLife:2}], ['+20 к скорости', {speed:20}], ['+1 иллюзия в Гранд-финале', {ultimateIllusions:1}]],
-  mo3gi: [['+300 к здоровью', {maxHp:300, hp:300}], ['+20% к урону дрона', {spellAmp:0.20}], ['+2 секунды дрону', {mo3giDroneLife:2}], ['+15 к скорости байка', {speed:15}], ['+1 мина', {mo3giMineBonus:1}]],
-  juvsyut: [['+300 к здоровью', {maxHp:300, hp:300}], ['+20 к броне', {armor:20}], ['+25 к урону Жирного толчка', {damage:25}], ['+15% к скорости', {speedPercent:0.15}], ['+18% к урону способностей', {spellAmp:0.18}]],
-  chip: [['+250 к здоровью', {maxHp:250, hp:250}], ['+20 к урону', {damage:20}], ['+15 к броне', {armor:15}], ['+15% к скорости', {speedPercent:0.15}], ['+18% к урону способностей', {spellAmp:0.18}]]
 };
 
 function playSynthSfx(kind){
@@ -1413,10 +1394,20 @@ function applyDamage(target, amount, source){
     : Math.max(1, amount * armorMult(armor) * structureBonus);
   const onlineSocket = window.__shadowOnlineSocket;
       const onlineSourceTeam = sourceHero ? sourceHero.team : source && source.team;
-      if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && onlineSourceTeam === 0 &&
+      if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && Number.isInteger(onlineSourceTeam) &&
         onlineSocket.id !== target.onlinePlayerId){
     onlineSocket.emit('playerDamage',{targetId:target.onlinePlayerId,amount:dmg});
   }
+      if(isBuilding(target) && typeof window.__shadowOnlineIsActive === 'function' && window.__shadowOnlineIsActive()){
+        if(sourceHero && sourceHero.isPlayer && sourceHero.team !== target.team &&
+           typeof window.__shadowOnlineStructureDamage === 'function'){
+          window.__shadowOnlineStructureDamage(target,dmg);
+        }
+        target.hitFlash = 0.18;
+        addText(target.x + rnd(-12,12), target.y - target.radius - 6,
+                Math.round(dmg), '#ffd24a', 0.8, 15);
+        return;
+      }
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
     target.damageContributors.set(sourceHero, (target.damageContributors.get(sourceHero) || 0) + dmg);
   }
@@ -1460,8 +1451,8 @@ function abilityDamage(source, amount){
   const shardEmpowered = shard ? empowered * shard.val : empowered;
   const skillLevelBonus = source && source.castingSkillLevel > 1 ? 1 + (source.castingSkillLevel - 1) * 0.35 : 1;
   const heroLevelBonus = source && source.level ? heroLevelSkillDamageMult(source.level) : 1;
-  const talentEmpowered = (source && source.spellAmp ? shardEmpowered * (1 + source.spellAmp) : shardEmpowered) * skillLevelBonus * heroLevelBonus;
-  const scepterEmpowered = hasScepterSkillBoost(source) ? talentEmpowered * 1.2 : talentEmpowered;
+  const leveledEmpowered = shardEmpowered * skillLevelBonus * heroLevelBonus;
+  const scepterEmpowered = hasScepterSkillBoost(source) ? leveledEmpowered * 1.2 : leveledEmpowered;
   return source && source.inventory && source.inventory.some(i => i && i.id === 'fangs')
     ? scepterEmpowered + 105
     : scepterEmpowered;
@@ -1554,8 +1545,10 @@ function killUnit(u, source){
     addText(u.x, u.y-60, 'УБИТ!', '#ff3b3b', 1.6, 26);
   }
   if(u.type === 'ancient'){
-    winner = u.team === 0 ? 1 : 0;
-    gameState = 'over';
+    if(typeof window.__shadowOnlineIsActive !== 'function' || !window.__shadowOnlineIsActive()){
+      winner = u.team === 0 ? 1 : 0;
+      gameState = 'over';
+    }
   }
 }
 
@@ -2928,6 +2921,7 @@ class Tower extends Unit {
     this.tier=base?0:tier;
   }
   update(dt){
+    if(authoritativeMode) return;
     this.tickTimers(dt);
     if(!this.attackTarget || !this.attackTarget.alive || this.attackTarget.team === 2 ||
        this.attackTarget.team === this.team || this.distTo(this.attackTarget) > this.atkRange){
@@ -2936,6 +2930,7 @@ class Tower extends Unit {
     this.updateCombat(dt);
   }
   findTarget(){
+    if(authoritativeMode) return null;
     let best=null, bd=this.atkRange;
     for(const o of units){
       // Вышки атакуют только участников матча, но не нейтральных крипов.
@@ -2959,6 +2954,7 @@ class Barracks extends Unit {
     this.spawnTimer = 5 + lane*2;
   }
   update(dt){
+    if(authoritativeMode) return;
     this.tickTimers(dt);
     if(this.dead) return;
     this.spawnTimer -= dt;
@@ -4826,21 +4822,6 @@ const HERO_DEFS = [
   }
 ];
 
-function offerTalent(hero){
-  const talents = HERO_TALENTS[hero.def.id] || [];
-  const tier = hero.talents.length;
-  if(!talents.length || tier >= 5) return;
-  const choices = [talents[tier], talents[(tier + 1) % talents.length]]
-    .filter((talent, index, list) => talent && !hero.talents.includes(talent[0]) && list.findIndex(item => item && item[0] === talent[0]) === index);
-  if(hero.isPlayer){
-    talentHero = hero;
-    talentChoices = choices;
-    talentOpen = true;
-  } else {
-    hero.applyTalent(choices[Math.floor(Math.random() * choices.length)]);
-  }
-}
-
 class Hero extends Unit {
   constructor(def, team){
     const balanceScale = def.balanceScale || 1;
@@ -4860,7 +4841,6 @@ class Hero extends Unit {
     this.skills = def.skills.map(id => ({id, def:SKILLS[id], level:0, cd:0}));
     this.kills = 0; this.assists = 0; this.deaths = 0;
     this.killStreak = 0; this.lastHeroKillTime = -Infinity;
-    this.talents = [];
     this.coins = 600; this.coinTimer = 0;
     this.shopTimer = 6 + Math.random()*5;
     this.stuckTimer = 0; this.lastAiX = this.x; this.lastAiY = this.y;
@@ -4917,7 +4897,6 @@ class Hero extends Unit {
     while(this.level < 30 && this.xp >= this.xpForNext()){
       this.xp -= this.xpForNext();
       this.levelUp();
-      if(talentOpen && this.isPlayer) break;
     }
   }
   levelUp(){
@@ -4927,30 +4906,8 @@ class Hero extends Unit {
     this.maxHp += d.hpPerLvl * balanceScale; this.hp = Math.min(this.maxHp, this.hp + d.hpPerLvl * balanceScale);
     this.maxMp += d.mpPerLvl * balanceScale; this.mp = Math.min(this.maxMp, this.mp + d.mpPerLvl * balanceScale);
     this.dmg += d.dmgPerLvl * (d.damageScale || balanceScale); this.armor += d.armorPerLvl * balanceScale;
-    if(this.level >= 10 && this.level % 5 === 0) offerTalent(this);
     addText(this.x, this.y-70, 'УРОВЕНЬ ' + this.level, '#ffe066', 1.4, 20);
     fxRing(this.x, this.y, 110, '#ffe066', 0.7);
-  }
-  applyTalent(talent){
-    const [name, bonus] = talent;
-    this.talents.push(name);
-    if(bonus.maxHp){ this.maxHp += bonus.maxHp; this.hp += bonus.hp || bonus.maxHp; }
-    if(bonus.maxMp){ this.maxMp += bonus.maxMp; this.mp += bonus.mp || bonus.maxMp; }
-    if(bonus.damage) this.dmg += bonus.damage;
-    if(bonus.speed) this.speed += bonus.speed;
-    if(bonus.speedPercent) this.speed *= 1 + bonus.speedPercent;
-    if(bonus.armor) this.armor += bonus.armor;
-    if(bonus.spellAmp) this.spellAmp = (this.spellAmp || 0) + bonus.spellAmp;
-    if(bonus.auraDamage) this.auraDamageBonus = (this.auraDamageBonus || 0) + bonus.auraDamage;
-    if(bonus.illusionDamage) this.illusionDamageBonus = (this.illusionDamageBonus || 0) + bonus.illusionDamage;
-    if(bonus.illusionLife) this.illusionLifeBonus = (this.illusionLifeBonus || 0) + bonus.illusionLife;
-    if(bonus.ultimateIllusions) this.ultimateIllusions = (this.ultimateIllusions || 0) + bonus.ultimateIllusions;
-    if(bonus.shadowSoulGain) this.shadowSoulGain = (this.shadowSoulGain || 0) + bonus.shadowSoulGain;
-    if(bonus.ultimateSoulBonus) this.ultimateSoulBonus = (this.ultimateSoulBonus || 0) + bonus.ultimateSoulBonus;
-    if(bonus.mo3giDroneLife) this.mo3giDroneLife = (this.mo3giDroneLife || 0) + bonus.mo3giDroneLife;
-    if(bonus.mo3giMineBonus) this.mo3giMineBonus = (this.mo3giMineBonus || 0) + bonus.mo3giMineBonus;
-    addText(this.x, this.y - 86, 'ТАЛАНТ: ' + name, '#8be9fd', 1.6, 16);
-    fxRing(this.x, this.y, 120, '#8be9fd', 0.7);
   }
   canLevelSkill(i){
     const s = this.skills[i];
@@ -5339,6 +5296,7 @@ function updateDraft(dt){
 
 function startGame(playerIndex, draftPicks=null){
   stopMenuMusic();
+  nextOnlineSyncId = 1;
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
@@ -5350,8 +5308,6 @@ function startGame(playerIndex, draftPicks=null){
   shopGuideOpen=false;
   shopScrollRow=0;
   pendingPurchaseId=null;
-  talentOpen=false; talentChoices=[]; talentHero=null;
-  talentTreeOpen=false;
   selectedShopItem=null;
   chatMessages=[];
   chatInputOpen=false;
@@ -5440,6 +5396,7 @@ function orientOnlineMapForTeam(globalTeam){
    ========================================================= */
 function startTestMode(playerIndex){
   stopMenuMusic();
+  nextOnlineSyncId = 1;
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
@@ -5448,7 +5405,6 @@ function startTestMode(playerIndex){
   structureProgress=[createStructureProgress(),createStructureProgress()];
   rampageBanner={t:0, owner:null, streak:0};
   shopOpen=false; shopGuideOpen=false; shopScrollRow=0; pendingPurchaseId=null;
-  talentOpen=false; talentChoices=[]; talentHero=null; talentTreeOpen=false;
   selectedShopItem=null; chatMessages=[]; chatInputOpen=false;
   lastTauntIndex={weak:-1, strong:-1, generic:-1}; pendingBotReplies=[];
   changelogOpen=false; settingsOpen=false;
@@ -5924,7 +5880,6 @@ function updateEnemyAI(h, dt){
 
 function update(dt){
   if(gameState !== 'playing') return;
-  if(talentOpen) return;
   gameTime += dt;
   updateBotChatReplies();
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
@@ -6405,12 +6360,6 @@ canvas.addEventListener('mousedown', e => {
     e.preventDefault();
     return;
   }
-  const talentToggle=talentToggleRect();
-  if(mx>=talentToggle.x&&mx<=talentToggle.x+talentToggle.w&&my>=talentToggle.y&&my<=talentToggle.y+talentToggle.h){
-    talentTreeOpen=!talentTreeOpen;
-    return;
-  }
-  if(talentOpen){ handleTalentClick(mx, my); return; }
   if(!playerHero || playerHero.dead) return;
   if(handleMo3giControlClick(mx,my)) return;
 
@@ -9380,7 +9329,6 @@ function setHeroLevelDelta(hero, delta){
   for(let i=0;i<delta;i++){
     if(hero.level>=30) break;
     hero.gainXp(hero.xpForNext());
-    if(hero.isPlayer && talentOpen) break;
   }
   addText(hero.x, hero.y-56, '+' + delta + ' УР. → ' + hero.level, '#ffe066', 1.0, 14);
 }
@@ -9897,76 +9845,6 @@ function drawSellConfirm(){
   ctx.restore();
 }
 
-function talentCardRect(index){
-  const skillLeft = skillBarRect(0).x;
-  const w = Math.min(240, Math.max(150, skillLeft - 36));
-  return {x:Math.max(12, skillLeft - w - 18), y:VH-250+index*82, w, h:70};
-}
-
-function talentToggleRect(){
-  const treeX=Math.max(12,skillBarRect(0).x-156);
-  return {x:treeX,y:VH-42,w:144,h:28};
-}
-
-function handleTalentClick(mx, my){
-  for(let i=0;i<talentChoices.length;i++){
-    const r=talentCardRect(i);
-    if(mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h){
-      talentHero.applyTalent(talentChoices[i]);
-      talentOpen=false; talentChoices=[]; talentHero=null;
-      return;
-    }
-  }
-}
-
-function drawTalentPanel(){
-  if(!playerHero) return;
-  ctx.save();
-  const treeX=Math.max(12,skillBarRect(0).x-156);
-  const toggle=talentToggleRect();
-  const toggleGradient=ctx.createLinearGradient(toggle.x,toggle.y,toggle.x+toggle.w,toggle.y+toggle.h);
-  toggleGradient.addColorStop(0,talentTreeOpen?'#d7b36a':'#24385b'); toggleGradient.addColorStop(1,talentTreeOpen?'#8be9fd':'#16192d');
-  ctx.fillStyle=toggleGradient; ctx.fillRect(toggle.x,toggle.y,toggle.w,toggle.h);
-  ctx.strokeStyle='#8be9fd'; ctx.lineWidth=1.5; ctx.strokeRect(toggle.x,toggle.y,toggle.w,toggle.h);
-  ctx.textAlign='center'; ctx.fillStyle=talentTreeOpen?'#10141c':'#d7b36a'; ctx.font='bold 11px Segoe UI, Arial';
-  ctx.fillText(talentTreeOpen?'СКРЫТЬ ТАЛАНТЫ':'ТАЛАНТЫ',toggle.x+toggle.w/2,toggle.y+18);
-  if(!talentTreeOpen && !talentOpen){ ctx.restore(); return; }
-  const talents=HERO_TALENTS[playerHero.def.id] || [];
-  const treeY=VH-210;
-  ctx.textAlign='left'; ctx.fillStyle='#d7b36a'; ctx.font='bold 12px Segoe UI, Arial';
-  ctx.fillText('ДРЕВО ТАЛАНТОВ',treeX,treeY-12);
-  talents.forEach((talent,index)=>{
-    const y=treeY+index*38;
-    const taken=index<playerHero.talents.length;
-    const available=talentOpen && talentHero===playerHero && index===playerHero.talents.length;
-    const talentGradient=ctx.createLinearGradient(treeX,y,treeX+144,y+28);
-    talentGradient.addColorStop(0,taken?'#3f9d78':available?'#b97845':'#202b48');
-    talentGradient.addColorStop(1,taken?'#183f58':available?'#5d2b62':'#101526');
-    ctx.fillStyle=talentGradient;
-    ctx.fillRect(treeX,y,144,28);
-    ctx.strokeStyle=taken?'#9ff0af':available?'#ffd568':'rgba(215,179,106,0.42)'; ctx.lineWidth=available?2:1; ctx.strokeRect(treeX,y,144,28);
-    ctx.fillStyle=taken?'#dfffe3':available?'#fff0c7':'rgba(255,255,255,0.45)'; ctx.font='11px Segoe UI, Arial';
-    ctx.fillText((index+1)*5+5+'. '+(taken?playerHero.talents[index]:'Талант'),treeX+7,y+18);
-  });
-  if(talentOpen && talentHero===playerHero){
-    ctx.fillStyle='rgba(5,9,16,0.98)';
-    const first=talentCardRect(0), second=talentCardRect(1);
-    const panelX=Math.max(8,first.x-8), panelY=first.y-28, panelW=first.w+16, panelH=second.y+second.h-panelY+8;
-    ctx.fillRect(panelX,panelY,panelW,panelH); ctx.strokeStyle='#ffd568'; ctx.lineWidth=2; ctx.strokeRect(panelX,panelY,panelW,panelH);
-    ctx.textAlign='center'; ctx.fillStyle='#fff4d0'; ctx.font='bold 13px Segoe UI, Arial'; ctx.fillText('ВЫБЕРИТЕ ТАЛАНТ',panelX+panelW/2,panelY+19);
-    talentChoices.forEach((talent,index)=>{
-      const r=talentCardRect(index);
-      const choiceGradient=ctx.createLinearGradient(r.x,r.y,r.x+r.w,r.y+r.h);
-      choiceGradient.addColorStop(0,index===0?'#6a4b6f':'#245f72'); choiceGradient.addColorStop(1,'#10182e');
-      ctx.fillStyle=choiceGradient; ctx.fillRect(r.x,r.y,r.w,r.h);
-      ctx.strokeStyle=index===0?'#ffd568':'#8be9fd'; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
-      ctx.fillStyle=index===0?'#ffd568':'#8be9fd'; ctx.font='bold 13px Segoe UI, Arial'; ctx.fillText(talent[0],r.x+r.w/2,r.y+30);
-      ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.font='11px Segoe UI, Arial'; ctx.fillText('Нажмите для выбора',r.x+r.w/2,r.y+51);
-    });
-  }
-  ctx.restore();
-}
-
 function drawChat(){
   if(!chatMessages.length && !chatInputOpen) return;
   const x=18, y=VH-292, w=Math.min(390,VW*0.34), h=chatMessages.length*22+48;
@@ -10198,7 +10076,6 @@ function drawHUD(){
   drawInspectPanel();
   drawPurchaseConfirm();
   drawSellConfirm();
-  drawTalentPanel();
   drawChat();
 
   if(h.dead){
@@ -10306,10 +10183,11 @@ function drawScoreboard(){
 
 let menuHover = -1;
 function menuPlayRect(){ return {x:VW/2-150,y:VH/2-28,w:300,h:72}; }
-function menuChangelogRect(){ return {x:VW/2-155,y:VH/2+178,w:310,h:48}; }
+function menuOnlineRect(){ return {x:VW/2-140,y:VH/2+54,w:280,h:56}; }
+function menuChangelogRect(){ return {x:VW/2-155,y:VH/2+186,w:310,h:48}; }
 function menuSettingsRect(){ return {x:VW-174,y:22,w:150,h:42}; }
 function menuSettingsPanel(){ return {x:VW/2-280,y:VH/2-260,w:560,h:520}; }
-function menuStoreRect(){ return {x:VW/2-155,y:VH/2+292,w:310,h:48}; }
+function menuStoreRect(){ return {x:VW/2-155,y:VH/2+244,w:310,h:48}; }
 
 function drawMenuButton(rect, label, options={}){
   const hover = mouse.x>=rect.x && mouse.x<=rect.x+rect.w &&
@@ -10408,6 +10286,11 @@ function handleMenuClick(mx, my){
       beginDraft();
       return;
     }
+    const online = menuOnlineRect();
+    if(mx>=online.x && mx<=online.x+online.w && my>=online.y && my<=online.y+online.h){
+      window.__shadowOpenOnlinePicker?.();
+      return;
+    }
     const fighters = menuFightersRect();
     if(mx>=fighters.x && mx<=fighters.x+fighters.w && my>=fighters.y && my<=fighters.y+fighters.h){
       menuStage = 'heroes';
@@ -10478,7 +10361,7 @@ function menuCardRect(i){
 }
 function menuPreviousRect(){ return {x:VW/2-230,y:VH-68,w:92,h:38}; }
 function menuNextRect(){ return {x:VW/2+138,y:VH-68,w:92,h:38}; }
-function menuFightersRect(){ return {x:VW/2-155,y:VH/2+62,w:310,h:54}; }
+function menuFightersRect(){ return {x:VW/2-155,y:VH/2+124,w:310,h:54}; }
 function menuDetailBackRect(){ return {x:24,y:78,w:132,h:42}; }
 function menuDetailStartRect(){ return {x:VW-300,y:VH-76,w:260,h:50}; }
 function menuDetailTestRect(){ return {x:VW-300-276,y:VH-76,w:260,h:50}; }
@@ -10951,14 +10834,15 @@ function drawMenu(){
     ctx.fillText('Сражение героев, предметов и древних сил', VW/2, VH/2-92);
     const play = menuPlayRect();
     drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,radius:10});
+    const online = menuOnlineRect();
+    drawMenuButton(online,'МУЛЬТИПЛЕЕР',{radius:7});
     const fightersButton = menuFightersRect();
     drawMenuButton(fightersButton,'⚔  БОЙЦЫ',{active:true,radius:8});
-    const changelog = {x:VW/2-155,y:VH/2+178,w:310,h:48};
+    const changelog = menuChangelogRect();
     drawMenuButton(changelog,'▣  CHANGELOG',{radius:8});
     const storeButton=menuStoreRect();
     drawMenuButton(storeButton,'♫  МАГАЗИН ФРАЗ',{radius:8});
     ctx.font = '14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
     return;
   }
 
@@ -11183,6 +11067,7 @@ requestAnimationFrame(loop);
 (() => {
   let socket = null;
   let onlineId = null;
+  let onlineGlobalTeam = 0;
   let onlineRoster = null;
   let rosterSignature = '';
   let serverGameState = null;
@@ -11190,8 +11075,11 @@ requestAnimationFrame(loop);
   let statsSequence = 0;
   let lastSnapshotSignature = '';
   let authoritativeMode = false;
+  let onlineWinnerApplied = false;
+  let lastWorldSnapshotAt = 0;
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
+  const onlineUnits = new Map();
 
   function attachAuthoritativeSocket(){
     const candidate = window.__shadowOnlineSocket;
@@ -11202,6 +11090,7 @@ requestAnimationFrame(loop);
       serverGameState = state;
       syncRosterFromState(state);
     });
+    socket.on('worldSnapshot', applyRemoteWorldSnapshot);
     socket.on('playerSnapshot', applyRemotePlayerSnapshot);
     socket.on('playerVitals', applyLocalVitals);
     socket.on('playerSkill', applyRemoteSkill);
@@ -11245,10 +11134,14 @@ requestAnimationFrame(loop);
     }
     try {
       onlineId = payload.id;
+      onlineGlobalTeam = local.team;
+      onlineWinnerApplied = false;
       onlineRoster = payload.roster;
       rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
       orientOnlineMapForTeam(local.team);
+      onlineUnits.clear();
+      nextOnlineSyncId = 1;
       authoritativeMode = true;
       bindRosterHeroes();
       serverGameState = payload.state || null;
@@ -11256,26 +11149,13 @@ requestAnimationFrame(loop);
       if(localState && playerHero){
         playerHero.x = localState.x;
         playerHero.y = localState.y;
+        cam.x = localState.x;
+        cam.y = localState.y;
         playerHero.moveTarget = null;
         localState.hp = playerHero.hp;
         localState.maxHp = playerHero.maxHp;
         localState.gold = playerHero.coins;
         serverDamageVersion = Number.isInteger(localState.damageVersion) ? localState.damageVersion : 0;
-      }
-      // Hard-snap every teammate/enemy hero straight to their true server spot right
-      // away too, not just our own hero - otherwise a remote hero can sit at its
-      // offline placeholder position (wrong base) until a later event (e.g. its
-      // owner's first death/respawn) happens to force a resync.
-      if(serverGameState && Array.isArray(serverGameState.players)){
-        for(const remote of serverGameState.players){
-          if(remote.id === onlineId) continue;
-          const remoteHero = remoteHeroes.get(remote.id);
-          if(remoteHero && Number.isFinite(remote.x) && Number.isFinite(remote.y)){
-            remoteHero.x = remote.x;
-            remoteHero.y = remote.y;
-            remoteHero.moveTarget = null;
-          }
-        }
       }
       applyAuthoritativeState();
       sendPlayerStats();
@@ -11335,30 +11215,8 @@ requestAnimationFrame(loop);
       hero.isPlayer = member.id === onlineId;
       hero.onlinePlayerId = member.id;
       if(hero.isOnlineRemote){
-        // Their real position/HP/mana already arrive over the network, so this
-        // hero must never decide where to walk or whom to fight among players -
-        // that used to fight the network sync every frame and is what caused the
-        // teleporting/jitter. But turning combat off completely meant teammates
-        // and enemies simulated on your own screen never fought back against lane
-        // creeps at all, so from your point of view creeps near them simply never
-        // died. This narrow stand-in only ever lets them swing at a lane creep
-        // that has already wandered into their (network-accurate) attack range -
-        // it never moves them and never targets another hero, so it can't bring
-        // back the rubber-banding.
-        hero.updateAI = function(){
-          const current = this.attackTarget;
-          if(current && (current.dead || current.team === this.team || current.type !== 'creep' ||
-             this.distTo(current) > this.getAttackRange() + current.radius + 20)){
-            this.attackTarget = null;
-          }
-          if(!this.attackTarget){
-            for(const u of units){
-              if(u === this || u.dead || u.type !== 'creep' || u.team === this.team) continue;
-              if(this.distTo(u) <= this.getAttackRange() + u.radius){ this.attackTarget = u; break; }
-            }
-          }
-        };
-        delete hero.updateCombat;
+        hero.updateAI = function(){};
+        hero.updateCombat = function(){};
       } else {
         delete hero.updateAI;
         delete hero.updateCombat;
@@ -11387,14 +11245,26 @@ requestAnimationFrame(loop);
   function applyAuthoritativeState(frameDt=1/60){
     if(!authoritativeMode || !serverGameState || !Array.isArray(serverGameState.players)) return;
     const dt=Math.min(0.1,Math.max(0,Number(frameDt)||0));
-    const blend=1-Math.exp(-18*dt);
+    const nowMs = performance.now();
+    const interpolationFactor = 1 - Math.exp(-Math.max(0.016, dt) * 12);
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
       if(remote.id !== onlineId){
-        const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
-        if(error>260){ hero.x=remote.x; hero.y=remote.y; }
-        else { hero.x+=(remote.x-hero.x)*blend; hero.y+=(remote.y-hero.y)*blend; }
+        const targetX = Number.isFinite(remote.x) ? remote.x : hero.x;
+        const targetY = Number.isFinite(remote.y) ? remote.y : hero.y;
+        const distance = Math.hypot(targetX - hero.x, targetY - hero.y);
+        if(!hero.__lastOnlinePos){
+          hero.x = targetX;
+          hero.y = targetY;
+        } else if(distance > 240 || !Number.isFinite(hero.__lastOnlinePos.x) || !Number.isFinite(hero.__lastOnlinePos.y)){
+          hero.x = targetX;
+          hero.y = targetY;
+        } else {
+          hero.x += (targetX - hero.x) * interpolationFactor;
+          hero.y += (targetY - hero.y) * interpolationFactor;
+        }
+        hero.__lastOnlinePos = {x:targetX, y:targetY, time:nowMs};
       }
       hero.facing = remote.angle;
       if(remote.id === onlineId){
@@ -11413,20 +11283,112 @@ requestAnimationFrame(loop);
       remoteBulletIds.add(bullet.id);
       fxRing(bullet.x, bullet.y, 16, bullet.team === 0 ? '#8be9fd' : '#ff8a3d', .12);
     }
+    applyOnlineStructureState(serverGameState);
     if(remoteBulletIds.size > 1000) remoteBulletIds.clear();
   }
 
+  function applyOnlineStructureState(state){
+    if(!Array.isArray(state.structures)) return;
+    for(const remote of state.structures){
+      const localTeam=remote.team===onlineGlobalTeam?0:1;
+      const structure=units.find(unit=>unit.team===localTeam&&unit.type===remote.type&&
+        (remote.type==='ancient'||(unit.lane===remote.lane&&unit.tier===remote.tier))&&
+        (remote.type!=='ancient'||unit.type==='ancient'));
+      if(!structure) continue;
+      structure.attackTarget = null;
+      structure.isAttacking = false;
+      structure.atkCd = 0;
+      structure.hp = remote.dead ? 0 : Number.isFinite(remote.hp) ? remote.hp : structure.hp;
+      structure.maxHp = Number.isFinite(remote.maxHp) ? remote.maxHp : structure.maxHp;
+      structure.dead = !!remote.dead;
+    }
+    if(Array.isArray(state.structureProgress)){
+      for(let globalTeam=0;globalTeam<2;globalTeam++){
+        const localTeam=globalTeam===onlineGlobalTeam?0:1;
+        const progress=state.structureProgress[globalTeam];
+        if(progress) structureProgress[localTeam]={lane:progress.lane,step:progress.step,
+          lanes:progress.lanes.map(line=>({step:line.step}))};
+      }
+    }
+    if(Array.isArray(state.barracksDestroyed)){
+      for(let globalTeam=0;globalTeam<2;globalTeam++)
+        barracksDestroyed[globalTeam===onlineGlobalTeam?0:1]=state.barracksDestroyed[globalTeam];
+      megaCreeps[0]=barracksDestroyed[1]>=3;
+      megaCreeps[1]=barracksDestroyed[0]>=3;
+    }
+    if(Number.isInteger(state.winner)){
+      winner=state.winner===onlineGlobalTeam?0:1;
+      if(!onlineWinnerApplied){
+        gameState='over';
+        onlineWinnerApplied=true;
+      }
+    }
+  }
+
+  function applyRemoteWorldSnapshot(snapshot){
+    if(!authoritativeMode||!snapshot) return;
+    if(snapshot.hostId===onlineId){
+      for(const unit of units){
+        if(typeof unit.onlineOriginalUpdate==='function') unit.update=unit.onlineOriginalUpdate;
+        delete unit.onlineOriginalUpdate;
+      }
+      onlineUnits.clear();
+      return;
+    }
+    if(!Array.isArray(snapshot.units)) return;
+    const seen=new Set();
+    const mappedUnits=new Set(onlineUnits.values());
+    for(const remote of snapshot.units){
+      let unit=onlineUnits.get(remote.id);
+      const localTeam=remote.team===2?2:(remote.team===onlineGlobalTeam?0:1);
+      if(!unit||!units.includes(unit)){
+        unit=units.filter(candidate=>!mappedUnits.has(candidate)&&!candidate.onlinePlayerId&&
+          !['tower','ancient','barracks','hero'].includes(candidate.type)&&
+          candidate.type===remote.type&&candidate.team===localTeam)
+          .sort((left,right)=>Math.hypot(left.x-remote.x,left.y-remote.y)-Math.hypot(right.x-remote.x,right.y-remote.y))[0];
+        if(!unit){
+          unit=new Unit({x:remote.x,y:remote.y,team:localTeam,type:remote.type,
+            hp:Math.max(1,Number(remote.maxHp)||Number(remote.hp)||1),radius:remote.radius||18});
+          units.push(unit);
+        }
+        onlineUnits.set(remote.id,unit);
+        mappedUnits.add(unit);
+      }
+      if(typeof unit.onlineOriginalUpdate!=='function') unit.onlineOriginalUpdate=unit.update;
+      unit.update=function(){};
+      seen.add(remote.id);
+      unit.x=remote.x; unit.y=remote.y;
+      if(Number.isFinite(remote.hp)) unit.hp=remote.hp;
+      if(Number.isFinite(remote.maxHp)) unit.maxHp=remote.maxHp;
+      if(Number.isFinite(remote.radius)) unit.radius=remote.radius;
+      unit.dead=!!remote.dead;
+      if(Number.isFinite(remote.facing)) unit.facing=remote.facing;
+      if(Number.isFinite(remote.respawnTimer)) unit.respawnTimer=remote.respawnTimer;
+      if(Number.isFinite(remote.level)) unit.level=remote.level;
+      if(Number.isFinite(remote.mp)) unit.mp=remote.mp;
+      if(Number.isFinite(remote.maxMp)) unit.maxMp=remote.maxMp;
+      if(remote.moveTarget) unit.moveTarget={...remote.moveTarget};
+      for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer',
+        'knockbackX','knockbackY','knockbackTimer'])
+        if(Number.isFinite(remote[key])) unit[key]=remote[key];
+      if(Array.isArray(remote.buffs)) unit.buffs=remote.buffs.map(buff=>({...buff}));
+    }
+    for(const [id,unit] of onlineUnits){
+      if(!seen.has(id)&&units.includes(unit)){unit.dead=true;unit.hp=0;}
+    }
+    for(const unit of units){
+      if(unit.onlinePlayerId||['hero','tower','ancient','barracks'].includes(unit.type)||mappedUnits.has(unit)) continue;
+      if(typeof unit.onlineOriginalUpdate!=='function') unit.onlineOriginalUpdate=unit.update;
+      unit.update=function(){};
+      unit.dead=true;
+      unit.hp=0;
+    }
+  }
+
   function skillEffectState(hero){
-    // IMPORTANT: never include x/y/mp/maxMp here. This state is built from OUR
-    // OWN (possibly stale/laggy) local replica of another player's hero, and
-    // used to get broadcast as if it were ground truth about that hero. That
-    // caused two very visible bugs: your own hero teleporting/rubber-banding
-    // whenever anyone nearby cast a skill (their stale copy of your position
-    // was pushed back onto your real hero), and your mana randomly rewinding
-    // or refilling (same thing, but with mp). Position and mana always come
-    // from a hero's own client; only genuine CC/buff state travels this way.
     return {
-      stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
+      x:hero.x,y:hero.y,
+      mp:hero.mp,maxMp:hero.maxMp,stunTimer:hero.stunTimer,silenceTimer:hero.silenceTimer,
       slow:hero.slow,slowT:hero.slowT,attackSlow:hero.attackSlow,attackSlowT:hero.attackSlowT,
       liftTimer:hero.liftTimer,knockbackX:hero.knockbackX,knockbackY:hero.knockbackY,knockbackTimer:hero.knockbackTimer,
       buffs:(hero.buffs||[]).slice(0,24).map(buff=>({
@@ -11439,9 +11401,7 @@ requestAnimationFrame(loop);
     if(!socket || !socket.connected || !authoritativeMode) return;
     const effects=[];
     for(const [targetId,target] of remoteHeroes){
-      // Include allies too (heals/buffs), not just enemies (damage/CC) - otherwise
-      // support skills never get an authoritative correction on the ally's own screen.
-      if(targetId===onlineId) continue;
+      if(targetId===onlineId || target.team===hero.team) continue;
       effects.push({targetId,state:skillEffectState(target)});
     }
     sendPlayerSnapshot(true);
@@ -11472,8 +11432,9 @@ requestAnimationFrame(loop);
       const target=remoteHeroes.get(effect.targetId);
       const state=effect.state;
       if(!target || target.onlinePlayerId!==onlineId || !state) continue;
-      // No x/y/mp/maxMp here on purpose - see skillEffectState().
-      for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(state.x)) target.x=state.x;
+      if(Number.isFinite(state.y)) target.y=state.y;
+      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
         if(Number.isFinite(state[key])) target[key]=state[key];
       }
       if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
@@ -11488,6 +11449,30 @@ requestAnimationFrame(loop);
   function clearOnlineAttackTarget(){
     if(authoritativeMode) sendInput({type:'clearTarget'});
   }
+  function sendStructureDamage(target,amount){
+    if(!socket||!socket.connected||!authoritativeMode||!target) return;
+    socket.emit('structureDamage',{type:target.type,lane:Number.isInteger(target.lane)?target.lane:0,
+      tier:Number.isInteger(target.tier)?target.tier:0,amount});
+  }
+  function sendWorldSnapshot(){
+    if(!socket||!socket.connected||!authoritativeMode||serverGameState?.hostId!==onlineId) return;
+    const worldUnits=units.flatMap(unit=>{
+      if(!unit||unit.onlinePlayerId||['hero','tower','ancient','barracks'].includes(unit.type)) return [];
+      unit.onlineSyncId ||= String(nextOnlineSyncId++);
+      const globalTeam=unit.team===2?2:(unit.team===0?onlineGlobalTeam:1-onlineGlobalTeam);
+      return [{id:unit.onlineSyncId,type:unit.type,team:globalTeam,x:unit.x,y:unit.y,hp:unit.hp,
+        maxHp:unit.maxHp,dead:unit.dead,facing:unit.facing,respawnTimer:unit.respawnTimer,level:unit.level,
+        mp:unit.mp,maxMp:unit.maxMp,moveTarget:unit.moveTarget,
+        stunTimer:unit.stunTimer,silenceTimer:unit.silenceTimer,slow:unit.slow,slowT:unit.slowT,
+        attackSlow:unit.attackSlow,attackSlowT:unit.attackSlowT,liftTimer:unit.liftTimer,
+        knockbackX:unit.knockbackX,knockbackY:unit.knockbackY,knockbackTimer:unit.knockbackTimer,
+        buffs:(unit.buffs||[]).slice(0,24).map(buff=>({type:buff.type,val:buff.val,t:buff.t,
+          multiplier:buff.multiplier,damage:buff.damage}))}];
+    });
+    socket.emit('worldSnapshot',{units:worldUnits});
+  }
+  window.__shadowOnlineStructureDamage=sendStructureDamage;
+  window.__shadowOnlineIsActive=()=>authoritativeMode;
   window.__shadowOnlineSkillCast=sendSkillCast;
   window.__shadowOnlineAttackTarget=moveOnlineHeroToAttackRange;
   window.__shadowOnlineClearTarget=clearOnlineAttackTarget;
@@ -11507,9 +11492,7 @@ requestAnimationFrame(loop);
     if(!socket || !socket.connected || !authoritativeMode || !playerHero) return;
     const effects=[];
     for(const [targetId,target] of remoteHeroes){
-      // Include allies too, so ongoing ally-targeted effects (heals, shields, auras)
-      // keep correcting on the ally's own screen, not just enemy debuffs.
-      if(targetId===onlineId) continue;
+      if(targetId===onlineId || target.team===playerHero.team) continue;
       effects.push({targetId,state:skillEffectState(target)});
     }
     const snapshot={
@@ -11567,8 +11550,9 @@ requestAnimationFrame(loop);
     for(const effect of snapshot.effects||[]){
       const target=remoteHeroes.get(effect.targetId),state=effect.state;
       if(!target || target.onlinePlayerId!==onlineId || !state) continue;
-      // No x/y/mp/maxMp here on purpose - see skillEffectState().
-      for(const key of ['stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
+      if(Number.isFinite(state.x)) target.x=state.x;
+      if(Number.isFinite(state.y)) target.y=state.y;
+      for(const key of ['mp','maxMp','stunTimer','silenceTimer','slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer'])
         if(Number.isFinite(state[key])) target[key]=state[key];
       if(Array.isArray(state.buffs)) target.buffs=state.buffs.map(buff=>({...buff}));
     }
@@ -11631,9 +11615,7 @@ requestAnimationFrame(loop);
         moveOnlineHeroToAttackRange(playerHero.attackTarget);
       else sendInput({type:'move', moveTarget:{x:mouse.wx,y:mouse.wy}, angle:playerHero.facing});
     }
-    // Left click is used for selecting/casting in this MOBA-style UI - it used to also
-    // fire a leftover 80-damage 'shoot' bullet from an earlier prototype, which caused
-    // random unexplained damage (including right after spawning). Removed.
+    if(event.button === 0) sendInput({type:'shoot', angle:playerHero.facing});
   }, true);
   setInterval(() => {
     attachAuthoritativeSocket();
@@ -11641,12 +11623,14 @@ requestAnimationFrame(loop);
     if(authoritativeMode) sendPlayerPosition();
     if(authoritativeMode) sendPlayerStats();
     if(authoritativeMode) sendPlayerSnapshot(false);
+    if(authoritativeMode&&serverGameState?.hostId===onlineId&&Date.now()-lastWorldSnapshotAt>=100){
+      lastWorldSnapshotAt=Date.now();
+      sendWorldSnapshot();
+    }
     if(authoritativeMode && playerHero && playerHero.attackTarget && !playerHero.attackTarget.dead){
       const target=playerHero.attackTarget;
       sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
         speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
     }
-    const entry = document.getElementById('online-entry');
-    if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
   }, 50);
 })();
