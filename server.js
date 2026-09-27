@@ -107,12 +107,36 @@ function startRoom(room){
   return true;
 }
 function gameState(room){
-  return {tick:room.tick || 0, players:Object.values(room.state || {}).map(player => ({
-    id:player.id, slot:player.slot, team:player.team, bot:player.bot, heroId:player.heroId,
-    x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
-    gold:player.gold, alive:player.alive, respawnTimer:player.respawnTimer,
-    damageVersion:player.damageVersion
-  })), bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle}))};
+  return {
+    tick:room.tick || 0,
+    players:Object.values(room.state || {}).map(player => ({
+      id:player.id, slot:player.slot, team:player.team, bot:player.bot, heroId:player.heroId,
+      x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
+      gold:player.gold, alive:player.alive, respawnTimer:player.respawnTimer,
+      damageVersion:player.damageVersion
+    })),
+    towers:Object.values(room.towers || {}).map(tower => ({
+      id:tower.id, team:tower.team, hp:tower.hp, maxHp:tower.maxHp, alive:tower.alive
+    })),
+    bullets:room.bullets.map(bullet => ({id:bullet.id,x:bullet.x,y:bullet.y,team:bullet.team,angle:bullet.angle}))
+  };
+}
+function emitTowerState(room, tower){
+  if(!room || !tower) return;
+  io.to(room.id).emit('tower:update', {id:tower.id, hp:tower.hp, alive:tower.alive});
+}
+function applyTowerDamage(room, tower, amount){
+  if(!room || !tower || !tower.alive || !Number.isFinite(amount)) return;
+  tower.hp = Math.max(0, tower.hp - amount);
+  if(tower.hp <= 0){
+    tower.hp = 0;
+    tower.alive = false;
+  }
+  emitTowerState(room, tower);
+  if(tower.id && tower.id.startsWith('ancient:') && !tower.alive){
+    const winningTeam = tower.team === 0 ? 1 : 0;
+    io.to(room.id).emit('game_over', {winner:winningTeam});
+  }
 }
 function handleInput(socket, input){
   const room = roomOf(socket); const player = room?.state?.[socket.id];
@@ -200,6 +224,12 @@ function emitPlayerVitals(room,player){
 function handlePlayerDamage(socket, data){
   const room = roomOf(socket);
   const attacker = room?.state?.[socket.id];
+  const tower = room?.towers?.[data?.towerId];
+  if(tower){
+    if(!attacker || !attacker.alive) return;
+    applyTowerDamage(room, tower, Number(data.amount) || 0);
+    return;
+  }
   const target = room?.state?.[data?.targetId];
   if(!attacker || !target || !attacker.alive || !target.alive || attacker.team === target.team || !Number.isFinite(data.amount)) return;
   target.hp = Math.max(0,target.hp-clamp(data.amount,0,5000));
@@ -342,6 +372,11 @@ function tickTowerCombat(room, dt){
       target.respawnTimer = 8;
     }
     emitPlayerVitals(room, target);
+
+    if(tower.id && tower.id.startsWith('ancient:') && !tower.alive){
+      const winningTeam = tower.team === 0 ? 1 : 0;
+      io.to(room.id).emit('game_over', {winner:winningTeam});
+    }
   }
 }
 

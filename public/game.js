@@ -2926,6 +2926,7 @@ class Tower extends Unit {
     this.isBase=!!base;
     this.lane=lane;
     this.tier=base?0:tier;
+    this.id = base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
     this.isServerAuthoritative = true;
   }
   update(dt){
@@ -11187,10 +11188,34 @@ requestAnimationFrame(loop);
     socket.on('gameState', state => {
       serverGameState = state;
       syncRosterFromState(state);
+      if(Array.isArray(state?.towers)){
+        for(const towerData of state.towers){
+          const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && u.id === towerData.id);
+          if(!tower) continue;
+          tower.hp = Number.isFinite(towerData.hp) ? towerData.hp : tower.hp;
+          tower.maxHp = Number.isFinite(towerData.maxHp) ? towerData.maxHp : tower.maxHp;
+          tower.alive = towerData.alive !== false && tower.hp > 0;
+          tower.dead = !tower.alive;
+        }
+      }
+    });
+    socket.on('tower:update', data => {
+      if(!data || !data.id) return;
+      const tower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && u.id === data.id);
+      if(!tower) return;
+      tower.hp = Number.isFinite(data.hp) ? data.hp : tower.hp;
+      tower.alive = data.alive !== false && tower.hp > 0;
+      tower.dead = !tower.alive;
+      if(!tower.alive) tower.hp = 0;
     });
     socket.on('tower:shot', event => {
       if(!event || !event.id) return;
       fxRing(event.x, event.y, 18, event.team === 0 ? '#8be9fd' : '#ff8a3d', 0.18);
+    });
+    socket.on('game_over', data => {
+      if(!data || !Number.isInteger(data.winner)) return;
+      winner = data.winner;
+      gameState = 'over';
     });
     socket.on('playerSnapshot', applyRemotePlayerSnapshot);
     socket.on('playerVitals', applyLocalVitals);
