@@ -40,6 +40,8 @@ function createLobbyPlayer(id, slot){
 }
 function nextOpenSlot(room){
   const players = Object.values(room.players);
+  if(players.length === 0) return 0;
+  if(players.length === 1 && players[0].id === room.hostId) return 3;
   const counts = [players.filter(player => player.team === 0).length, players.filter(player => player.team === 1).length];
   const preferredTeam = counts[0] <= counts[1] ? 0 : 1;
   const slots = preferredTeam === 0 ? [0,1,2,3,4,5] : [3,4,5,0,1,2];
@@ -84,6 +86,7 @@ function startRoom(room){
   room.structureProgress = [0,1].map(() => ({lane:null,step:0,lanes:Array.from({length:3},()=>({step:0}))}));
   room.barracksDestroyed = [0,0];
   room.winner = null;
+  room.worldUnits = [];
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
   const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
   for(const member of Object.values(room.players))
@@ -91,7 +94,7 @@ function startRoom(room){
   return true;
 }
 function gameState(room){
-  return {tick:room.tick || 0, players:Object.values(room.state || {}).map(player => ({
+  return {tick:room.tick || 0, hostId:room.hostId, players:Object.values(room.state || {}).map(player => ({
     id:player.id, slot:player.slot, team:player.team, bot:player.bot, heroId:player.heroId,
     x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
     gold:player.gold, alive:player.alive, respawnTimer:player.respawnTimer,
@@ -215,6 +218,34 @@ function handleStructureDamage(socket,data){
     } else room.winner=attacker.team;
   }
   io.to(room.id).emit('gameState',gameState(room));
+}
+function handleWorldSnapshot(socket,data){
+  const room=roomOf(socket);
+  if(!room?.started||socket.id!==room.hostId||!Array.isArray(data?.units)) return;
+  room.worldUnits=data.units.slice(0,1500).flatMap(unit=>{
+    if(!unit||typeof unit.id!=='string'||unit.id.length>40||typeof unit.type!=='string'||
+       !Number.isInteger(unit.team)||unit.team<0||unit.team>2||
+       !Number.isFinite(unit.x)||!Number.isFinite(unit.y)) return [];
+    const state={id:unit.id,type:unit.type.slice(0,32),team:unit.team,
+      x:clamp(unit.x,0,WORLD_SIZE),y:clamp(unit.y,0,WORLD_SIZE),dead:!!unit.dead};
+    for(const key of ['hp','maxHp','facing','respawnTimer','level','mp','maxMp','stunTimer','silenceTimer',
+      'slow','slowT','attackSlow','attackSlowT','liftTimer','knockbackX','knockbackY','knockbackTimer']){
+      if(Number.isFinite(unit[key])) state[key]=clamp(unit[key],-1000000,1000000);
+    }
+    if(Number.isFinite(unit.radius)) state.radius=clamp(unit.radius,1,1000);
+    if(Number.isFinite(unit.lane)) state.lane=clamp(unit.lane,0,2);
+    if(Number.isFinite(unit.tier)) state.tier=clamp(unit.tier,0,2);
+    if(unit.moveTarget&&Number.isFinite(unit.moveTarget.x)&&Number.isFinite(unit.moveTarget.y))
+      state.moveTarget={x:clamp(unit.moveTarget.x,0,WORLD_SIZE),y:clamp(unit.moveTarget.y,0,WORLD_SIZE)};
+    if(Array.isArray(unit.buffs)) state.buffs=unit.buffs.slice(0,24).map(buff=>({
+      type:String(buff.type||'').slice(0,40),val:Number.isFinite(buff.val)?clamp(buff.val,-10000,10000):undefined,
+      t:Number.isFinite(buff.t)?clamp(buff.t,0,120):undefined,
+      multiplier:Number.isFinite(buff.multiplier)?clamp(buff.multiplier,0,20):undefined,
+      damage:Number.isFinite(buff.damage)?clamp(buff.damage,0,10000):undefined
+    }));
+    return [state];
+  });
+  io.to(room.id).emit('worldSnapshot',{hostId:room.hostId,units:room.worldUnits});
 }
 function handlePlayerSkill(socket,data){
   const room=roomOf(socket);
@@ -391,6 +422,7 @@ io.on('connection', socket => {
   socket.on('playerStats', stats => handlePlayerStats(socket, stats));
   socket.on('playerDamage', data => handlePlayerDamage(socket, data));
   socket.on('structureDamage', data => handleStructureDamage(socket,data));
+  socket.on('worldSnapshot', data => handleWorldSnapshot(socket,data));
   socket.on('playerSkill', data => handlePlayerSkill(socket,data));
   socket.on('playerSnapshot', data => handlePlayerSnapshot(socket,data));
   socket.on('disconnect', () => {
@@ -401,6 +433,7 @@ io.on('connection', socket => {
       if(Object.keys(room.players).length) emitLobby(room); else delete rooms[room.id];
     } else if(room.state){
       delete room.state[socket.id];
+      if(room.hostId===socket.id) room.hostId=Object.keys(room.players)[0]||null;
       io.to(room.id).emit('match:player-left',{message:'Игрок отключился.'});
       if(Object.keys(room.players).length) io.to(room.id).emit('gameState',gameState(room));
       else delete rooms[room.id];
