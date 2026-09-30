@@ -360,11 +360,17 @@ let pendingSellIndex = -1;
 let changelogOpen = false;
 let changelogScroll = 0;
 let settingsOpen = false;
+let touchControlsEnabled = (() => {
+  try { return localStorage.getItem('shadowTouchControls') === 'true'; }
+  catch(err) { return false; }
+})();
+let touchJoystick = {id:null, dx:0, dy:0};
+const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.5.0';
-const CHANGELOG = [
+const GAME_VERSION = '0.6.0';
+const CHANGELOG_HISTORY = [
   'Обновление 0.5.0: последовательное разрушение построек по линиям — сначала внешняя башня, затем внутренняя башня, казармы и только после этого трон',
   'Обновление 0.4.2: ультимейт Рассветной девы переработан — метка у союзника создаёт пульсирующий световой круг (лечит союзников, жжёт врагов), затем героиня влетает в центр с мощным уроном и станом по площади',
   'Обновление 0.4.2: урон способностей и ультимейтов теперь растёт вместе с уровнем героя, как и урон от обычной атаки, у всех бойцов',
@@ -430,6 +436,35 @@ const CHANGELOG = [
   'Обновление 0.1.8.4: постоянное горение Молотова, Гур и исправления запуска',
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
+const CHANGELOG = (() => {
+  const sections = [{version:'0.6.0', changes:[
+    'Кнопка онлайн перенесена к игровым режимам, обновлены оформление главного меню и фон.',
+    'Добавлены сенсорное управление и адаптация интерфейса для телефонов.',
+    'Цены всех предметов магазина снижены на 7%.'
+  ]}];
+  const sectionsByVersion = new Map();
+  for(const entry of CHANGELOG_HISTORY){
+    const match = entry.match(/^Обновление\s+([^:]+):\s*(.*)$/);
+    const version = match ? match[1] : 'Ранние версии';
+    let section = sectionsByVersion.get(version);
+    if(!section){
+      section = {version, changes:[]};
+      sectionsByVersion.set(version, section);
+      sections.push(section);
+    }
+    section.changes.push(match ? match[2] : entry);
+  }
+  return sections;
+})();
+function changelogRows(){
+  return CHANGELOG.flatMap(section => [
+    {type:'heading', text:'ОБНОВЛЕНИЕ ' + section.version},
+    ...section.changes.map(text => ({type:'entry', text}))
+  ]);
+}
+function changelogContentHeight(){
+  return CHANGELOG.reduce((height, section) => height + 36 + section.changes.length * 62, 0);
+}
 const SHOP_ITEMS = {
   mango: {name:'Манго', icon:'◆', cost:70, desc:'Активный: восстанавливает 100 маны. Не расходуется — можно использовать повторно.', color:'#72e6a5', active:true},
   joelBoots: {name:'Сапог Джоэла', icon:'▲', cost:500, desc:'Пассивно: +45 к скорости передвижения.', color:'#e7c77a', speed:45, active:false},
@@ -467,10 +502,9 @@ const SHOP_ITEM_IDS = [
   'timurPillow','brainEye','aghanimScepter'
 ];
 for(const item of Object.values(SHOP_ITEMS)){
-  if(typeof item.cost === 'number') item.cost = Math.ceil(item.cost * 1.12);
-  if(typeof item.totalCost === 'number') item.totalCost = Math.ceil(item.totalCost * 1.12);
+  if(typeof item.cost === 'number') item.cost = Math.round(item.cost * 0.93);
+  if(typeof item.totalCost === 'number') item.totalCost = Math.round(item.totalCost * 0.93);
 }
-SHOP_ITEMS.aghanimScepter.cost = 2000;
 
 const CREATOR_BUILDS = {
   shadow: {
@@ -1412,6 +1446,14 @@ function applyDamage(target, amount, source){
   const dmg = source && source.trueDamage
     ? Math.max(1, amount)
     : Math.max(1, amount * armorMult(armor) * structureBonus);
+  if(isStructure(target) && target.isServerAuthoritative && window.__shadowOnlineMatch){
+    const onlineSocket = window.__shadowOnlineSocket;
+    if(onlineSocket && onlineSocket.connected && sourceHero && sourceHero.isPlayer &&
+       sourceHero.onlinePlayerId === onlineSocket.id && sourceHero.team !== target.team){
+      onlineSocket.emit('playerDamage',{towerId:target.id,amount:dmg});
+    }
+    return;
+  }
   const onlineSocket = window.__shadowOnlineSocket;
       const onlineSourceTeam = sourceHero ? sourceHero.team : source && source.team;
       if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && onlineSourceTeam === 0 &&
@@ -5931,6 +5973,17 @@ function update(dt){
   waveTimer -= dt;
   if(waveTimer <= 0){ waveTimer = WAVE_INTERVAL; if(!testMode) spawnWave(); }
 
+  if(touchControlsEnabled && touchJoystick.id!==null && playerHero && !playerHero.dead){
+    const length=Math.hypot(touchJoystick.dx,touchJoystick.dy);
+    if(length>0.12){
+      playerHero.attackTarget=null;
+      playerHero.moveTarget={
+        x:clamp(playerHero.x+touchJoystick.dx/length*420,60,WORLD-60),
+        y:clamp(playerHero.y+touchJoystick.dy/length*420,60,WORLD-60)
+      };
+    }
+  }
+
   for(const h of heroes){
     if(h.dead){ h.update(dt); continue; }
     if(h !== playerHero && !h.isDummy && (!h.isOnlineRemote || h.isOnlineBot)) updateEnemyAI(h, dt);
@@ -6319,6 +6372,89 @@ function screenToWorld(sx, sy){
   return {x: sx - VW/2 + cam.x, y: sy - VH/2 + cam.y};
 }
 
+function touchPoint(touch){
+  const rect=canvas.getBoundingClientRect();
+  return {x:touch.clientX-rect.left,y:touch.clientY-rect.top};
+}
+function dispatchTouchMouse(type,touch,button=0){
+  canvas.dispatchEvent(new MouseEvent(type,{
+    bubbles:true,cancelable:true,button,clientX:touch.clientX,clientY:touch.clientY
+  }));
+}
+function touchJoystickAnchor(){ return {x:86,y:VH-132}; }
+function updateTouchJoystick(point){
+  const center=touchJoystickAnchor(), radius=66;
+  let dx=(point.x-center.x)/radius, dy=(point.y-center.y)/radius;
+  const length=Math.hypot(dx,dy);
+  if(length>1){ dx/=length; dy/=length; }
+  touchJoystick.dx=dx;
+  touchJoystick.dy=dy;
+}
+canvas.addEventListener('touchstart',e=>{
+  if(!touchControlsEnabled) return;
+  e.preventDefault();
+  for(const touch of e.changedTouches){
+    const point=touchPoint(touch);
+    if(gameState==='playing' && touchJoystick.id===null){
+      const anchor=touchJoystickAnchor();
+      if(Math.hypot(point.x-anchor.x,point.y-anchor.y)<94){
+        touchJoystick.id=touch.identifier;
+        updateTouchJoystick(point);
+        continue;
+      }
+    }
+    if(gameState==='menu' && changelogOpen){
+      const panel={x:Math.max(18,VW/2-360),y:Math.max(22,VH/2-280),w:Math.min(720,VW-36),h:Math.min(560,VH-44)};
+      const insideList=point.x>=panel.x+24 && point.x<=panel.x+panel.w-24 &&
+        point.y>=panel.y+78 && point.y<=panel.y+panel.h-64;
+      if(insideList){
+        activeTouches.set(touch.identifier,{type:'scroll',lastY:point.y});
+        continue;
+      }
+    }
+    activeTouches.set(touch.identifier,{type:'pointer'});
+    dispatchTouchMouse('mousemove',touch);
+    dispatchTouchMouse('mousedown',touch);
+  }
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  if(!touchControlsEnabled) return;
+  e.preventDefault();
+  for(const touch of e.changedTouches){
+    const point=touchPoint(touch);
+    if(touch.identifier===touchJoystick.id){
+      updateTouchJoystick(point);
+      continue;
+    }
+    const state=activeTouches.get(touch.identifier);
+    if(state && state.type==='scroll' && gameState==='menu' && changelogOpen){
+      const panel={x:Math.max(18,VW/2-360),y:Math.max(22,VH/2-280),w:Math.min(720,VW-36),h:Math.min(560,VH-44)};
+      const viewportHeight=panel.h-142;
+      changelogScroll=clamp(changelogScroll+state.lastY-point.y,0,Math.max(0,changelogContentHeight()-viewportHeight));
+      state.lastY=point.y;
+    } else if(state && state.type==='pointer'){
+      dispatchTouchMouse('mousemove',touch);
+    }
+  }
+},{passive:false});
+function endTouchInput(e){
+  if(!touchControlsEnabled) return;
+  e.preventDefault();
+  for(const touch of e.changedTouches){
+    if(touch.identifier===touchJoystick.id){
+      touchJoystick.id=null;
+      touchJoystick.dx=0;
+      touchJoystick.dy=0;
+      if(playerHero && !playerHero.attackTarget) playerHero.moveTarget=null;
+    }
+    const state=activeTouches.get(touch.identifier);
+    if(state && state.type==='pointer') dispatchTouchMouse('mouseup',touch);
+    activeTouches.delete(touch.identifier);
+  }
+}
+canvas.addEventListener('touchend',endTouchInput,{passive:false});
+canvas.addEventListener('touchcancel',endTouchInput,{passive:false});
+
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('mousemove', e => {
   const r = canvas.getBoundingClientRect();
@@ -6343,7 +6479,7 @@ canvas.addEventListener('wheel', e => {
   if(gameState === 'menu' && changelogOpen){
     const panel={x:Math.max(18,VW/2-360),y:Math.max(22,VH/2-280),w:Math.min(720,VW-36),h:Math.min(560,VH-44)};
     if(e.clientX>=panel.x && e.clientX<=panel.x+panel.w && e.clientY>=panel.y+68 && e.clientY<=panel.y+panel.h-54){
-      const contentHeight=CHANGELOG.length*62, viewportHeight=panel.h-142;
+      const contentHeight=changelogContentHeight(), viewportHeight=panel.h-142;
       changelogScroll=clamp(changelogScroll+e.deltaY,0,Math.max(0,contentHeight-viewportHeight));
       e.preventDefault();
     }
@@ -10216,6 +10352,24 @@ function drawHUD(){
   ctx.restore();
 }
 
+function drawTouchControls(){
+  if(!touchControlsEnabled || gameState!=='playing') return;
+  const anchor=touchJoystickAnchor();
+  const stickX=anchor.x+touchJoystick.dx*34;
+  const stickY=anchor.y+touchJoystick.dy*34;
+  ctx.save();
+  ctx.globalAlpha=0.78;
+  ctx.fillStyle='rgba(8,12,18,0.42)';
+  ctx.beginPath(); ctx.arc(anchor.x,anchor.y,66,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(255,226,166,0.68)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(anchor.x,anchor.y,66,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle='rgba(210,86,55,0.84)';
+  ctx.beginPath(); ctx.arc(stickX,stickY,25,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(255,241,208,0.8)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(stickX,stickY,25,0,Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
 function drawPhraseWheel(){
   if(!phraseWheelOpen) return;
   const cx = VW/2, cy = VH/2;
@@ -10298,11 +10452,33 @@ function drawScoreboard(){
 }
 
 let menuHover = -1;
-function menuPlayRect(){ return {x:VW/2-150,y:VH/2-28,w:300,h:72}; }
-function menuChangelogRect(){ return {x:VW/2-155,y:VH/2+178,w:310,h:48}; }
+function menuPlayRect(){ return {x:VW/2-150,y:VW<820||VH<820?VH/2-122:VH/2-28,w:300,h:72}; }
+function menuChangelogRect(){ return {x:VW/2-155,y:VW<820||VH<820?VH/2+28:VH/2+178,w:310,h:48}; }
 function menuSettingsRect(){ return {x:VW-174,y:22,w:150,h:42}; }
-function menuSettingsPanel(){ return {x:VW/2-280,y:VH/2-260,w:560,h:520}; }
-function menuStoreRect(){ return {x:VW/2-155,y:VH/2+292,w:310,h:48}; }
+function menuSettingsPanel(){
+  const w=Math.min(560,VW-24), h=Math.min(560,VH-24);
+  return {x:(VW-w)/2,y:(VH-h)/2,w,h};
+}
+function menuSettingsLayout(panel){
+  const compact=panel.h<500;
+  const columns=compact?3:(VW<430?2:3);
+  const gap=VW<600?8:16;
+  const rowWidth=(panel.w-72-gap*(columns-1))/columns;
+  return {
+    music:{x:panel.x+36,y:panel.y+(compact?72:142),w:panel.w-72,h:48},
+    touch:{x:panel.x+36,y:panel.y+(compact?126:202),w:panel.w-72,h:48},
+    bindTitleY:panel.y+(compact?184:282),
+    bindHintY:panel.y+(compact?202:302),
+    columns,
+    rows:Array.from({length:6},(_,index)=>({
+      x:panel.x+36+(index%columns)*(rowWidth+gap),
+      y:panel.y+(compact?210:316)+Math.floor(index/columns)*(compact?34:52),
+      w:rowWidth,h:compact?30:44
+    })),
+    close:{x:panel.x+(panel.w-180)/2,y:panel.y+panel.h-58,w:180,h:44}
+  };
+}
+function menuStoreRect(){ return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
 
 function drawMenuButton(rect, label, options={}){
   const hover = mouse.x>=rect.x && mouse.x<=rect.x+rect.w &&
@@ -10354,16 +10530,20 @@ function handleMenuClick(mx, my){
   }
   if(settingsOpen){
     const panel = menuSettingsPanel();
-    const musicToggle = {x:panel.x+36,y:panel.y+142,w:244,h:48};
-    const close = {x:panel.x+190,y:panel.y+452,w:180,h:44};
+    const layout = menuSettingsLayout(panel);
+    const musicToggle = layout.music;
+    const touchToggle = layout.touch;
     if(mx>=musicToggle.x && mx<=musicToggle.x+musicToggle.w && my>=musicToggle.y && my<=musicToggle.y+musicToggle.h){
       setMusicEnabled(!musicEnabled);
+    } else if(mx>=touchToggle.x && mx<=touchToggle.x+touchToggle.w && my>=touchToggle.y && my<=touchToggle.y+touchToggle.h){
+      setTouchControlsEnabled(!touchControlsEnabled);
     } else {
       for(let index=0;index<6;index++){
-        const row={x:panel.x+36+(index%3)*164,y:panel.y+262+Math.floor(index/3)*64,w:148,h:46};
+        const row=layout.rows[index];
         if(mx>=row.x&&mx<=row.x+row.w&&my>=row.y&&my<=row.y+row.h){ rebindSlot=index; return; }
       }
-      if(mx>=close.x && mx<=close.x+close.w && my>=close.y && my<=close.y+close.h){
+      const layoutClose=layout.close;
+      if(mx>=layoutClose.x && mx<=layoutClose.x+layoutClose.w && my>=layoutClose.y && my<=layoutClose.y+layoutClose.h){
         settingsOpen = false; rebindSlot=-1;
       }
     }
@@ -10451,6 +10631,21 @@ function handleMenuClick(mx, my){
     }
   }
 }
+
+function setTouchControlsEnabled(enabled){
+  touchControlsEnabled=enabled;
+  document.body.classList.toggle('touch-enabled',enabled);
+  try { localStorage.setItem('shadowTouchControls',String(enabled)); }
+  catch(err) {}
+  if(!enabled){
+    touchJoystick.id=null;
+    touchJoystick.dx=0;
+    touchJoystick.dy=0;
+    activeTouches.clear();
+    if(playerHero && !playerHero.attackTarget) playerHero.moveTarget=null;
+  }
+}
+document.body.classList.toggle('touch-enabled',touchControlsEnabled);
 const HERO_PAGE_SIZE = HERO_DEFS.length;
 function menuPageCount(){ return Math.max(1, Math.ceil(HERO_DEFS.length/HERO_PAGE_SIZE)); }
 function menuCardRect(i){
@@ -10471,7 +10666,7 @@ function menuCardRect(i){
 }
 function menuPreviousRect(){ return {x:VW/2-230,y:VH-68,w:92,h:38}; }
 function menuNextRect(){ return {x:VW/2+138,y:VH-68,w:92,h:38}; }
-function menuFightersRect(){ return {x:VW/2-155,y:VH/2+62,w:310,h:54}; }
+function menuFightersRect(){ return {x:VW/2-155,y:VW<820||VH<820?VH/2-42:VH/2+62,w:310,h:54}; }
 function menuDetailBackRect(){ return {x:24,y:78,w:132,h:42}; }
 function menuDetailStartRect(){ return {x:VW-300,y:VH-76,w:260,h:50}; }
 function menuDetailTestRect(){ return {x:VW-300-276,y:VH-76,w:260,h:50}; }
@@ -10765,9 +10960,16 @@ function drawStorePanel(){
 }
 
 function drawMenu(){
+  const onlineEntry=document.getElementById('online-entry');
+  const showOnlineEntry=menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
+  const hideOnlineEntry=!showOnlineEntry;
+  if(onlineEntry.hidden!==hideOnlineEntry){
+    onlineEntry.hidden=hideOnlineEntry;
+    onlineEntry.style.display=hideOnlineEntry?'none':'flex';
+  }
   const now = performance.now()/1000;
   const g = ctx.createLinearGradient(0,0,VW,VH);
-  g.addColorStop(0, '#090b12');
+  g.addColorStop(0, '#07141a');
   g.addColorStop(0.42, '#15121a');
   g.addColorStop(1, '#2a0e13');
   ctx.fillStyle = g;
@@ -10779,10 +10981,38 @@ function drawMenu(){
     const px = VW*(0.08 + i*0.15) + Math.sin(now*0.16+i*1.7)*70;
     const py = VH*(0.18 + (i%3)*0.32) + Math.cos(now*0.13+i)*40;
     const glow = ctx.createRadialGradient(px,py,0,px,py,Math.min(VW,VH)*0.32);
-    glow.addColorStop(0, i%2 ? 'rgba(172,42,30,0.13)' : 'rgba(210,154,63,0.10)');
+    glow.addColorStop(0, i%3===0 ? 'rgba(54,177,164,0.12)' : (i%2 ? 'rgba(172,42,30,0.14)' : 'rgba(210,154,63,0.10)'));
     glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(px-Math.min(VW,VH)*0.32,py-Math.min(VW,VH)*0.32,Math.min(VW,VH)*0.64,Math.min(VW,VH)*0.64);
+  }
+  ctx.restore();
+
+  ctx.save();
+  for(let i=0;i<32;i++){
+    const phase=(now*0.055+i/32)%1;
+    const x=(i*173+phase*VW*0.32)%VW;
+    const y=(i*97+Math.sin(now*0.24+i*1.8)*VH*0.08+VH*phase*0.2)%VH;
+    const glow=i%4===0?'rgba(112,232,213,0.42)':'rgba(255,177,91,0.4)';
+    ctx.globalAlpha=0.25+0.35*Math.sin(phase*Math.PI);
+    ctx.fillStyle=glow;
+    ctx.beginPath(); ctx.arc(x,y,i%5===0?2:1,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.lineCap='round';
+  for(let i=0;i<18;i++){
+    const phase=(now*0.075+i/18)%1;
+    const x=(i*251+Math.sin(now*0.32+i*1.4)*42+VW*phase*0.18)%VW;
+    const y=VH*(1-phase);
+    const length=7+(i%4)*3;
+    ctx.globalAlpha=0.16+0.35*Math.sin(phase*Math.PI);
+    ctx.strokeStyle=i%4===0?'#8be9fd':'#ffb75d';
+    ctx.lineWidth=i%5===0?2:1;
+    ctx.shadowColor=ctx.strokeStyle;
+    ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-2,y+length); ctx.stroke();
   }
   ctx.restore();
 
@@ -10808,6 +11038,10 @@ function drawMenu(){
   ctx.globalAlpha = 0.13;
   ctx.lineWidth=1;
   ctx.beginPath(); ctx.arc(0,0,Math.min(VW,VH)*0.45,0,Math.PI*2); ctx.stroke();
+  ctx.globalAlpha=0.10;
+  ctx.setLineDash([3,15]);
+  ctx.beginPath(); ctx.ellipse(0,0,Math.min(VW,VH)*0.34,Math.min(VW,VH)*0.16,Math.PI/3,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
   for(let i=0;i<12;i++){
     const a=i*Math.PI/6, r=Math.min(VW,VH)*0.39;
     ctx.fillStyle=i%3===0 ? '#d6a85c' : '#7e2927';
@@ -10825,18 +11059,18 @@ function drawMenu(){
   ctx.textAlign = 'center';
   ctx.font = 'bold 14px Segoe UI, Arial';
   ctx.fillStyle = '#d7b36a';
-  ctx.fillText('АРЕНА ТРЁХ СИЛ  •  ONLINE', VW/2, 42);
+  ctx.fillText('АРЕНА ТРЁХ СИЛ  •  ONLINE', VW/2, 32);
   if(menuStage === 'home'){
-    ctx.font = 'bold 58px Georgia, serif';
+    ctx.font = 'bold '+Math.min(84,VW<600?VW*0.15:84)+'px Georgia, serif';
     ctx.fillStyle = '#f2e2bd';
     ctx.shadowColor = 'rgba(204,63,36,0.6)';
     ctx.shadowBlur = 18;
-    ctx.fillText('DOTA SENS', VW/2, 102);
+    ctx.fillText('DotaSens', VW/2, 128);
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(188,48,36,0.9)';
-    ctx.fillRect(VW/2-120, 119, 240, 3);
+    ctx.fillRect(VW/2-120, 145, 240, 3);
     ctx.fillStyle = 'rgba(255,225,168,0.55)';
-    ctx.fillRect(VW/2-48, 119, 96, 3);
+    ctx.fillRect(VW/2-48, 145, 96, 3);
   }
 
   const settingsButton = menuSettingsRect();
@@ -10854,12 +11088,9 @@ function drawMenu(){
     ctx.fillText('НАСТРОЙКИ',VW/2,panel.y+58);
     ctx.fillStyle='rgba(215,179,106,0.8)'; ctx.fillRect(panel.x+165,panel.y+74,230,2);
     ctx.textAlign='left';
-    ctx.fillStyle='#fff1d0'; ctx.font='bold 16px Segoe UI, Arial';
-    ctx.fillText('Звук меню',panel.x+36,panel.y+96);
-    ctx.fillStyle='rgba(255,255,255,0.52)'; ctx.font='13px Segoe UI, Arial';
-    ctx.fillText('Атмосферная тема играет только на главном экране.',panel.x+36,panel.y+120);
 
-    const musicToggle = {x:panel.x+36,y:panel.y+142,w:244,h:48};
+    const layout = menuSettingsLayout(panel);
+    const musicToggle = layout.music;
     const musicHover = mouse.x>=musicToggle.x && mouse.x<=musicToggle.x+musicToggle.w &&
                        mouse.y>=musicToggle.y && mouse.y<=musicToggle.y+musicToggle.h;
     ctx.fillStyle=musicEnabled || musicHover ? 'rgba(139,44,35,0.44)' : 'rgba(255,255,255,0.06)';
@@ -10877,20 +11108,37 @@ function drawMenu(){
     ctx.fillStyle='#f9e6bd';
     ctx.beginPath(); ctx.arc(switchX+(musicEnabled?22:10),switchY+10,7,0,Math.PI*2); ctx.fill();
 
+    const touchToggle=layout.touch;
+    const touchHover=mouse.x>=touchToggle.x && mouse.x<=touchToggle.x+touchToggle.w &&
+                     mouse.y>=touchToggle.y && mouse.y<=touchToggle.y+touchToggle.h;
+    ctx.fillStyle=touchControlsEnabled || touchHover ? 'rgba(139,44,35,0.44)' : 'rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.roundRect(touchToggle.x,touchToggle.y,touchToggle.w,touchToggle.h,7); ctx.fill();
+    ctx.strokeStyle=touchControlsEnabled || touchHover ? '#d7b36a' : 'rgba(255,255,255,0.25)';
+    ctx.lineWidth=1.5; ctx.stroke();
+    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.font='bold 14px Segoe UI, Arial';
+    ctx.fillText('ДЛЯ ТЕЛЕФОНОВ',touchToggle.x+16,touchToggle.y+21);
+    ctx.fillStyle=touchControlsEnabled ? '#e2b866' : 'rgba(255,255,255,0.45)';
+    ctx.font='12px Segoe UI, Arial';
+    ctx.fillText(touchControlsEnabled ? 'ВКЛЮЧЕНО' : 'ВЫКЛЮЧЕНО',touchToggle.x+16,touchToggle.y+38);
+    const touchSwitchX=touchToggle.x+touchToggle.w-48, touchSwitchY=touchToggle.y+13;
+    ctx.fillStyle=touchControlsEnabled ? '#c94d35' : '#3d424b';
+    ctx.beginPath(); ctx.roundRect(touchSwitchX,touchSwitchY,32,20,10); ctx.fill();
+    ctx.fillStyle='#f9e6bd';
+    ctx.beginPath(); ctx.arc(touchSwitchX+(touchControlsEnabled?22:10),touchSwitchY+10,7,0,Math.PI*2); ctx.fill();
+
     ctx.textAlign='left'; ctx.fillStyle='#fff1d0'; ctx.font='bold 15px Segoe UI, Arial';
-    ctx.fillText('БИНДЫ ПРЕДМЕТОВ',panel.x+36,panel.y+226);
+    ctx.fillText('БИНДЫ ПРЕДМЕТОВ',panel.x+36,layout.bindTitleY);
     ctx.fillStyle='rgba(255,255,255,0.52)'; ctx.font='12px Segoe UI, Arial';
-    ctx.fillText('Нажмите слот, затем нужную клавишу.',panel.x+36,panel.y+246);
+    ctx.fillText('Нажмите слот, затем нужную клавишу.',panel.x+36,layout.bindHintY);
     for(let index=0;index<6;index++){
-      const row={x:panel.x+36+(index%3)*164,y:panel.y+262+Math.floor(index/3)*64,w:148,h:46};
+      const row=layout.rows[index];
       const active=rebindSlot===index;
       ctx.fillStyle=active?'rgba(215,179,106,0.35)':'rgba(255,255,255,0.06)'; ctx.fillRect(row.x,row.y,row.w,row.h);
       ctx.strokeStyle=active?'#ffd568':'rgba(255,255,255,0.25)'; ctx.lineWidth=active?2:1; ctx.strokeRect(row.x,row.y,row.w,row.h);
-      ctx.fillStyle='#fff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText('СЛОТ '+(index+1),row.x+10,row.y+18);
-      ctx.fillStyle=active?'#ffd568':'#8be9fd'; ctx.font='bold 18px Consolas, monospace'; ctx.fillText(active?'...':inventoryBinds[index].toUpperCase(),row.x+108,row.y+29);
+      ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText('СЛОТ '+(index+1),row.x+10,row.y+18);
+      ctx.fillStyle=active?'#ffd568':'#8be9fd'; ctx.font='bold 18px Consolas, monospace'; ctx.textAlign='right'; ctx.fillText(active?'...':inventoryBinds[index].toUpperCase(),row.x+row.w-10,row.y+29);
     }
-    const close = {x:panel.x+190,y:panel.y+452,w:180,h:44};
-    drawMenuButton(close,'ГОТОВО',{});
+    drawMenuButton(layout.close,'ГОТОВО',{});
     ctx.restore();
     return;
   }
@@ -10911,22 +11159,37 @@ function drawMenu(){
     ctx.textAlign='left'; ctx.fillStyle='#d7b36a'; ctx.font='bold 24px Georgia, serif';
     ctx.fillText('ЖУРНАЛ ОБНОВЛЕНИЙ',panel.x+28,panel.y+40);
     ctx.fillStyle='rgba(255,238,194,0.55)'; ctx.font='12px Consolas, monospace';
-    ctx.fillText('DOTA SENS  /  VERSION ' + GAME_VERSION,panel.x+30,panel.y+57);
+    ctx.fillText('ВЕРСИЯ ' + GAME_VERSION,panel.x+30,panel.y+57);
     const close={x:panel.x+panel.w-142,y:panel.y+18,w:116,h:34};
     drawMenuButton(close,'X  ЗАКРЫТЬ',{active:true});
     const viewport={x:panel.x+24,y:panel.y+78,w:panel.w-48,h:panel.h-142};
     ctx.save(); ctx.beginPath(); ctx.rect(viewport.x,viewport.y,viewport.w,viewport.h); ctx.clip();
     ctx.font='14px Segoe UI, Arial';
-    CHANGELOG.forEach((entry,index)=>{
-      const rowY=viewport.y+26+index*62-changelogScroll;
-      ctx.fillStyle=index%2 ? 'rgba(255,255,255,0.025)' : 'rgba(37,105,160,0.16)';
-      ctx.beginPath(); ctx.roundRect(viewport.x,rowY-22,viewport.w-12,52,4); ctx.fill();
-      ctx.fillStyle='#c8543d'; ctx.beginPath(); ctx.arc(viewport.x+16,rowY-4,3,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(235,246,255,0.9)';
-      wrapMenuText(entry,viewport.w-54,'14px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,viewport.x+30,rowY+lineIndex*17));
-    });
+    let rowOffset=0;
+    let entryIndex=0;
+    for(const row of changelogRows()){
+      const heading=row.type==='heading';
+      const rowHeight=heading?36:62;
+      const rowY=viewport.y+rowOffset-changelogScroll;
+      if(rowY+rowHeight>=viewport.y && rowY<=viewport.y+viewport.h){
+        if(heading){
+          ctx.fillStyle='rgba(185,48,36,0.15)';
+          ctx.fillRect(viewport.x,rowY,viewport.w-12,30);
+          ctx.fillStyle='#ffd568'; ctx.font='bold 12px Consolas, monospace';
+          ctx.fillText(row.text,viewport.x+10,rowY+20);
+        } else {
+          ctx.fillStyle=entryIndex%2 ? 'rgba(255,255,255,0.025)' : 'rgba(37,105,160,0.12)';
+          ctx.beginPath(); ctx.roundRect(viewport.x,rowY+2,viewport.w-12,56,4); ctx.fill();
+          ctx.fillStyle='#c8543d'; ctx.beginPath(); ctx.arc(viewport.x+16,rowY+20,3,0,Math.PI*2); ctx.fill();
+          ctx.fillStyle='rgba(235,246,255,0.9)';
+          wrapMenuText(row.text,viewport.w-54,'14px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,viewport.x+30,rowY+20+lineIndex*17));
+          entryIndex++;
+        }
+      }
+      rowOffset+=rowHeight;
+    }
     ctx.restore();
-    const contentHeight=CHANGELOG.length*62, viewportHeight=viewport.h;
+    const contentHeight=changelogContentHeight(), viewportHeight=viewport.h;
     const thumbH=Math.max(28,viewportHeight*Math.min(1,viewportHeight/contentHeight));
     const thumbY=viewport.y+(viewportHeight-thumbH)*(changelogScroll/Math.max(1,contentHeight-viewportHeight));
     ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(viewport.x+viewport.w-8,viewport.y,5,viewportHeight);
@@ -10946,12 +11209,12 @@ function drawMenu(){
     drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,radius:10});
     const fightersButton = menuFightersRect();
     drawMenuButton(fightersButton,'⚔  БОЙЦЫ',{active:true,radius:8});
-    const changelog = {x:VW/2-155,y:VH/2+178,w:310,h:48};
+    const changelog = menuChangelogRect();
     drawMenuButton(changelog,'▣  CHANGELOG',{radius:8});
     const storeButton=menuStoreRect();
     drawMenuButton(storeButton,'♫  МАГАЗИН ФРАЗ',{radius:8});
     ctx.font = '14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
+    if(VW>=820 && VH>=820) ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
     return;
   }
 
@@ -11108,11 +11371,13 @@ function loop(now){
     ctx.clearRect(0,0,VW,VH);
 
     if(gameState === 'menu'){
+      document.body.classList.remove('in-match');
       startMenuMusic();
       updateDraft(dt);
       updateMenuHover();
       drawMenu();
     } else {
+      document.body.classList.add('in-match');
       stopMenuMusic();
       update(dt);
       if(!Number.isFinite(cam.x) || !Number.isFinite(cam.y)){
@@ -11128,6 +11393,7 @@ function loop(now){
       drawFog();
       drawMinimap();
       drawHUD();
+      drawTouchControls();
       if(testMode) drawTestPanel();
       drawKillStreakBanner();
       drawScoreboard();
@@ -11186,30 +11452,19 @@ requestAnimationFrame(loop);
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
 
-  function normalizeOnlineTeam(team){
-    if(!Number.isInteger(team) || !onlineRoster || !onlineId) return team;
-    const local = onlineRoster.find(member => member.id === onlineId);
-    if(!local || !Number.isInteger(local.team)) return team;
-    return local.team === 1 ? 1 - team : team;
-  }
-
   function syncTowerState(sTower){
     if(!sTower || !Number.isFinite(sTower.hp) && !Number.isFinite(sTower.maxHp) && !sTower.id) return;
-    const normalizedTeam = Number.isInteger(sTower.team) ? normalizeOnlineTeam(sTower.team) : undefined;
     const tower = units.find(u =>
-      (u.type === 'tower' || u.type === 'ancient') && (
-        String(u.id) === String(sTower.id) ||
-        (Number.isFinite(sTower.x) && Number.isFinite(sTower.y) && Number.isFinite(u.x) && Number.isFinite(u.y) && Math.abs(u.x - sTower.x) < 50 && Math.abs(u.y - sTower.y) < 50) ||
-        (Number.isFinite(normalizedTeam) && Number.isFinite(sTower.lane) && Number.isFinite(sTower.tier) && u.team === normalizedTeam && u.lane === sTower.lane && u.tier === sTower.tier)
-      )
+      (u.type === 'tower' || u.type === 'ancient') && String(u.id) === String(sTower.id)
     );
     if(!tower) return;
-    tower.hp = Number.isFinite(sTower.hp) ? sTower.hp : tower.hp;
+    const nextHp = Number.isFinite(sTower.hp) ? Math.max(0,sTower.hp) : tower.hp;
+    const nextAlive = sTower.alive !== false && nextHp > 0;
+    if(!tower.dead && !nextAlive) killUnit(tower,null);
+    tower.hp = nextAlive ? nextHp : 0;
     tower.maxHp = Number.isFinite(sTower.maxHp) ? sTower.maxHp : tower.maxHp;
-    if(Number.isInteger(normalizedTeam)) tower.team = normalizedTeam;
-    tower.alive = sTower.alive !== false && tower.hp > 0;
-    tower.dead = !tower.alive;
-    if(!tower.alive) tower.hp = 0;
+    tower.alive = nextAlive;
+    tower.dead = !nextAlive;
   }
 
   function attachAuthoritativeSocket(){

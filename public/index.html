@@ -2,52 +2,18 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>DOTA 3v3 — HTML5 • Shadow Rampage</title>
-<style>
-  html,body{margin:0;padding:0;overflow:hidden;background:#02060b;
-            font-family:'Segoe UI',Arial,sans-serif;user-select:none;}
-  body::before{content:'';position:fixed;inset:0;background:
-    repeating-linear-gradient(135deg,rgba(146,170,190,.08),rgba(146,170,190,.08) 1px,transparent 1px,transparent 13px);
-    pointer-events:none;opacity:.5;}
-  canvas{display:block;cursor:crosshair;outline:none;}
-  #topbar{position:fixed;top:18px;left:0;right:0;z-index:20;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 0 28px;pointer-events:none;}
-  #topbar > *{pointer-events:auto;}
-  .brand-block{display:flex;flex-direction:column;align-items:flex-start;}
-  .brand-eyebrow{font:700 15px/1.1 'Segoe UI',Arial,sans-serif;letter-spacing:.32em;color:#d7b36a;text-transform:uppercase;opacity:.9;}
-  .brand-title{margin-top:6px;line-height:.78;font-family:Georgia,'Times New Roman',serif;font-size:clamp(52px,8vw,132px);font-weight:700;letter-spacing:-.08em;color:#f0c979;text-shadow:0 0 18px rgba(240,201,121,.25),0 0 32px rgba(255,118,75,.12);text-transform:uppercase;}
-  .brand-rule{width:min(100%,560px);height:4px;margin-top:10px;background:linear-gradient(90deg,#da4d42,#c44e35 55%,rgba(255,255,255,0));box-shadow:0 0 18px rgba(216,82,65,.5);}
-  #online-entry{display:flex;align-items:center;justify-content:center;min-width:230px;min-height:52px;padding:12px 22px;color:#081018;font:bold 15px 'Segoe UI',Arial;background:linear-gradient(180deg,#b4eef8 0%, #a0d9ff 22%, #f7d98c 100%);border:1px solid rgba(255,255,255,.7);box-shadow:0 8px 28px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.15);cursor:pointer;letter-spacing:.06em;border-radius:4px;text-transform:uppercase;}
-  #online-entry:hover{filter:brightness(1.08);}
-  #mode-picker{position:fixed;inset:0;z-index:21;display:grid;place-items:center;background:rgba(3,6,12,.72);}
-  #mode-picker[hidden]{display:none;}
-  .mode-panel{width:min(560px,calc(100vw - 36px));box-sizing:border-box;padding:38px;text-align:center;color:#f2e2bd;background:rgba(7,12,22,.98);border:2px solid #d7b36a;box-shadow:0 22px 70px rgba(0,0,0,.7);}
-  .mode-panel h1{margin:10px 0;font:700 38px Georgia,serif;}
-  .mode-panel p{margin:0 0 26px;color:rgba(255,255,255,.68);}
-  .mode-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;}
-  .mode-actions button{min-height:52px;padding:10px 14px;color:#081018;font:bold 13px 'Segoe UI',Arial;background:linear-gradient(#8be9fd,#d7b36a);border:1px solid #fff0c7;cursor:pointer;}
-  .mode-actions button:hover{filter:brightness(1.16);}
-  #room-state{margin:18px 0;text-align:left;color:rgba(255,255,255,.8);font-size:12px;line-height:1.5;}
-  #room-state .room-slot{display:flex;align-items:center;gap:8px;margin:5px 0;padding:7px 9px;background:rgba(139,233,253,.08);border:1px solid rgba(139,233,253,.25);}
-  #room-state .room-slot strong{width:42px;color:#ffd568;}
-  #room-state .room-slot select{margin-left:auto;max-width:150px;background:#101b2a;color:#fff;border:1px solid #8be9fd;padding:4px;}
-  #room-state .room-slot.mine{border-color:#ffd568;}
-  #room-start{display:none;width:100%;}
-  @media(max-width:560px){.mode-panel{padding:28px 20px}.mode-actions{grid-template-columns:1fr}}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DotaSens — HTML5 • DOTA 3v3</title>
+<link rel="stylesheet" href="/style.css?v=0.6.0b">
 </head>
 <body>
 <div id="topbar">
-  <div class="brand-block">
-    <div class="brand-eyebrow">АРЕНА ТРЁХ СИЛ • ONLINE</div>
-    <div class="brand-title">DOTA SENS</div>
-    <div class="brand-rule"></div>
-  </div>
   <button id="online-entry" type="button">ОНЛАЙН 3 НА 3</button>
 </div>
 <canvas id="game" tabindex="0"></canvas>
 <section id="mode-picker" hidden>
   <div class="mode-panel">
-    <div>SHADOW RAMPAGE</div>
+    <div>DotaSens</div>
     <h1>Онлайн 3 на 3</h1>
     <p id="match-status">Нажми кнопку, чтобы создать или найти комнату.</p>
     <div id="room-state"></div>
@@ -58,7 +24,7 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="/game.js"></script>
+<script src="/game.js?v=0.6.0c"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
