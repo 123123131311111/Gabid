@@ -4766,7 +4766,7 @@ const SAVELY_SKILLS = {
   savelyTransformer:{name:'Форма Трансформера',short:'E',type:'self',maxLevel:4,cd:[0,60,53,46,39],mana:[0,90,105,120,135],duration:[0,10,12,14,16],damage:[0,30,50,70,90],attackSpeed:[0,40,65,90,115],speed:[0,0.12,0.16,0.20,0.24],desc:'Савелий нажимает на родинку и превращается в робота: получает урон, скорость атаки и скорость передвижения.',cast(h,x,y,lvl){
     h.buffs=h.buffs.filter(buff=>!['savelyTransformer','savelyTransformerDamage','savelyTransformerAttack','savelyTransformerSpeed'].includes(buff.id));const duration=this.duration[lvl];h.addBuff({type:'savelyTransformer',id:'savelyTransformer',t:duration});h.addBuff({type:'dmg',id:'savelyTransformerDamage',val:this.damage[lvl],t:duration});h.addBuff({type:'as',id:'savelyTransformerAttack',val:this.attackSpeed[lvl]/100,t:duration});h.addBuff({type:'spd',id:'savelyTransformerSpeed',val:this.speed[lvl],t:duration});heroBurst(h,'#ffb347',125,42);addText(h.x,h.y-82,'ФОРМА ТРАНСФОРМЕРА • '+duration+' СЕК','#ffd36b',1.3,18);playHeroSfx('savelyTransform');
   }},
-  savelyFear:{name:'Яростный рев',short:'R',type:'point',maxLevel:3,ult:true,cd:[0,75,60,45],mana:[0,170,220,270],range:[0,1000,1200,1400],damage:[0,380,550,720],fearDuration:[0,2,2.5,3],desc:'Рёв по прямой линии наносит магический урон и заставляет врагов разбегаться.',cast(h,x,y,lvl){
+  savelyFear:{name:'Яростный рев',short:'R',type:'point',maxLevel:3,ult:true,cd:[0,75,60,45],mana:[0,170,220,270],range:[0,1000,1200,1400],damage:[0,323,468,612],fearDuration:[0,2,2.5,3],desc:'Рёв по прямой линии наносит магический урон и заставляет врагов разбегаться.',cast(h,x,y,lvl){
     const angle=Math.atan2(y-h.y,x-h.x),distance=Math.min(this.range[lvl],Math.hypot(x-h.x,y-h.y)||1),width=115;
     for(const unit of units){const along=(unit.x-h.x)*Math.cos(angle)+(unit.y-h.y)*Math.sin(angle),across=Math.abs((unit.x-h.x)*Math.sin(angle)-(unit.y-h.y)*Math.cos(angle));if(unit.dead||unit.team===h.team||unit.team===2||isBuilding(unit)||along<0||along>distance||across>width+unit.radius)continue;applyDamage(unit,abilityDamage(h,this.damage[lvl]),h);unit.buffs=unit.buffs.filter(buff=>buff.type!=='fear');unit.addBuff({type:'fear',id:'savelyFear',t:this.fearDuration[lvl],sourceX:h.x,sourceY:h.y});}
     const ex=h.x+Math.cos(angle)*distance,ey=h.y+Math.sin(angle)*distance;fxBeam(h.x,h.y,ex,ey,'#ffcf68',0.75);fxRing(h.x,h.y,100,'#ff8f45',0.75);spawnParticles(ex,ey,'#fff0ad',45,1.4);addText(h.x+Math.cos(angle)*distance*.55,h.y+Math.sin(angle)*distance*.55-34,'СТРАХ','#fff0a8',1.3,20);playHeroSfx('savelyFear');
@@ -5142,7 +5142,7 @@ const HERO_DEFS = [
   {
     id:'savely', name:'Савелий', title:'Жирный футбольный трансформер',
     color:'#254f68', color2:'#ffcc66',
-    baseHp:1120, hpPerLvl:148, baseMp:300, mpPerLvl:34,
+    baseHp:1008, hpPerLvl:133.2, baseMp:300, mpPerLvl:34,
     baseDmg:102, dmgPerLvl:9.5, speed:158,
     atkRange:155, atkTime:0.96, baseArmor:8, armorPerLvl:0.82,
     vision:1000, hpRegen:3.4, mpRegen:1.8,
@@ -11144,7 +11144,9 @@ function drawHUD(){
 
     ctx.font = '11px Segoe UI, Arial';
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText(def.name, r.x + r.w/2, r.y - 6);
+    const skillLabel=def.name==='Форма Трансформера'?'ТРАНСФОРМЕР':def.name;
+    ctx.font='bold 11px Segoe UI, Arial';
+    ctx.fillText(skillLabel, r.x + r.w/2, r.y - 6, r.w + 18);
 
     if(s.level > 0 && manaVal > 0){
       ctx.font = 'bold 12px Segoe UI, Arial';
