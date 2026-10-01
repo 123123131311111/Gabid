@@ -11,7 +11,7 @@ const DB_FILE = path.join(DATA_DIR, 'accounts.json');
 const NICK_RE = /^[\p{L}\p{N}_\- ]{3,16}$/u;
 const MAX_BODY = 4096;
 /* Допустимые аватарки (должны совпадать со списком AVATAR_DEFS в game.js). */
-const AVATAR_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','mo3gi','regina','juggernaut','sniper','chip','shovel','tower','ancient','rune','creep']);
+const AVATAR_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','mo3gi','regina','juggernaut','sniper','chip','savely','shovel','tower','ancient','rune','creep']);
 
 let db = { accounts: {}, sessions: {} };
 try {

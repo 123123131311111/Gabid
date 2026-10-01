@@ -377,7 +377,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.3';
+const GAME_VERSION = '0.7.3a';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.0: аккаунты (ник и пароль, смена ника, уровень с нуля растёт с каждой победы над ботами и игроками), новый фон главного меню с рунной печатью и алым вихрем, золотая тройка в логотипе, пропуск выбора бойцов сразу после пика и 5-секундная заставка при входе в матч',
   'Обновление 0.5.0: последовательное разрушение построек по линиям — сначала внешняя башня, затем внутренняя башня, казармы и только после этого трон',
@@ -446,7 +446,12 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.3', title:'РЕЙТИНГ, HUD И ЯЙЦО-ГОЛЛИ', changes:[
+  const sections = [{version:'0.7.3a', title:'САВЕЛИЙ: ФОРМА ТРАНСФОРМЕРА', changes:[
+    'Добавлен новый playable-герой Савелий — толстый футбольный форвард ближнего боя с ролью кэрри / инициатора.',
+    'Добавлены Ловкий уворот, Звонкий клич, Форма Трансформера и ультимейт Яростный рев со страхом.',
+    'Аганим шард усиливает Звонкий клич замедлением и снижением брони, а Aghanim Scepter улучшает уворот и сопротивление магии.',
+    'Обновлены выбор героя, онлайн-ростер, визуальный портрет и changelog.'
+  ]},{version:'0.7.3', title:'РЕЙТИНГ, HUD И ЯЙЦО-ГОЛЛИ', changes:[
     'Добавлен онлайн-рейтинг: за победу +25, за поражение −20 (минимум 0); каждые 100 очков повышают ранг от Рекрута 1 до Рекрута 5.',
     'Ранг и число рейтинга теперь отображаются прямо на кнопке онлайна; рейтинг сохраняется в профиле аккаунта.',
     'Добавлен активный предмет «Яйцо-голли» за 1800 монет: +500 к скорости передвижения на 3 секунды, перезарядка 25 секунд.',
@@ -876,6 +881,9 @@ function playAbilitySound(kind){
 
 function playHeroSfx(kind){
   if(kind === 'attack_tribupainer'){ playSynthSfx('shotgun'); return; }
+  if(kind === 'savelyCry'){ playSynthSfx('stun'); return; }
+  if(kind === 'savelyTransform'){ playSynthSfx('level'); return; }
+  if(kind === 'savelyFear'){ playSynthSfx('ultimate'); return; }
   if(kind === 'attack' || kind.startsWith('attack_')){ playSynthSfx('attack'); return; }
   if(kind === 'blink'){ playSynthSfx('blink'); return; }
   if(kind === 'stun'){ playSynthSfx('stun'); return; }
@@ -892,7 +900,7 @@ function playHeroSfx(kind){
       attack_golly: [180, 390, 'sine'], attack_sasych: [125, 280, 'sawtooth'], attack_ilya: [75, 170, 'square'],
       attack_malit: [100, 205, 'square'], attack_arcady: [260, 720, 'sawtooth'], attack_illusionist: [360, 680, 'sine'],
       attack_shadow: [120, 360, 'sawtooth'], attack_electricGosha: [520, 980, 'triangle'], attack_mo3gi: [150, 410, 'square'],
-      attack_mageHunter: [190, 520, 'sawtooth'], attack_dawnMaiden: [85, 190, 'square'], attack_exileKnight: [110, 260, 'sawtooth'], shotgun: [75, 420, 'sawtooth']
+      attack_mageHunter: [190, 520, 'sawtooth'], attack_dawnMaiden: [85, 190, 'square'], attack_exileKnight: [110, 260, 'sawtooth'], attack_savely: [105, 310, 'square'], shotgun: [75, 420, 'sawtooth']
     };
     const [from, to, type] = presets[kind] || presets.attack;
     const oscillator = context.createOscillator();
@@ -1555,7 +1563,8 @@ const SCEPTER_UPGRADES = {
   exileKnight:'Рывок шире, Гнев бога длится дольше',
   tribupainer:'Поджигающие пули сильнее, ульта получает второй импульс',
   regina:'Dispose бросает дальше, Rebound усиливает удар, Unleash даёт больше зарядов и расширяет финальную волну',
-  earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области'
+  earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области',
+  savely:'Форма Трансформера длится дольше, уворот срабатывает на каждом третьем ударе и Савелий получает +30% сопротивления магии'
 };
 
 function applyDamage(target, amount, source){
@@ -1579,6 +1588,15 @@ function applyDamage(target, amount, source){
   if(isStructure(target) && !(source && source.attack)) return;
   if(isBuilding(target) && !canDamageStructure(target, source)) return;
   const attackResistance = target.inventory && target.inventory.some(i => i && i.id === 'ilyaHair') ? SHOP_ITEMS.ilyaHair.attackResist : 0;
+  if(source && source.attack && target.def && target.def.id === 'savely'){
+    target.savelyPhysicalHits = (target.savelyPhysicalHits || 0) + 1;
+    if(target.savelyPhysicalHits % (hasScepter(target) ? 3 : 4) === 0){
+      addText(target.x,target.y-target.radius-24,'ПРОМАХ • УВОРОТ','#ffe08a',0.8,14);
+      fxRing(target.x,target.y,34,'#ffd36b',0.25);
+      return;
+    }
+  }
+  if(!(source && source.attack) && target.def && target.def.id === 'savely' && hasScepter(target)) amount *= 0.70;
   if(source && source.attack && attackResistance) amount *= 1 - attackResistance;
   const shardShield = target.buffs && target.buffs.some(buff => buff.type === 'shardShield');
   if(source && source.attack && shardShield) amount *= 0.65;
@@ -2591,6 +2609,11 @@ class Unit {
       return;
     }
     if(this.stunTimer>0){ this.moving=false; return; }
+    const fear=this.buffs.find(buff=>buff.type==='fear');
+    if(fear){
+      const dx=this.x-fear.sourceX,dy=this.y-fear.sourceY,d=Math.hypot(dx,dy)||1;
+      this.moveTarget={x:clamp(this.x+dx/d*260,60,WORLD-60),y:clamp(this.y+dy/d*260,60,WORLD-60)};
+    }
     /* Игрока никогда не должно намертво заклинить в дереве или в узкой щели между
        деревьями (например, после случайного блинка) — если такое случилось,
        аккуратно выталкиваем его наружу прежде, чем считать обычное движение. */
@@ -4673,7 +4696,8 @@ const SHARD_SKILLS = {
   ilya: {name:'Ядовитое поле', short:'G', type:'point', maxLevel:1, cd:[0,32], mana:[0,100], range:650, desc:'Создаёт поле на 8 секунд. Враги внутри получают урон и не могут использовать способности.', cast(h,x,y){ aoes.push({x,y,radius:230,dmg:abilityDamage(h,70),manaDmg:0,team:h.team,source:h,delay:0,t:0,color:'#55e06f',applied:false,life:8,dead:false,silenceDuration:1.2,poisonField:true}); fxMark(x,y,230,'#55e06f',8); }},
   malit: {name:'Тяжёлый удар', short:'G', type:'point', maxLevel:1, cd:[0,28], mana:[0,80], range:650, desc:'Удар Малита наносит 220 урона и оглушает врага на 1 секунду.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на врага'); return; } applyDamage(target,220,h); target.stunTimer=Math.max(target.stunTimer,1); fxHit(target.x,target.y,'#f2c38b'); }},
   illusionist: {name:'Зеркальный зал', short:'G', type:'self', maxLevel:1, cd:[0,32], mana:[0,100], desc:'Создаёт две сильные иллюзии на 10 секунд.', cast(h){ spawnIllusion(h,{life:10,damageMultiplier:0.8,damageTakenMultiplier:1.5,angle:0}); spawnIllusion(h,{life:10,damageMultiplier:0.8,damageTakenMultiplier:1.5,angle:Math.PI}); fxRing(h.x,h.y,110,'#e8d4ff',0.65); }}
-   ,shadow: {name:'Тёмный залп', short:'G', type:'point', maxLevel:1, cd:[0,28], mana:[0,90], range:700, desc:'Выпускает усиленный ближний койл, наносящий 910 урона.', cast(h,x,y){ castShadowCoil(h,x,y,1,700,910,1300,420); }}
+  ,shadow: {name:'Тёмный залп', short:'G', type:'point', maxLevel:1, cd:[0,28], mana:[0,90], range:700, desc:'Выпускает усиленный ближний койл, наносящий 910 урона.', cast(h,x,y){ castShadowCoil(h,x,y,1,700,910,1300,420); }}
+  ,savely: {name:'Резонанс клича', short:'G', type:'self', maxLevel:1, cd:[0,30], mana:[0,90], desc:'Звонкий клич дополнительно замедляет врагов на 40% и снижает им броню на 5 на 3.5 секунды.', cast(h){ h.shardSkill=true; addText(h.x,h.y-62,'КЛИЧ УСИЛЕН SHARD','#8be9fd',1.1,16); }}
 };
 
 const MALIT_SKILLS = {
@@ -4727,6 +4751,28 @@ const MALIT_SKILLS = {
     }
   }
 };
+
+const SAVELY_SKILLS = {
+  savelyEvade:{name:'Ловкий уворот',short:'Q',type:'self',passive:true,maxLevel:1,cd:[0,0],mana:[0,0],desc:'Пассивно: каждая 4-я входящая физическая атака гарантированно промахивается.'},
+  savelyCry:{name:'Звонкий клич',short:'W',type:'self',maxLevel:4,cd:[0,11,9,7,5],mana:[0,75,90,105,120],damage:[0,130,210,290,370],radius:350,desc:'Громкий крик наносит магический урон врагам вокруг. С шардом замедляет и снижает броню.',cast(h,x,y,lvl){
+    const shard=!!h.shardSkill;
+    for(const unit of units){
+      if(unit.dead||unit.team===h.team||unit.team===2||isBuilding(unit)||Math.hypot(unit.x-h.x,unit.y-h.y)>this.radius+unit.radius) continue;
+      applyDamage(unit,abilityDamage(h,this.damage[lvl]),h);
+      if(shard){unit.slow=Math.max(unit.slow||0,0.4);unit.slowT=Math.max(unit.slowT||0,3.5);unit.addBuff({type:'armor',id:'savelyCryArmor',val:-5,t:3.5});}
+    }
+    fxRing(h.x,h.y,this.radius,'#ffbd54',0.8);spawnParticles(h.x,h.y,'#fff0a8',52,1.45);addText(h.x,h.y-this.radius-20,shard?'ЗВОНКИЙ КЛИЧ • SHARD':'ЗВОНКИЙ КЛИЧ','#ffe09a',1.2,18);playHeroSfx('savelyCry');
+  }},
+  savelyTransformer:{name:'Форма Трансформера',short:'E',type:'self',maxLevel:4,cd:[0,60,53,46,39],mana:[0,90,105,120,135],duration:[0,10,12,14,16],damage:[0,30,50,70,90],attackSpeed:[0,40,65,90,115],speed:[0,0.12,0.16,0.20,0.24],desc:'Савелий нажимает на родинку и превращается в робота: получает урон, скорость атаки и скорость передвижения.',cast(h,x,y,lvl){
+    h.buffs=h.buffs.filter(buff=>!['savelyTransformer','savelyTransformerDamage','savelyTransformerAttack','savelyTransformerSpeed'].includes(buff.id));const duration=this.duration[lvl];h.addBuff({type:'savelyTransformer',id:'savelyTransformer',t:duration});h.addBuff({type:'dmg',id:'savelyTransformerDamage',val:this.damage[lvl],t:duration});h.addBuff({type:'as',id:'savelyTransformerAttack',val:this.attackSpeed[lvl]/100,t:duration});h.addBuff({type:'spd',id:'savelyTransformerSpeed',val:this.speed[lvl],t:duration});heroBurst(h,'#ffb347',125,42);addText(h.x,h.y-82,'ФОРМА ТРАНСФОРМЕРА • '+duration+' СЕК','#ffd36b',1.3,18);playHeroSfx('savelyTransform');
+  }},
+  savelyFear:{name:'Яростный рев',short:'R',type:'point',maxLevel:3,ult:true,cd:[0,75,60,45],mana:[0,170,220,270],range:[0,1000,1200,1400],damage:[0,380,550,720],fearDuration:[0,2,2.5,3],desc:'Рёв по прямой линии наносит магический урон и заставляет врагов разбегаться.',cast(h,x,y,lvl){
+    const angle=Math.atan2(y-h.y,x-h.x),distance=Math.min(this.range[lvl],Math.hypot(x-h.x,y-h.y)||1),width=115;
+    for(const unit of units){const along=(unit.x-h.x)*Math.cos(angle)+(unit.y-h.y)*Math.sin(angle),across=Math.abs((unit.x-h.x)*Math.sin(angle)-(unit.y-h.y)*Math.cos(angle));if(unit.dead||unit.team===h.team||unit.team===2||isBuilding(unit)||along<0||along>distance||across>width+unit.radius)continue;applyDamage(unit,abilityDamage(h,this.damage[lvl]),h);unit.buffs=unit.buffs.filter(buff=>buff.type!=='fear');unit.addBuff({type:'fear',id:'savelyFear',t:this.fearDuration[lvl],sourceX:h.x,sourceY:h.y});}
+    const ex=h.x+Math.cos(angle)*distance,ey=h.y+Math.sin(angle)*distance;fxBeam(h.x,h.y,ex,ey,'#ffcf68',0.75);fxRing(h.x,h.y,100,'#ff8f45',0.75);spawnParticles(ex,ey,'#fff0ad',45,1.4);addText(h.x+Math.cos(angle)*distance*.55,h.y+Math.sin(angle)*distance*.55-34,'СТРАХ','#fff0a8',1.3,20);playHeroSfx('savelyFear');
+  }}
+};
+Object.assign(SKILLS,SAVELY_SKILLS);
 Object.assign(SKILLS, MALIT_SKILLS);
 
 function triggerAftershockPulse(hero){
@@ -5092,6 +5138,17 @@ const HERO_DEFS = [
     vision:1080, hpRegen:2.0, mpRegen:2.8,
     skills:['chipCommand','chipCrown','chipCoin','chipThrone'],
     weapon:{type:'scepter',color:'#ffd568',size:1.0}
+  },
+  {
+    id:'savely', name:'Савелий', title:'Жирный футбольный трансформер',
+    color:'#254f68', color2:'#ffcc66',
+    baseHp:1120, hpPerLvl:148, baseMp:300, mpPerLvl:34,
+    baseDmg:102, dmgPerLvl:9.5, speed:158,
+    atkRange:155, atkTime:0.96, baseArmor:8, armorPerLvl:0.82,
+    vision:1000, hpRegen:3.4, mpRegen:1.8,
+    lateSkillGrowth:0.018, lateAttackGrowth:0.012,
+    skills:['savelyEvade','savelyCry','savelyTransformer','savelyFear'],
+    weapon:{type:'club',color:'#ffcc66',size:1.35}
   },
   {
     id:'juggernaut', name:'Джаггернаут', title:'Мастер катаны',
@@ -8801,6 +8858,37 @@ function drawUnit(u){
       ctx.beginPath(); ctx.roundRect(-10,18,20,17,4); ctx.fill(); ctx.stroke();
        ctx.fillStyle='#1b83c9'; ctx.fillRect(-5,21,10,4);
        ctx.restore();
+     } else if(u.def.id==='savely'){
+       const s=u.radius/24;
+       ctx.save(); ctx.scale(s,s);
+       const robot=u.buffs&&u.buffs.some(buff=>buff.id==='savelyTransformer');
+       ctx.shadowColor=robot?'#ffb347':'#5ed5ff'; ctx.shadowBlur=robot?22:12;
+       ctx.fillStyle=robot?'rgba(255,150,45,0.22)':'rgba(42,164,210,0.2)';
+       ctx.beginPath(); ctx.ellipse(0,16,42,37,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+       ctx.fillStyle=robot?'#a94f2d':'#d84d35'; ctx.strokeStyle='#421f2b'; ctx.lineWidth=2.5;
+       ctx.beginPath(); ctx.moveTo(-31,-1); ctx.lineTo(-40,34); ctx.quadraticCurveTo(0,51,40,34); ctx.lineTo(31,-1); ctx.closePath(); ctx.fill(); ctx.stroke();
+       ctx.fillStyle=robot?'#e7a33d':'#f1e4cf'; ctx.strokeStyle=robot?'#572b25':'#a43c37';
+       ctx.beginPath(); ctx.moveTo(-24,0); ctx.lineTo(-27,39); ctx.quadraticCurveTo(0,46,27,39); ctx.lineTo(24,0); ctx.closePath(); ctx.fill(); ctx.stroke();
+       ctx.strokeStyle=robot?'#ffcf55':'#d94f46'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,1); ctx.lineTo(0,42); ctx.stroke();
+       ctx.fillStyle='#172b42'; ctx.strokeStyle='#081321'; ctx.lineWidth=2;
+       ctx.beginPath(); ctx.ellipse(-13,42,10,5,0,0,Math.PI*2); ctx.ellipse(13,42,10,5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle=robot?'#798899':'#c98862'; ctx.strokeStyle='#4a2d31';
+       ctx.beginPath(); ctx.ellipse(0,-12,26,28,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle=robot?'#263848':'#3d222b'; ctx.beginPath(); ctx.arc(0,-29,25,Math.PI,Math.PI*2); ctx.fill();
+       ctx.fillStyle=robot?'#ffdc6b':'#fff1d0'; ctx.shadowColor=robot?'#ffb347':'#fff1d0'; ctx.shadowBlur=robot?12:4;
+       ctx.beginPath(); ctx.ellipse(-9,-12,5,3,0,0,Math.PI*2); ctx.ellipse(9,-12,5,3,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+       ctx.strokeStyle='#512934'; ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(0,0,10,0.15,Math.PI-0.15); ctx.stroke();
+       ctx.fillStyle=robot?'#ffb347':'#f5c65c'; ctx.strokeStyle='#744122'; ctx.lineWidth=1.5;
+       ctx.beginPath(); ctx.arc(0,15,7,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle='#fff0c7'; ctx.font='bold 8px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText('S',0,18);
+       ctx.fillStyle=robot?'#536779':'#e1eef4'; ctx.strokeStyle='#182838'; ctx.lineWidth=2;
+       ctx.beginPath(); ctx.ellipse(-30,4,8,12,-0.35,0,Math.PI*2); ctx.ellipse(30,4,8,12,0.35,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle='#f3ead9'; ctx.strokeStyle='#263447'; ctx.lineWidth=2;
+       ctx.beginPath(); ctx.arc(47,25,12,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.strokeStyle='#273849'; ctx.lineWidth=1.4;
+       for(let i=0;i<5;i++){const a=i*Math.PI/2.5;ctx.beginPath();ctx.moveTo(47,25);ctx.lineTo(47+Math.cos(a)*10,25+Math.sin(a)*10);ctx.stroke();}
+       if(robot){ctx.fillStyle='#ffbd42';ctx.beginPath();ctx.arc(0,-43,4+Math.sin(now*8)*1.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ffdc72';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-31,7);ctx.lineTo(-43,25);ctx.moveTo(31,7);ctx.lineTo(43,25);ctx.stroke();}
+       ctx.restore();
      } else if(u.def.id==='juvsyut'){
        /* Джувсют — отдельный силуэт: широкий живот, клетчатая рубаха,
           фартук и огромная деревянная ложка вместо стандартного шара. */
@@ -11990,7 +12078,7 @@ async function accountRecordResult(won, matchId, ranked){
 const AVATAR_DEFS = [
   {id:'pyro'},{id:'warlord'},{id:'grisha'},{id:'golly'},{id:'sasych'},
   {id:'ilya'},{id:'malit'},{id:'arcady'},{id:'illusionist'},{id:'shadow'},
-  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'chip'},
+  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'chip'},{id:'savely'},
   {id:'shovel', name:'Лопата', c1:'#3a2415', c2:'#d7b36a'},
   {id:'tower',  name:'Башня',  c1:'#102a4a', c2:'#8be9fd'},
   {id:'ancient',name:'Древний',c1:'#3c1010', c2:'#ff6b57'},
