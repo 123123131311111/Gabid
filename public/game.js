@@ -338,6 +338,7 @@ let storeAudioOwned = false;
 let storeFeedimidiOwned = false;
 let storeNineteenOwned = false;
 let storeAbuuuOwned = false;
+let storeShovelOwned = false;
 let storePhraseIndex = 0;
 let phraseWheelOpen = false;
 let phraseWheelSelection = -1;
@@ -375,7 +376,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.6.1c';
+const GAME_VERSION = '0.6.2';
 const CHANGELOG_HISTORY = [
   'Обновление 0.5.0: последовательное разрушение построек по линиям — сначала внешняя башня, затем внутренняя башня, казармы и только после этого трон',
   'Обновление 0.4.2: ультимейт Рассветной девы переработан — метка у союзника создаёт пульсирующий световой круг (лечит союзников, жжёт врагов), затем героиня влетает в центр с мощным уроном и станом по площади',
@@ -443,7 +444,15 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.6.1c', title:'HUD И ТЕМП ИГРЫ', changes:[
+  const sections = [{version:'0.6.2', title:'ТРУСЫ ДИАНЫ И НОВОЕ МЕНЮ', changes:[
+    'Добавлен предмет «Трусы Дианы» (3500 монет): +60 к урону атак и способностей, а активная аура включается и выключается без перезарядки и наносит небольшой урон врагам и крипам рядом.',
+    'Добавлен предмет «Жирфсютин» (4000 монет): +1800 к максимальному и текущему здоровью.',
+    'В магазин фраз добавлена новая фраза «Лопата челлендж».',
+    'Главное меню переработано в красной теме DOTA SENSE: профиль, новости и события, блоки новинок.',
+    'При продаже предметов с бонусом к здоровью бонус теперь снимается.',
+    'Добавлен голос диктора: First Blood, Double/Triple Kill, Rampage, серии убийств до Beyond Godlike, отсчёты выбора героя и старта матча, события башен и базы, Team Wipe, Victory и Defeat.',
+    'Выбор героя теперь длится 30 секунд, перед боем идёт 30-секундный отсчёт для закупки.'
+  ]},{version:'0.6.1c', title:'HUD И ТЕМП ИГРЫ', changes:[
     'Добавлена верхняя лента героев матча: павшие бойцы отображаются серыми, как в Dota.',
     'Инвентарь перестроен в горизонтальную сетку 3 на 2, магазин получил быстрый доступ и счётчик монет рядом с кнопкой.',
     'Добавлены отдельные иконки ПТ, Клыков Васьки и Мунуции, а игровой цикл оптимизирован без удаления механик.',
@@ -526,6 +535,18 @@ for(const item of Object.values(SHOP_ITEMS)){
   if(typeof item.cost === 'number') item.cost = Math.round(item.cost * 0.93);
   if(typeof item.totalCost === 'number') item.totalCost = Math.round(item.totalCost * 0.93);
 }
+/* Новые предметы добавлены ПОСЛЕ множителя 0.93, поэтому цена в магазине ровно такая, как указана. */
+SHOP_ITEMS.dianaPants = {
+  name:'Трусы Дианы', icon:'♡', cost:3500, color:'#ff6fb0', active:true,
+  desc:'Пассивно: +60 к урону обычных атак и способностей. Активный (без перезарядки): включает/выключает ауру — пока она включена, каждую секунду наносит небольшой урон (35) всем врагам и крипам рядом.',
+  damage:60, auraDamage:35, auraRadius:360, auraInterval:0.5
+};
+SHOP_ITEMS.girfsyutin = {
+  name:'Жирфсютин', icon:'♥', cost:4000, color:'#ff9a5c', active:false,
+  desc:'Пассивно: +1800 к максимальному и текущему здоровью.',
+  hp:1800
+};
+SHOP_ITEM_IDS.push('dianaPants','girfsyutin');
 
 const CREATOR_BUILDS = {
   shadow: {
@@ -895,18 +916,117 @@ function playKillSound(){
   } catch(err) {}
 }
 
-function playRampageVoice(){
+/* =========================================================
+   ДИКТОР: очередь фраз с приоритетами (speechSynthesis, en-US)
+   ========================================================= */
+const ANNOUNCER = {queue:[], speaking:false, token:0, last:{}, enabled:true};
+function announcerVoice(){
   try {
-    if('speechSynthesis' in window){
-      window.speechSynthesis.cancel();
-      const voice = new SpeechSynthesisUtterance('RAMPAGE');
-      voice.lang = 'en-US';
-      voice.rate = 0.72;
-      voice.pitch = 0.48;
-      voice.volume = 1;
-      window.speechSynthesis.speak(voice);
-    }
-  } catch(err) {}
+    const voices = window.speechSynthesis.getVoices().filter(v => /^en(?:-|_)/i.test(v.lang || ''));
+    return voices.find(v => /male|david|mark|daniel|alex|guy|george|ryan/i.test(v.name)) || voices[0] || null;
+  } catch(err) { return null; }
+}
+function announce(text, opts={}){
+  if(!ANNOUNCER.enabled || !text) return;
+  if(!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
+  const now = performance.now();
+  if(opts.key){
+    const prev = ANNOUNCER.last[opts.key];
+    if(prev && now - prev < (opts.cooldown || 0) * 1000) return;
+    ANNOUNCER.last[opts.key] = now;
+  }
+  if(opts.interrupt){
+    ANNOUNCER.queue.length = 0;
+    ANNOUNCER.token++;
+    ANNOUNCER.speaking = false;
+    try { window.speechSynthesis.cancel(); } catch(err) {}
+  }
+  if(ANNOUNCER.queue.length >= 4) ANNOUNCER.queue.shift();
+  ANNOUNCER.queue.push({text, rate:opts.rate, pitch:opts.pitch});
+  pumpAnnouncer();
+}
+function pumpAnnouncer(){
+  if(ANNOUNCER.speaking || !ANNOUNCER.queue.length) return;
+  const item = ANNOUNCER.queue.shift();
+  const token = ++ANNOUNCER.token;
+  const finish = () => {
+    if(ANNOUNCER.token !== token) return;
+    ANNOUNCER.speaking = false;
+    pumpAnnouncer();
+  };
+  try {
+    const voice = new SpeechSynthesisUtterance(item.text);
+    voice.lang = 'en-US';
+    voice.rate = item.rate || 0.9;
+    voice.pitch = item.pitch || 0.5;
+    voice.volume = 1;
+    const chosen = announcerVoice();
+    if(chosen) voice.voice = chosen;
+    voice.onend = finish;
+    voice.onerror = finish;
+    ANNOUNCER.speaking = true;
+    window.speechSynthesis.resume();
+    window.speechSynthesis.speak(voice);
+    /* Chrome иногда не присылает onend — страховка, чтобы очередь не зависла. */
+    setTimeout(finish, 6000);
+  } catch(err) { ANNOUNCER.speaking = false; }
+}
+function announcerStop(){
+  ANNOUNCER.queue.length = 0; ANNOUNCER.token++; ANNOUNCER.speaking = false;
+  try { window.speechSynthesis.cancel(); } catch(err) {}
+}
+const SPREE_LINES = {
+  3:['Killing Spree!','СЕРИЯ УБИЙСТВ'], 4:['Dominating!','ДОМИНИРОВАНИЕ'], 5:['Mega Kill!','МЕГА-УБИЙСТВО'],
+  6:['Unstoppable!','НЕОСТАНОВИМЫЙ'], 7:['Wicked Sick!','ПРЕВОСХОДНО'], 8:['Monster Kill!','МОНСТРУОЗНОЕ УБИЙСТВО'],
+  9:['Godlike!','БОЖЕСТВЕННО'], 10:['Holy Shit!','БОГОПОДОБНО']
+};
+function spreeLine(count){ return count >= 11 ? ['Beyond Godlike!','БОГОПОДОБНО'] : (SPREE_LINES[count] || null); }
+const DRAFT_LINES = {30:'30 seconds remaining to pick!', 20:'20 seconds remaining!', 10:'10 seconds remaining!', 5:'5 seconds remaining!', 0:'Time is up!'};
+const PREMATCH_LINES = {30:'30 seconds until the battle begins!', 15:'15 seconds until the battle begins!', 10:'10 seconds remaining!',
+  5:'5...', 4:'4...', 3:'3...', 2:'2...', 1:'1...', 0:'Let the battle begin!'};
+const PREMATCH_SECONDS = 30;
+let prematchTime = 0, prematchLastSec = Infinity, draftLastSec = Infinity;
+let firstBloodDone = false, resultAnnounced = false;
+
+function updatePrematch(dt){
+  prematchTime -= dt;
+  const sec = Math.max(0, Math.ceil(prematchTime));
+  if(sec !== prematchLastSec){
+    prematchLastSec = sec;
+    const line = PREMATCH_LINES[sec];
+    if(line) announce(line, {interrupt: sec <= 5, rate: sec <= 5 ? 0.8 : 0.9});
+  }
+  if(prematchTime <= 0) prematchTime = 0;
+}
+function drawPrematchOverlay(){
+  if(prematchTime <= 0 || gameState !== 'playing') return;
+  const sec = Math.ceil(prematchTime);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(0, VH*0.2, VW, VH*0.26);
+  ctx.font = 'bold 18px Georgia, serif'; ctx.fillStyle = '#e8c984';
+  ctx.fillText('ДО НАЧАЛА БИТВЫ', VW/2, VH*0.2 + 36);
+  ctx.font = '900 ' + Math.round(Math.min(120, VH*0.16)) + 'px Georgia, serif';
+  ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.strokeText(String(sec), VW/2, VH*0.2 + VH*0.17);
+  ctx.fillStyle = sec <= 5 ? '#ff4a3a' : '#fff0c7'; ctx.fillText(String(sec), VW/2, VH*0.2 + VH*0.17);
+  ctx.font = '13px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText('Закупайся в магазине — герои и крипы начнут бой после отсчёта', VW/2, VH*0.2 + VH*0.23);
+  ctx.restore();
+}
+function noteStructureAttack(target, source, fromSync){
+  if(!playerHero || gameState !== 'playing' || !target) return;
+  if(target.type !== 'tower' && target.type !== 'barracks' && target.type !== 'ancient') return;
+  if(source && source.team === target.team) return;
+  const mine = target.team === playerHero.team;
+  if(target.type === 'ancient'){
+    if(mine) announce('Your base is under attack!', {key:'baseAttack', cooldown:20});
+    return;
+  }
+  if(mine) announce('Your tower is under attack!', {key:'towerAttackMine', cooldown:20});
+  else if(fromSync || (source && source.team === playerHero.team)) announce('Enemy tower is under attack!', {key:'towerAttackEnemy', cooldown:25});
+}
+
+function playRampageVoice(){
   try {
     abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
     const context = abilityAudioContext;
@@ -1109,6 +1229,7 @@ function playStorePhrase(){
   if(storeFeedimidiOwned) phrases.push('feedimidi');
   if(storeNineteenOwned) phrases.push('nineteen');
   if(storeAbuuuOwned) phrases.push('abuuu');
+  if(storeShovelOwned) phrases.push('shovel');
   if(!phrases.length) return;
   const phrase = phrases[storePhraseIndex % phrases.length];
   storePhraseIndex++;
@@ -1122,7 +1243,8 @@ const PHRASE_WHEEL_ITEMS = [
   {id:'kisi', label:'КИСИ', text:'Киси-киси, мяу-мяу! Киси-киси, мяу-мяу-мяу!', color:'#d8a6ff'},
   {id:'feedimidi', label:'ФИДИ МИДИ', text:'Фиди миди', color:'#ffd568'},
   {id:'nineteen', label:'МНЕ 19 ЛЕТ', text:'Пацаны, мне 19 лет', color:'#bda8ff'},
-  {id:'abuuu', label:'АБУУУУ РАРАРАР', text:'АБУУУУУУУУ! РА-РА-РА!', color:'#ff8278'}
+  {id:'abuuu', label:'АБУУУУ РАРАРАР', text:'АБУУУУУУУУ! РА-РА-РА!', color:'#ff8278'},
+  {id:'shovel', label:'ЛОПАТА', text:'Лопата челлендж!', color:'#ffb347'}
 ];
 const STORE_PHRASE_CARDS = [
   {id:'legacy',title:'КЛАССИКА',desc:'Короля не убить!',color:'#ffd568'},
@@ -1130,7 +1252,8 @@ const STORE_PHRASE_CARDS = [
   {id:'pesik',title:'АНИМЕ-ФРАЗА',desc:'Пёсик, пёсик — ав-ав-ав!',color:'#8be9fd'},
   {id:'feedimidi',title:'ФИДИ МИДИ',desc:'Фиди миди',color:'#ffd568'},
   {id:'nineteen',title:'ПАЦАНЫ, МНЕ 19',desc:'Страшная реплика',color:'#bda8ff'},
-  {id:'abuuu',title:'АБУУУУ РАРАРАР',desc:'Кричалка',color:'#ff8278'}
+  {id:'abuuu',title:'АБУУУУ РАРАРАР',desc:'Кричалка',color:'#ff8278'},
+  {id:'shovel',title:'ЛОПАТА ЧЕЛЛЕНДЖ',desc:'Лопата челлендж!',color:'#ffb347'}
 ];
 
 function isStorePhraseOwned(id){
@@ -1140,6 +1263,7 @@ function isStorePhraseOwned(id){
   if(id==='feedimidi') return storeFeedimidiOwned;
   if(id==='nineteen') return storeNineteenOwned;
   if(id==='abuuu') return storeAbuuuOwned;
+  if(id==='shovel') return storeShovelOwned;
   return false;
 }
 
@@ -1150,6 +1274,7 @@ function unlockStorePhrase(id){
   if(id==='feedimidi') storeFeedimidiOwned=true;
   if(id==='nineteen') storeNineteenOwned=true;
   if(id==='abuuu') storeAbuuuOwned=true;
+  if(id==='shovel') storeShovelOwned=true;
 }
 
 function updatePhraseWheelSelection(){
@@ -1178,7 +1303,8 @@ function speakStorePhrase(variant='chip'){
   const isPesik = variant === 'pesik';
   const isLegacy = variant === 'legacy';
   const isKisi = variant === 'kisi';
-  const settings = variant === 'feedimidi'
+  const shovelSettings = {text:'Лопата челлендж!', rate:1.08, pitch:0.85, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i};
+  const settings = variant === 'shovel' ? shovelSettings : (variant === 'feedimidi'
     ? {text:'Фиди миди', rate:0.78, pitch:0.42, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
     : (variant === 'nineteen'
       ? {text:'Пацаны, мне 19 лет', rate:0.72, pitch:0.38, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}
@@ -1190,7 +1316,7 @@ function speakStorePhrase(variant='chip'){
       ? {text:'Пёсик, пёсик! Ав-ав-ав!', rate:1.16, pitch:1.58, pattern:/female|жен|anime|anna|milena|irina|girl|young/i}
       : (isKisi
         ? {text:'Киси-киси, мяу-мяу! Киси-киси, мяу-мяу-мяу!', rate:1.5, pitch:1.7, pattern:/female|жен|anime|anna|milena|irina|girl|young|cute/i}
-        : {text:'А Чип короооооооль!', rate:0.78, pitch:0.48, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i})))));
+        : {text:'А Чип короооооооль!', rate:0.78, pitch:0.48, pattern:/male|муж|dmitri|alex|pavel|deep|bass|baritone/i}))))));
 
   const speak = attempt => {
     try {
@@ -1464,6 +1590,7 @@ function applyDamage(target, amount, source){
   if(sourceHero && sourceHero.level > 1 && !(source && source.attack)){
     amount *= 1 + (sourceHero.level - 1) * 0.03;
   }
+  noteStructureAttack(target, source, false);
   const armor = target.getArmor ? target.getArmor() : (target.armor || 0);
   const structureBonus = target.type === 'tower' ? 1.2 : 1;
   const dmg = source && source.trueDamage
@@ -1531,9 +1658,12 @@ function abilityDamage(source, amount){
     : 1;
   const talentEmpowered = (source && source.spellAmp ? shardEmpowered * (1 + source.spellAmp) : shardEmpowered) * skillLevelBonus * heroLevelBonus * lateLevelGrowth;
   const scepterEmpowered = hasScepterSkillBoost(source) ? talentEmpowered * 1.2 : talentEmpowered;
-  return source && source.inventory && source.inventory.some(i => i && i.id === 'fangs')
-    ? scepterEmpowered + 105
-    : scepterEmpowered;
+  let itemBonus = 0;
+  if(source && source.inventory){
+    if(source.inventory.some(i => i && i.id === 'fangs')) itemBonus += 105;
+    if(source.inventory.some(i => i && i.id === 'dianaPants')) itemBonus += SHOP_ITEMS.dianaPants.damage;
+  }
+  return scepterEmpowered + itemBonus;
 }
 
 function killUnit(u, source){
@@ -1572,11 +1702,28 @@ function killUnit(u, source){
       gameTime - rewardHero.lastHeroKillTime <= 8;
     rewardHero.killStreak = streakContinues ? (rewardHero.killStreak || 0) + 1 : 1;
     rewardHero.lastHeroKillTime = gameTime;
-    const streak = rewardHero.killStreak >= 3 ? 'RAMPAGE' :
-      (rewardHero.killStreak >= 2 ? 'ДВОЙНОЕ УБИЙСТВО' : 'УБИЙСТВО');
-    if(rewardHero.killStreak === 3){
-      rampageBanner = {t:4.2, owner:rewardHero, streak:rewardHero.killStreak};
+    rewardHero.spreeKills = (rewardHero.spreeKills || 0) + 1;
+    const multi = rewardHero.killStreak;
+    const isFirstBlood = !firstBloodDone;
+    firstBloodDone = true;
+    const spree = spreeLine(rewardHero.spreeKills);
+    let streak = multi >= 4 ? 'RAMPAGE' : (multi === 3 ? 'ТРОЙНОЕ УБИЙСТВО' :
+      (multi === 2 ? 'ДВОЙНОЕ УБИЙСТВО' : (isFirstBlood ? 'ПЕРВАЯ КРОВЬ' : (spree ? spree[1] : 'УБИЙСТВО'))));
+    if(multi === 4){
+      rampageBanner = {t:4.2, owner:rewardHero, streak:multi};
       playRampageVoice();
+    }
+    if(rewardHero === playerHero){
+      /* Приоритет: Rampage > мульти-килл > первая кровь; серия без смертей идёт следом. */
+      if(multi >= 4){
+        announce('Rampage!', {interrupt:true, rate:0.8, pitch:0.4});
+        if(spree) announce(spree[0]);
+      } else {
+        if(multi === 3) announce('Triple Kill!', {interrupt:true});
+        else if(multi === 2) announce('Double Kill!', {interrupt:true});
+        else if(isFirstBlood) announce('First Blood!', {interrupt:true});
+        if(spree) announce(spree[0], {interrupt: multi < 2 && !isFirstBlood});
+      }
     }
     if(rewardHero === playerHero){
       killStreakBanner = {text:streak, color:rewardHero.killStreak >= 2 ? '#ff3b30' : '#ff8b78', t:2.6, scale:rewardHero.killStreak >= 2 ? 1.18 : 1};
@@ -1587,6 +1734,7 @@ function killUnit(u, source){
   }
   if(u.type === 'tower' || u.type === 'barracks'){
     addText(u.x, u.y - 70, u.type === 'tower' ? 'БАШНЯ РАЗРУШЕНА!' : 'КАЗАРМЫ РАЗРУШЕНЫ!', '#ffd54f', 1.8, 20);
+    if(playerHero) announce(u.team === playerHero.team ? 'Your tower has fallen!' : 'Enemy tower has been destroyed!', {interrupt:true});
   }
   if(u.type === 'tower'){
     const progress = structureProgress[u.team];
@@ -1619,8 +1767,11 @@ function killUnit(u, source){
        botTaunt(rewardHero, 'playerDeath');
     u.respawnTimer = 8 + u.level * 1.5;
     u.killStreak = 0;
+    u.spreeKills = 0;
     u.lastHeroKillTime = -Infinity;
     addText(u.x, u.y-60, 'УБИТ!', '#ff3b3b', 1.6, 26);
+    const squad = heroes.filter(h => h.team === u.team && h.type === 'hero' && !h.isIllusion);
+    if(squad.length >= 2 && squad.every(h => h.dead)) announce('Team Wipe!', {interrupt:true, key:'teamWipe', cooldown:10});
   }
   if(u.type === 'ancient'){
     winner = u.team === 0 ? 1 : 0;
@@ -1993,6 +2144,13 @@ function getInvokeCooldown(hero, key){
 function activateInventoryItem(hero, index){
   const item = hero.inventory[index];
   if(!item) return false;
+  if(item.id === 'dianaPants'){
+    item.auraOn = !item.auraOn;
+    item.auraTimer = 0;
+    addText(hero.x, hero.y - 56, item.auraOn ? 'ТРУСЫ ДИАНЫ: ВКЛ' : 'ТРУСЫ ДИАНЫ: ВЫКЛ', '#ff6fb0', 0.9, 15);
+    fxRing(hero.x, hero.y, item.auraOn ? SHOP_ITEMS.dianaPants.auraRadius : 60, '#ff6fb0', 0.5);
+    return true;
+  }
   if(item.id === 'bkb'){
     if(item.cooldown > 0){ flashMsg(hero, 'БКБ на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
     item.activeTimer = 10;
@@ -2273,6 +2431,21 @@ function applyItemStats(hero, id){
     hero.maxHp += SHOP_ITEMS.satanic.hp;
     hero.hp += SHOP_ITEMS.satanic.hp;
   }
+  if(id === 'girfsyutin'){
+    hero.maxHp += SHOP_ITEMS.girfsyutin.hp;
+    hero.hp += SHOP_ITEMS.girfsyutin.hp;
+  }
+}
+
+/* Аура «Трусы Дианы»: небольшой урон всем врагам и крипам рядом. */
+function tickDianaAura(hero){
+  const cfg = SHOP_ITEMS.dianaPants;
+  const dmg = cfg.auraDamage * cfg.auraInterval;
+  for(const u of units){
+    if(u.dead || u.team === hero.team || isBuilding(u)) continue;
+    if(Math.hypot(u.x-hero.x, u.y-hero.y) > cfg.auraRadius + (u.radius||0)) continue;
+    applyDamage(u, dmg, {team:hero.team, source:hero, trueDamage:true});
+  }
 }
 
 /* =========================================================
@@ -2316,7 +2489,7 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=105; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=105; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
   getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
   getSpeed(){ let s=this.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'joelBoots')) s+=SHOP_ITEMS.joelBoots.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) s+=60; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) s+=SHOP_ITEMS.ilyaHair.speed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) s+=this.skills[2].level*27.5; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) s+=SHOP_ITEMS.gur.moveSpeed; if(this.buffs.some(b=>b.type==='haste')) s+=180; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) s*=1.18; const superBoots=this.inventory && this.inventory.find(i => i && i.id === 'superBoots'); if(superBoots){ s+=SHOP_ITEMS.superBoots.speed; if(superBoots.activeTimer>0) s+=SHOP_ITEMS.superBoots.activeSpeed; } const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) s+=100; for(const b of this.buffs) if(b.type === 'spd') s*=(1+b.val); const thirst=this.def && this.def.id === 'sasych' ? heroes.filter(h => h.team !== this.team && !h.dead && h.type === 'hero').reduce((sum,h) => sum+(1-h.hp/h.maxHp)*0.48,0) : 0; s*=1+thirst; if(this.slowT>0) s*=(1-this.slow); return s; }
   addBuff(b){ this.buffs.push(b); }
@@ -4909,7 +5082,7 @@ class Hero extends Unit {
     this.respawnTimer = 0; this.aiTimer = 0; this.isPlayer = false;
     this.skills = def.skills.map(id => ({id, def:SKILLS[id], level:0, cd:0}));
     this.kills = 0; this.assists = 0; this.deaths = 0;
-    this.killStreak = 0; this.lastHeroKillTime = -Infinity;
+    this.killStreak = 0; this.spreeKills = 0; this.lastHeroKillTime = -Infinity;
     this.talents = [];
     this.coins = 600; this.coinTimer = 0;
     this.shopTimer = 6 + Math.random()*5;
@@ -5136,6 +5309,13 @@ class Hero extends Unit {
       if(!item) continue;
       if(item.cooldown > 0) item.cooldown = Math.max(0, item.cooldown - dt);
       if(item.activeTimer > 0) item.activeTimer = Math.max(0, item.activeTimer - dt);
+      if(item.id === 'dianaPants' && item.auraOn && !this.dead){
+        item.auraTimer = (item.auraTimer || 0) - dt;
+        if(item.auraTimer <= 0){
+          item.auraTimer = SHOP_ITEMS.dianaPants.auraInterval;
+          tickDianaAura(this);
+        }
+      }
     }
     if(this.timurPillow > 0){
       const heal = Math.min(this.maxHp - this.hp, 60 * dt);
@@ -5356,7 +5536,8 @@ function spawnWave(){
 
 function beginDraft(preselected=-1){
   menuStage='draft';
-  draftTime=20;
+  draftTime=30;
+  draftLastSec=Infinity;
   draftCountdownSpoken=false;
   draftPlayerIndex=preselected;
   selectedHeroIndex=preselected>=0 ? preselected : 0;
@@ -5371,9 +5552,10 @@ function beginDraft(preselected=-1){
 function updateDraft(dt){
   if(menuStage!=='draft') return;
   draftTime=Math.max(0,draftTime-dt);
-  if(!draftCountdownSpoken && draftTime<=10){
-    draftCountdownSpoken=true;
-    speakDraftCountdown();
+  const draftSec=Math.ceil(draftTime);
+  if(draftSec!==draftLastSec){
+    draftLastSec=draftSec;
+    if(DRAFT_LINES[draftSec]) announce(DRAFT_LINES[draftSec], {interrupt: draftSec<=10});
   }
   if(draftTime<=0){
     if(draftPlayerIndex<0){
@@ -5391,6 +5573,7 @@ function startGame(playerIndex, draftPicks=null){
   explored = new Uint8Array(GRID*GRID);
   gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
    barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
+  firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
   structureProgress=[createStructureProgress(),createStructureProgress()];
    rampageBanner={t:0, owner:null, streak:0};
   shopOpen=false;
@@ -5505,6 +5688,7 @@ function startTestMode(playerIndex){
   explored = new Uint8Array(GRID*GRID);
   gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
   barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
+  firstBloodDone=false; resultAnnounced=false; prematchTime=0;
   structureProgress=[createStructureProgress(),createStructureProgress()];
   rampageBanner={t:0, owner:null, streak:0};
   shopOpen=false; shopGuideOpen=false; shopScrollRow=0; pendingPurchaseId=null;
@@ -5979,6 +6163,7 @@ function updateEnemyAI(h, dt){
 
 function update(dt){
   if(gameState !== 'playing') return;
+  if(prematchTime > 0){ updatePrematch(dt); return; }
   gameTime += dt;
   updateBotChatReplies();
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
@@ -6582,7 +6767,7 @@ canvas.addEventListener('mousedown', e => {
     const cancel = {x:VW/2+30,y:VH/2-70,w:140,h:42};
     if(mx>=confirm.x && mx<=confirm.x+confirm.w && my>=confirm.y && my<=confirm.y+confirm.h){
       const item=playerHero.inventory[pendingSellIndex];
-      if(item){ playerHero.coins += Math.floor((SHOP_ITEMS[item.id]?.cost || 0)*0.5); playerHero.inventory[pendingSellIndex]=null; }
+      if(item){ playerHero.coins += Math.floor((SHOP_ITEMS[item.id]?.cost || 0)*0.5); playerHero.inventory[pendingSellIndex]=null; const soldHp=SHOP_ITEMS[item.id]?.hp; if(soldHp){ playerHero.maxHp=Math.max(1,playerHero.maxHp-soldHp); playerHero.hp=Math.min(playerHero.hp,playerHero.maxHp); } }
       pendingSellIndex=-1;
     } else if(mx>=cancel.x && mx<=cancel.x+cancel.w && my>=cancel.y && my<=cancel.y+cancel.h){
       pendingSellIndex=-1;
@@ -8895,6 +9080,22 @@ function drawUnit(u){
     ctx.shadowBlur = 0;
   }
   ctx.restore();
+  const dianaAura = u.inventory && u.inventory.find(i => i && i.id === 'dianaPants' && i.auraOn);
+  if(dianaAura && !u.dead){
+    const auraR = SHOP_ITEMS.dianaPants.auraRadius;
+    ctx.save();
+    const pulse = 0.5 + 0.5*Math.sin(gameTime*4);
+    const glow = ctx.createRadialGradient(u.x,u.y,auraR*0.2,u.x,u.y,auraR);
+    glow.addColorStop(0,'rgba(255,111,176,0)');
+    glow.addColorStop(1,'rgba(255,111,176,'+(0.10+pulse*0.06)+')');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(u.x,u.y,auraR,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,140,194,'+(0.55+pulse*0.25)+')';
+    ctx.lineWidth = 2; ctx.setLineDash([14,10]);
+    ctx.lineDashOffset = -gameTime*30;
+    ctx.beginPath(); ctx.arc(u.x,u.y,auraR,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
   if(u.bkbActive > 0){
     ctx.save();
     ctx.strokeStyle = '#ffe34d';
@@ -10117,8 +10318,11 @@ function drawInventory(){
     ctx.fillStyle='rgba(5,8,14,0.9)'; ctx.fillRect(r.x,r.y,r.w,r.h);
     ctx.strokeStyle=item ? item.color : 'rgba(255,255,255,0.25)'; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
     ctx.textAlign='center'; ctx.font='bold 20px Segoe UI, Arial'; ctx.fillStyle=item ? item.color : 'rgba(255,255,255,0.25)';
-    const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : '▲') : '-';
+    const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : '▲') : '-';
     drawItemIcon(item,r.x+r.w/2,r.y+22,Math.min(34,r.w-10));
+    if(item && item.auraOn){
+      ctx.font='bold 9px Segoe UI, Arial'; ctx.fillStyle='#72e6a5'; ctx.textAlign='left'; ctx.fillText('ВКЛ',r.x+5,r.y+r.h-5); ctx.textAlign='center';
+    }
     ctx.font='10px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.fillText(inventoryBinds[i].toUpperCase(),r.x+r.w-7,r.y+r.h-5);
   }
   ctx.restore();
@@ -10658,9 +10862,22 @@ function drawScoreboard(){
 let menuHover = -1;
 let menuButtonHitboxes = [];
 let lastMenuButtonHoverKey = '';
-function menuPlayRect(){ return {x:VW/2-150,y:VW<820||VH<820?VH/2-122:VH/2-28,w:300,h:72}; }
-function menuChangelogRect(){ return {x:VW/2-155,y:VW<820||VH<820?VH/2+28:VH/2+178,w:310,h:48}; }
-function menuSettingsRect(){ return {x:VW-174,y:22,w:150,h:42}; }
+function menuWide(){ return VW>=900 && VH>=560; }
+function menuScale(){ return Math.max(0.6, Math.min(1.25, Math.min(VW/1408, VH/768))); }
+function menuNavRect(index){
+  const s=menuScale(), w=Math.round(220*s), gap=Math.round(16*s), h=Math.round(52*s);
+  const total=3*w+2*gap;
+  return {x:Math.round(VW/2-total/2)+index*(w+gap), y:VH-Math.round(150*s), w, h};
+}
+function menuPlayRect(){
+  if(menuWide()){ const s=menuScale(); return {x:Math.round(44*s),y:Math.round(150*s),w:Math.round(360*s),h:Math.round(84*s)}; }
+  return {x:VW/2-150,y:VW<820||VH<820?VH/2-122:VH/2-28,w:300,h:72};
+}
+function menuChangelogRect(){ if(menuWide()) return menuNavRect(1); return {x:VW/2-155,y:VW<820||VH<820?VH/2+28:VH/2+178,w:310,h:48}; }
+function menuSettingsRect(){
+  if(menuWide() && menuStage==='home'){ const s=menuScale(), size=Math.round(56*s); return {x:VW-Math.round(44*s)-size,y:Math.round(22*s),w:size,h:size}; }
+  return {x:VW-174,y:22,w:150,h:42};
+}
 function menuSettingsPanel(){
   const w=Math.min(560,VW-24), h=Math.min(560,VH-24);
   return {x:(VW-w)/2,y:(VH-h)/2,w,h};
@@ -10684,7 +10901,7 @@ function menuSettingsLayout(panel){
     close:{x:panel.x+(panel.w-180)/2,y:panel.y+panel.h-58,w:180,h:44}
   };
 }
-function menuStoreRect(){ return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
+function menuStoreRect(){ if(menuWide()) return menuNavRect(2); return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
 
 const UPDATE_SPOTLIGHT = [
   {version:'0.6.1b',title:'ВОСЕМЬ ГЕРОЕВ. ТРИ ЛИНИИ.',description:'В обычной игре стало просторнее для командной драки: на центральной линии теперь встречаются сразу несколько бойцов, а лес проще читать.',compactDescription:'Восемь бойцов в команде, оживлённый мид и заметные лагеря в лесу.'},
@@ -10793,7 +11010,7 @@ function drawMenuButton(rect, label, options={}){
   ctx.roundRect(rect.x+4,rect.y+4,rect.w-8,rect.h-8,Math.max(3,radius-3));
   ctx.stroke();
   ctx.fillStyle = primary ? '#fff0c7' : '#e8c984';
-  ctx.font = options.large ? 'bold 21px Segoe UI, Arial' : 'bold 12px Segoe UI, Arial';
+  ctx.font = options.large ? 'bold '+(options.fontSize||21)+'px Segoe UI, Arial' : 'bold '+(options.fontSize||12)+'px Segoe UI, Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label,rect.x+rect.w/2,rect.y+rect.h/2+1);
@@ -10832,7 +11049,7 @@ function handleMenuClick(mx, my){
     return;
   }
   const storeButton=menuStoreRect();
-  if(mx>=storeButton.x && mx<=storeButton.x+storeButton.w && my>=storeButton.y && my<=storeButton.y+storeButton.h){
+  if(menuStage==='home' && mx>=storeButton.x && mx<=storeButton.x+storeButton.w && my>=storeButton.y && my<=storeButton.y+storeButton.h){
     storeOpen=!storeOpen; changelogOpen=false; settingsOpen=false; return;
   }
   if(storeOpen){
@@ -10840,13 +11057,13 @@ function handleMenuClick(mx, my){
     const close={x:panel.x+230,y:panel.y+426,w:200,h:44};
     if(mx>=close.x&&mx<=close.x+close.w&&my>=close.y&&my<=close.y+close.h){storeOpen=false;return;}
     for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
-      const card={x:panel.x+18+(index%3)*216,y:panel.y+150+Math.floor(index/3)*116,w:194,h:100};
+      const card={x:panel.x+18+(index%3)*216,y:panel.y+124+Math.floor(index/3)*98,w:194,h:88};
       if(mx>=card.x&&mx<=card.x+card.w&&my>=card.y&&my<=card.y+card.h){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
     }
     return;
   }
   const changelogButton = menuChangelogRect();
-  if(mx>=changelogButton.x && mx<=changelogButton.x+changelogButton.w && my>=changelogButton.y && my<=changelogButton.y+changelogButton.h){
+  if(menuStage==='home' && mx>=changelogButton.x && mx<=changelogButton.x+changelogButton.w && my>=changelogButton.y && my<=changelogButton.y+changelogButton.h){
     changelogOpen = !changelogOpen;
     if(changelogOpen) changelogScroll = 0;
     return;
@@ -10858,6 +11075,13 @@ function handleMenuClick(mx, my){
     return;
   }
   if(menuStage === 'home'){
+    for(const hit of menuHomeHits){
+      if(mx>=hit.x && mx<=hit.x+hit.w && my>=hit.y && my<=hit.y+hit.h){
+        if(hit.action==='store'){ storeOpen=true; changelogOpen=false; settingsOpen=false; }
+        else if(hit.action==='online'){ onlineEntryElement.click(); }
+        return;
+      }
+    }
     const play = menuPlayRect();
     if(mx>=play.x && mx<=play.x+play.w && my>=play.y && my<=play.y+play.h){
       beginDraft();
@@ -10890,7 +11114,7 @@ function handleMenuClick(mx, my){
   }
   if(menuStage === 'draft'){
     const back={x:24,y:78,w:120,h:38};
-    if(mx>=back.x && mx<=back.x+back.w && my>=back.y && my<=back.y+back.h){ stopMenuMusic(); menuStage='home'; return; }
+    if(mx>=back.x && mx<=back.x+back.w && my>=back.y && my<=back.y+back.h){ stopMenuMusic(); announcerStop(); menuStage='home'; return; }
     for(let i=0;i<HERO_DEFS.length;i++){
       const r=menuCardRect(i);
       if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h){ draftPlayerIndex=i; selectedHeroIndex=i; return; }
@@ -10948,7 +11172,7 @@ function menuCardRect(i){
 }
 function menuPreviousRect(){ return {x:VW/2-230,y:VH-68,w:92,h:38}; }
 function menuNextRect(){ return {x:VW/2+138,y:VH-68,w:92,h:38}; }
-function menuFightersRect(){ return {x:VW/2-155,y:VW<820||VH<820?VH/2-42:VH/2+62,w:310,h:54}; }
+function menuFightersRect(){ if(menuWide()) return menuNavRect(0); return {x:VW/2-155,y:VW<820||VH<820?VH/2-42:VH/2+62,w:310,h:54}; }
 function menuDetailBackRect(){ return {x:24,y:78,w:132,h:42}; }
 function menuDetailStartRect(){ return {x:VW-300,y:VH-76,w:260,h:50}; }
 function menuDetailTestRect(){ return {x:VW-300-276,y:VH-76,w:260,h:50}; }
@@ -11229,13 +11453,13 @@ function drawStorePanel(){
   ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='13px Segoe UI, Arial'; ctx.fillText('Откройте фразу и используйте её в катке клавишей K',VW/2,panel.y+82);
   STORE_PHRASE_CARDS.forEach((card,index)=>{
     const x=panel.x+18+(index%3)*216;
-    const y=panel.y+150+Math.floor(index/3)*116;
+    const y=panel.y+124+Math.floor(index/3)*98;
     const owned=isStorePhraseOwned(card.id);
-    ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(x,y,194,100);
-    ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(x,y,194,100);
+    ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(x,y,194,88);
+    ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(x,y,194,88);
     ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(card.title,x+12,y+24);
     ctx.fillStyle='#fff'; ctx.font='bold '+(card.desc.length>20?'11':'14')+'px Segoe UI, Arial'; ctx.fillText(card.desc,x+12,y+50);
-    ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'ПОЛУЧИТЬ БЕСПЛАТНО',x+12,y+76);
+    ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'ПОЛУЧИТЬ БЕСПЛАТНО',x+12,y+72);
   });
   const close={x:panel.x+230,y:panel.y+426,w:200,h:44}; drawMenuButton(close,'ЗАКРЫТЬ',{active:true});
   ctx.restore();
@@ -11277,8 +11501,321 @@ function drawCosmicBackdrop(now){
   ctx.restore();
 }
 
+/* =========================================================
+   DOTA SENSE — главное меню в красной теме
+   ========================================================= */
+let menuHomeHits = [];
+
+function dsMetalPanel(x,y,w,h,stroke){
+  ctx.save();
+  const fill=ctx.createLinearGradient(x,y,x,y+h);
+  fill.addColorStop(0,'rgba(38,27,31,0.95)'); fill.addColorStop(1,'rgba(14,10,13,0.97)');
+  ctx.fillStyle=fill; ctx.strokeStyle=stroke||'#7a2a2a'; ctx.lineWidth=2;
+  ctx.shadowColor='rgba(0,0,0,0.65)'; ctx.shadowBlur=14;
+  ctx.beginPath(); ctx.roundRect(x,y,w,h,6); ctx.fill();
+  ctx.shadowBlur=0; ctx.stroke();
+  ctx.strokeStyle='rgba(210,130,110,0.22)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.roundRect(x+4,y+4,w-8,h-8,3); ctx.stroke();
+  ctx.restore();
+}
+
+function dsShovelGlyph(cx,cy,size,color){
+  ctx.save();
+  ctx.translate(cx,cy); ctx.rotate(-0.7);
+  ctx.fillStyle='#7a4b2a'; ctx.fillRect(-size*0.05,-size*0.5,size*0.1,size*0.62);
+  ctx.fillRect(-size*0.16,-size*0.52,size*0.32,size*0.07);
+  ctx.fillStyle=color||'#cfd5dc'; ctx.strokeStyle='#1a1214'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-size*0.18,size*0.1); ctx.lineTo(size*0.18,size*0.1);
+  ctx.quadraticCurveTo(size*0.22,size*0.42,0,size*0.55); ctx.quadraticCurveTo(-size*0.22,size*0.42,-size*0.18,size*0.1);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+function drawDotaSenseLogo(cx,y,w,h){
+  ctx.save();
+  const x=cx-w/2, c=Math.round(h*0.22);
+  const plate=ctx.createLinearGradient(x,y,x,y+h);
+  plate.addColorStop(0,'#4a4a50'); plate.addColorStop(0.5,'#2a2a30'); plate.addColorStop(1,'#1a1a1f');
+  ctx.shadowColor='rgba(0,0,0,0.75)'; ctx.shadowBlur=18;
+  ctx.fillStyle=plate; ctx.strokeStyle='#8f6a62'; ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.moveTo(x+c,y); ctx.lineTo(x+w-c,y); ctx.lineTo(x+w,y+c); ctx.lineTo(x+w,y+h-c);
+  ctx.lineTo(x+w-c,y+h); ctx.lineTo(x+c,y+h); ctx.lineTo(x,y+h-c); ctx.lineTo(x,y+c); ctx.closePath();
+  ctx.fill(); ctx.shadowBlur=0; ctx.stroke();
+  ctx.strokeStyle='rgba(190,50,40,0.7)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(x+9,y+8,w-18,h-16,4); ctx.stroke();
+  for(const px of [x+4,x+w-4]){
+    ctx.fillStyle='#b4231f'; ctx.strokeStyle='#e8c9b0'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(px,y+h/2-9); ctx.lineTo(px+9,y+h/2); ctx.lineTo(px,y+h/2+9); ctx.lineTo(px-9,y+h/2); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  const fontPx=Math.round(h*0.56);
+  ctx.font='900 '+fontPx+'px Georgia, serif';
+  ctx.textBaseline='middle'; ctx.textAlign='left';
+  const dotaW=ctx.measureText('DOTA').width, senseW=ctx.measureText('SENSE').width, emblem=h*0.6, gap=h*0.12;
+  const total=dotaW+gap+emblem+gap+senseW;
+  let tx=cx-total/2; const ty=y+h/2+2;
+  const drawWord=(word,wx)=>{
+    ctx.lineWidth=5; ctx.strokeStyle='#120c0e'; ctx.strokeText(word,wx,ty);
+    const tg=ctx.createLinearGradient(0,ty-fontPx/2,0,ty+fontPx/2);
+    tg.addColorStop(0,'#efe6d3'); tg.addColorStop(1,'#a89f8d');
+    ctx.fillStyle=tg; ctx.fillText(word,wx,ty);
+  };
+  drawWord('DOTA',tx); tx+=dotaW+gap;
+  ctx.save();
+  ctx.translate(tx+emblem/2,y+h/2);
+  ctx.fillStyle='#b4231f'; ctx.strokeStyle='#2a0c0c'; ctx.lineWidth=3;
+  ctx.shadowColor='rgba(255,60,40,0.7)'; ctx.shadowBlur=14;
+  ctx.beginPath(); ctx.roundRect(-emblem/2,-emblem/2,emblem,emblem,5); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#ece3d2';
+  ctx.beginPath(); ctx.moveTo(-emblem*0.38,emblem*0.42); ctx.lineTo(-emblem*0.14,emblem*0.42); ctx.lineTo(emblem*0.38,-emblem*0.42); ctx.lineTo(emblem*0.14,-emblem*0.42); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  tx+=emblem+gap;
+  drawWord('SENSE',tx);
+  ctx.textBaseline='alphabetic';
+  ctx.restore();
+  /* кровавая луна справа от логотипа */
+  if(VW>=900){
+    const mr=Math.round(h*0.34), mx=x+w+mr*2.4, my=y+h*0.55;
+    ctx.save();
+    const moon=ctx.createRadialGradient(mx-mr*0.3,my-mr*0.3,mr*0.1,mx,my,mr);
+    moon.addColorStop(0,'#ff6a5a'); moon.addColorStop(0.6,'#c01f1f'); moon.addColorStop(1,'#6b0c10');
+    ctx.shadowColor='rgba(255,50,40,0.85)'; ctx.shadowBlur=36;
+    ctx.fillStyle=moon; ctx.beginPath(); ctx.arc(mx,my,mr,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawDotaSenseBackdrop(now){
+  ctx.save();
+  const tint=ctx.createLinearGradient(0,0,0,VH);
+  tint.addColorStop(0,'rgba(70,8,10,0.80)'); tint.addColorStop(0.55,'rgba(96,14,14,0.55)'); tint.addColorStop(1,'rgba(22,3,6,0.90)');
+  ctx.fillStyle=tint; ctx.fillRect(0,0,VW,VH);
+
+  const cx=VW*0.44, cy=VH*0.40, r=Math.min(VW,VH)*0.13;
+  /* столб света над рунной звездой */
+  const beam=ctx.createLinearGradient(0,0,0,cy);
+  beam.addColorStop(0,'rgba(255,60,40,0)'); beam.addColorStop(1,'rgba(255,60,40,'+(0.20+0.06*Math.sin(now*1.6))+')');
+  ctx.fillStyle=beam; ctx.fillRect(cx-r*0.28,0,r*0.56,cy);
+  /* руническая звезда */
+  ctx.translate(cx,cy);
+  ctx.shadowColor='#ff3b2a'; ctx.shadowBlur=26;
+  ctx.strokeStyle='rgba(255,90,70,'+(0.55+0.2*Math.sin(now*2))+')'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+  ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,r*1.18,0,Math.PI*2); ctx.stroke();
+  ctx.rotate(now*0.12);
+  for(let tri=0;tri<2;tri++){
+    ctx.beginPath();
+    for(let i=0;i<3;i++){
+      const a=i*Math.PI*2/3+tri*Math.PI/3-Math.PI/2;
+      const px=Math.cos(a)*r*0.92, py=Math.sin(a)*r*0.92;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.closePath(); ctx.stroke();
+  }
+  ctx.rotate(-now*0.12);
+  ctx.fillStyle='rgba(255,70,50,0.9)'; ctx.beginPath(); ctx.arc(0,0,r*0.1,0,Math.PI*2); ctx.fill();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.restore();
+
+  /* алый портал */
+  ctx.save();
+  const px=VW*0.62, py=VH*0.47, rx=Math.min(VW,VH)*0.07, ry=rx*1.45;
+  ctx.translate(px,py);
+  ctx.shadowColor='#ff2a1a'; ctx.shadowBlur=34;
+  const portal=ctx.createRadialGradient(0,0,2,0,0,ry);
+  portal.addColorStop(0,'rgba(15,0,0,0.95)'); portal.addColorStop(0.7,'rgba(120,10,10,0.8)'); portal.addColorStop(1,'rgba(255,60,40,0.75)');
+  ctx.fillStyle=portal; ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2); ctx.fill();
+  ctx.lineWidth=3; ctx.strokeStyle='rgba(255,110,90,0.8)';
+  for(let k=0;k<3;k++){
+    ctx.beginPath(); ctx.ellipse(0,0,rx*(0.35+k*0.28),ry*(0.35+k*0.28),now*0.6*(k%2?-1:1),0,Math.PI*1.5); ctx.stroke();
+  }
+  ctx.restore();
+
+  /* скалы по низу */
+  ctx.save();
+  for(let layer=0;layer<2;layer++){
+    ctx.fillStyle=layer?'rgba(18,5,8,0.95)':'rgba(40,10,12,0.8)';
+    ctx.beginPath(); ctx.moveTo(0,VH);
+    const peaks=14;
+    for(let i=0;i<=peaks;i++){
+      const px2=i*VW/peaks;
+      const py2=VH*(0.84+layer*0.05)-Math.abs(Math.sin(i*2.1+layer*1.7))*VH*0.07-((i*7+layer*3)%4)*VH*0.012;
+      ctx.lineTo(px2,py2);
+    }
+    ctx.lineTo(VW,VH); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
+  /* искры */
+  ctx.save();
+  for(let i=0;i<60;i++){
+    const phase=(now*0.045*(0.6+(i%5)*0.2)+i/60)%1;
+    const ex=((i*137.5)%VW)+Math.sin(now*0.6+i)*16, ey=VH*(1-phase);
+    ctx.globalAlpha=0.7*Math.sin(phase*Math.PI);
+    ctx.fillStyle=i%4===0?'#ffd27a':'#ff6a3d';
+    ctx.beginPath(); ctx.arc(ex,ey,i%6===0?2.2:1.2,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawDotaSenseHome(){
+  const s=menuScale(), m=Math.round(44*s);
+  const hit=(r)=>mouse.x>=r.x&&mouse.x<=r.x+r.w&&mouse.y>=r.y&&mouse.y<=r.y+r.h;
+
+  /* --- ИГРАТЬ 3x3 --- */
+  const play=menuPlayRect();
+  drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,fontSize:Math.round(34*s),radius:10});
+  ctx.save();
+  ctx.fillStyle='rgba(255,236,200,0.9)'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.beginPath(); ctx.arc(play.x+play.h*0.55,play.y+play.h/2,play.h*0.34,0,Math.PI*2);
+  ctx.fillStyle='rgba(30,8,10,0.75)'; ctx.fill(); ctx.strokeStyle='#e8c9b0'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#ffe6c2'; ctx.font='bold '+Math.round(26*s)+'px Segoe UI, Arial'; ctx.fillText('⚔',play.x+play.h*0.55,play.y+play.h/2+1);
+  const tab={x:play.x+play.w/2-Math.round(62*s),y:play.y+play.h-2,w:Math.round(124*s),h:Math.round(38*s)};
+  ctx.fillStyle='#2a1a1d'; ctx.strokeStyle='#8f3b34'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(tab.x,tab.y); ctx.lineTo(tab.x+tab.w,tab.y); ctx.lineTo(tab.x+tab.w-10,tab.y+tab.h); ctx.lineTo(tab.x+10,tab.y+tab.h); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(20*s)+'px Georgia, serif'; ctx.fillText('3x3',tab.x+tab.w/2,tab.y+tab.h/2+2);
+  ctx.restore();
+
+  /* --- левая колонка: новинки магазина --- */
+  const colX=play.x, colW=play.w;
+  const aY=tab.y+tab.h+Math.round(18*s);
+  const rowH=Math.round(72*s), aH=Math.round(40*s)+2*rowH+Math.round(10*s);
+  dsMetalPanel(colX,aY,colW,aH);
+  ctx.save();
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(14*s)+'px Georgia, serif';
+  ctx.fillText('НОВИНКИ МАГАЗИНА',colX+Math.round(16*s),aY+Math.round(22*s));
+  const showcase=[
+    {id:'dianaPants',line:'Аура вкл/выкл без КД • +60 урона'},
+    {id:'girfsyutin',line:'+1800 к здоровью'}
+  ];
+  showcase.forEach((entry,index)=>{
+    const def=SHOP_ITEMS[entry.id];
+    const ry=aY+Math.round(40*s)+index*rowH;
+    ctx.fillStyle='rgba(120,30,30,0.18)'; ctx.fillRect(colX+Math.round(10*s),ry,colW-Math.round(20*s),rowH-Math.round(6*s));
+    drawItemIcon({id:entry.id,color:def.color,icon:def.icon},colX+Math.round(44*s),ry+(rowH-6*s)/2,Math.round(46*s));
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillStyle='#f3e4c6'; ctx.font='bold '+Math.round(16*s)+'px Segoe UI, Arial';
+    ctx.fillText(def.name,colX+Math.round(80*s),ry+Math.round(17*s));
+    ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(13*s)+'px Consolas, monospace';
+    ctx.fillText('◆ '+def.cost.toLocaleString('ru-RU'),colX+Math.round(80*s),ry+Math.round(37*s));
+    ctx.fillStyle='rgba(235,225,215,0.6)'; ctx.font=Math.round(11*s)+'px Segoe UI, Arial';
+    ctx.fillText(entry.line,colX+Math.round(80*s),ry+Math.round(54*s));
+  });
+  ctx.restore();
+
+  /* --- левая колонка: лопата челлендж --- */
+  const bY=aY+aH+Math.round(14*s), bH=Math.round(92*s);
+  const challenge={x:colX,y:bY,w:colW,h:bH};
+  const chHover=hit(challenge);
+  dsMetalPanel(challenge.x,challenge.y,challenge.w,challenge.h,chHover?'#e65a46':'#7a2a2a');
+  menuHomeHits.push({x:challenge.x,y:challenge.y,w:challenge.w,h:challenge.h,action:'store'});
+  menuButtonHitboxes.push({x:challenge.x,y:challenge.y,w:challenge.w,h:challenge.h,key:'challenge'});
+  dsShovelGlyph(challenge.x+Math.round(46*s),challenge.y+challenge.h/2,Math.round(56*s));
+  ctx.save();
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(11*s)+'px Consolas, monospace';
+  ctx.fillText('НОВАЯ ФРАЗА',challenge.x+Math.round(92*s),challenge.y+Math.round(22*s));
+  ctx.fillStyle='#fff0c7'; ctx.font='bold '+Math.round(19*s)+'px Georgia, serif';
+  ctx.fillText('ЛОПАТА ЧЕЛЛЕНДЖ',challenge.x+Math.round(92*s),challenge.y+Math.round(46*s));
+  ctx.fillStyle='rgba(235,225,215,0.65)'; ctx.font=Math.round(11*s)+'px Segoe UI, Arial';
+  ctx.fillText(isStorePhraseOwned('shovel')?'Получено • жми K в бою':'Забери бесплатно в магазине фраз',challenge.x+Math.round(92*s),challenge.y+Math.round(69*s));
+  ctx.restore();
+
+  /* --- профиль --- */
+  const gear=menuSettingsRect();
+  const profW=Math.round(260*s), profH=gear.h;
+  const prof={x:gear.x-Math.round(12*s)-profW,y:gear.y,w:profW,h:profH};
+  dsMetalPanel(prof.x,prof.y,prof.w,prof.h,'#6b2a2a');
+  ctx.save();
+  const av=profH-Math.round(12*s);
+  ctx.fillStyle='#14090c'; ctx.strokeStyle='#8f6a62'; ctx.lineWidth=2;
+  ctx.fillRect(prof.x+6,prof.y+6,av,av); ctx.strokeRect(prof.x+6,prof.y+6,av,av);
+  ctx.fillStyle='#d9d0bf'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('S',prof.x+6+av/2,prof.y+6+av/2+1);
+  ctx.fillStyle='#b4231f'; ctx.fillRect(prof.x+6+av/2-Math.round(14*s),prof.y+profH-Math.round(9*s),Math.round(28*s),Math.round(13*s));
+  ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(10*s)+'px Consolas, monospace'; ctx.fillText('55',prof.x+6+av/2,prof.y+profH-Math.round(2.5*s));
+  ctx.textAlign='left';
+  const tx0=prof.x+av+Math.round(18*s);
+  ctx.fillStyle='#e8c984'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial'; ctx.fillText('ShadowHunter',tx0,prof.y+Math.round(15*s));
+  ctx.fillStyle='#8fb8e8'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial'; ctx.fillText('✦ Divine V',tx0,prof.y+Math.round(31*s));
+  ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(12*s)+'px Consolas, monospace'; ctx.fillText('◆ 15,200',tx0,prof.y+Math.round(46*s));
+  ctx.restore();
+
+  /* --- NEWS & EVENTS --- */
+  const nW=Math.round(300*s), nX=VW-m-nW, nY=Math.round(118*s), nH=VH-nY-Math.round(80*s);
+  dsMetalPanel(nX,nY,nW,nH);
+  ctx.save();
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(17*s)+'px Georgia, serif';
+  ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
+  ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
+  const news=[
+    {tag:'ПАТЧ',title:'ТРУСЫ ДИАНЫ: НОВЫЙ ПРЕДМЕТ',art:'heart'},
+    {tag:'ПАТЧ',title:'ЖИРФСЮТИН: +1800 HP',art:'hp'},
+    {tag:'ФРАЗА',title:'ЛОПАТА ЧЕЛЛЕНДЖ',art:'shovel',action:'store'},
+    {tag:'ОНЛАЙН',title:'ТУРНИР 3x3 — ИЩИ ИГРОКОВ',art:'3v3',action:'online'}
+  ];
+  const cGap=Math.round(10*s), cTop=nY+Math.round(52*s);
+  const cH=Math.floor((nH-Math.round(52*s)-Math.round(12*s)-cGap*(news.length-1))/news.length);
+  news.forEach((entry,index)=>{
+    const card={x:nX+Math.round(12*s),y:cTop+index*(cH+cGap),w:nW-Math.round(24*s),h:cH};
+    const hov=hit(card)&&entry.action;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
+    const art=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
+    art.addColorStop(0,'#3a0d12'); art.addColorStop(1,'#120508');
+    ctx.fillStyle=art; ctx.fillRect(card.x,card.y,card.w,card.h);
+    const gx=card.x+card.w*0.62, gy=card.y+card.h*0.42;
+    ctx.globalAlpha=0.9;
+    if(entry.art==='shovel') dsShovelGlyph(gx,gy,card.h*0.62);
+    else {
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.shadowColor='#ff3b2a'; ctx.shadowBlur=18;
+      if(entry.art==='3v3'){ ctx.fillStyle='#f0b040'; ctx.font='bold '+Math.round(card.h*0.5)+'px Georgia, serif'; ctx.fillText('3v3',gx,gy); }
+      else { ctx.fillStyle=entry.art==='heart'?'#ff6fb0':'#ff9a5c'; ctx.font='bold '+Math.round(card.h*0.55)+'px Segoe UI, Arial'; ctx.fillText(entry.art==='heart'?'♡':'♥',gx,gy); }
+    }
+    ctx.globalAlpha=1; ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(8,3,5,0.82)'; ctx.fillRect(card.x,card.y+card.h-Math.round(30*s),card.w,Math.round(30*s));
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillStyle='#f3e4c6'; ctx.font='bold '+Math.round(11.5*s)+'px Segoe UI, Arial';
+    ctx.fillText(entry.title,card.x+Math.round(9*s),card.y+card.h-Math.round(15*s));
+    ctx.fillStyle='#a8231f'; ctx.fillRect(card.x,card.y,Math.round(72*s),Math.round(20*s));
+    ctx.fillStyle='#fff0e0'; ctx.font='bold '+Math.round(10.5*s)+'px Segoe UI, Arial';
+    ctx.fillText(entry.tag,card.x+Math.round(9*s),card.y+Math.round(10.5*s));
+    ctx.restore();
+    ctx.strokeStyle=hov?'#ff8a70':'rgba(150,50,45,0.7)'; ctx.lineWidth=hov?2.5:1.5;
+    ctx.strokeRect(card.x,card.y,card.w,card.h);
+    if(entry.action){
+      menuHomeHits.push({x:card.x,y:card.y,w:card.w,h:card.h,action:entry.action});
+      menuButtonHitboxes.push({x:card.x,y:card.y,w:card.w,h:card.h,key:'news'+index});
+    }
+  });
+  ctx.restore();
+
+  /* --- нижняя панель навигации --- */
+  drawMenuButton(menuFightersRect(),'⚔  БОЙЦЫ',{active:true,radius:8,large:true,fontSize:Math.round(16*s)});
+  drawMenuButton(menuChangelogRect(),'▣  ЧЕНДЖЛОГ',{radius:8,large:true,fontSize:Math.round(16*s)});
+  drawMenuButton(menuStoreRect(),'♫  МАГАЗИН ФРАЗ',{radius:8,large:true,fontSize:Math.round(16*s)});
+
+  /* --- статус и версия --- */
+  ctx.save();
+  ctx.textBaseline='middle';
+  const badge={x:VW-m-Math.round(130*s),y:VH-Math.round(62*s),w:Math.round(130*s),h:Math.round(36*s)};
+  dsMetalPanel(badge.x,badge.y,badge.w,badge.h,'#7a2a2a');
+  ctx.textAlign='left'; ctx.fillStyle='#e8c9b0'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial';
+  ctx.fillText('ONLINE',badge.x+Math.round(16*s),badge.y+badge.h/2);
+  ctx.fillStyle=Math.sin(performance.now()/400)>0?'#ff4a3a':'#a8231f';
+  ctx.beginPath(); ctx.arc(badge.x+badge.w-Math.round(20*s),badge.y+badge.h/2,Math.round(5*s),0,Math.PI*2); ctx.fill();
+  ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.font=Math.round(11*s)+'px Consolas, monospace';
+  ctx.fillText('v'+GAME_VERSION,VW-m,VH-Math.round(14*s));
+  ctx.restore();
+}
+
 function drawMenu(){
   menuButtonHitboxes=[];
+  prematchTime=0; resultAnnounced=false; firstBloodDone=false;
   const onlineEntry=onlineEntryElement;
   const showOnlineEntry=menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
   const hideOnlineEntry=!showOnlineEntry;
@@ -11286,6 +11823,9 @@ function drawMenu(){
     onlineEntry.hidden=hideOnlineEntry;
     onlineEntry.style.display=hideOnlineEntry?'none':'flex';
   }
+  const wantOnlineTop=(menuWide() && menuStage==='home') ? (VH-80)+'px' : '';
+  if(onlineEntry.style.top!==wantOnlineTop) onlineEntry.style.top=wantOnlineTop;
+  menuHomeHits=[];
   const now = performance.now()/1000;
   const g = ctx.createLinearGradient(0,0,VW,VH);
   g.addColorStop(0, '#07141a');
@@ -11414,25 +11954,20 @@ function drawMenu(){
   ctx.fillStyle = vignette;
   ctx.fillRect(0,0,VW,VH);
 
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 14px Segoe UI, Arial';
-  ctx.fillStyle = '#d7b36a';
-  ctx.fillText('АРЕНА ТРЁХ СИЛ  •  ONLINE', VW/2, 32);
   if(menuStage === 'home'){
-    ctx.font = 'bold '+Math.min(84,VW<600?VW*0.15:84)+'px Georgia, serif';
-    ctx.fillStyle = '#f2e2bd';
-    ctx.shadowColor = 'rgba(204,63,36,0.6)';
-    ctx.shadowBlur = 18;
-    ctx.fillText('DotaSens', VW/2, 128);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(188,48,36,0.9)';
-    ctx.fillRect(VW/2-120, 145, 240, 3);
-    ctx.fillStyle = 'rgba(255,225,168,0.55)';
-    ctx.fillRect(VW/2-48, 145, 96, 3);
+    drawDotaSenseBackdrop(now);
+    const logoScale=menuScale();
+    const logoW=Math.min(Math.round(560*logoScale),VW-24), logoH=Math.round(logoW*0.2);
+    drawDotaSenseLogo(VW/2, menuWide()?Math.round(18*logoScale):70, logoW, logoH);
+  } else {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 14px Segoe UI, Arial';
+    ctx.fillStyle = '#d7b36a';
+    ctx.fillText('АРЕНА ТРЁХ СИЛ  •  ONLINE', VW/2, 32);
   }
 
   const settingsButton = menuSettingsRect();
-  drawMenuButton(settingsButton,'⚙  НАСТРОЙКИ',{active:settingsOpen});
+  if(menuWide() && menuStage==='home') drawMenuButton(settingsButton,'⚙',{active:settingsOpen,large:true,fontSize:24,radius:8}); else drawMenuButton(settingsButton,'⚙  НАСТРОЙКИ',{active:settingsOpen});
 
   if(settingsOpen){
     const panel = menuSettingsPanel();
@@ -11559,6 +12094,7 @@ function drawMenu(){
   }
 
   if(menuStage === 'home'){
+    if(menuWide()){ drawDotaSenseHome(); return; }
     const play = menuPlayRect();
     drawMenuUpdatePreview(play);
     ctx.textAlign='center'; ctx.font=VW<820||VH<820?'11px Segoe UI, Arial':'13px Segoe UI, Arial';
@@ -11670,6 +12206,11 @@ function drawMenu(){
 
 function drawOver(){
   const won = winner === 0;
+  if(!resultAnnounced){
+    resultAnnounced = true;
+    const myTeam = playerHero ? playerHero.team : 0;
+    announce(winner === myTeam ? 'Victory!' : 'Defeat!', {interrupt:true, rate:0.8});
+  }
   const accent = won ? '#69f08a' : '#ff6672';
   const now = performance.now() / 1000;
   const glow = ctx.createRadialGradient(VW/2,VH*.38,20,VW/2,VH*.38,Math.max(VW,VH)*.72);
@@ -11771,6 +12312,7 @@ function loop(now){
       drawTouchControls();
       if(testMode) drawTestPanel();
       drawKillStreakBanner();
+      drawPrematchOverlay();
       drawScoreboard();
       if(gameState === 'over') drawOver();
     }
@@ -11838,6 +12380,7 @@ requestAnimationFrame(loop);
     if(!tower) return;
     const nextHp = Number.isFinite(sTower.hp) ? Math.max(0,sTower.hp) : tower.hp;
     const nextAlive = sTower.alive !== false && nextHp > 0;
+    if(!tower.dead && nextAlive && nextHp < tower.hp - 0.5) noteStructureAttack(tower, null, tower.team !== (playerHero ? playerHero.team : 0));
     if(!tower.dead && !nextAlive) killUnit(tower,null);
     tower.hp = nextAlive ? nextHp : 0;
     tower.maxHp = Number.isFinite(sTower.maxHp) ? sTower.maxHp : tower.maxHp;
@@ -12267,6 +12810,7 @@ requestAnimationFrame(loop);
         playerHero.dead = true;
         playerHero.deaths++;
         playerHero.killStreak = 0;
+        playerHero.spreeKills = 0;
         playerHero.lastHeroKillTime = -Infinity;
       }
       playerHero.hp = 0;
