@@ -455,7 +455,10 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.3a', title:'САВЕЛИЙ: ФОРМА ТРАНСФОРМЕРА', changes:[
+  const sections = [{version:'0.7.4', title:'ИСПРАВЛЕНИЯ МУЛЬТИПЛЕЕРА', changes:[
+    'Исправлено: в мультиплеере бойцы других игроков отображались на твоём экране не теми, кого они выбрали (скиллы при этом были правильные).',
+    'Мунуция подорожала с 2000 до 4500 монет.'
+  ]},{version:'0.7.3a', title:'САВЕЛИЙ: ФОРМА ТРАНСФОРМЕРА', changes:[
     'Добавлен новый playable-герой Савелий — толстый футбольный форвард ближнего боя с ролью кэрри / инициатора.',
     'Добавлены Ловкий уворот, Звонкий клич, Форма Трансформера и ультимейт Яростный рев со страхом.',
     'Аганим шард усиливает Звонкий клич замедлением и снижением брони, а Aghanim Scepter улучшает уворот и сопротивление магии.',
@@ -545,7 +548,7 @@ const SHOP_ITEMS = {
   aghanimShard: {name:'Аганим шард', icon:'⬢', cost:1400, desc:'При покупке добавляет герою персональную способность G. Эффект зависит от выбранного героя и предмет не занимает слот инвентаря.', color:'#8be9fd', active:false, cooldown:35},
   enemy302: {name:'Враги-302 школы', icon:'⌛', cost:1350, desc:'Пассивно: сокращает перезарядку всех обычных способностей героя на 30%. На предметы не влияет.', color:'#f3b4ff', cooldownReduction:0.30, active:false},
   tornBrainHand: {name:'Оторванная рука мо3гов', icon:'☠', cost:1800, desc:'Активный: телепортирует героя к выбранному врагу и наносит ему 350 физического урона. КД 24 сек.', color:'#d7a879', cooldown:24, active:true},
-  munition: {name:'Мунуция', icon:'⚙', cost:2000, desc:'Активный: на 3 сек. резко ускоряет атаки героя. КД 18 сек.', color:'#f5d36b', activeDuration:3, cooldown:18, attackSpeed:6, active:true},
+  munition: {name:'Мунуция', icon:'⚙', cost:4500, desc:'Активный: на 3 сек. резко ускоряет атаки героя. КД 18 сек.', color:'#f5d36b', activeDuration:3, cooldown:18, attackSpeed:6, active:true},
   hatchet: {name:'Топорик', icon:'🪓', cost:125, desc:'Пассивно: +35 урона. Активный: срубает ближайшее дерево в радиусе 150. КД 10 сек.', color:'#c68b5b', cooldown:10, damage:35, active:true}
   ,satanic: {name:'Сатаник', icon:'♦', cost:2900, desc:'Пассивно: +660 к максимальному и текущему здоровью. Обычные атаки возвращают 25% нанесённого урона.', color:'#d83b55', hp:660, lifesteal:0.25, active:false}
   ,arcadiaScar: {name:'Шрам-Аркадия', icon:'✦', cost:1450, desc:'Активный: на 7 сек. даёт +250 урона и ускоряет атаки в 3 раза относительно базовой скорости. КД 24 сек.', color:'#ff7043', activeDuration:7, damage:250, attackSpeed:2, cooldown:24, active:true}
@@ -1659,7 +1662,7 @@ function applyDamage(target, amount, source){
     }
   }
   if(sourceHero && sourceHero.def && !(source && source.attack)){
-    amount *= sourceHero.def.balanceScale || 1;
+    amount *= (sourceHero.def.spellScale || sourceHero.def.balanceScale || 1) * heroPhaseMult(sourceHero.def, sourceHero.level);
   }
   const reflect = target.buffs && target.buffs.find(buff => buff.type === 'mageReflect');
   if(reflect && sourceHero && sourceHero.team !== target.team && source && !source.attack){
@@ -1738,7 +1741,7 @@ function abilityDamage(source, amount){
   const skillLevelBonus = source && source.castingSkillLevel > 1 ? 1 + (source.castingSkillLevel - 1) * 0.35 : 1;
   const heroLevelBonus = source && source.level ? heroLevelSkillDamageMult(source.level) : 1;
   const lateLevelGrowth = source && source.def && source.def.lateSkillGrowth
-    ? 1 + Math.max(0, source.level - 10) * source.def.lateSkillGrowth
+    ? 1 + Math.max(0, source.level - 15) * source.def.lateSkillGrowth
     : 1;
   const talentEmpowered = (source && source.spellAmp ? shardEmpowered * (1 + source.spellAmp) : shardEmpowered) * skillLevelBonus * heroLevelBonus * lateLevelGrowth;
   const scepterEmpowered = hasScepterSkillBoost(source) ? talentEmpowered * 1.2 : talentEmpowered;
@@ -2580,7 +2583,7 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=105; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=105; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-15)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
   getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
   getSpeed(){ let s=this.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'joelBoots')) s+=SHOP_ITEMS.joelBoots.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) s+=60; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) s+=SHOP_ITEMS.ilyaHair.speed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) s+=this.skills[2].level*27.5; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) s+=SHOP_ITEMS.gur.moveSpeed; const eggGolly=this.inventory && this.inventory.find(i => i && i.id === 'eggGolly'); if(eggGolly && eggGolly.activeTimer>0) s+=SHOP_ITEMS.eggGolly.moveSpeed; if(this.buffs.some(b=>b.type==='haste')) s+=180; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) s*=1.18; const superBoots=this.inventory && this.inventory.find(i => i && i.id === 'superBoots'); if(superBoots){ s+=SHOP_ITEMS.superBoots.speed; if(superBoots.activeTimer>0) s+=SHOP_ITEMS.superBoots.activeSpeed; } const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) s+=100; for(const b of this.buffs) if(b.type === 'spd') s*=(1+b.val); const thirst=this.def && this.def.id === 'sasych' ? heroes.filter(h => h.team !== this.team && !h.dead && h.type === 'hero').reduce((sum,h) => sum+(1-h.hp/h.maxHp)*0.48,0) : 0; s*=1+thirst; if(this.slowT>0) s*=(1-this.slow); return s; }
   addBuff(b){ this.buffs.push(b); }
@@ -2699,7 +2702,7 @@ class Unit {
         if(this.def && this.def.id === 'tribupainer' && this.getAttackRange()>220){
           const incendiary=!!(this.tribuIncendiaryTimer>0 || (this.buffs && this.buffs.some(buff=>buff.type==='tribuShardShot')));
           const bullets=hasScepter(this) ? 4 : 3;
-          const pelletDamage=Math.max(33,this.getDamage()*0.38+Math.max(0,this.level-8)*0.75);
+          const pelletDamage=Math.max(12,this.getDamage()*0.38);
           for(let pellet=0;pellet<bullets;pellet++){
             const spread=(pellet-(bullets-1)/2)*0.075;
             const projectile=spawnProjectile(this.x,this.y,t,pelletDamage,{team:this.team,source:this,attack:true,incendiary},1100,'#ffb36b',8);
@@ -3719,7 +3722,7 @@ const SKILLS = {
   mageHunterManaBurn: {name:'Выжигание маны',short:'Q',type:'self',passive:true,maxLevel:4,cd:[0,0,0,0,0],mana:[0,0,0,0,0],desc:'Пассивно сжигает ману врага каждой атакой.',cast(){}},
   mageHunterBlink: {name:'Мерцание',short:'W',type:'point',maxLevel:4,cd:[0,12,10,8,6],mana:[0,60,70,80,90],range:780,desc:'Телепорт с фиолетовым следом. Увеличенная дальность и короткий КД.',cast(h,x,y){const ox=h.x,oy=h.y;h.x=clamp(x,60,WORLD-60);h.y=clamp(y,60,WORLD-60);h.moveTarget=null;fxBeam(ox,oy,h.x,h.y,'#d58cff',0.38);heroBurst(h,'#b65cff',80,30);playHeroSfx('blink');}},
   mageHunterReflect: {name:'Щит отражения',short:'E',type:'self',maxLevel:4,cd:[0,21,18,15,12],mana:[0,90,105,120,135],desc:'Усиленный купол отражает магический урон.',cast(h,x,y,lvl){h.addBuff({type:'mageReflect',val:0.46+lvl*0.08,t:8});heroBurst(h,'#b47cff',120,34);playHeroSfx('shield');}},
-  mageHunterUlt: {name:'Пустой резерв',short:'R',type:'point',maxLevel:3,cd:[0,65,54,44],mana:[0,160,210,260],range:900,ult:true,desc:'Сжигает ману цели и наносит больше урона от её пустого резерва.',cast(h,x,y,lvl){const t=pickUnitAt(x,y);if(!t||t.team===h.team||t.dead||t.type!=='hero'){flashMsg(h,'Наведите на вражеского героя');return;}const missing=Math.max(0,t.maxMp-(t.mp||0));t.mp=0;const late=1+Math.max(0,h.level-10)*(h.def.lateSkillGrowth||0);applyDamage(t,missing*(0.48+lvl*0.11)*late,h);fxRing(t.x,t.y,150,'#c56cff',0.8);spawnParticles(t.x,t.y,'#efb0ff',48,1.4);playHeroSfx('mana');}},
+  mageHunterUlt: {name:'Пустой резерв',short:'R',type:'point',maxLevel:3,cd:[0,65,54,44],mana:[0,160,210,260],range:900,ult:true,desc:'Сжигает ману цели и наносит больше урона от её пустого резерва.',cast(h,x,y,lvl){const t=pickUnitAt(x,y);if(!t||t.team===h.team||t.dead||t.type!=='hero'){flashMsg(h,'Наведите на вражеского героя');return;}const missing=Math.max(0,t.maxMp-(t.mp||0));t.mp=0;const late=1+Math.max(0,h.level-15)*(h.def.lateSkillGrowth||0);applyDamage(t,missing*(0.48+lvl*0.11)*late,h);fxRing(t.x,t.y,150,'#c56cff',0.8);spawnParticles(t.x,t.y,'#efb0ff',48,1.4);playHeroSfx('mana');}},
   dawnHammer: {name:'Разрушитель звёзд',short:'Q',type:'self',maxLevel:4,cd:[0,12,10,8,6],mana:[0,70,80,90,100],desc:'Размахивает усиленным солнечным молотом и оглушает врагов вокруг.',cast(h,x,y,lvl){const r=210+24*lvl;const damage=(190+100*lvl)*1.18;for(const u of units)if(!u.dead&&u.team!==h.team&&u.team!==2&&!isBuilding(u)&&Math.hypot(u.x-h.x,u.y-h.y)<=r+u.radius){applyDamage(u,damage,h);u.stunTimer=Math.max(u.stunTimer,0.8+lvl*0.15);}fxRing(h.x,h.y,r,'#ffd36b',0.65);spawnRadialBlades(h.x,h.y,r,'#fff0a8',24);playHeroSfx('hammer');}},
   dawnHammerThrow: {name:'Небесный молот',short:'W',type:'point',maxLevel:4,cd:[0,16,14,12,10],mana:[0,85,95,105,115],range:850,desc:'Запускает усиленный молот, оглушает цель и притягивает Рассветную деву к ней.',cast(h,x,y,lvl){const t=pickUnitAt(x,y);if(!t||t.team===h.team||t.dead||isBuilding(t)){flashMsg(h,'Наведите на врага');return;}fxBeam(h.x,h.y,t.x,t.y,'#ffd36b',0.35);spawnHammerTrail(t.x,t.y);t.stunTimer=Math.max(t.stunTimer,1.05+lvl*0.18);applyDamage(t,190+90*lvl,h);const d=Math.hypot(t.x-h.x,t.y-h.y)||1;h.x=clamp(t.x-(t.x-h.x)/d*95,60,WORLD-60);h.y=clamp(t.y-(t.y-h.y)/d*95,60,WORLD-60);playHeroSfx('hammer');}},
   dawnBlessing: {name:'Сияние',short:'E',type:'self',maxLevel:4,cd:[0,0,0,0,0],mana:[0,0,0,0,0],desc:'Пассивно немного сильнее лечит союзников после атак.',cast(){}},
@@ -5198,6 +5201,63 @@ for(const def of HERO_DEFS){
   def.hpPerLvl = Math.round(def.hpPerLvl * 1.15 * 10) / 10;
 }
 
+/* ===== РЕБАЛАНС v0.7.5 =====
+   Единая таблица баланса. HP/урон/броня подобраны так, чтобы на 10-м уровне
+   общая сила героев была примерно равной, а различия давала только фаза игры.
+   baseHp — без +850 (его добавляет конструктор). Итоговые HP и урон героя на уровне L:
+   (база + (L-1)*рост) * HERO_PHASE_CURVES[phase][L-1]. */
+const HERO_PHASE_CURVES = {
+  neutral:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  early:[1.05,1.047,1.043,1.038,1.032,1.026,1.019,1.012,1.006,1,0.992,0.984,0.975,0.967,0.958],
+  mid:[0.96,0.967,0.975,0.984,0.993,1.002,1.009,1.014,1.016,1.015,1.01,1,0.988,0.974,0.96],
+  late:[0.95,0.953,0.957,0.962,0.968,0.974,0.98,0.986,0.992,0.998,1.008,1.02,1.032,1.043,1.052],
+};
+const HERO_BALANCE = {
+  pyro:{phase:'early', baseHp:578, hpPerLvl:108, baseDmg:60.6, dmgPerLvl:6.85, baseArmor:2.1, armorPerLvl:0.27, spellScale:1, speed:158, atkTime:1.15},
+  warlord:{phase:'early', baseHp:1024, hpPerLvl:141.8, baseDmg:72.5, dmgPerLvl:8.18, baseArmor:4.8, armorPerLvl:0.63, spellScale:1, speed:168, atkTime:1},
+  grisha:{phase:'late', baseHp:551, hpPerLvl:106, baseDmg:51, dmgPerLvl:5.75, baseArmor:1.6, armorPerLvl:0.21, spellScale:1, speed:155, atkTime:1.2},
+  golly:{phase:'mid', baseHp:586, hpPerLvl:108.6, baseDmg:57.2, dmgPerLvl:6.45, baseArmor:2.3, armorPerLvl:0.3, spellScale:1, speed:150, atkTime:1.15},
+  sasych:{phase:'early', baseHp:757, hpPerLvl:121.5, baseDmg:72.4, dmgPerLvl:8.18, baseArmor:3.2, armorPerLvl:0.42, spellScale:1, speed:162, atkTime:0.8},
+  ilya:{phase:'late', baseHp:1237, hpPerLvl:157.8, baseDmg:62.8, dmgPerLvl:7.08, baseArmor:5.8, armorPerLvl:0.75, spellScale:1, speed:140, atkTime:1.15},
+  malit:{phase:'late', baseHp:1117, hpPerLvl:148.8, baseDmg:59.5, dmgPerLvl:6.71, baseArmor:5.1, armorPerLvl:0.66, spellScale:1, speed:148, atkTime:1.05},
+  arcady:{phase:'early', baseHp:638, hpPerLvl:112.5, baseDmg:78.1, dmgPerLvl:8.81, baseArmor:2.5, armorPerLvl:0.33, spellScale:1, speed:155, atkTime:1.1},
+  illusionist:{phase:'mid', baseHp:674, hpPerLvl:115.3, baseDmg:72.6, dmgPerLvl:8.2, baseArmor:2.5, armorPerLvl:0.33, spellScale:1, speed:162, atkTime:1.08},
+  shadow:{phase:'mid', baseHp:850, hpPerLvl:128.6, baseDmg:54.5, dmgPerLvl:6.15, baseArmor:3.2, armorPerLvl:0.42, spellScale:1, speed:175, atkTime:0.83},
+  electricGosha:{phase:'early', baseHp:697, hpPerLvl:117, baseDmg:64.8, dmgPerLvl:7.31, baseArmor:2.8, armorPerLvl:0.36, spellScale:1, speed:172, atkTime:0.95},
+  mo3gi:{phase:'mid', baseHp:762, hpPerLvl:121.9, baseDmg:68.2, dmgPerLvl:7.71, baseArmor:3.7, armorPerLvl:0.48, spellScale:1, speed:158, atkTime:1.05},
+  tribupainer:{phase:'late', baseHp:790, hpPerLvl:124, baseDmg:85, dmgPerLvl:9.61, baseArmor:3.2, armorPerLvl:0.42, spellScale:1.05, speed:150, atkTime:1.15},
+  mageHunter:{phase:'late', baseHp:790, hpPerLvl:124, baseDmg:60.5, dmgPerLvl:6.82, baseArmor:3.7, armorPerLvl:0.48, spellScale:0.85, speed:180, atkTime:0.66},
+  regina:{phase:'early', baseHp:905, hpPerLvl:132.8, baseDmg:70.3, dmgPerLvl:7.93, baseArmor:4.4, armorPerLvl:0.57, spellScale:1, speed:178, atkTime:0.82},
+  dawnMaiden:{phase:'mid', baseHp:1172, hpPerLvl:153, baseDmg:54.8, dmgPerLvl:6.19, baseArmor:5.5, armorPerLvl:0.72, spellScale:0.78, speed:150, atkTime:0.99},
+  exileKnight:{phase:'neutral', baseHp:876, hpPerLvl:130.5, baseDmg:79.3, dmgPerLvl:8.95, baseArmor:4.1, armorPerLvl:0.54, spellScale:0.84, speed:168, atkTime:0.84},
+  juvsyut:{phase:'neutral', baseHp:1143, hpPerLvl:150.8, baseDmg:63.6, dmgPerLvl:7.18, baseArmor:5.3, armorPerLvl:0.69, spellScale:1, speed:145, atkTime:1.08},
+  chip:{phase:'mid', baseHp:703, hpPerLvl:117.5, baseDmg:61.9, dmgPerLvl:7, baseArmor:3, armorPerLvl:0.39, spellScale:1, speed:160, atkTime:1.08},
+  savely:{phase:'late', baseHp:1117, hpPerLvl:148.8, baseDmg:58.6, dmgPerLvl:6.61, baseArmor:5.1, armorPerLvl:0.66, spellScale:1, speed:158, atkTime:0.96},
+  juggernaut:{phase:'neutral', baseHp:876, hpPerLvl:130.5, baseDmg:85, dmgPerLvl:9.59, baseArmor:4.1, armorPerLvl:0.54, spellScale:1, speed:175, atkTime:0.9},
+  earthshaker:{phase:'mid', baseHp:996, hpPerLvl:139.7, baseDmg:72.1, dmgPerLvl:8.13, baseArmor:4.4, armorPerLvl:0.57, spellScale:1, speed:150, atkTime:1.65},
+  sniper:{phase:'late', baseHp:491, hpPerLvl:101.5, baseDmg:106.5, dmgPerLvl:12.02, baseArmor:2.1, armorPerLvl:0.27, spellScale:1, speed:150, atkTime:1.18},
+};
+for(const def of HERO_DEFS){
+  const b = HERO_BALANCE[def.id];
+  if(!b) continue;
+  const oldScale = def.balanceScale || 1;
+  def.baseMp = Math.round(def.baseMp * oldScale); def.mpPerLvl = Math.round(def.mpPerLvl * oldScale * 10) / 10;
+  def.mpRegen = Math.round(def.mpRegen * oldScale * 100) / 100; def.hpRegen = Math.round(def.hpRegen * oldScale * 100) / 100;
+  def.speed = Math.round(def.speed * oldScale);
+  Object.assign(def, b);
+  def.balanceScale = 1; def.damageScale = 1;
+  if(def.lateSkillGrowth) def.lateSkillGrowth = Math.min(def.lateSkillGrowth, 0.02);
+  if(def.lateAttackGrowth) def.lateAttackGrowth = Math.min(def.lateAttackGrowth, 0.02);
+}
+/* Множитель фазы игры (HP, урон атаки и умений). До 15 уровня берётся из кривой, дальше держится на значении 15-го. */
+function heroPhaseMult(def, level){
+  const curve = def && HERO_PHASE_CURVES[def.phase];
+  if(!curve) return 1;
+  return curve[Math.max(0, Math.min(14, (level|0) - 1))];
+}
+function heroTargetHp(def, level){ return (def.baseHp + 850 + (level-1)*def.hpPerLvl) * heroPhaseMult(def, level); }
+function heroTargetDmg(def, level){ return (def.baseDmg + (level-1)*def.dmgPerLvl) * heroPhaseMult(def, level); }
+
 function offerTalent(hero){
   return;
 }
@@ -5208,7 +5268,7 @@ class Hero extends Unit {
     super({
       x:BASES[team].x, y:BASES[team].y, team,
       radius:24, speed:def.speed * balanceScale,
-      hp:def.baseHp * balanceScale + 500 + 350, dmg:def.baseDmg * (def.damageScale || balanceScale),
+      hp:(HERO_BALANCE[def.id] ? heroTargetHp(def,1) : def.baseHp * balanceScale + 850), dmg:(HERO_BALANCE[def.id] ? heroTargetDmg(def,1) : def.baseDmg * (def.damageScale || balanceScale)),
       atkRange:def.atkRange, atkTime:def.atkTime,
       armor:def.baseArmor * balanceScale, vision:def.vision,
       type:'hero', xpValue:420
@@ -5285,9 +5345,12 @@ class Hero extends Unit {
     this.level++; this.skillPoints++;
     const d = this.def;
     const balanceScale = d.balanceScale || 1;
-    this.maxHp += d.hpPerLvl * balanceScale; this.hp = Math.min(this.maxHp, this.hp + d.hpPerLvl * balanceScale);
+    const balanced = !!HERO_BALANCE[d.id];
+    const hpGain = balanced ? heroTargetHp(d,this.level) - heroTargetHp(d,this.level-1) : d.hpPerLvl * balanceScale;
+    const dmgGain = balanced ? heroTargetDmg(d,this.level) - heroTargetDmg(d,this.level-1) : d.dmgPerLvl * (d.damageScale || balanceScale);
+    this.maxHp += hpGain; this.hp = Math.min(this.maxHp, this.hp + hpGain);
     this.maxMp += d.mpPerLvl * balanceScale; this.mp = Math.min(this.maxMp, this.mp + d.mpPerLvl * balanceScale);
-    this.dmg += d.dmgPerLvl * (d.damageScale || balanceScale); this.armor += d.armorPerLvl * balanceScale;
+    this.dmg += dmgGain; this.armor += d.armorPerLvl * balanceScale;
     if(this.level >= 10 && this.level % 5 === 0) offerTalent(this);
     addText(this.x, this.y-70, 'УРОВЕНЬ ' + this.level, '#ffe066', 1.4, 20);
     fxRing(this.x, this.y, 110, '#ffe066', 0.7);
@@ -14060,11 +14123,15 @@ requestAnimationFrame(loop);
     const heroIndexOf = member => HERO_DEFS.findIndex(hero => hero.id === heroIdOf(member));
     const ownOthers = own.filter(member => member.id !== local.id);
     const fallback = heroIndex;
+    /* startGame требует 7 выборов: [враг1, союзник1, союзник2, враг2, враг3, союзник-мид, враг-мид].
+       Раньше передавалось 5, из-за чего startGame игнорировал их и ставил СЛУЧАЙНЫХ бойцов. */
     const picks = [enemy[0] ? heroIndexOf(enemy[0]) : fallback,
       ownOthers[0] ? heroIndexOf(ownOthers[0]) : fallback,
       ownOthers[1] ? heroIndexOf(ownOthers[1]) : fallback,
       enemy[1] ? heroIndexOf(enemy[1]) : fallback,
-      enemy[2] ? heroIndexOf(enemy[2]) : fallback];
+      enemy[2] ? heroIndexOf(enemy[2]) : fallback,
+      fallback,
+      fallback];
     if(heroIndex < 0 || picks.some(index => index < 0)){
       showMatchStartError('Сервер прислал неизвестного героя.');
       return;
@@ -14139,10 +14206,12 @@ requestAnimationFrame(loop);
       {member:local,hero:playerHero},
       {member:ownOthers[0],hero:heroes[1]},
       {member:ownOthers[1],hero:heroes[2]},
-      {member:enemy[0],hero:heroes[3]},
-      {member:enemy[1],hero:heroes[4]},
-      {member:enemy[2],hero:heroes[5]}
-    ].filter(slot => slot.member && slot.hero);
+      /* heroes[3] — мид-союзник (в онлайне не используется); враги идут с индекса 4 */
+      {member:enemy[0],hero:heroes[4]},
+      {member:enemy[1],hero:heroes[5]},
+      {member:enemy[2],hero:heroes[6]}
+    ].map(slot => slot.member ? {member:slot.member,hero:remoteHeroes.get(slot.member.id) || slot.hero} : slot)
+     .filter(slot => slot.member && slot.hero);
     const currentIds = new Set(slots.map(slot => slot.member.id));
     for(const [id,hero] of remoteHeroes){
       if(currentIds.has(id)) continue;
