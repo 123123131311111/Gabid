@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DotaSens — HTML5 • DOTA 3v3</title>
-<link rel="stylesheet" href="/style.css?v=0.6.0b">
+<title>DotaSens — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.6.1c</title>
+<link rel="stylesheet" href="/style.css?v=0.6.1c">
 </head>
 <body>
 <div id="topbar">
@@ -24,7 +24,7 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="/game.js?v=0.6.0c"></script>
+<script src="/game.js?v=0.6.1c"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
@@ -36,6 +36,11 @@
   let socket = null;
   let room = null;
   let started = false;
+  entry.addEventListener('pointerenter', () => playSynthSfx('hover'));
+  picker.addEventListener('pointerover', event => {
+    const target = event.target.closest('button');
+    if(target && !target.contains(event.relatedTarget)) playSynthSfx('hover');
+  });
   entry.addEventListener('click', () => { picker.hidden = false; });
   button.addEventListener('click', () => {
     if(socket) return;
