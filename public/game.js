@@ -1244,10 +1244,10 @@ function playMenuNote(frequency, duration, volume, type='sine'){
 function playMenuMusicStep(){
   if(!musicEnabled || !menuAudioContext || gameState !== 'menu') return;
   const step = menuMusicStep % MENU_MUSIC_BASS.length;
-  playMenuNote(MENU_MUSIC_BASS[step], 2.8, 0.11, 'sine');
-  playMenuNote(MENU_MUSIC_BASS[step] * 2, 2.2, 0.025, 'sine');
+  playMenuNote(MENU_MUSIC_BASS[step], 2.8, 0.15, 'sine');
+  playMenuNote(MENU_MUSIC_BASS[step] * 2, 2.2, 0.04, 'sine');
   if(MENU_MUSIC_MELODY[step]){
-    playMenuNote(MENU_MUSIC_MELODY[step], 1.5, 0.018, 'sine');
+    playMenuNote(MENU_MUSIC_MELODY[step], 1.5, 0.045, 'sine');
   }
   menuMusicStep++;
 }
@@ -1256,8 +1256,8 @@ function playDraftMusicStep(){
   if(!musicEnabled || !menuAudioContext || gameState !== 'menu' || menuStage !== 'draft') return;
   const step = menuMusicStep++ % 8;
   const notes = [146.83,164.81,196,220,196,164.81,130.81,164.81];
-  playMenuNote(notes[step], 0.78, 0.12, 'triangle');
-  playMenuNote(notes[step] * 2, 0.34, 0.035, 'sine');
+  playMenuNote(notes[step], 0.78, 0.16, 'triangle');
+  playMenuNote(notes[step] * 2, 0.34, 0.05, 'sine');
 }
 
 function startDraftMusic(){
@@ -1270,7 +1270,7 @@ function startDraftMusic(){
       menuMusicGain.gain.value = 0.0001;
       menuMusicGain.connect(menuAudioContext.destination);
     }
-    menuMusicGain.gain.setTargetAtTime(0.055, menuAudioContext.currentTime, 0.35);
+    menuMusicGain.gain.setTargetAtTime(0.12, menuAudioContext.currentTime, 0.35);
     if(!draftMusicTimer){
       menuMusicStep = 0;
       playDraftMusicStep();
@@ -1440,7 +1440,7 @@ function startMenuMusic(){
       menuMusicGain.connect(menuAudioContext.destination);
     }
     menuMusicGain.gain.cancelScheduledValues(menuAudioContext.currentTime);
-    menuMusicGain.gain.setTargetAtTime(0.055, menuAudioContext.currentTime, 0.5);
+    menuMusicGain.gain.setTargetAtTime(0.12, menuAudioContext.currentTime, 0.5);
     if(!menuMusicTimer){
       menuMusicStep = 0;
       playMenuMusicStep();
@@ -6076,7 +6076,12 @@ function updateEnemyAI(h, dt){
     castSkill(h, 1, h.x, h.y);
   }
 
-  if(gameTime < BOT_FARM_PHASE_TIME){
+  const farmPhaseEnemy = gameTime < BOT_FARM_PHASE_TIME
+    ? heroes.filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead &&
+        Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
+      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0]
+    : null;
+  if(gameTime < BOT_FARM_PHASE_TIME && !farmPhaseEnemy){
     const farmLane = Number.isInteger(h.assignedLane) ? h.assignedLane : 0;
     const laneCreep = units
       .filter(unit => unit.type === 'creep' && unit.team !== h.team && !unit.dead &&
@@ -6113,7 +6118,7 @@ function updateEnemyAI(h, dt){
       ally !== h && Math.hypot(ally.x-unit.x,ally.y-unit.y) < 520
     ))
     .sort((left,right) => Math.hypot(left.x-h.x,left.y-h.y) - Math.hypot(right.x-h.x,right.y-h.y))[0] : null;
-  const visibleEnemy = nearbyFight || laneEnemy;
+  const visibleEnemy = farmPhaseEnemy || nearbyFight || laneEnemy;
   if(gameTime < MID_PUSH_TIME && visibleEnemy){
     h.laneState = 'lane';
     h.attackTarget=visibleEnemy;
@@ -6132,9 +6137,9 @@ function updateEnemyAI(h, dt){
   }
 
   const structureTarget = getBotStructureObjective(h, strategicLane);
-  const urgentFight = nearbyFight &&
+  const urgentFight = farmPhaseEnemy || (nearbyFight &&
     Math.hypot(nearbyFight.x-h.x, nearbyFight.y-h.y) <= 760
-      ? nearbyFight : null;
+      ? nearbyFight : null);
   const nearbyCreep = laneEnemy && laneEnemy.type !== 'hero' &&
     Math.hypot(laneEnemy.x-h.x, laneEnemy.y-h.y) <= 260
       ? laneEnemy : null;
