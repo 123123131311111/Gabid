@@ -376,8 +376,9 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.6.2';
+const GAME_VERSION = '0.7.0';
 const CHANGELOG_HISTORY = [
+  'Обновление 0.7.0: аккаунты (ник и пароль, смена ника, уровень с нуля растёт с каждой победы над ботами и игроками), новый фон главного меню с рунной печатью и алым вихрем, золотая тройка в логотипе, пропуск выбора бойцов сразу после пика и 5-секундная заставка при входе в матч',
   'Обновление 0.5.0: последовательное разрушение построек по линиям — сначала внешняя башня, затем внутренняя башня, казармы и только после этого трон',
   'Обновление 0.4.2: ультимейт Рассветной девы переработан — метка у союзника создаёт пульсирующий световой круг (лечит союзников, жжёт врагов), затем героиня влетает в центр с мощным уроном и станом по площади',
   'Обновление 0.4.2: урон способностей и ультимейтов теперь растёт вместе с уровнем героя, как и урон от обычной атаки, у всех бойцов',
@@ -5534,6 +5535,8 @@ function spawnWave(){
   }
 }
 
+function draftSkipRect(){ return {x:VW-24-230,y:78,w:230,h:38}; }
+
 function beginDraft(preselected=-1){
   menuStage='draft';
   draftTime=30;
@@ -5659,6 +5662,7 @@ function startGame(playerIndex, draftPicks=null){
   cam.x = playerHero.x;
   cam.y = playerHero.y;
   gameState = 'playing';
+  startMatchIntro();
   canvas.focus();
 }
 
@@ -6868,6 +6872,11 @@ canvas.addEventListener('mouseup', e => {
 });
 
 window.addEventListener('keydown', e => {
+  if(gameState === 'menu' && menuStage === 'draft' && draftPlayerIndex >= 0 && !settingsOpen && (e.code === 'Enter' || e.code === 'NumpadEnter')){
+    startGame(draftPlayerIndex, draftBotIndices);
+    e.preventDefault();
+    return;
+  }
   if(gameState === 'menu' && settingsOpen && rebindSlot >= 0){
     if(e.code === 'Escape'){ rebindSlot=-1; return; }
     /* Сохраняем канонический латинский символ физической клавиши,
@@ -11075,6 +11084,7 @@ function handleMenuClick(mx, my){
     return;
   }
   if(menuStage === 'home'){
+    if(menuProfileRect && mx>=menuProfileRect.x && mx<=menuProfileRect.x+menuProfileRect.w && my>=menuProfileRect.y && my<=menuProfileRect.y+menuProfileRect.h){ openAccountModal(); return; }
     for(const hit of menuHomeHits){
       if(mx>=hit.x && mx<=hit.x+hit.w && my>=hit.y && my<=hit.y+hit.h){
         if(hit.action==='store'){ storeOpen=true; changelogOpen=false; settingsOpen=false; }
@@ -11115,6 +11125,8 @@ function handleMenuClick(mx, my){
   if(menuStage === 'draft'){
     const back={x:24,y:78,w:120,h:38};
     if(mx>=back.x && mx<=back.x+back.w && my>=back.y && my<=back.y+back.h){ stopMenuMusic(); announcerStop(); menuStage='home'; return; }
+    const skip=draftSkipRect();
+    if(draftPlayerIndex>=0 && mx>=skip.x && mx<=skip.x+skip.w && my>=skip.y && my<=skip.y+skip.h){ startGame(draftPlayerIndex,draftBotIndices); return; }
     for(let i=0;i<HERO_DEFS.length;i++){
       const r=menuCardRect(i);
       if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h){ draftPlayerIndex=i; selectedHeroIndex=i; return; }
@@ -11502,9 +11514,201 @@ function drawCosmicBackdrop(now){
 }
 
 /* =========================================================
+   АККАУНТ: ник + пароль, уровень растёт с каждой победой
+   ========================================================= */
+const ACCOUNT_TOKEN_KEY = 'dotasense-account-token';
+const ACCOUNT_PROFILE_KEY = 'dotasense-account-profile';
+const account = { token: null, profile: null, lastGain: 0 };
+const ACCOUNT_RANKS = [[0,'Новобранец'],[3,'Страж'],[6,'Рыцарь'],[10,'Герольд'],[15,'Защитник'],[25,'Легенда'],[40,'Божество'],[60,'Бессмертный']];
+function accountRank(level){
+  let name = ACCOUNT_RANKS[0][1];
+  for(const [min, title] of ACCOUNT_RANKS) if(level >= min) name = title;
+  return name;
+}
+function accountStore(key, value){
+  try { if(value == null) localStorage.removeItem(key); else localStorage.setItem(key, value); }
+  catch(err) {}
+}
+function accountRead(key){
+  try { return localStorage.getItem(key); } catch(err) { return null; }
+}
+function accountSet(token, profile){
+  account.token = token;
+  account.profile = profile;
+  accountStore(ACCOUNT_TOKEN_KEY, token);
+  accountStore(ACCOUNT_PROFILE_KEY, profile ? JSON.stringify(profile) : null);
+  renderAccountModal();
+}
+async function accountApi(name, payload){
+  let response;
+  try {
+    response = await fetch('/api/' + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) });
+  } catch(err) {
+    const error = new Error('Сервер недоступен. Попробуй позже.');
+    error.network = true;
+    throw error;
+  }
+  let data = {};
+  try { data = await response.json(); } catch(err) {}
+  if(!response.ok){
+    const error = new Error(data.error || 'Ошибка сервера');
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+async function accountRecordResult(won){
+  account.lastGain = 0;
+  if(!account.token) return;
+  const before = account.profile ? account.profile.level : 0;
+  try {
+    const data = await accountApi('result', { token: account.token, won: !!won });
+    account.profile = data.profile;
+    accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
+    account.lastGain = data.profile.level - before;
+  } catch(err) {
+    if(err.status === 401) accountSet(null, null);
+    console.warn('Не удалось сохранить результат матча:', err.message);
+  }
+}
+
+const accountUi = {
+  modal: document.getElementById('account-modal'),
+  guest: document.getElementById('acc-guest'),
+  user: document.getElementById('acc-user'),
+  title: document.getElementById('acc-title'),
+  tabLogin: document.getElementById('acc-tab-login'),
+  tabRegister: document.getElementById('acc-tab-register'),
+  nick: document.getElementById('acc-nick'),
+  pass: document.getElementById('acc-pass'),
+  submit: document.getElementById('acc-submit'),
+  error: document.getElementById('acc-error'),
+  avatar: document.getElementById('acc-avatar'),
+  name: document.getElementById('acc-name'),
+  rank: document.getElementById('acc-rank'),
+  stats: document.getElementById('acc-stats'),
+  level: document.getElementById('acc-level'),
+  newNick: document.getElementById('acc-newnick'),
+  rename: document.getElementById('acc-rename'),
+  logout: document.getElementById('acc-logout'),
+  close: document.getElementById('acc-close')
+};
+let accountMode = 'login';
+let accountBusy = false;
+
+function setAccountMessage(text, ok){
+  accountUi.error.textContent = text || '';
+  accountUi.error.classList.toggle('ok', !!ok);
+}
+function setAccountMode(mode){
+  accountMode = mode;
+  accountUi.tabLogin.classList.toggle('active', mode === 'login');
+  accountUi.tabRegister.classList.toggle('active', mode === 'register');
+  accountUi.submit.textContent = mode === 'login' ? 'ВОЙТИ' : 'СОЗДАТЬ АККАУНТ';
+  accountUi.pass.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  setAccountMessage('');
+}
+function renderAccountModal(){
+  const profile = account.profile;
+  accountUi.guest.hidden = !!profile;
+  accountUi.user.hidden = !profile;
+  accountUi.title.textContent = profile ? 'Профиль' : 'Аккаунт';
+  if(profile){
+    accountUi.avatar.textContent = profile.nick.charAt(0).toUpperCase();
+    accountUi.name.textContent = profile.nick;
+    accountUi.rank.textContent = '✦ ' + accountRank(profile.level);
+    accountUi.stats.textContent = 'Побед: ' + profile.wins + '  •  Поражений: ' + profile.losses;
+    accountUi.level.textContent = String(profile.level);
+  }
+}
+function openAccountModal(){
+  renderAccountModal();
+  setAccountMessage('');
+  accountUi.modal.hidden = false;
+  setTimeout(() => (account.profile ? accountUi.newNick : accountUi.nick).focus(), 30);
+}
+function closeAccountModal(){
+  accountUi.modal.hidden = true;
+  canvas.focus();
+}
+async function submitAccountForm(){
+  if(accountBusy) return;
+  const nick = accountUi.nick.value.trim();
+  const password = accountUi.pass.value;
+  if(!nick || !password){ setAccountMessage('Введи ник и пароль'); return; }
+  accountBusy = true; accountUi.submit.disabled = true;
+  try {
+    const data = await accountApi(accountMode, { nick, password });
+    accountUi.pass.value = '';
+    accountSet(data.token, data.profile);
+    setAccountMessage((accountMode === 'register' ? 'Аккаунт создан. Добро пожаловать, ' : 'С возвращением, ') + data.profile.nick + '!', true);
+  } catch(err) {
+    setAccountMessage(err.message);
+  }
+  accountBusy = false; accountUi.submit.disabled = false;
+}
+async function submitRename(){
+  if(accountBusy || !account.token) return;
+  const newNick = accountUi.newNick.value.trim();
+  if(!newNick){ setAccountMessage('Введи новый ник'); return; }
+  accountBusy = true; accountUi.rename.disabled = true;
+  try {
+    const data = await accountApi('nick', { token: account.token, newNick });
+    accountUi.newNick.value = '';
+    accountSet(account.token, data.profile);
+    setAccountMessage('Ник изменён', true);
+  } catch(err) {
+    if(err.status === 401) accountSet(null, null);
+    setAccountMessage(err.message);
+  }
+  accountBusy = false; accountUi.rename.disabled = false;
+}
+async function submitLogout(){
+  const token = account.token;
+  accountSet(null, null);
+  setAccountMode('login');
+  setAccountMessage('Ты вышел из аккаунта', true);
+  if(token) { try { await accountApi('logout', { token }); } catch(err) {} }
+}
+(function bindAccountUi(){
+  const ui = accountUi;
+  /* Клавиши в окне аккаунта не должны попадать в игровые горячие клавиши. */
+  ['keydown','keyup','keypress'].forEach(type => ui.modal.addEventListener(type, event => {
+    event.stopPropagation();
+    if(type === 'keydown' && event.key === 'Escape') closeAccountModal();
+  }));
+  ui.modal.addEventListener('mousedown', event => { if(event.target === ui.modal) closeAccountModal(); });
+  ui.close.addEventListener('click', closeAccountModal);
+  ui.tabLogin.addEventListener('click', () => setAccountMode('login'));
+  ui.tabRegister.addEventListener('click', () => setAccountMode('register'));
+  ui.submit.addEventListener('click', submitAccountForm);
+  ui.rename.addEventListener('click', submitRename);
+  ui.logout.addEventListener('click', submitLogout);
+  [ui.nick, ui.pass].forEach(input => input.addEventListener('keydown', event => { if(event.key === 'Enter') submitAccountForm(); }));
+  ui.newNick.addEventListener('keydown', event => { if(event.key === 'Enter') submitRename(); });
+  [ui.close, ui.tabLogin, ui.tabRegister, ui.submit, ui.rename, ui.logout].forEach(button => button.addEventListener('pointerenter', () => playSynthSfx('hover')));
+
+  /* Восстановление сессии: сразу показываем сохранённый профиль, затем сверяемся с сервером. */
+  const token = accountRead(ACCOUNT_TOKEN_KEY);
+  if(token){
+    account.token = token;
+    try { account.profile = JSON.parse(accountRead(ACCOUNT_PROFILE_KEY) || 'null'); } catch(err) { account.profile = null; }
+    accountApi('me', { token }).then(data => {
+      account.profile = data.profile;
+      accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
+      renderAccountModal();
+    }).catch(err => {
+      if(err.status === 401) accountSet(null, null);
+    });
+  }
+  renderAccountModal();
+})();
+
+/* =========================================================
    DOTA SENSE — главное меню в красной теме
    ========================================================= */
 let menuHomeHits = [];
+let menuProfileRect = null;
 
 function dsMetalPanel(x,y,w,h,stroke){
   ctx.save();
@@ -11531,7 +11735,232 @@ function dsShovelGlyph(cx,cy,size,color){
   ctx.restore();
 }
 
-function drawDotaSenseLogo(cx,y,w,h){
+function dsHash(n){ const v=Math.sin(n*12.9898+78.233)*43758.5453; return v-Math.floor(v); }
+
+function dsRuneGlyph(x,y,size,seed){
+  ctx.beginPath();
+  ctx.moveTo(x,y-size); ctx.lineTo(x,y+size);
+  const branches=1+Math.floor(dsHash(seed)*3);
+  for(let b=0;b<branches;b++){
+    const by=y-size+dsHash(seed*3+b+1)*size*1.5;
+    const dir=dsHash(seed*5+b+2)>0.5?1:-1;
+    const len=size*(0.5+dsHash(seed*7+b+3)*0.7);
+    const tilt=(dsHash(seed*11+b+4)-0.5)*size*0.8;
+    ctx.moveTo(x,by); ctx.lineTo(x+dir*len,by+tilt+size*0.45);
+  }
+  ctx.stroke();
+}
+
+/* Большая рунная печать: кольца, руны, гексаграмма, пентаграмма и горящий глаз. */
+function dsDrawSigil(cx,cy,R,now,intensity){
+  intensity=intensity==null?1:intensity;
+  const pulse=0.5+0.5*Math.sin(now*2);
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.globalCompositeOperation='lighter';
+  const disc=ctx.createRadialGradient(0,0,R*0.1,0,0,R*1.18);
+  disc.addColorStop(0,'rgba(255,70,45,'+(0.24*intensity)+')');
+  disc.addColorStop(0.7,'rgba(160,20,20,'+(0.10*intensity)+')');
+  disc.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=disc; ctx.beginPath(); ctx.arc(0,0,R*1.18,0,Math.PI*2); ctx.fill();
+
+  const ringColor='rgba(255,110,85,'+((0.55+0.3*pulse)*intensity)+')';
+  const softColor='rgba(255,100,80,'+(0.45*intensity)+')';
+  const goldColor='rgba(255,205,140,'+(0.8*intensity)+')';
+  ctx.shadowColor='rgba(255,60,40,0.9)'; ctx.shadowBlur=18;
+  ctx.strokeStyle=ringColor; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
+  ctx.lineWidth=1.2; ctx.strokeStyle=softColor;
+  ctx.beginPath(); ctx.arc(0,0,R*1.065,0,Math.PI*2); ctx.stroke();
+  ctx.shadowBlur=0;
+
+  ctx.setLineDash([3,12]); ctx.lineDashOffset=-now*18; ctx.lineWidth=1.6; ctx.strokeStyle=softColor;
+  ctx.beginPath(); ctx.arc(0,0,R*0.93,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.save(); ctx.rotate(now*0.08); ctx.beginPath();
+  for(let i=0;i<72;i++){
+    const a=i*Math.PI*2/72, long=i%6===0, r0=R*0.84, r1=R*(long?0.91:0.875);
+    ctx.moveTo(Math.cos(a)*r0,Math.sin(a)*r0); ctx.lineTo(Math.cos(a)*r1,Math.sin(a)*r1);
+  }
+  ctx.lineWidth=1.4; ctx.strokeStyle=softColor; ctx.stroke(); ctx.restore();
+
+  ctx.save(); ctx.rotate(-now*0.06); ctx.lineWidth=1.8; ctx.strokeStyle=goldColor;
+  for(let i=0;i<24;i++){
+    ctx.save(); ctx.rotate(i*Math.PI*2/24); ctx.translate(0,-R*0.76);
+    dsRuneGlyph(0,0,R*0.042,i+1);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  ctx.lineWidth=1.4; ctx.strokeStyle=softColor;
+  ctx.beginPath(); ctx.arc(0,0,R*0.69,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,R*0.67,0,Math.PI*2); ctx.stroke();
+
+  ctx.save(); ctx.rotate(now*0.14); ctx.lineWidth=1.8; ctx.strokeStyle=ringColor;
+  for(let tri=0;tri<2;tri++){
+    ctx.beginPath();
+    for(let i=0;i<3;i++){
+      const a=i*Math.PI*2/3+tri*Math.PI/3-Math.PI/2;
+      const px=Math.cos(a)*R*0.66, py=Math.sin(a)*R*0.66;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.closePath(); ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save(); ctx.rotate(-now*0.1); ctx.lineWidth=1.6; ctx.strokeStyle=goldColor;
+  ctx.beginPath();
+  for(let i=0;i<=5;i++){
+    const a=((i*2)%5)*Math.PI*2/5-Math.PI/2;
+    const px=Math.cos(a)*R*0.5, py=Math.sin(a)*R*0.5;
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.stroke(); ctx.restore();
+
+  ctx.lineWidth=1.6; ctx.strokeStyle=ringColor;
+  ctx.beginPath(); ctx.arc(0,0,R*0.34,0,Math.PI*2); ctx.stroke();
+  ctx.save(); ctx.rotate(now*0.3); ctx.fillStyle=goldColor;
+  for(let i=0;i<8;i++){
+    ctx.save(); ctx.rotate(i*Math.PI/4); ctx.translate(0,-R*0.34);
+    ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(3,0); ctx.lineTo(0,4); ctx.lineTo(-3,0); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  /* Горящий глаз в центре. */
+  const ew=R*0.27, eh=R*0.1;
+  ctx.globalCompositeOperation='source-over';
+  ctx.beginPath(); ctx.moveTo(-ew,0); ctx.quadraticCurveTo(0,-eh*2,ew,0); ctx.quadraticCurveTo(0,eh*2,-ew,0); ctx.closePath();
+  ctx.fillStyle='rgba(18,0,2,'+(0.92*intensity)+')'; ctx.fill();
+  ctx.save(); ctx.clip();
+  ctx.globalCompositeOperation='lighter';
+  const iris=ctx.createRadialGradient(0,0,0,0,0,R*0.1);
+  iris.addColorStop(0,'rgba(255,240,200,'+intensity+')'); iris.addColorStop(0.35,'rgba(255,120,70,'+intensity+')'); iris.addColorStop(1,'rgba(160,10,10,0)');
+  ctx.fillStyle=iris; ctx.beginPath(); ctx.arc(0,0,R*(0.1+0.012*pulse),0,Math.PI*2); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='rgba(10,0,0,'+(0.95*intensity)+')';
+  ctx.beginPath(); ctx.ellipse(0,0,R*0.014,R*0.07,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.globalCompositeOperation='lighter';
+  ctx.beginPath(); ctx.moveTo(-ew,0); ctx.quadraticCurveTo(0,-eh*2,ew,0); ctx.quadraticCurveTo(0,eh*2,-ew,0); ctx.closePath();
+  ctx.lineWidth=2; ctx.strokeStyle=goldColor; ctx.stroke();
+
+  /* Огненные шары на орбите с хвостами. */
+  for(let k=0;k<3;k++){
+    const base=now*(0.5+k*0.12)+k*2.1;
+    for(let tr=0;tr<12;tr++){
+      const a=base-tr*0.05, rr=R*(1.12+k*0.06);
+      const fade=1-tr/12;
+      ctx.fillStyle='rgba('+(k===1?'255,200,120':'255,100,60')+','+(fade*0.85*intensity)+')';
+      ctx.beginPath(); ctx.arc(Math.cos(a)*rr,Math.sin(a)*rr,(4.2-k*0.5)*fade*(0.6+R/320),0,Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/* Алый вихрь: спиральные рукава, молнии по ободу и обломки на орбите. */
+function dsDrawPortal(px,py,rx,ry,now){
+  ctx.save();
+  ctx.translate(px,py);
+  ctx.globalCompositeOperation='lighter';
+  ctx.save(); ctx.scale(1,ry/rx);
+  const aura=ctx.createRadialGradient(0,0,rx*0.2,0,0,rx*2.3);
+  aura.addColorStop(0,'rgba(255,60,35,0.38)'); aura.addColorStop(0.5,'rgba(150,15,20,0.16)'); aura.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=aura; ctx.beginPath(); ctx.arc(0,0,rx*2.3,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.globalCompositeOperation='source-over';
+  ctx.save(); ctx.scale(rx,ry);
+  const body=ctx.createRadialGradient(0,0,0,0,0,1);
+  body.addColorStop(0,'rgba(5,0,0,1)'); body.addColorStop(0.35,'rgba(30,2,4,0.98)');
+  body.addColorStop(0.75,'rgba(120,12,14,0.9)'); body.addColorStop(1,'rgba(230,50,35,0.85)');
+  ctx.fillStyle=body; ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.globalCompositeOperation='lighter';
+  const ARMS=5, PER=44;
+  for(let a=0;a<ARMS;a++){
+    for(let j=0;j<PER;j++){
+      const t=j/PER;
+      const ang=a*Math.PI*2/ARMS+t*6.5-now*1.1*(1.2-t*0.5);
+      const rr=0.12+t*0.86;
+      const x=Math.cos(ang)*rr*rx, y=Math.sin(ang)*rr*ry;
+      const size=(1-t)*3+1;
+      const alpha=(0.15+0.7*(1-t)*(0.6+0.4*dsHash(a*50+j))).toFixed(3);
+      ctx.fillStyle=t<0.35?'rgba(255,230,190,'+alpha+')':(t<0.7?'rgba(255,120,80,'+alpha+')':'rgba(220,40,30,'+alpha+')');
+      ctx.fillRect(x-size/2,y-size/2,size,size);
+    }
+  }
+  ctx.shadowColor='rgba(255,60,40,1)'; ctx.shadowBlur=14;
+  ctx.lineWidth=2.5; ctx.strokeStyle='rgba(255,170,120,0.85)';
+  ctx.beginPath(); ctx.ellipse(0,0,rx*0.42,ry*0.42,0,0,Math.PI*2); ctx.stroke();
+  ctx.lineWidth=2; ctx.strokeStyle='rgba(255,110,85,0.7)';
+  for(let k=0;k<3;k++){
+    const a0=now*(0.9+k*0.3)*(k%2?-1:1);
+    ctx.beginPath(); ctx.ellipse(0,0,rx*(0.62+k*0.14),ry*(0.62+k*0.14),0,a0,a0+Math.PI*1.2); ctx.stroke();
+  }
+  ctx.lineWidth=4; ctx.strokeStyle='rgba(255,90,60,0.85)';
+  ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2); ctx.stroke();
+  ctx.shadowBlur=0;
+
+  const seed=Math.floor(now*9);
+  ctx.lineWidth=1.6; ctx.strokeStyle='rgba(255,200,170,0.85)';
+  for(let b=0;b<3;b++){
+    const base=dsHash(seed*3+b)*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(Math.cos(base)*rx,Math.sin(base)*ry);
+    for(let seg=1;seg<=6;seg++){
+      const outward=1+seg*0.11;
+      const jitter=(dsHash(seed*17+b*7+seg)-0.5)*0.35;
+      ctx.lineTo(Math.cos(base+jitter)*rx*outward,Math.sin(base+jitter)*ry*outward);
+    }
+    ctx.stroke();
+  }
+
+  ctx.globalCompositeOperation='source-over';
+  for(let i=0;i<12;i++){
+    const a=now*0.25*(i%2?1:-1)+i*0.9, orbit=1.25+0.25*dsHash(i), size=5+dsHash(i+9)*8;
+    ctx.save(); ctx.translate(Math.cos(a)*rx*orbit,Math.sin(a)*ry*orbit*0.92); ctx.rotate(a*2+i);
+    ctx.fillStyle=i%3?'#1a0709':'#2a0c0e'; ctx.strokeStyle='rgba(255,90,60,0.55)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(-size,-size*0.4); ctx.lineTo(size*0.2,-size); ctx.lineTo(size,size*0.3); ctx.lineTo(-size*0.3,size*0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/* Логотип DOTA / SENSE + большая золотая тройка (нарисована вектором, без шрифтов). */
+function dsDrawGoldThree(cx,cy,H,now){
+  const r1=H*0.235, r2=H*0.265, lw=H*0.2;
+  const c1=cy-H/2+r1, c2=cy+H/2-r2, jy=c1+r1;
+  const path=new Path2D();
+  path.arc(cx,c1,r1,Math.PI*1.1,Math.PI*2.5,false);
+  path.moveTo(cx-r1*0.45,jy); path.lineTo(cx,jy);
+  path.moveTo(cx,c2-r2);
+  path.arc(cx,c2,r2,Math.PI*1.5,Math.PI*2.9,false);
+  ctx.save();
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  const pulse=0.5+0.5*Math.sin(now*2.2);
+  ctx.shadowColor='rgba(255,150,50,'+(0.5+0.35*pulse)+')'; ctx.shadowBlur=H*0.3;
+  ctx.strokeStyle='#2a0808'; ctx.lineWidth=lw+H*0.09; ctx.stroke(path);
+  ctx.shadowBlur=0;
+  const gold=ctx.createLinearGradient(0,cy-H/2,0,cy+H/2);
+  gold.addColorStop(0,'#fff6c8'); gold.addColorStop(0.35,'#f6c14a'); gold.addColorStop(0.7,'#c4761c'); gold.addColorStop(1,'#7a3d0e');
+  ctx.strokeStyle=gold; ctx.lineWidth=lw; ctx.stroke(path);
+  ctx.strokeStyle='rgba(120,30,10,0.55)'; ctx.lineWidth=lw*0.12; ctx.stroke(path);
+  ctx.translate(-lw*0.18,-lw*0.2);
+  ctx.strokeStyle='rgba(255,255,240,0.6)'; ctx.lineWidth=lw*0.2; ctx.stroke(path);
+  ctx.restore();
+  /* Мерцающая искра на тройке. */
+  const sx=cx+r1*0.95, sy=cy-H*0.42, size=H*(0.12+0.06*Math.sin(now*3.1));
+  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(255,240,200,0.9)';
+  ctx.beginPath(); ctx.moveTo(sx,sy-size*2); ctx.lineTo(sx+size*0.35,sy-size*0.35); ctx.lineTo(sx+size*2,sy); ctx.lineTo(sx+size*0.35,sy+size*0.35);
+  ctx.lineTo(sx,sy+size*2); ctx.lineTo(sx-size*0.35,sy+size*0.35); ctx.lineTo(sx-size*2,sy); ctx.lineTo(sx-size*0.35,sy-size*0.35); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawDotaSenseLogo(cx,y,w,h,now,noMoon){
+  now=now||performance.now()/1000;
   ctx.save();
   const x=cx-w/2, c=Math.round(h*0.22);
   const plate=ctx.createLinearGradient(x,y,x,y+h);
@@ -11548,11 +11977,19 @@ function drawDotaSenseLogo(cx,y,w,h){
     ctx.fillStyle='#b4231f'; ctx.strokeStyle='#e8c9b0'; ctx.lineWidth=1.5;
     ctx.beginPath(); ctx.moveTo(px,y+h/2-9); ctx.lineTo(px+9,y+h/2); ctx.lineTo(px,y+h/2+9); ctx.lineTo(px-9,y+h/2); ctx.closePath(); ctx.fill(); ctx.stroke();
   }
-  const fontPx=Math.round(h*0.56);
+  /* Замеряем слова при базовом размере и ужимаем всё, чтобы влезло вместе с тройкой. */
+  const baseFont=Math.round(h*0.56);
+  ctx.font='900 '+baseFont+'px Georgia, serif';
+  const dotaW0=ctx.measureText('DOTA').width, senseW0=ctx.measureText('SENSE').width;
+  const emblem0=h*0.6, gap0=h*0.12, threeW0=h*0.5;
+  const total0=dotaW0+gap0+emblem0+gap0+senseW0+gap0*1.8+threeW0;
+  const k=Math.min(1,(w-h*0.95)/total0);
+  const fontPx=Math.max(8,Math.round(baseFont*k));
+  const emblem=emblem0*k, gap=gap0*k, threeW=threeW0*k;
   ctx.font='900 '+fontPx+'px Georgia, serif';
   ctx.textBaseline='middle'; ctx.textAlign='left';
-  const dotaW=ctx.measureText('DOTA').width, senseW=ctx.measureText('SENSE').width, emblem=h*0.6, gap=h*0.12;
-  const total=dotaW+gap+emblem+gap+senseW;
+  const dotaW=ctx.measureText('DOTA').width, senseW=ctx.measureText('SENSE').width;
+  const total=dotaW+gap+emblem+gap+senseW+gap*1.8+threeW;
   let tx=cx-total/2; const ty=y+h/2+2;
   const drawWord=(word,wx)=>{
     ctx.lineWidth=5; ctx.strokeStyle='#120c0e'; ctx.strokeText(word,wx,ty);
@@ -11571,71 +12008,85 @@ function drawDotaSenseLogo(cx,y,w,h){
   ctx.beginPath(); ctx.moveTo(-emblem*0.38,emblem*0.42); ctx.lineTo(-emblem*0.14,emblem*0.42); ctx.lineTo(emblem*0.38,-emblem*0.42); ctx.lineTo(emblem*0.14,-emblem*0.42); ctx.closePath(); ctx.fill();
   ctx.restore();
   tx+=emblem+gap;
-  drawWord('SENSE',tx);
+  drawWord('SENSE',tx); tx+=senseW+gap*1.8;
+  dsDrawGoldThree(tx+threeW/2,y+h/2+h*0.02,h*0.66*k+h*0.08*(1-k),now);
   ctx.textBaseline='alphabetic';
   ctx.restore();
-  /* кровавая луна справа от логотипа */
-  if(VW>=900){
-    const mr=Math.round(h*0.34), mx=x+w+mr*2.4, my=y+h*0.55;
-    ctx.save();
-    const moon=ctx.createRadialGradient(mx-mr*0.3,my-mr*0.3,mr*0.1,mx,my,mr);
-    moon.addColorStop(0,'#ff6a5a'); moon.addColorStop(0.6,'#c01f1f'); moon.addColorStop(1,'#6b0c10');
-    ctx.shadowColor='rgba(255,50,40,0.85)'; ctx.shadowBlur=36;
-    ctx.fillStyle=moon; ctx.beginPath(); ctx.arc(mx,my,mr,0,Math.PI*2); ctx.fill();
-    ctx.restore();
+  /* кровавая луна слева от логотипа (справа теперь профиль игрока) */
+  if(!noMoon && VW>=900){
+    const mr=Math.round(h*0.34), mx=x-mr*2.4, my=y+h*0.55;
+    if(mx>mr*1.6){
+      ctx.save();
+      const moon=ctx.createRadialGradient(mx-mr*0.3,my-mr*0.3,mr*0.1,mx,my,mr);
+      moon.addColorStop(0,'#ff6a5a'); moon.addColorStop(0.6,'#c01f1f'); moon.addColorStop(1,'#6b0c10');
+      ctx.shadowColor='rgba(255,50,40,0.85)'; ctx.shadowBlur=36;
+      ctx.fillStyle=moon; ctx.beginPath(); ctx.arc(mx,my,mr,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
   }
 }
 
 function drawDotaSenseBackdrop(now){
   ctx.save();
-  const tint=ctx.createLinearGradient(0,0,0,VH);
-  tint.addColorStop(0,'rgba(70,8,10,0.80)'); tint.addColorStop(0.55,'rgba(96,14,14,0.55)'); tint.addColorStop(1,'rgba(22,3,6,0.90)');
-  ctx.fillStyle=tint; ctx.fillRect(0,0,VW,VH);
+  const base=ctx.createLinearGradient(0,0,0,VH);
+  base.addColorStop(0,'#1c0508'); base.addColorStop(0.5,'#3a0a0e'); base.addColorStop(1,'#0d0204');
+  ctx.fillStyle=base; ctx.fillRect(0,0,VW,VH);
+  const glow=ctx.createRadialGradient(VW*0.5,VH*0.46,0,VW*0.5,VH*0.46,Math.max(VW,VH)*0.62);
+  glow.addColorStop(0,'rgba(190,40,30,0.38)'); glow.addColorStop(0.5,'rgba(110,18,20,0.18)'); glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=glow; ctx.fillRect(0,0,VW,VH);
 
-  const cx=VW*0.44, cy=VH*0.40, r=Math.min(VW,VH)*0.13;
-  /* столб света над рунной звездой */
-  const beam=ctx.createLinearGradient(0,0,0,cy);
-  beam.addColorStop(0,'rgba(255,60,40,0)'); beam.addColorStop(1,'rgba(255,60,40,'+(0.20+0.06*Math.sin(now*1.6))+')');
-  ctx.fillStyle=beam; ctx.fillRect(cx-r*0.28,0,r*0.56,cy);
-  /* руническая звезда */
-  ctx.translate(cx,cy);
-  ctx.shadowColor='#ff3b2a'; ctx.shadowBlur=26;
-  ctx.strokeStyle='rgba(255,90,70,'+(0.55+0.2*Math.sin(now*2))+')'; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
-  ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,r*1.18,0,Math.PI*2); ctx.stroke();
-  ctx.rotate(now*0.12);
-  for(let tri=0;tri<2;tri++){
-    ctx.beginPath();
-    for(let i=0;i<3;i++){
-      const a=i*Math.PI*2/3+tri*Math.PI/3-Math.PI/2;
-      const px=Math.cos(a)*r*0.92, py=Math.sin(a)*r*0.92;
-      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  /* тусклые звёзды */
+  for(let i=0;i<90;i++){
+    const x=((i*0.61803398875)%1)*VW, y=((i*0.75487766625)%1)*VH*0.72;
+    const tw=0.5+0.5*Math.sin(now*(0.7+i%5*0.2)+i*1.9);
+    ctx.globalAlpha=0.15+0.5*tw*(i%7===0?1:0.55);
+    ctx.fillStyle=i%9===0?'#ffd9b0':'#ffc4bb';
+    ctx.fillRect(x,y,i%13===0?2:1,i%13===0?2:1);
+  }
+  ctx.globalAlpha=1;
+
+  /* медленный туман */
+  for(let i=0;i<5;i++){
+    const fx=VW*(0.1+i*0.2)+Math.sin(now*0.07+i*2)*90, fy=VH*(0.55+(i%2)*0.2)+Math.cos(now*0.05+i)*30;
+    const fr=Math.min(VW,VH)*0.5;
+    const fog=ctx.createRadialGradient(fx,fy,0,fx,fy,fr);
+    fog.addColorStop(0,'rgba(130,24,28,0.16)'); fog.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=fog; ctx.fillRect(fx-fr,fy-fr,fr*2,fr*2);
+  }
+
+  const R=Math.min(VW*0.2,VH*0.3), sx=VW*0.37, sy=VH*0.5;
+  const prx=Math.min(VW*0.085,VH*0.15), pry=prx*1.9, ppx=VW*0.66, ppy=VH*0.5;
+
+  /* столб света над печатью */
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  const beam=ctx.createLinearGradient(0,0,0,sy);
+  beam.addColorStop(0,'rgba(255,60,40,0)'); beam.addColorStop(1,'rgba(255,60,40,'+(0.2+0.06*Math.sin(now*1.6))+')');
+  ctx.fillStyle=beam; ctx.fillRect(sx-R*0.22,0,R*0.44,sy);
+  ctx.restore();
+
+  dsDrawSigil(sx,sy,R,now);
+
+  /* поток энергии от печати к вихрю */
+  if(VW>=700){
+    const x0=sx+R*0.98, y0=sy-R*0.1, x2=ppx-prx*1.1, y2=ppy-pry*0.2, x1=(x0+x2)/2, y1=sy-R*1.1;
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    ctx.strokeStyle='rgba(255,90,60,0.12)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.quadraticCurveTo(x1,y1,x2,y2); ctx.stroke();
+    for(let i=0;i<36;i++){
+      const t=(now*0.12+i/36)%1, u=1-t;
+      const bx=u*u*x0+2*u*t*x1+t*t*x2, by=u*u*y0+2*u*t*y1+t*t*y2;
+      const pulse=Math.sin(Math.PI*t);
+      ctx.fillStyle='rgba(255,'+(140+Math.round(80*pulse))+',90,'+(0.85*pulse)+')';
+      ctx.beginPath(); ctx.arc(bx,by,1.2+2*pulse,0,Math.PI*2); ctx.fill();
     }
-    ctx.closePath(); ctx.stroke();
+    ctx.restore();
   }
-  ctx.rotate(-now*0.12);
-  ctx.fillStyle='rgba(255,70,50,0.9)'; ctx.beginPath(); ctx.arc(0,0,r*0.1,0,Math.PI*2); ctx.fill();
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.restore();
 
-  /* алый портал */
-  ctx.save();
-  const px=VW*0.62, py=VH*0.47, rx=Math.min(VW,VH)*0.07, ry=rx*1.45;
-  ctx.translate(px,py);
-  ctx.shadowColor='#ff2a1a'; ctx.shadowBlur=34;
-  const portal=ctx.createRadialGradient(0,0,2,0,0,ry);
-  portal.addColorStop(0,'rgba(15,0,0,0.95)'); portal.addColorStop(0.7,'rgba(120,10,10,0.8)'); portal.addColorStop(1,'rgba(255,60,40,0.75)');
-  ctx.fillStyle=portal; ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2); ctx.fill();
-  ctx.lineWidth=3; ctx.strokeStyle='rgba(255,110,90,0.8)';
-  for(let k=0;k<3;k++){
-    ctx.beginPath(); ctx.ellipse(0,0,rx*(0.35+k*0.28),ry*(0.35+k*0.28),now*0.6*(k%2?-1:1),0,Math.PI*1.5); ctx.stroke();
-  }
-  ctx.restore();
+  dsDrawPortal(ppx,ppy,prx,pry,now);
 
   /* скалы по низу */
-  ctx.save();
   for(let layer=0;layer<2;layer++){
-    ctx.fillStyle=layer?'rgba(18,5,8,0.95)':'rgba(40,10,12,0.8)';
+    ctx.fillStyle=layer?'rgba(14,3,6,0.97)':'rgba(48,10,14,0.85)';
     ctx.beginPath(); ctx.moveTo(0,VH);
     const peaks=14;
     for(let i=0;i<=peaks;i++){
@@ -11645,17 +12096,22 @@ function drawDotaSenseBackdrop(now){
     }
     ctx.lineTo(VW,VH); ctx.closePath(); ctx.fill();
   }
+
+  /* поднимающиеся искры и пепел, ветер дует вправо */
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<90;i++){
+    const phase=(now*0.045*(0.6+(i%5)*0.2)+i/90)%1;
+    const ex=((i*137.5)%VW)+phase*60+Math.sin(now*0.6+i)*16, ey=VH*(1-phase);
+    ctx.globalAlpha=0.75*Math.sin(phase*Math.PI);
+    ctx.fillStyle=i%4===0?'#ffd27a':'#ff6a3d';
+    const size=i%6===0?2.4:(i%3===0?1.6:1.1);
+    ctx.fillRect(ex,ey,size,size);
+  }
   ctx.restore();
 
-  /* искры */
-  ctx.save();
-  for(let i=0;i<60;i++){
-    const phase=(now*0.045*(0.6+(i%5)*0.2)+i/60)%1;
-    const ex=((i*137.5)%VW)+Math.sin(now*0.6+i)*16, ey=VH*(1-phase);
-    ctx.globalAlpha=0.7*Math.sin(phase*Math.PI);
-    ctx.fillStyle=i%4===0?'#ffd27a':'#ff6a3d';
-    ctx.beginPath(); ctx.arc(ex,ey,i%6===0?2.2:1.2,0,Math.PI*2); ctx.fill();
-  }
+  const vig=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*0.3,VW/2,VH/2,Math.max(VW,VH)*0.75);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.6)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,VW,VH);
   ctx.restore();
 }
 
@@ -11724,24 +12180,36 @@ function drawDotaSenseHome(){
   ctx.fillText(isStorePhraseOwned('shovel')?'Получено • жми K в бою':'Забери бесплатно в магазине фраз',challenge.x+Math.round(92*s),challenge.y+Math.round(69*s));
   ctx.restore();
 
-  /* --- профиль --- */
+  /* --- профиль (клик открывает окно аккаунта) --- */
   const gear=menuSettingsRect();
   const profW=Math.round(260*s), profH=gear.h;
   const prof={x:gear.x-Math.round(12*s)-profW,y:gear.y,w:profW,h:profH};
-  dsMetalPanel(prof.x,prof.y,prof.w,prof.h,'#6b2a2a');
+  menuProfileRect=prof;
+  const profHover=hit(prof);
+  menuButtonHitboxes.push({x:prof.x,y:prof.y,w:prof.w,h:prof.h,key:'profile'});
+  dsMetalPanel(prof.x,prof.y,prof.w,prof.h,profHover?'#e65a46':'#6b2a2a');
+  const pf=account.profile;
+  const pNick=pf?pf.nick:'Гость', pLevel=pf?pf.level:0;
   ctx.save();
   const av=profH-Math.round(12*s);
   ctx.fillStyle='#14090c'; ctx.strokeStyle='#8f6a62'; ctx.lineWidth=2;
   ctx.fillRect(prof.x+6,prof.y+6,av,av); ctx.strokeRect(prof.x+6,prof.y+6,av,av);
   ctx.fillStyle='#d9d0bf'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('S',prof.x+6+av/2,prof.y+6+av/2+1);
-  ctx.fillStyle='#b4231f'; ctx.fillRect(prof.x+6+av/2-Math.round(14*s),prof.y+profH-Math.round(9*s),Math.round(28*s),Math.round(13*s));
-  ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(10*s)+'px Consolas, monospace'; ctx.fillText('55',prof.x+6+av/2,prof.y+profH-Math.round(2.5*s));
+  ctx.fillText(pf?pNick.charAt(0).toUpperCase():'?',prof.x+6+av/2,prof.y+6+av/2+1);
+  const badgeW=Math.max(Math.round(28*s),Math.round((String(pLevel).length*8+12)*s));
+  ctx.fillStyle='#b4231f'; ctx.fillRect(prof.x+6+av/2-badgeW/2,prof.y+profH-Math.round(9*s),badgeW,Math.round(13*s));
+  ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(10*s)+'px Consolas, monospace'; ctx.fillText(String(pLevel),prof.x+6+av/2,prof.y+profH-Math.round(2.5*s));
   ctx.textAlign='left';
-  const tx0=prof.x+av+Math.round(18*s);
-  ctx.fillStyle='#e8c984'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial'; ctx.fillText('ShadowHunter',tx0,prof.y+Math.round(15*s));
-  ctx.fillStyle='#8fb8e8'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial'; ctx.fillText('✦ Divine V',tx0,prof.y+Math.round(31*s));
-  ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(12*s)+'px Consolas, monospace'; ctx.fillText('◆ 15,200',tx0,prof.y+Math.round(46*s));
+  const tx0=prof.x+av+Math.round(18*s), maxTextW=prof.x+prof.w-tx0-Math.round(26*s);
+  ctx.fillStyle='#e8c984'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial';
+  let shownNick=pNick; while(shownNick.length>3 && ctx.measureText(shownNick).width>maxTextW) shownNick=shownNick.slice(0,-1);
+  ctx.fillText(shownNick+(shownNick!==pNick?'…':''),tx0,prof.y+Math.round(15*s));
+  ctx.fillStyle=pf?'#8fb8e8':'rgba(255,200,170,0.75)'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial';
+  ctx.fillText(pf?'✦ '+accountRank(pLevel):'Нажми, чтобы войти',tx0,prof.y+Math.round(31*s));
+  ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(12*s)+'px Consolas, monospace';
+  ctx.fillText(pf?'◆ Побед: '+pf.wins:'Создай аккаунт',tx0,prof.y+Math.round(46*s));
+  ctx.textAlign='right'; ctx.fillStyle=profHover?'#ffd568':'rgba(255,240,199,0.45)'; ctx.font=Math.round(14*s)+'px Segoe UI, Arial';
+  ctx.fillText('✎',prof.x+prof.w-Math.round(10*s),prof.y+Math.round(16*s));
   ctx.restore();
 
   /* --- NEWS & EVENTS --- */
@@ -11813,20 +12281,7 @@ function drawDotaSenseHome(){
   ctx.restore();
 }
 
-function drawMenu(){
-  menuButtonHitboxes=[];
-  prematchTime=0; resultAnnounced=false; firstBloodDone=false;
-  const onlineEntry=onlineEntryElement;
-  const showOnlineEntry=menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
-  const hideOnlineEntry=!showOnlineEntry;
-  if(onlineEntry.hidden!==hideOnlineEntry){
-    onlineEntry.hidden=hideOnlineEntry;
-    onlineEntry.style.display=hideOnlineEntry?'none':'flex';
-  }
-  const wantOnlineTop=(menuWide() && menuStage==='home') ? (VH-80)+'px' : '';
-  if(onlineEntry.style.top!==wantOnlineTop) onlineEntry.style.top=wantOnlineTop;
-  menuHomeHits=[];
-  const now = performance.now()/1000;
+function drawMenuGenericBackdrop(now){
   const g = ctx.createLinearGradient(0,0,VW,VH);
   g.addColorStop(0, '#07141a');
   g.addColorStop(0.42, '#15121a');
@@ -11954,11 +12409,29 @@ function drawMenu(){
   ctx.fillStyle = vignette;
   ctx.fillRect(0,0,VW,VH);
 
+}
+
+function drawMenu(){
+  menuButtonHitboxes=[];
+  prematchTime=0; resultAnnounced=false; firstBloodDone=false;
+  const onlineEntry=onlineEntryElement;
+  const showOnlineEntry=menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
+  const hideOnlineEntry=!showOnlineEntry;
+  if(onlineEntry.hidden!==hideOnlineEntry){
+    onlineEntry.hidden=hideOnlineEntry;
+    onlineEntry.style.display=hideOnlineEntry?'none':'flex';
+  }
+  const wantOnlineTop=(menuWide() && menuStage==='home') ? (VH-80)+'px' : '';
+  if(onlineEntry.style.top!==wantOnlineTop) onlineEntry.style.top=wantOnlineTop;
+  menuHomeHits=[];
+  const now = performance.now()/1000;
+  if(menuStage!=='home') drawMenuGenericBackdrop(now);
+
   if(menuStage === 'home'){
     drawDotaSenseBackdrop(now);
     const logoScale=menuScale();
-    const logoW=Math.min(Math.round(560*logoScale),VW-24), logoH=Math.round(logoW*0.2);
-    drawDotaSenseLogo(VW/2, menuWide()?Math.round(18*logoScale):70, logoW, logoH);
+    const logoW=Math.min(Math.round(660*logoScale),VW-24), logoH=Math.round(Math.min(logoW*0.17,112*logoScale));
+    drawDotaSenseLogo(VW/2, menuWide()?Math.round(18*logoScale):70, logoW, logoH, now);
   } else {
     ctx.textAlign = 'center';
     ctx.font = 'bold 14px Segoe UI, Arial';
@@ -12122,12 +12595,15 @@ function drawMenu(){
     ctx.textAlign='center'; ctx.fillStyle='#f6e6be'; ctx.font='bold 27px Georgia, serif';
     ctx.fillText('ВЫБОР БОЙЦОВ  •  4 НА 4',VW/2,72);
     ctx.fillStyle=remaining<=10?'#ff7568':'#d7b36a'; ctx.font='bold 30px Consolas, monospace'; ctx.fillText(remaining+' СЕК',VW/2,108);
-    ctx.font='13px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.68)'; ctx.fillText(draftPlayerIndex<0?'Выберите бойца для своей команды':'Боец выбран. Боты уже определились.',VW/2,132);
+    ctx.font='13px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.68)'; ctx.fillText(draftPlayerIndex<0?'Выберите бойца для своей команды':'Боец выбран. Нажми «ПРОПУСТИТЬ» или Enter, чтобы начать сразу.',VW/2,132);
     const slots=[{label:'ВЫ',index:draftPlayerIndex,team:'#72e6a5'},...draftBotIndices.map((index,i)=>({label:'БОТ '+(i+1),index,team:i<3?'#72e6a5':'#ff8585'}))];
     const slotWidth=(VW-36)/slots.length;
     slots.forEach((slot,index)=>{ const x=18+index*slotWidth, w=slotWidth-3; ctx.fillStyle='rgba(5,9,16,.82)'; ctx.fillRect(x,138,w,106); ctx.strokeStyle=slot.team; ctx.lineWidth=2; ctx.strokeRect(x,138,w,106); ctx.fillStyle=slot.team; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(slot.label,x+w/2,156); if(slot.index>=0) drawHeroTexture(HERO_DEFS[slot.index],x+4,164,w-8,68,now); else { ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font='12px Segoe UI, Arial'; ctx.fillText('ОЖИДАНИЕ',x+w/2,202); } });
     drawDraftSkillPanel(now);
     const back={x:24,y:78,w:120,h:38}; drawMenuButton(back,'‹  НАЗАД',{radius:7});
+    const skipRect=draftSkipRect(), canSkip=draftPlayerIndex>=0;
+    drawMenuButton(skipRect,canSkip?'⏭  ПРОПУСТИТЬ':'ПРОПУСК: ВЫБЕРИ БОЙЦА',{radius:7,primary:canSkip,active:canSkip,fontSize:canSkip?15:12});
+    if(!canSkip){ ctx.save(); ctx.fillStyle='rgba(0,0,0,.5)'; ctx.beginPath(); ctx.roundRect(skipRect.x,skipRect.y,skipRect.w,skipRect.h,7); ctx.fill(); ctx.restore(); }
     for(let i=0;i<HERO_DEFS.length;i++){ const r=menuCardRect(i), selected=i===draftPlayerIndex; drawHeroTexture(HERO_DEFS[i],r.x,r.y,r.w,r.h,now); if(selected){ ctx.strokeStyle='#ffd568'; ctx.lineWidth=4; ctx.strokeRect(r.x-2,r.y-2,r.w+4,r.h+4); } ctx.fillStyle='rgba(4,7,12,.76)'; ctx.fillRect(r.x,r.y+r.h-24,r.w,24); ctx.fillStyle='#fff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(HERO_DEFS[i].name,r.x+r.w/2,r.y+r.h-8); }
     return;
   }
@@ -12204,12 +12680,154 @@ function drawMenu(){
                VW/2, VH - 16);
 }
 
+/* =========================================================
+   Вступительная заставка матча (5 секунд, в стиле Dota)
+   ========================================================= */
+const MATCH_INTRO_SECONDS = 5;
+let matchIntroStart = -1, matchIntroFlags = {};
+function startMatchIntro(){ matchIntroStart = performance.now(); matchIntroFlags = {}; }
+
+function drawMatchIntro(){
+  if(matchIntroStart < 0) return;
+  const t = (performance.now() - matchIntroStart) / 1000;
+  if(t >= MATCH_INTRO_SECONDS || gameState !== 'playing'){ matchIntroStart = -1; return; }
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const easeOut = v => 1 - Math.pow(1 - clamp01(v), 3);
+  const easeInOut = v => { v = clamp01(v); return v < 0.5 ? 4*v*v*v : 1 - Math.pow(-2*v + 2, 3) / 2; };
+  const now = performance.now() / 1000;
+  const fade = 1 - clamp01((t - 4.1) / 0.9);
+  const veil = t < 3.2 ? 0.96 : 0.96 * (1 - easeInOut((t - 3.2) / 1.8));
+  if(!matchIntroFlags.start && t > 0.05){ matchIntroFlags.start = true; playSynthSfx('ultimate'); }
+  if(!matchIntroFlags.slam && t >= 1.0){ matchIntroFlags.slam = true; playSynthSfx('stun'); }
+  if(!matchIntroFlags.teams && t >= 2.3){ matchIntroFlags.teams = true; playSynthSfx('level'); }
+
+  const cx = VW / 2, cy = VH * 0.46;
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(10,2,5,' + veil.toFixed(3) + ')';
+  ctx.fillRect(0, 0, VW, VH);
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(VW, VH) * 0.6);
+  glow.addColorStop(0, 'rgba(130,18,20,' + (0.55 * veil / 0.96).toFixed(3) + ')');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, VW, VH);
+
+  /* рунная печать */
+  const sigilR = Math.min(VW, VH) * 0.34 * (0.75 + 0.25 * easeOut(t / 1.4));
+  const sigilAlpha = fade * easeOut((t - 0.1) / 0.8);
+  if(sigilAlpha > 0.01){ ctx.globalAlpha = sigilAlpha; dsDrawSigil(cx, cy, sigilR, now, 1); ctx.globalAlpha = 1; }
+
+  /* ударные волны и вспышка в момент появления логотипа */
+  for(let k = 0; k < 2; k++){
+    const u = (t - 1.0 - k * 0.18) / 0.9;
+    if(u > 0 && u < 1){
+      ctx.strokeStyle = 'rgba(255,120,90,' + ((1 - u) * 0.8 * fade).toFixed(3) + ')';
+      ctx.lineWidth = 6 * (1 - u) + 1;
+      ctx.beginPath(); ctx.arc(cx, cy, easeOut(u) * Math.max(VW, VH) * 0.7, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  const flash = (t - 1.0) / 0.3;
+  if(flash > 0 && flash < 1){ ctx.fillStyle = 'rgba(255,200,170,' + (0.35 * (1 - flash)).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); }
+
+  /* логотип DOTA SENSE 3 */
+  const logoW = Math.min(Math.round(VW * 0.62), 780), logoH = Math.round(logoW * 0.17);
+  if(t >= 1.0){
+    const slam = easeOut((t - 1.0) / 0.35);
+    const shake = t < 1.5 ? (1 - (t - 1.0) / 0.5) * 6 : 0;
+    ctx.save();
+    ctx.globalAlpha = clamp01((t - 1.0) / 0.25) * fade;
+    ctx.translate(Math.sin(t * 90) * shake, Math.cos(t * 77) * shake);
+    ctx.translate(cx, cy); ctx.scale(1 + 0.55 * (1 - slam), 1 + 0.55 * (1 - slam)); ctx.translate(-cx, -cy);
+    drawDotaSenseLogo(cx, cy - logoH / 2, logoW, logoH, now, true);
+    ctx.restore();
+  }
+
+  /* подзаголовок */
+  if(t >= 1.9){
+    const a = clamp01((t - 1.9) / 0.5) * fade;
+    ctx.save();
+    ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if('letterSpacing' in ctx) ctx.letterSpacing = '8px';
+    ctx.font = 'bold ' + Math.round(Math.max(13, Math.min(20, VW / 70))) + 'px Georgia, serif';
+    ctx.fillStyle = '#e8c984';
+    const subY = cy + logoH / 2 + 34;
+    ctx.fillText('АРЕНА ТРЁХ СИЛ', cx, subY);
+    const lineW = 160 * easeOut((t - 1.9) / 0.6);
+    ctx.fillStyle = 'rgba(230,90,70,0.7)';
+    ctx.fillRect(cx - 190 - lineW, subY - 1, lineW, 2); ctx.fillRect(cx + 190, subY - 1, lineW, 2);
+    ctx.restore();
+  }
+
+  /* команды: портреты героев выезжают с двух сторон */
+  if(t >= 2.2 && playerHero){
+    const list = heroes.filter(h => h && h.def && h.type === 'hero' && !h.isIllusion);
+    const myTeam = playerHero.team;
+    const mine = list.filter(h => h.team === myTeam).sort((a, b) => (b === playerHero) - (a === playerHero)).slice(0, 4);
+    const foes = list.filter(h => h.team !== myTeam).slice(0, 4);
+    const bw = Math.round(Math.min(118, VW / 10)), bh = Math.round(bw * 0.78), gap = 10, rowY = Math.round(VH * 0.64);
+    const place = (arr, side) => arr.forEach((h, i) => {
+      const p = easeOut((t - 2.3 - i * 0.12) / 0.6);
+      if(p <= 0) return;
+      const total = arr.length * (bw + gap) - gap;
+      const x = (side < 0 ? cx - 70 - total : cx + 70) + i * (bw + gap) + side * (1 - p) * VW * 0.35;
+      const isMe = h === playerHero;
+      ctx.save();
+      ctx.globalAlpha = p * fade;
+      ctx.fillStyle = 'rgba(8,3,5,0.88)'; ctx.fillRect(x - 3, rowY - 3, bw + 6, bh + 30);
+      drawHeroTexture(h.def, x, rowY, bw, bh, now);
+      ctx.strokeStyle = isMe ? '#ffd568' : (side < 0 ? '#72e6a5' : '#ff8585'); ctx.lineWidth = isMe ? 3 : 2;
+      ctx.strokeRect(x - 3, rowY - 3, bw + 6, bh + 30);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Segoe UI, Arial'; ctx.textAlign = 'center';
+      ctx.fillText(isMe ? 'ТЫ • ' + h.def.name : h.def.name, x + bw / 2, rowY + bh + 17);
+      ctx.restore();
+    });
+    place(mine, -1); place(foes, 1);
+    const labelA = clamp01((t - 2.3) / 0.5) * fade;
+    ctx.save();
+    ctx.globalAlpha = labelA; ctx.textAlign = 'center'; ctx.font = 'bold 15px Georgia, serif';
+    if('letterSpacing' in ctx) ctx.letterSpacing = '4px';
+    ctx.fillStyle = '#72e6a5'; ctx.fillText(myTeam === 0 ? 'СВЕТ' : 'ТЬМА', cx - 70 - (mine.length * (bw + gap) - gap) / 2, rowY - 14);
+    ctx.fillStyle = '#ff8585'; ctx.fillText(myTeam === 0 ? 'ТЬМА' : 'СВЕТ', cx + 70 + (foes.length * (bw + gap) - gap) / 2, rowY - 14);
+    ctx.restore();
+    const vp = easeOut((t - 2.6) / 0.4);
+    if(vp > 0){
+      ctx.save();
+      ctx.globalAlpha = vp * fade; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '900 ' + Math.round(bh * 0.62) + 'px Georgia, serif';
+      ctx.lineWidth = 6; ctx.strokeStyle = '#2a0808'; ctx.strokeText('VS', cx, rowY + bh / 2 + 8);
+      const vg = ctx.createLinearGradient(0, rowY, 0, rowY + bh);
+      vg.addColorStop(0, '#fff1b8'); vg.addColorStop(1, '#c4761c');
+      ctx.fillStyle = vg; ctx.shadowColor = 'rgba(255,120,50,0.8)'; ctx.shadowBlur = 18;
+      ctx.fillText('VS', cx, rowY + bh / 2 + 8);
+      ctx.restore();
+    }
+  }
+
+  /* девиз */
+  if(t >= 3.0){
+    ctx.save();
+    ctx.globalAlpha = clamp01((t - 3.0) / 0.5) * fade; ctx.textAlign = 'center';
+    if('letterSpacing' in ctx) ctx.letterSpacing = '3px';
+    ctx.font = 'bold 14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,240,199,0.8)';
+    ctx.fillText('ЗАЩИТИ СВОЙ ДРЕВНИЙ  •  УНИЧТОЖЬ ВРАЖЕСКИЙ', cx, VH * 0.9);
+    ctx.restore();
+  }
+
+  /* кинематографичные чёрные полосы */
+  const bar = easeOut(t / 0.5) * (1 - easeInOut((t - 4.3) / 0.7));
+  const barH = VH * 0.11 * bar;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, barH); ctx.fillRect(0, VH - barH, VW, barH);
+  ctx.fillStyle = 'rgba(230,90,70,0.75)'; ctx.fillRect(0, barH - 1, VW, 1.5); ctx.fillRect(0, VH - barH - 0.5, VW, 1.5);
+  ctx.restore();
+}
+
 function drawOver(){
-  const won = winner === 0;
+  const myTeam = playerHero ? playerHero.team : 0;
+  const won = winner === myTeam;
   if(!resultAnnounced){
     resultAnnounced = true;
-    const myTeam = playerHero ? playerHero.team : 0;
     announce(winner === myTeam ? 'Victory!' : 'Defeat!', {interrupt:true, rate:0.8});
+    if(!testMode) accountRecordResult(won);
   }
   const accent = won ? '#69f08a' : '#ff6672';
   const now = performance.now() / 1000;
@@ -12240,6 +12858,8 @@ function drawOver(){
   ctx.fillText(won ? 'ПОБЕДА' : 'ПОРАЖЕНИЕ',VW/2,panel.y+128); ctx.shadowBlur=0;
   ctx.font='bold 17px Segoe UI, Arial'; ctx.fillStyle='#e7f0ff';
   ctx.fillText(won ? 'Древний врага пал. Поле боя твоё.' : 'Твой древний пал. В следующий бой.',VW/2,panel.y+165);
+  ctx.font='bold 14px Segoe UI, Arial'; ctx.fillStyle='#e8c984';
+  ctx.fillText(account.profile ? '✦ '+account.profile.nick+'  •  Уровень '+account.profile.level+(won && account.lastGain>0 ? '  (+'+account.lastGain+' за победу)' : '') : 'Войди в аккаунт в главном меню, чтобы копить уровень',VW/2,panel.y+192);
 
   if(playerHero){
     const statsY=panel.y+220;
@@ -12314,6 +12934,7 @@ function loop(now){
       drawKillStreakBanner();
       drawPrematchOverlay();
       drawScoreboard();
+      drawMatchIntro();
       if(gameState === 'over') drawOver();
     }
   } catch(err) {

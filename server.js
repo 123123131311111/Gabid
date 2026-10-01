@@ -2,6 +2,7 @@ const path = require('path');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const accounts = require('./accounts');
 
 const app = express();
 const server = http.createServer(app);
@@ -29,6 +30,7 @@ const rooms = Object.create(null);
 const socketRooms = new Map();
 let nextBulletId = 1;
 
+app.use((req, res, next) => { if(!accounts.handle(req, res)) next(); });
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, filePath){
     if(/\.(?:html|js|css)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-store');

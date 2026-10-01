@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DotaSens — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.6.2</title>
-<link rel="stylesheet" href="/style.css?v=0.6.2">
+<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.0</title>
+<link rel="stylesheet" href="/style.css?v=0.7.0">
 </head>
 <body>
 <div id="topbar">
@@ -23,8 +23,44 @@
     </div>
   </div>
 </section>
+<section id="account-modal" hidden>
+  <div class="acc-panel" role="dialog" aria-modal="true" aria-labelledby="acc-title">
+    <button type="button" class="acc-close" id="acc-close" aria-label="Закрыть">✕</button>
+    <div class="acc-eyebrow">DOTA SENSE 3</div>
+    <h2 id="acc-title">Аккаунт</h2>
+
+    <div id="acc-guest">
+      <div class="acc-tabs">
+        <button type="button" id="acc-tab-login" class="active">Вход</button>
+        <button type="button" id="acc-tab-register">Регистрация</button>
+      </div>
+      <label>Ник<input id="acc-nick" type="text" maxlength="16" autocomplete="username" spellcheck="false" placeholder="ShadowHunter"></label>
+      <label>Пароль<input id="acc-pass" type="password" maxlength="64" autocomplete="current-password" placeholder="••••••••"></label>
+      <button type="button" class="acc-primary" id="acc-submit">ВОЙТИ</button>
+      <p class="acc-hint">Аккаунт сохраняется на сервере. Уровень стартует с 0 и растёт с каждой победой — над ботами или над игроками.</p>
+    </div>
+
+    <div id="acc-user" hidden>
+      <div class="acc-card">
+        <div class="acc-avatar" id="acc-avatar">S</div>
+        <div class="acc-info">
+          <strong id="acc-name">—</strong>
+          <span id="acc-rank">—</span>
+          <span id="acc-stats">—</span>
+        </div>
+        <div class="acc-level"><small>УРОВЕНЬ</small><b id="acc-level">0</b></div>
+      </div>
+      <label>Сменить ник<input id="acc-newnick" type="text" maxlength="16" spellcheck="false" placeholder="Новый ник"></label>
+      <div class="acc-row">
+        <button type="button" class="acc-primary" id="acc-rename">СМЕНИТЬ НИК</button>
+        <button type="button" class="acc-ghost" id="acc-logout">ВЫЙТИ</button>
+      </div>
+    </div>
+    <div class="acc-error" id="acc-error" role="alert"></div>
+  </div>
+</section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="/game.js?v=0.6.2"></script>
+<script src="/game.js?v=0.7.0"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
