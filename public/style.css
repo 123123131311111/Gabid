@@ -145,6 +145,29 @@ canvas {
   color: rgba(255,255,255,.68);
 }
 
+.online-tools {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 16px;
+  text-align: left;
+}
+.online-tool,
+.online-tools button {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid rgba(139,233,253,.28);
+  background: rgba(139,233,253,.07);
+  color: #d9ecff;
+  font: 11px/1.35 'Trebuchet MS', 'Segoe UI', sans-serif;
+}
+.online-tool { display: flex; flex-direction: column; gap: 4px; }
+.online-tool b { overflow: hidden; color: #ffd568; text-overflow: ellipsis; white-space: nowrap; }
+.online-tool span { color: rgba(255,255,255,.62); }
+.online-tools button { cursor: pointer; color: #f2d49b; font-weight: 700; }
+.online-tools button:hover { border-color: #ffd568; filter: brightness(1.14); }
+
 .mode-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -233,6 +256,9 @@ canvas {
   .mode-panel h1 {
     font-size: 30px;
   }
+
+  .online-tools { grid-template-columns: 1fr 1fr; }
+  .online-tool { grid-column: 1 / -1; }
 
   #room-state .room-slot {
     flex-wrap: wrap;

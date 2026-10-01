@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.3a</title>
-<link rel="stylesheet" href="./style.css?v=0.7.3a">
+<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.3b</title>
+<link rel="stylesheet" href="./style.css?v=0.7.3b">
 </head>
 <body>
 <div id="topbar">
@@ -15,7 +15,12 @@
   <div class="mode-panel">
     <div>DotaSens</div>
     <h1>Онлайн 3 на 3</h1>
-    <p id="match-status">Нажми кнопку, чтобы создать или найти комнату.</p>
+    <p id="match-status">Найди комнату, посмотри статистику и настрой профиль перед матчем.</p>
+    <div class="online-tools" aria-label="Возможности онлайн-меню">
+      <div class="online-tool"><b id="online-profile-name">ГОСТЬ</b><span id="online-profile-stats">Войди в аккаунт для рейтинга и истории матчей</span></div>
+      <button type="button" id="online-account">ПРОФИЛЬ И СТАТИСТИКА</button>
+      <button type="button" id="online-changelog">ЧТО НОВОГО</button>
+    </div>
     <div id="room-state"></div>
     <div class="mode-actions">
       <button type="button" id="online-button">Найти игроков</button>
@@ -62,7 +67,7 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="./game.js?v=0.7.3a"></script>
+<script src="./game.js?v=0.7.3b"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
@@ -71,9 +76,29 @@
   const start = document.getElementById('room-start');
   const status = document.getElementById('match-status');
   const roomState = document.getElementById('room-state');
+  const onlineAccount = document.getElementById('online-account');
+  const onlineChangelog = document.getElementById('online-changelog');
+  const onlineProfileName = document.getElementById('online-profile-name');
+  const onlineProfileStats = document.getElementById('online-profile-stats');
   let socket = null;
   let room = null;
   let started = false;
+  function renderOnlineProfile(){
+    const profile = window.__shadowAccountProfile || null;
+    if(!profile){
+      onlineProfileName.textContent = 'ГОСТЬ';
+      onlineProfileStats.textContent = 'Войди в аккаунт для рейтинга и истории матчей';
+      return;
+    }
+    const total = (profile.wins || 0) + (profile.losses || 0);
+    const rate = total ? Math.round((profile.wins || 0) / total * 100) : 0;
+    onlineProfileName.textContent = profile.nick + ' • УР. ' + profile.level;
+    onlineProfileStats.textContent = 'Рейтинг: ' + (profile.rating || 0) + ' • Победы: ' + (profile.wins || 0) + ' • Матчи: ' + total + ' • Винрейт: ' + rate + '%';
+  }
+  onlineAccount.addEventListener('click', () => { if(typeof openAccountModal === 'function') openAccountModal(); });
+  onlineChangelog.addEventListener('click', () => { picker.hidden = true; if(typeof openChangelog === 'function') openChangelog(); });
+  window.addEventListener('shadow:profile', renderOnlineProfile);
+  renderOnlineProfile();
   entry.addEventListener('pointerenter', () => playSynthSfx('hover'));
   picker.addEventListener('pointerover', event => {
     const target = event.target.closest('button');
