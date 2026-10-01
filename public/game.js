@@ -9868,6 +9868,7 @@ const SKILL_BAR = { w: 76, h: 76, gap: 12 };
 
 function combatHudLayout(){
   const margin = 14;
+  const bottom = 14;
   const mobile = VW < 720;
   const compact = VW < 980;
   const skillCount = (playerHero && playerHero.skills.length) || 4;
@@ -11962,8 +11963,7 @@ async function accountFlushPending(){
   savePendingResults(left);
   renderAccountModal();
 }
-async function accountRecordResult(won, matchId){
-  async function accountRecordResult(won, matchId, ranked){
+async function accountRecordResult(won, matchId, ranked){
   account.lastGain = 0;
   if(!account.token) return;
   matchId = matchId || makeMatchId();
