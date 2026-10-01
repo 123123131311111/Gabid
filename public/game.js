@@ -9424,7 +9424,7 @@ function combatHudLayout(){
   const skillGap = compact ? 7 : SKILL_BAR.gap;
   const skillCount = (playerHero && playerHero.skills.length) || 4;
   const skillsW = skillCount * skillSize + (skillCount - 1) * skillGap;
-  const itemsW = 2 * itemSize + itemGap;
+  const itemsW = 3 * itemSize + 2 * itemGap;
   const totalW = statsW + skillsW + itemsW + 36;
   const x = Math.max(margin, (VW - totalW) / 2);
   return {
@@ -10520,11 +10520,11 @@ function drawHUD(){
   drawSkillTooltip(h, hoveredSkill);
 
   if(h.skillPoints > 0){
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 14px Segoe UI, Arial';
+    const hudLayout = combatHudLayout();
+    ctx.textAlign = 'left';
+    ctx.font = 'bold ' + (VW < 980 ? '11px' : '14px') + ' Segoe UI, Arial';
     ctx.fillStyle = '#ffd54f';
-    const maxKey = h.skills.length;
-    ctx.fillText('Очки навыков: ' + h.skillPoints + '  (1-' + maxKey + ' — прокачать скилл)', VW/2, VH - SKILL_BAR.h - 34);
+    ctx.fillText('Очки навыков: ' + h.skillPoints, hudLayout.stats.x, hudLayout.panel.y + hudLayout.panel.h - 12);
   }
   drawInventory();
   drawShop();
