@@ -61,8 +61,11 @@ canvas {
   position: fixed;
   top: calc(50% + 352px);
   left: 50%;
+  box-sizing: border-box;
   display: flex;
-  min-width: 310px;
+  width: max-content;
+  min-width: min(310px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
   min-height: 48px;
   align-items: center;
   justify-content: center;
@@ -74,9 +77,11 @@ canvas {
   box-shadow: 0 8px 24px rgba(0,0,0,.48), inset 0 0 0 1px rgba(185,48,36,.42);
   color: #e8c984;
   cursor: pointer;
-  font: 700 13px 'Trebuchet MS', 'Segoe UI', sans-serif;
+  font: 700 12px 'Trebuchet MS', 'Segoe UI', sans-serif;
   letter-spacing: .08em;
+  line-height: 1.25;
   text-transform: uppercase;
+  white-space: normal;
   transition: filter .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
 

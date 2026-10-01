@@ -33,7 +33,7 @@ function save() {
 
 const keyOf = nick => nick.trim().toLowerCase();
 const hashPassword = (password, salt) => crypto.scryptSync(password, salt, 64).toString('hex');
-const publicProfile = acc => ({ nick: acc.nick, level: acc.level, wins: acc.wins || 0, losses: acc.losses || 0, avatar: AVATAR_IDS.has(acc.avatar) ? acc.avatar : '' });
+const publicProfile = acc => ({ nick: acc.nick, level: acc.level, wins: acc.wins || 0, losses: acc.losses || 0, rating: Number.isFinite(acc.rating) ? acc.rating : 0, avatar: AVATAR_IDS.has(acc.avatar) ? acc.avatar : '' });
 
 function makeSession(key) {
   const token = crypto.randomBytes(24).toString('hex');
@@ -147,7 +147,10 @@ const routes = {
     auth.session.lastResult = now;
     if (matchId) { acc.recent.push(matchId); if (acc.recent.length > 60) acc.recent.shift(); }
     acc.wins = acc.wins || 0; acc.losses = acc.losses || 0;
-    if (body.won === true) { acc.wins += 1; acc.level += 1; } else acc.losses += 1;
+    acc.rating = Number.isFinite(acc.rating) ? acc.rating : 0;
+    if (body.won === true) { acc.wins += 1; acc.level += 1; }
+    else acc.losses += 1;
+    if (body.ranked === true) acc.rating = Math.max(0, acc.rating + (body.won === true ? 25 : -20));
     save();
     return [200, { profile: publicProfile(acc) }];
   }

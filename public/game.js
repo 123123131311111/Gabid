@@ -347,6 +347,7 @@ const EMBEDDED_STORE_AUDIO = '';
 const STORE_AUDIO_FALLBACK = 'C:/Users/elski/Downloads/korolia-ne-ubit.mp3';
 let portraitRenderMode = false;
 let winner = null;
+let rankedOnlineMatch = false;
 let visGrid    = new Uint8Array(GRID*GRID);
 let explored   = new Uint8Array(GRID*GRID);
 let visibleUnitCache = new WeakSet();
@@ -376,7 +377,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.2';
+const GAME_VERSION = '0.7.3';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.0: аккаунты (ник и пароль, смена ника, уровень с нуля растёт с каждой победы над ботами и игроками), новый фон главного меню с рунной печатью и алым вихрем, золотая тройка в логотипе, пропуск выбора бойцов сразу после пика и 5-секундная заставка при входе в матч',
   'Обновление 0.5.0: последовательное разрушение построек по линиям — сначала внешняя башня, затем внутренняя башня, казармы и только после этого трон',
@@ -445,7 +446,12 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.2', title:'НОВЫЕ БАШНИ И ТРОН', changes:[
+  const sections = [{version:'0.7.3', title:'РЕЙТИНГ, HUD И ЯЙЦО-ГОЛЛИ', changes:[
+    'Добавлен онлайн-рейтинг: за победу +25, за поражение −20 (минимум 0); каждые 100 очков повышают ранг от Рекрута 1 до Рекрута 5.',
+    'Ранг и число рейтинга теперь отображаются прямо на кнопке онлайна; рейтинг сохраняется в профиле аккаунта.',
+    'Добавлен активный предмет «Яйцо-голли» за 1800 монет: +500 к скорости передвижения на 3 секунды, перезарядка 25 секунд.',
+    'Панель героя, навыков и предметов перестраивается на узких экранах; оформление ячеек и шкал стало выразительнее.'
+  ]},{version:'0.7.2', title:'НОВЫЕ БАШНИ И ТРОН', changes:[
     'Башни Сил Света перерисованы: светлый каменный обелиск с голубым светящимся узором, золотой кромкой и круглым основанием с водой.',
     'Башни Сил Тьмы перерисованы: чёрный шипастый камень на груде глыб, красные пульсирующие прожилки и огненное «око» под шляпой башни.',
     'Трон Сил Света теперь дерево с розовой сакурой, белыми камнями, голубыми кристаллами, световым столбом и порталом; лепестки медленно падают.',
@@ -514,7 +520,7 @@ const SHOP_ITEMS = {
   fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +105 к обычным атакам и к урону способностей.', color:'#ff8d8d', active:false},
   bkb: {name:'БКБ', icon:'✚', cost:2150, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
   pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 200 монет. Пассивно: +150 урона, +60 скорости передвижения и ускорение атак.', color:'#ff9e5d', active:false},
-  blink: {name:'Блинк', icon:'◇', cost:1150, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
+  blink: {name:'Блинк', icon:'◇', cost:1150, range:500, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
   evsyutin: {name:'Еблет Евсютина', icon:'♥', cost:1250, desc:'Пассивно: +500 к максимальному и текущему здоровью.', color:'#ff7898', hp:500, active:false},
   mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2100, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', active:true},
   manaTome: {name:'Научилсяловить', icon:'✧', cost:550, desc:'Пассивно: увеличивает восстановление маны на 10%.', color:'#7ed6ff', manaRegen:0.10, active:false},
@@ -558,7 +564,12 @@ SHOP_ITEMS.girfsyutin = {
   desc:'Пассивно: +1800 к максимальному и текущему здоровью.',
   hp:1800
 };
-SHOP_ITEM_IDS.push('dianaPants','girfsyutin');
+SHOP_ITEMS.eggGolly = {
+  name:'Яйцо-голли', icon:'🥚', cost:1800, color:'#8be9fd', active:true,
+  desc:'Активный: на 3 секунды даёт +500 к скорости передвижения. КД 25 секунд.',
+  activeDuration:3, cooldown:25, moveSpeed:500
+};
+SHOP_ITEM_IDS.push('dianaPants','girfsyutin','eggGolly');
 
 const CREATOR_BUILDS = {
   shadow: {
@@ -2207,10 +2218,18 @@ function activateInventoryItem(hero, index){
     fxRing(hero.x, hero.y, 100, '#f0c36a', 0.6);
     return true;
   }
+  if(item.id === 'eggGolly'){
+    if(item.cooldown > 0){ flashMsg(hero, 'Яйцо-голли на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    item.cooldown = SHOP_ITEMS.eggGolly.cooldown;
+    item.activeTimer = SHOP_ITEMS.eggGolly.activeDuration;
+    addText(hero.x, hero.y - 56, 'ЯЙЦО-ГОЛЛИ: +500 СКОРОСТИ', '#8be9fd', 1.1, 16);
+    fxRing(hero.x, hero.y, 96, '#8be9fd', 0.6);
+    return true;
+  }
   if(item.id === 'blink'){
     if(item.cooldown > 0){ flashMsg(hero, 'Блинк на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
     const distance = Math.hypot(mouse.wx-hero.x, mouse.wy-hero.y) || 1;
-    const range = Math.min(500, distance);
+    const range = Math.min(SHOP_ITEMS.blink.range, distance);
     let tx = hero.x + (mouse.wx-hero.x) / distance * range;
     let ty = hero.y + (mouse.wy-hero.y) / distance * range;
     if(!canMoveTo(tx, ty, hero.radius)){
@@ -2537,7 +2556,7 @@ class Unit {
   }
   getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=105; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
   getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
-  getSpeed(){ let s=this.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'joelBoots')) s+=SHOP_ITEMS.joelBoots.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) s+=60; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) s+=SHOP_ITEMS.ilyaHair.speed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) s+=this.skills[2].level*27.5; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) s+=SHOP_ITEMS.gur.moveSpeed; if(this.buffs.some(b=>b.type==='haste')) s+=180; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) s*=1.18; const superBoots=this.inventory && this.inventory.find(i => i && i.id === 'superBoots'); if(superBoots){ s+=SHOP_ITEMS.superBoots.speed; if(superBoots.activeTimer>0) s+=SHOP_ITEMS.superBoots.activeSpeed; } const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) s+=100; for(const b of this.buffs) if(b.type === 'spd') s*=(1+b.val); const thirst=this.def && this.def.id === 'sasych' ? heroes.filter(h => h.team !== this.team && !h.dead && h.type === 'hero').reduce((sum,h) => sum+(1-h.hp/h.maxHp)*0.48,0) : 0; s*=1+thirst; if(this.slowT>0) s*=(1-this.slow); return s; }
+  getSpeed(){ let s=this.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'joelBoots')) s+=SHOP_ITEMS.joelBoots.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) s+=60; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) s+=SHOP_ITEMS.ilyaHair.speed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) s+=this.skills[2].level*27.5; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) s+=SHOP_ITEMS.gur.moveSpeed; const eggGolly=this.inventory && this.inventory.find(i => i && i.id === 'eggGolly'); if(eggGolly && eggGolly.activeTimer>0) s+=SHOP_ITEMS.eggGolly.moveSpeed; if(this.buffs.some(b=>b.type==='haste')) s+=180; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) s*=1.18; const superBoots=this.inventory && this.inventory.find(i => i && i.id === 'superBoots'); if(superBoots){ s+=SHOP_ITEMS.superBoots.speed; if(superBoots.activeTimer>0) s+=SHOP_ITEMS.superBoots.activeSpeed; } const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) s+=100; for(const b of this.buffs) if(b.type === 'spd') s*=(1+b.val); const thirst=this.def && this.def.id === 'sasych' ? heroes.filter(h => h.team !== this.team && !h.dead && h.type === 'hero').reduce((sum,h) => sum+(1-h.hp/h.maxHp)*0.48,0) : 0; s*=1+thirst; if(this.slowT>0) s*=(1-this.slow); return s; }
   addBuff(b){ this.buffs.push(b); }
   tickTimers(dt){
     if(this.atkCd>0) this.atkCd-=dt;
@@ -9849,21 +9868,37 @@ const SKILL_BAR = { w: 76, h: 76, gap: 12 };
 
 function combatHudLayout(){
   const margin = 14;
-  const bottom = 14;
+  const mobile = VW < 720;
   const compact = VW < 980;
+  const skillCount = (playerHero && playerHero.skills.length) || 4;
+  if(mobile){
+    const panel = {x:8,y:VH-252,w:VW-16,h:244};
+    const skillGap = 4;
+    const skillSize = Math.min(48,Math.max(36,Math.floor((VW-32-(skillCount-1)*skillGap)/skillCount)));
+    const skillsW = skillCount*skillSize+(skillCount-1)*skillGap;
+    const itemSize = Math.min(32,Math.max(24,Math.floor((VW-36-8)/3)));
+    const itemGap = 4;
+    const itemsW = 3*itemSize+2*itemGap;
+    return {
+      panel,
+      stats:{x:panel.x+56,y:panel.y,w:panel.w-64},
+      skills:{x:(VW-skillsW)/2,y:panel.y+120,w:skillSize,h:skillSize,gap:skillGap},
+      items:{x:(VW-itemsW)/2,y:panel.y+178,w:itemSize,h:itemSize,gap:itemGap,columns:3,rows:2}
+    };
+  }
   const panelH = compact ? 178 : 202;
   const statsW = compact ? 190 : 250;
   const itemSize = compact ? 44 : 50;
   const itemGap = compact ? 5 : 8;
-  const skillSize = compact ? 60 : SKILL_BAR.w;
   const skillGap = compact ? 7 : SKILL_BAR.gap;
-  const skillCount = (playerHero && playerHero.skills.length) || 4;
-  const skillsW = skillCount * skillSize + (skillCount - 1) * skillGap;
   const itemsW = 3 * itemSize + 2 * itemGap;
+  const skillSize = Math.min(compact ? 60 : SKILL_BAR.w,
+    Math.max(46,(VW-margin*2-statsW-itemsW-36-(skillCount-1)*skillGap)/skillCount));
+  const skillsW = skillCount * skillSize + (skillCount - 1) * skillGap;
   const totalW = statsW + skillsW + itemsW + 36;
   const x = Math.max(margin, (VW - totalW) / 2);
   return {
-    panel: {x, y: VH - panelH - bottom, w: Math.min(totalW, VW - margin * 2), h: panelH},
+    panel: {x, y: VH - panelH - 14, w: totalW, h: panelH},
     stats: {x: x + 78, y: VH - panelH - bottom, w: statsW - 78},
     skills: {x: x + statsW + 12, y: VH - 106, w: skillSize, h: skillSize, gap: skillGap},
     items: {x: x + statsW + skillsW + 24, y: VH - (compact ? 112 : 132), w: itemSize, h: itemSize, gap: itemGap, columns:3, rows:2}
@@ -9966,6 +10001,45 @@ function inventorySlotRect(i){
   const items = combatHudLayout().items;
   const column=i%items.columns, row=Math.floor(i/items.columns);
   return {x:items.x+column*(items.w+items.gap), y:items.y+row*(items.h+items.gap), w:items.w, h:items.h};
+}
+function hoveredItemRangePreview(){
+  if(!playerHero) return null;
+  for(let i=0;i<6;i++){
+    const rect=inventorySlotRect(i), item=playerHero.inventory[i];
+    if(item&&mouse.x>=rect.x&&mouse.x<=rect.x+rect.w&&mouse.y>=rect.y&&mouse.y<=rect.y+rect.h)
+      return item.id;
+  }
+  if(shopOpen&&!shopGuideOpen){
+    for(let i=0;i<SHOP_ITEM_IDS.length;i++){
+      const rect=shopItemRect(i);
+      if(mouse.x>=rect.x&&mouse.x<=rect.x+rect.w&&mouse.y>=rect.y&&mouse.y<=rect.y+rect.h)
+        return SHOP_ITEM_IDS[i];
+    }
+  }
+  return null;
+}
+function drawItemRangePreview(){
+  const itemId=hoveredItemRangePreview();
+  const item=SHOP_ITEMS[itemId];
+  if(!item||!playerHero) return;
+  let radius=item.range||item.auraRadius||0;
+  if(item.attackRange){
+    const alreadyOwned=playerHero.inventory.some(entry=>entry&&entry.id==='brainEye');
+    radius=playerHero.getAttackRange()+(alreadyOwned?0:item.attackRange);
+  }
+  if(!radius) return;
+  ctx.save();
+  ctx.fillStyle='rgba(100,210,255,0.055)';
+  ctx.beginPath(); ctx.arc(playerHero.x,playerHero.y,radius,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=item.color||'#8be9fd'; ctx.lineWidth=2.5; ctx.setLineDash([12,8]);
+  ctx.beginPath(); ctx.arc(playerHero.x,playerHero.y,radius,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+  const labelY=Math.max(cam.y-VH/2+22,playerHero.y-radius-14);
+  ctx.font='bold 13px Segoe UI, Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.lineWidth=4; ctx.strokeStyle='rgba(3,7,13,0.9)';
+  ctx.strokeText('РАДИУС '+Math.round(radius),playerHero.x,labelY);
+  ctx.fillStyle=item.color||'#8be9fd'; ctx.fillText('РАДИУС '+Math.round(radius),playerHero.x,labelY);
+  ctx.restore();
 }
 function handleHudClick(mx, my){
   const button = shopButtonRect();
@@ -10356,6 +10430,22 @@ function drawItemIcon(item, x, y, size){
     ctx.fillStyle='#e14b42'; ctx.beginPath(); ctx.arc(size*.02,-size*.51,size*.08,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle='#f28b56'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(size*.19,size*.23); ctx.lineTo(size*.35,size*.39); ctx.stroke();
     ctx.restore();
+  } else if(item.id === 'eggGolly'){
+    ctx.save();
+    ctx.rotate(-0.12);
+    const egg=ctx.createLinearGradient(-size*.3,-size*.4,size*.3,size*.4);
+    egg.addColorStop(0,'#f4ffff'); egg.addColorStop(0.42,'#8be9fd'); egg.addColorStop(1,'#2876a5');
+    ctx.fillStyle=egg; ctx.strokeStyle='#d9fbff'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,-size*.43);
+    ctx.bezierCurveTo(size*.3,-size*.35,size*.4,size*.12,size*.2,size*.38);
+    ctx.quadraticCurveTo(0,size*.55,-size*.2,size*.38);
+    ctx.bezierCurveTo(-size*.4,size*.12,-size*.3,-size*.35,0,-size*.43);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.beginPath(); ctx.ellipse(-size*.1,-size*.17,size*.07,size*.13,-0.35,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(28,106,144,0.7)';
+    ctx.beginPath(); ctx.arc(size*.12,size*.1,size*.045,0,Math.PI*2); ctx.arc(-size*.08,size*.22,size*.035,0,Math.PI*2); ctx.fill();
+    ctx.restore();
   } else {
     ctx.fillStyle = '#08111d';
     ctx.font = 'bold ' + Math.max(11, Math.round(size*.44)) + 'px Segoe UI, Arial';
@@ -10549,11 +10639,38 @@ function drawInventory(){
   ctx.fillText('ПРЕДМЕТЫ',items.x,items.y-10);
   for(let i=0;i<6;i++){
     const r=inventorySlotRect(i), item=playerHero.inventory[i];
-    ctx.fillStyle='rgba(5,8,14,0.9)'; ctx.fillRect(r.x,r.y,r.w,r.h);
-    ctx.strokeStyle=item ? item.color : 'rgba(255,255,255,0.25)'; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
+    const cooling=!!item&&item.cooldown>0;
+    const tile=ctx.createLinearGradient(r.x,r.y,r.x,r.y+r.h);
+    tile.addColorStop(0,item?(cooling?'rgba(34,38,44,0.96)':'rgba(37,48,62,0.96)'):'rgba(13,19,28,0.94)');
+    tile.addColorStop(1,'rgba(4,8,14,0.98)');
+    ctx.fillStyle=tile; ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle=item ? (cooling?'#68717b':item.color) : 'rgba(255,255,255,0.25)'; ctx.lineWidth=item?2:1.5; ctx.strokeRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=1; ctx.strokeRect(r.x+3,r.y+3,r.w-6,r.h-6);
     ctx.textAlign='center'; ctx.font='bold 20px Segoe UI, Arial'; ctx.fillStyle=item ? item.color : 'rgba(255,255,255,0.25)';
     const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : '▲') : '-';
-    drawItemIcon(item,r.x+r.w/2,r.y+22,Math.min(34,r.w-10));
+    ctx.save();
+    if(cooling) ctx.filter='grayscale(1)';
+    drawItemIcon(item,r.x+r.w/2,r.y+r.h/2,Math.min(34,r.w-10));
+    ctx.restore();
+    if(cooling){
+      ctx.fillStyle='rgba(3,6,10,0.54)'; ctx.fillRect(r.x+3,r.y+3,r.w-6,r.h-6);
+      ctx.fillStyle='#f1f3f5'; ctx.font='bold '+Math.max(10,Math.min(15,r.w*.32))+'px Consolas, monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=4;
+      ctx.fillText(String(Math.ceil(item.cooldown)),r.x+r.w/2,r.y+r.h/2);
+      ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
+    }
+    if(item && item.activeTimer>0){
+      const configuredDuration=SHOP_ITEMS[item.id]?.activeDuration;
+      const activeDuration=configuredDuration||(item.id==='bkb'||item.id==='aghanimHead'?10:item.activeTimer);
+      const badgeX=r.x+r.w-9, badgeY=r.y+9, radius=8;
+      ctx.fillStyle='rgba(3,8,14,0.96)'; ctx.beginPath(); ctx.arc(badgeX,badgeY,radius+2,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.24)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(badgeX,badgeY,radius,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle=item.color||'#8be9fd'; ctx.lineWidth=2.5; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(badgeX,badgeY,radius,-Math.PI/2,-Math.PI/2+Math.PI*2*clamp(item.activeTimer/activeDuration,0,1)); ctx.stroke();
+      ctx.fillStyle='#fff'; ctx.font='bold 7px Consolas, monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(Math.ceil(item.activeTimer)),badgeX,badgeY+0.5); ctx.textBaseline='alphabetic';
+    }
     if(item && item.auraOn){
       ctx.font='bold 9px Segoe UI, Arial'; ctx.fillStyle='#72e6a5'; ctx.textAlign='left'; ctx.fillText('ВКЛ',r.x+5,r.y+r.h-5); ctx.textAlign='center';
     }
@@ -10703,8 +10820,33 @@ function drawBottomHeroPanel(hero){
   const panel = layout.panel;
   const stats = layout.stats;
   ctx.save();
-  ctx.fillStyle='rgba(5,9,16,0.94)'; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
+  const panelFill=ctx.createLinearGradient(panel.x,panel.y,panel.x,panel.y+panel.h);
+  panelFill.addColorStop(0,'rgba(18,26,38,0.97)'); panelFill.addColorStop(1,'rgba(4,8,15,0.98)');
+  ctx.fillStyle=panelFill; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
   ctx.strokeStyle=hero.def.color2; ctx.lineWidth=2; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
+  ctx.strokeStyle='rgba(255,255,255,0.17)'; ctx.lineWidth=1; ctx.strokeRect(panel.x+4,panel.y+4,panel.w-8,panel.h-8);
+  if(VW<720){
+    drawHeroTexture(hero.def,panel.x+8,panel.y+14,42,66,performance.now()/1000,false);
+    const barX=stats.x+8, barW=panel.x+panel.w-12-barX, barH=10;
+    ctx.textAlign='left'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 12px Segoe UI, Arial';
+    ctx.fillText(hero.def.name+'  •  Ур. '+hero.level,barX,panel.y+18);
+    ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='9px Segoe UI, Arial';
+    ctx.fillText('ЗДОРОВЬЕ',barX,panel.y+37);
+    ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(barX,panel.y+41,barW,barH);
+    ctx.fillStyle='#35c85a'; ctx.fillRect(barX,panel.y+41,barW*clamp(hero.hp/hero.maxHp,0,1),barH);
+    ctx.fillStyle='#fff'; ctx.font='bold 9px Consolas, monospace';
+    ctx.fillText(Math.ceil(hero.hp)+' / '+Math.ceil(hero.maxHp),barX+5,panel.y+50);
+    ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='9px Segoe UI, Arial';
+    ctx.fillText('МАНА',barX,panel.y+66);
+    ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(barX,panel.y+70,barW,barH);
+    ctx.fillStyle='#3988e8'; ctx.fillRect(barX,panel.y+70,barW*clamp(hero.mp/hero.maxMp,0,1),barH);
+    ctx.fillStyle='#fff'; ctx.font='bold 9px Consolas, monospace';
+    ctx.fillText(Math.ceil(hero.mp)+' / '+Math.ceil(hero.maxMp),barX+5,panel.y+79);
+    ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='10px Segoe UI, Arial';
+    ctx.fillText('АТАКА '+Math.round(hero.getDamage())+'  •  БРОНЯ '+Math.round(hero.getArmor()),barX,panel.y+101);
+    ctx.restore();
+    return;
+  }
   drawHeroTexture(hero.def, panel.x + 8, panel.y + 28, 64, 92, performance.now()/1000, false);
   const barX = stats.x + 12, barW = stats.w - 24, barH = 16;
   ctx.textAlign='left'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 15px Segoe UI, Arial';
@@ -10889,16 +11031,14 @@ function drawHUD(){
     const ready = s.level>0 && activeCd<=0 && h.mp>=manaVal && !(def.mineSkill && h.mineLock);
     const canLevel = h.canLevelSkill(i);
 
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(r.x, r.y, r.w, r.h);
-
-    if(s.level>0){
-      ctx.fillStyle = ready ? 'rgba(70,130,200,0.55)' : 'rgba(60,60,70,0.6)';
-      ctx.fillRect(r.x+3, r.y+3, r.w-6, r.h-6);
-    } else {
-      ctx.fillStyle = 'rgba(35,35,40,0.7)';
-      ctx.fillRect(r.x+3, r.y+3, r.w-6, r.h-6);
-    }
+    const skillGradient=ctx.createLinearGradient(r.x,r.y,r.x+r.w,r.y+r.h);
+    skillGradient.addColorStop(0,s.level>0?(ready?'rgba(39,91,130,0.96)':'rgba(45,51,64,0.96)'):'rgba(19,24,32,0.96)');
+    skillGradient.addColorStop(1,'rgba(5,9,16,0.98)');
+    ctx.fillStyle=skillGradient; ctx.beginPath(); ctx.roundRect(r.x,r.y,r.w,r.h,6); ctx.fill();
+    const skillColor=def.ult?'#e2a84e':(ready?'#79bde8':'rgba(255,255,255,0.34)');
+    ctx.strokeStyle=skillColor; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(r.x,r.y,r.w,r.h,6); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(r.x+4,r.y+4,r.w-8,r.h-8,4); ctx.stroke();
 
     if(h.def.id === 'grisha' && i<3){
       const ocol = i===0 ? '#7feaff' : i===1 ? '#c8b3ff' : '#ff9955';
@@ -10938,10 +11078,6 @@ function drawHUD(){
       ctx.fillStyle = l < s.level ? '#ffe066' : 'rgba(255,255,255,0.2)';
       ctx.fillRect(px, py, 10, 5);
     }
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(r.x, r.y, r.w, r.h);
 
     if(canLevel){
       ctx.fillStyle = '#ffd54f';
@@ -11750,6 +11886,16 @@ function accountRank(level){
   for(const [min, title] of ACCOUNT_RANKS) if(level >= min) name = title;
   return name;
 }
+function accountRatingRank(rating){
+  return 'РЕКРУТ ' + (Math.min(5,Math.floor(Math.max(0,rating)/100)+1));
+}
+function refreshOnlineEntryLabel(){
+  if(!onlineEntryElement) return;
+  const profile=account.profile;
+  if(!profile){ onlineEntryElement.textContent='ОНЛАЙН 3 НА 3 · ВОЙДИ ДЛЯ РЕЙТИНГА'; return; }
+  const rating=Number.isFinite(profile.rating)?profile.rating:0;
+  onlineEntryElement.textContent='ОНЛАЙН 3 НА 3 · '+accountRatingRank(rating)+' · '+rating;
+}
 function accountStore(key, value){
   try { if(value == null) localStorage.removeItem(key); else localStorage.setItem(key, value); }
   catch(err) {}
@@ -11796,7 +11942,7 @@ function makeMatchId(){
 /* Отправляет результат на сервер. Если сервер недоступен — результат остаётся в очереди
    и будет досчитан при следующем входе/открытии игры (дубли сервер отбрасывает по matchId). */
 async function accountSendResult(entry){
-  const data = await accountApi('result', { token: account.token, won: !!entry.won, matchId: entry.matchId });
+  const data = await accountApi('result', { token: account.token, won: !!entry.won, matchId: entry.matchId, ranked: entry.ranked === true });
   account.profile = data.profile;
   accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
   return data;
@@ -11817,10 +11963,11 @@ async function accountFlushPending(){
   renderAccountModal();
 }
 async function accountRecordResult(won, matchId){
+  async function accountRecordResult(won, matchId, ranked){
   account.lastGain = 0;
   if(!account.token) return;
   matchId = matchId || makeMatchId();
-  const entry = { won: !!won, matchId };
+  const entry = { won: !!won, matchId, ranked: !!ranked };
   const before = account.profile ? account.profile.level : 0;
   /* Сначала кладём в очередь: если вкладку закроют раньше ответа сервера — результат не потеряется. */
   savePendingResults(pendingResults().concat(entry));
@@ -12003,6 +12150,7 @@ function setAccountMode(mode){
 }
 function renderAccountModal(){
   const profile = account.profile;
+  refreshOnlineEntryLabel();
   accountUi.guest.hidden = !!profile;
   accountUi.user.hidden = !profile;
   accountUi.title.textContent = profile ? 'Профиль' : 'Аккаунт';
@@ -13227,7 +13375,8 @@ function drawOver(){
   if(!resultAnnounced){
     resultAnnounced = true;
     announce(winner === myTeam ? 'Victory!' : 'Defeat!', {interrupt:true, rate:0.8});
-    if(!testMode) accountRecordResult(won, makeMatchId());
+    if(!testMode) accountRecordResult(won, makeMatchId(), rankedOnlineMatch);
+    rankedOnlineMatch=false;
   }
   const accent = won ? '#69f08a' : '#ff6672';
   const now = performance.now() / 1000;
@@ -13325,6 +13474,7 @@ function loop(now){
         ctx.drawImage(terrainFrameCanvas,0,0);
         ctx.restore();
       }
+      drawItemRangePreview();
       drawWorldObjects();
       ctx.restore();
       drawFog();
@@ -13481,6 +13631,7 @@ requestAnimationFrame(loop);
     try {
       onlineId = payload.id;
       onlineRoster = payload.roster;
+      rankedOnlineMatch = true;
       rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
       orientOnlineMapForTeam(local.team);
@@ -13520,6 +13671,7 @@ requestAnimationFrame(loop);
       onlineId = null;
       onlineRoster = null;
       authoritativeMode = false;
+      rankedOnlineMatch = false;
       gameState = 'menu';
       menuStage = 'home';
       console.error('Не удалось запустить матч:', error);
