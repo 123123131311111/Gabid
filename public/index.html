@@ -3,14 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.3b</title>
-<link rel="stylesheet" href="./style.css?v=0.7.3b">
+<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.4b</title>
+<link rel="stylesheet" href="./style.css?v=0.7.4b">
 </head>
 <body>
 <div id="topbar">
   <button id="online-entry" type="button">ОНЛАЙН 3 НА 3</button>
+  <output id="online-counter" aria-live="polite">Онлайн: —</output>
+  <button id="leaderboard-open" type="button">МИРОВОЙ ТОП · ПОБЕДЫ</button>
 </div>
 <canvas id="game" tabindex="0"></canvas>
+<section id="leaderboard-modal" hidden>
+  <div class="leaderboard-panel" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
+    <button type="button" id="leaderboard-close" aria-label="Закрыть таблицу">✕</button>
+    <div class="acc-eyebrow">DOTA SENSE 3 · ПОБЕДЫ</div>
+    <h2 id="leaderboard-title">МИРОВОЙ ТОП</h2>
+    <p>Победы в матчах с ботами и игроками</p>
+    <div class="leaderboard-columns"><span>МЕСТО</span><span>ИГРОК / ТИТУЛ</span><span>ПОБЕДЫ</span></div>
+    <ol id="world-leaderboard-list" aria-live="polite"></ol>
+    <div id="leaderboard-status" role="status"></div>
+  </div>
+</section>
 <section id="mode-picker" hidden>
   <div class="mode-panel">
     <div>DotaSens</div>
@@ -55,6 +68,14 @@
         </div>
         <div class="acc-level"><small>УРОВЕНЬ</small><b id="acc-level">0</b></div>
       </div>
+      <section id="career-panel" class="career-panel" hidden aria-label="Карьера игрока">
+        <div class="career-section-heading"><span>КАРЬЕРА</span><small id="career-xp">0 XP</small></div>
+        <div id="career-summary" class="career-summary"></div>
+        <div class="career-section-heading"><span>ЛЮБИМЫЕ БОЙЦЫ</span></div>
+        <div id="career-favorites" class="career-favorites"></div>
+        <div class="career-section-heading"><span>ПОСЛЕДНИЕ МАТЧИ</span><small>20</small></div>
+        <div id="career-history" class="career-history"></div>
+      </section>
       <div class="acc-avatars-title">Аватарка</div>
       <div class="acc-avatars" id="acc-avatars"></div>
       <label>Сменить ник<input id="acc-newnick" type="text" maxlength="16" spellcheck="false" placeholder="Новый ник"></label>
@@ -67,7 +88,7 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="./game.js?v=0.7.3b"></script>
+<script src="./game.js?v=0.7.4b"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
@@ -78,11 +99,61 @@
   const roomState = document.getElementById('room-state');
   const onlineAccount = document.getElementById('online-account');
   const onlineChangelog = document.getElementById('online-changelog');
+  const leaderboardModal = document.getElementById('leaderboard-modal');
+  document.getElementById('leaderboard-open').addEventListener('click', () => window.openLeaderboard());
+  document.getElementById('leaderboard-close').addEventListener('click', () => window.closeLeaderboard());
+  leaderboardModal.addEventListener('click', event => { if(event.target === leaderboardModal) window.closeLeaderboard(); });
+  document.addEventListener('keydown', event => { if(event.key === 'Escape' && !leaderboardModal.hidden) window.closeLeaderboard(); });
   const onlineProfileName = document.getElementById('online-profile-name');
   const onlineProfileStats = document.getElementById('online-profile-stats');
-  let socket = null;
+  let socket = typeof io === 'function' ? io() : null;
   let room = null;
   let started = false;
+  let joinRequested = false;
+  const onlineCounter = document.getElementById('online-counter');
+  function bindSocket(nextSocket){
+    nextSocket.on('connect', () => {
+      if(joinRequested){
+        joinRequested = false;
+        emitMatchJoin();
+      } else if(!room && !started){
+        button.disabled = false;
+        button.textContent = 'Найти игроков';
+      }
+    });
+    nextSocket.on('update-online', data => {
+      const count = Number.isFinite(data && data.count) ? data.count : null;
+      onlineCounter.textContent = count === null ? 'Онлайн: недоступен' : 'Онлайн: ' + count;
+      onlineCounter.dataset.state = count === null ? 'offline' : 'online';
+    });
+    nextSocket.on('disconnect', () => {
+      joinRequested = false;
+      onlineCounter.textContent = 'Онлайн: недоступен';
+      onlineCounter.dataset.state = 'offline';
+      if(!started) status.textContent = 'Соединение потеряно';
+    });
+    nextSocket.on('connect_error', () => {
+      joinRequested = false;
+      onlineCounter.textContent = 'Онлайн: недоступен';
+      onlineCounter.dataset.state = 'offline';
+      if(!started){ status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить'; }
+    });
+    nextSocket.on('lobbyUpdate', next => {
+      room = next;
+      button.style.display = 'none';
+      status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.players.length + '/6';
+      renderRoom(next);
+    });
+    nextSocket.on('room:error', data => { joinRequested = false; status.textContent = data.message; start.disabled = false; button.disabled = false; });
+    nextSocket.on('room:started', () => { status.textContent = 'Матч запускается...'; start.disabled = true; });
+    nextSocket.on('match:begin', data => { started = true; window.__shadowOnlineMatch = data; canvas.focus(); });
+    window.__shadowOnlineSocket = nextSocket;
+  }
+  if(socket) bindSocket(socket);
+  else {
+    onlineCounter.textContent = 'Онлайн: недоступен';
+    onlineCounter.dataset.state = 'offline';
+  }
   function renderOnlineProfile(){
     const profile = window.__shadowAccountProfile || null;
     if(!profile){
@@ -105,25 +176,27 @@
     if(target && !target.contains(event.relatedTarget)) playSynthSfx('hover');
   });
   entry.addEventListener('click', () => { picker.hidden = false; });
+  function emitMatchJoin(){
+    const profile = window.__shadowAccountProfile || {};
+    socket.emit('match:join', { nick:profile.nick, title:profile.title, frame:profile.frame });
+  }
   button.addEventListener('click', () => {
-    if(socket) return;
+    if(!socket){
+      if(typeof io !== 'function'){
+        status.textContent = 'Онлайн-сервер недоступен';
+        onlineCounter.textContent = 'Онлайн: недоступен';
+        return;
+      }
+      socket = io();
+      bindSocket(socket);
+    }
+    if(room || joinRequested) return;
+    joinRequested = true;
     button.disabled = true;
     button.textContent = 'Создание комнаты...';
     status.textContent = 'Подключение к серверу';
-    socket = io();
-    window.__shadowOnlineSocket = socket;
-    socket.on('lobbyUpdate', next => {
-      room = next;
-      button.style.display = 'none';
-      status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.players.length + '/6';
-      renderRoom(next);
-    });
-    socket.on('room:error', data => { status.textContent = data.message; start.disabled = false; });
-    socket.on('room:started', () => { status.textContent = 'Матч запускается...'; start.disabled = true; });
-    socket.on('match:begin', data => { started = true; window.__shadowOnlineMatch = data; canvas.focus(); });
-    socket.on('connect_error', () => { status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить'; socket = null; });
-    socket.on('disconnect', () => { if(!started) status.textContent = 'Соединение потеряно'; });
-    socket.emit('match:join');
+    if(socket.connected){ joinRequested = false; emitMatchJoin(); }
+    else socket.connect();
   });
   start.addEventListener('click', () => { if(socket && room && room.players.length >= 2 && room.hostId === socket.id) socket.emit('room:start'); });
 
@@ -142,8 +215,15 @@
       row.appendChild(label);
       if(member){
         const name = document.createElement('span');
-        name.textContent = member.id === socket.id ? 'Ты' : 'Игрок';
+        name.textContent = member.nick || (member.id === socket.id ? 'Ты' : 'Игрок');
+        if(member.frame) row.dataset.frame = member.frame;
         row.appendChild(name);
+        if(member.title){
+          const title = document.createElement('small');
+          title.className = 'room-title';
+          title.textContent = member.title;
+          row.appendChild(title);
+        }
         if(member.id === socket.id){
           const select = document.createElement('select');
           HERO_IDS_FOR_ROOM.forEach(hero => {

@@ -8,6 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000 });
 const PORT = process.env.PORT || 3000;
+accounts.connect().catch(() => console.error('accounts: MongoDB unavailable; account API will retry when requested'));
 const MAX_SLOTS = 6;
 const WORLD_SIZE = 5000;
 const TICK_RATE = 30;
@@ -46,8 +47,14 @@ function createRoom(hostId){
   return room;
 }
 function findOpenRoom(){ return Object.values(rooms).find(room => !room.started && Object.keys(room.players).length < MAX_SLOTS); }
-function createLobbyPlayer(id, slot){
-  return {id, slot, team:slot < 3 ? 0 : 1, bot:false, hero:DEFAULT_HEROES[slot]};
+function createLobbyPlayer(id, slot, identity={}){
+  const frame = ['iron','veteran','dominion','legend'].includes(identity.frame) ? identity.frame : 'iron';
+  return {
+    id, slot, team:slot < 3 ? 0 : 1, bot:false, hero:DEFAULT_HEROES[slot],
+    nick:typeof identity.nick === 'string' ? identity.nick.slice(0,16) : '',
+    title:typeof identity.title === 'string' ? identity.title.slice(0,32) : '',
+    frame
+  };
 }
 function nextOpenSlot(room){
   const players = Object.values(room.players);
@@ -61,6 +68,7 @@ function lobbyPayload(room){
     players:Object.values(room.players).map(player => ({...player}))};
 }
 function emitLobby(room){ io.to(room.id).emit('lobbyUpdate', lobbyPayload(room)); }
+function emitOnlineCount(){ io.emit('update-online', {count:io.engine.clientsCount}); }
 function spawnPlayer(member){
   const base = BASES[member.team];
   const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % 3)-1)*0.55;
@@ -469,12 +477,13 @@ function tickRoom(room, dt){
 }
 
 io.on('connection', socket => {
-  socket.on('match:join', () => {
+  emitOnlineCount();
+  socket.on('match:join', data => {
     if(roomOf(socket)) return emitLobby(roomOf(socket));
     const room = findOpenRoom() || createRoom(socket.id);
     const slot = nextOpenSlot(room);
     if(!Number.isInteger(slot)) return socket.emit('room:error',{message:'Комната заполнена.'});
-    room.players[socket.id] = createLobbyPlayer(socket.id, slot);
+    room.players[socket.id] = createLobbyPlayer(socket.id, slot, data || {});
     socketRooms.set(socket.id, room.id); socket.join(room.id); emitLobby(room);
   });
   socket.on('room:select', data => {
@@ -507,6 +516,7 @@ io.on('connection', socket => {
   socket.on('playerSkill', data => handlePlayerSkill(socket,data));
   socket.on('playerSnapshot', data => handlePlayerSnapshot(socket,data));
   socket.on('disconnect', () => {
+    emitOnlineCount();
     const room = roomOf(socket); socketRooms.delete(socket.id); if(!room) return;
     delete room.players[socket.id];
     if(!room.started){

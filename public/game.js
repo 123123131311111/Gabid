@@ -377,8 +377,13 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.3b';
+const GAME_VERSION = '0.7.4b';
 const CHANGELOG_HISTORY = [
+  'Обновление 0.7.4b: мировой топ вынесен из карьеры профиля в отдельное окно; кнопка «МИРОВОЙ ТОП» находится в левом нижнем углу меню',
+  'Обновление 0.7.4b: профиль показывает победы, поражения, убийства, смерти, любимых бойцов и подробные отчёты последних матчей',
+  'Обновление 0.7.4b: за матчи начисляется опыт, уровни открывают титулы и рамки; мировой топ сортируется по общему числу побед над ботами и игроками',
+  'Обновление 0.7.4a: в главном меню появился счётчик подключённых к серверу игроков; число обновляется при входе и выходе, а при недоступном сервере показывается статус подключения',
+  'Обновление 0.7.4a: добавлена тихая космическая музыка меню, а на карте усилены тени леса и каменная фактура дорог',
   'Обновление 0.7.3b: магазин получил новые изображения предметов и обновлённые плашки, изображения используются и в инвентаре; добавлены статистика и полезные функции онлайн-меню; исправлено перемещение предметов',
   'Обновление 0.7.3b: исправлены форма Трансформера и ульта Савелия, здоровье всех бойцов увеличено на 15%',
   'Обновление 0.7.0: аккаунты (ник и пароль, смена ника, уровень с нуля растёт с каждой победы над ботами и игроками), новый фон главного меню с рунной печатью и алым вихрем, золотая тройка в логотипе, пропуск выбора бойцов сразу после пика и 5-секундная заставка при входе в матч',
@@ -1215,8 +1220,8 @@ function botTaunt(hero, event='generic'){
  * Она не использует чужой музыкальный файл и существует только пока
  * gameState === 'menu'. После первого клика браузер разрешает звук.
  */
-const MENU_MUSIC_BASS = [110, 98, 123, 92, 110, 82, 98, 73];
-const MENU_MUSIC_MELODY = [220, 0, 247, 0, 277, 0, 247, 0];
+const MENU_MUSIC_BASS = [55, 65.41, 73.42, 55, 49, 65.41, 58.27, 49];
+const MENU_MUSIC_MELODY = [261.63, 0, 293.66, 0, 220, 0, 196, 0];
 
 function playMenuNote(frequency, duration, volume, type='sine'){
   if(!menuAudioContext || !menuMusicGain || !frequency) return;
@@ -1237,10 +1242,10 @@ function playMenuNote(frequency, duration, volume, type='sine'){
 function playMenuMusicStep(){
   if(!musicEnabled || !menuAudioContext || gameState !== 'menu') return;
   const step = menuMusicStep % MENU_MUSIC_BASS.length;
-  playMenuNote(MENU_MUSIC_BASS[step], 1.35, 0.24, 'triangle');
-  playMenuNote(MENU_MUSIC_BASS[step] * 1.5, 1.1, 0.055, 'sine');
+  playMenuNote(MENU_MUSIC_BASS[step], 2.8, 0.11, 'sine');
+  playMenuNote(MENU_MUSIC_BASS[step] * 2, 2.2, 0.025, 'sine');
   if(MENU_MUSIC_MELODY[step]){
-    playMenuNote(MENU_MUSIC_MELODY[step], 0.72, 0.065, 'sine');
+    playMenuNote(MENU_MUSIC_MELODY[step], 1.5, 0.018, 'sine');
   }
   menuMusicStep++;
 }
@@ -1263,7 +1268,7 @@ function startDraftMusic(){
       menuMusicGain.gain.value = 0.0001;
       menuMusicGain.connect(menuAudioContext.destination);
     }
-    menuMusicGain.gain.setTargetAtTime(0.13, menuAudioContext.currentTime, 0.2);
+    menuMusicGain.gain.setTargetAtTime(0.055, menuAudioContext.currentTime, 0.35);
     if(!draftMusicTimer){
       menuMusicStep = 0;
       playDraftMusicStep();
@@ -1433,7 +1438,7 @@ function startMenuMusic(){
       menuMusicGain.connect(menuAudioContext.destination);
     }
     menuMusicGain.gain.cancelScheduledValues(menuAudioContext.currentTime);
-    menuMusicGain.gain.setTargetAtTime(0.17, menuAudioContext.currentTime, 0.35);
+    menuMusicGain.gain.setTargetAtTime(0.055, menuAudioContext.currentTime, 0.5);
     if(!menuMusicTimer){
       menuMusicStep = 0;
       playMenuMusicStep();
@@ -7226,6 +7231,9 @@ function drawTerrain(){
 
   ctx.save();
   /* Песчаное дно лежит под полупрозрачной водой, поэтому через неё видно берег. */
+  ctx.strokeStyle = 'rgba(26,34,30,0.34)';
+  ctx.lineWidth = 494; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(90, 90); ctx.lineTo(WORLD-90, WORLD-90); ctx.stroke();
   ctx.strokeStyle = '#b79a61';
   ctx.lineWidth = 470; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(90, 90); ctx.lineTo(WORLD-90, WORLD-90); ctx.stroke();
@@ -7286,6 +7294,28 @@ function drawTerrain(){
     ctx.restore();
 
     drawRoadEdgeFringe(lane, laneIndex);
+
+    ctx.save();
+    for(let segment=1;segment<lane.length;segment++){
+      const start=lane[segment-1], end=lane[segment];
+      const dx=end.x-start.x, dy=end.y-start.y, length=Math.hypot(dx,dy)||1;
+      const angle=Math.atan2(dy,dx), nx=-dy/length, ny=dx/length;
+      const steps=Math.floor(length/112);
+      for(let step=1;step<steps;step++){
+        const t=step/steps, cx=start.x+dx*t, cy=start.y+dy*t;
+        for(let row=-1;row<=1;row++){
+          const hash=edgeHash(step+segment*71,row+laneIndex*9);
+          const px=cx+nx*row*38, py=cy+ny*row*38;
+          ctx.save(); ctx.translate(px,py); ctx.rotate(angle);
+          ctx.fillStyle=hash>.52?'rgba(190,166,118,0.20)':'rgba(31,27,20,0.19)';
+          ctx.fillRect(-39,-10,78,20);
+          ctx.strokeStyle='rgba(22,19,15,0.24)'; ctx.lineWidth=2;
+          ctx.strokeRect(-39,-10,78,20);
+          ctx.restore();
+        }
+      }
+    }
+    ctx.restore();
 
     const marker = lane[Math.min(1, lane.length-1)];
     ctx.save();
@@ -7414,6 +7444,10 @@ function drawTerrain(){
   for(const tree of trees){
     if(tree.x < cam.x-VW/2-60 || tree.x > cam.x+VW/2+60 || tree.y < cam.y-VH/2-60 || tree.y > cam.y+VH/2+60) continue;
     ctx.save(); ctx.translate(tree.x,tree.y);
+    ctx.fillStyle='rgba(3,8,7,0.34)';
+    ctx.beginPath(); ctx.ellipse(9,34,29,10,-0.18,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(205,230,166,0.10)';
+    ctx.beginPath(); ctx.ellipse(-8,25,15,4,-0.18,0,Math.PI*2); ctx.fill();
     if(tree.kind==='pine'){
       ctx.fillStyle='#4b2c1f'; ctx.fillRect(-5,2,10,38);
       ctx.fillStyle='#1a543e'; ctx.beginPath(); ctx.moveTo(0,-38); ctx.lineTo(-23,10); ctx.lineTo(23,10); ctx.closePath(); ctx.fill();
@@ -11473,13 +11507,19 @@ function menuSettingsLayout(panel){
 function menuStoreRect(){ if(menuWide()) return menuNavRect(2); return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',description:'Победы, поражения, убийства, смерти, любимые бойцы и подробные отчёты последних игр с итогом команд.',compactDescription:'Карьера игрока и отчёты последних матчей.'},
+  {version:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',description:'Смотри десятку игроков с наибольшим числом побед над ботами и игроками. MMR отображается как дополнительная статистика.',compactDescription:'Глобальный топ по победам в матчах.'},
+  {version:'0.7.4b',title:'ПРОГРЕСС АККАУНТА',description:'Личные показатели, любимые герои и недавние результаты остаются с аккаунтом после следующего входа.',compactDescription:'Статистика сохраняется в аккаунте.'},
+  {version:'0.7.4a',title:'ЖИВОЙ СЧЁТЧИК ОНЛАЙНА',description:'Верхняя панель показывает число активных подключений к серверу. Счётчик обновляется сразу при входе и выходе игроков и переживает временную недоступность Render.',compactDescription:'Актуальное число подключённых игроков на сервере.'},
+  {version:'0.7.4a',title:'ТИХАЯ КОСМИЧЕСКАЯ ТЕМА',description:'Главное меню получило новую оригинальную музыку: медленный низкий пад и редкие высокие ноты звучат спокойно и не заглушают игру.',compactDescription:'Новая спокойная космическая музыка меню.'},
+  {version:'0.7.4a',title:'КАРТА: ТЕНИ И КАМЕННЫЕ ДОРОГИ',description:'Добавлены контактные тени деревьев, глубина берегов и каменная разметка линий без изменений маршрутов и игровой физики.',compactDescription:'Тени леса и более читаемые каменные линии.'},
   {version:'0.7.3b',title:'МАГАЗИН: НОВЫЕ ИЗОБРАЖЕНИЯ',description:'Предметы получили новые объёмные карточки. Та же иконка теперь отображается в магазине и в шести слотах инвентаря.',compactDescription:'Новые изображения предметов в магазине и инвентаре.'},
   {version:'0.7.3b',title:'САВЕЛИЙ: ТРАНСФОРМАЦИЯ ПОЧИНЕНА',description:'Форма Трансформера и Яростный рев больше не ломают состояние интерфейса и корректно работают с любой целью.',compactDescription:'Стабильные трансформер и ульта Савелия.'},
   {version:'0.7.3b',title:'ОНЛАЙН: СТАТИСТИКА И РЕЙТИНГ',description:'В онлайн-разделе появились профиль, рейтинг, победы, поражения, матчи и винрейт перед поиском комнаты.',compactDescription:'Профиль, рейтинг и статистика прямо перед матчем.'}
 ];
 
 function drawMenuUpdatePreview(playRect){
-  const sections=UPDATE_SPOTLIGHT;
+  const sections=UPDATE_SPOTLIGHT.slice(0,3);
   const compact=VW<820||VH<820;
   const width=Math.min(780,VW-32);
   const rowHeight=compact?68:76;
@@ -11649,6 +11689,8 @@ function handleMenuClick(mx, my){
       if(mx>=hit.x && mx<=hit.x+hit.w && my>=hit.y && my<=hit.y+hit.h){
         if(hit.action==='store'){ storeOpen=true; changelogOpen=false; settingsOpen=false; }
         else if(hit.action==='online'){ onlineEntryElement.click(); }
+        else if(hit.action==='account'){ openAccountModal(); }
+        else if(hit.action==='leaderboard') window.openLeaderboard();
         else if(hit.action==='changelog'){ changelogOpen=true; changelogScroll=0; }
         return;
       }
@@ -12080,6 +12122,10 @@ function drawCosmicBackdrop(now){
 const ACCOUNT_TOKEN_KEY = 'dotasense-account-token';
 const ACCOUNT_PROFILE_KEY = 'dotasense-account-profile';
 const account = { token: null, profile: null, lastGain: 0 };
+let accountCareer = {history:[], leaders:[]};
+let accountCareerLoading = false;
+let leaderboardLoading = false;
+let leaderboardError = '';
 const ACCOUNT_RANKS = [[0,'Новобранец'],[3,'Страж'],[6,'Рыцарь'],[10,'Герольд'],[15,'Защитник'],[25,'Легенда'],[40,'Божество'],[60,'Бессмертный']];
 function accountRank(level){
   let name = ACCOUNT_RANKS[0][1];
@@ -12109,6 +12155,8 @@ function accountSet(token, profile){
   accountStore(ACCOUNT_TOKEN_KEY, token);
   accountStore(ACCOUNT_PROFILE_KEY, profile ? JSON.stringify(profile) : null);
   renderAccountModal();
+  if(token) loadAccountCareer();
+  else accountCareer = {history:[], leaders:[]};
 }
 async function accountApi(name, payload){
   let response;
@@ -12128,6 +12176,132 @@ async function accountApi(name, payload){
   }
   return data;
 }
+function careerHeroName(id){
+  const hero = HERO_DEFS.find(def => def.id === id);
+  return hero ? hero.name : (id || 'Неизвестный боец');
+}
+function careerNode(tag, className, text){
+  const node = document.createElement(tag);
+  if(className) node.className = className;
+  if(text != null) node.textContent = text;
+  return node;
+}
+function renderCareerPanel(){
+  const panel = document.getElementById('career-panel');
+  if(!panel) return;
+  panel.hidden = !account.profile;
+  if(!account.profile) return;
+
+  const profile = account.profile;
+  const summary = document.getElementById('career-summary');
+  const favorites = document.getElementById('career-favorites');
+  const history = document.getElementById('career-history');
+  const xp = document.getElementById('career-xp');
+  summary.replaceChildren(); favorites.replaceChildren(); history.replaceChildren();
+  xp.textContent = (profile.xp || 0) % 500 + ' / 500 XP';
+
+  [
+    ['МАТЧИ',profile.matches || 0],['ПОБЕДЫ',profile.wins || 0],['ПОРАЖЕНИЯ',profile.losses || 0],
+    ['УБИЙСТВА',profile.kills || 0],['СМЕРТИ',profile.deaths || 0],['MMR',profile.rating || 0]
+  ].forEach(([label,value])=>{
+    const cell=careerNode('div','career-stat');
+    cell.append(careerNode('b','',String(value)),careerNode('span','',label));
+    summary.appendChild(cell);
+  });
+
+  const favoritesList = profile.favoriteHeroes || [];
+  if(!favoritesList.length) favorites.appendChild(careerNode('span','career-empty','Сыграй первый матч'));
+  else favoritesList.forEach(hero=>favorites.appendChild(careerNode('span','career-favorite',careerHeroName(hero.heroId)+' · '+hero.games)));
+
+  if(!accountCareer.history.length){
+    history.appendChild(careerNode('div','career-empty','История появится после первой завершённой игры.'));
+  } else accountCareer.history.forEach(match=>{
+    const details=careerNode('details','career-match'+(match.won?'':' loss'));
+    const summaryNode=careerNode('summary');
+    const date=Number.isFinite(match.playedAt) ? new Date(match.playedAt).toLocaleDateString('ru-RU') : '';
+    summaryNode.append(
+      careerNode('span','career-match-title',careerHeroName(match.heroId)+' · '+date),
+      careerNode('span','career-match-score',`${match.kills||0}/${match.deaths||0}/${match.assists||0} · ${(match.netWorth||0).toLocaleString('ru-RU')}`)
+    );
+    details.appendChild(summaryNode);
+    const body=careerNode('div','career-match-body');
+    (match.participants || []).forEach(player=>{
+      const row=careerNode('div','career-participant'+(player.team===match.winnerTeam?' winner':''));
+      row.append(
+        careerNode('span','',`${player.nick || careerHeroName(player.heroId)} · ${careerHeroName(player.heroId)}`),
+        careerNode('span','',`${player.kills||0}/${player.deaths||0}/${player.assists||0}`),
+        careerNode('span','',`${(player.netWorth||0).toLocaleString('ru-RU')} зол.`),
+        careerNode('span','',player.team===match.winnerTeam?'ПОБЕДИТЕЛЬ':'')
+      );
+      body.appendChild(row);
+    });
+    details.appendChild(body);
+    history.appendChild(details);
+  });
+}
+function renderLeaderboardPanel(){
+  const list=document.getElementById('world-leaderboard-list');
+  const status=document.getElementById('leaderboard-status');
+  if(!list||!status) return;
+  list.replaceChildren();
+  status.textContent=leaderboardLoading?'Загрузка мирового рейтинга…':leaderboardError;
+  if(!accountCareer.leaders.length){
+    if(!leaderboardLoading) status.textContent=leaderboardError || 'Таблица пока пуста.';
+    return;
+  }
+  const currentNick=account.profile&&account.profile.nick;
+  accountCareer.leaders.forEach(player=>{
+    const row=careerNode('li',player.nick===currentNick?'me':'');
+    row.appendChild(careerNode('span','leaderboard-place','#'+player.rank));
+    const identity=careerNode('span','leaderboard-player');
+    identity.append(careerNode('strong','',player.nick),careerNode('small','',`${player.title||'Новобранец'} · MMR ${player.rating||0}`));
+    row.append(identity,careerNode('span','leaderboard-wins',String(player.wins||0)));
+    list.appendChild(row);
+  });
+}
+async function loadLeaderboard(){
+  if(leaderboardLoading) return;
+  leaderboardLoading=true; leaderboardError=''; renderLeaderboardPanel();
+  try {
+    const response=await fetch('/api/leaderboard');
+    let data;
+    try { data=await response.json(); }
+    catch(err) { throw new Error('Мировой топ сейчас недоступен. Проверь подключение к серверу.'); }
+    if(!response.ok) throw new Error(data.error||'Мировой рейтинг временно недоступен');
+    accountCareer.leaders=data.players||[];
+  } catch(err) {
+    leaderboardError=err.message||'Мировой рейтинг временно недоступен';
+  } finally {
+    leaderboardLoading=false;
+    renderLeaderboardPanel();
+  }
+}
+window.openLeaderboard=function(){
+  document.getElementById('leaderboard-modal').hidden=false;
+  loadLeaderboard();
+};
+window.closeLeaderboard=function(){ document.getElementById('leaderboard-modal').hidden=true; };
+async function loadAccountCareer(){
+  if(!account.token || accountCareerLoading) return;
+  const token = account.token;
+  accountCareerLoading = true;
+  try {
+    const careerResponse=await accountApi('career',{token});
+    if(account.token !== token) return;
+    account.profile=careerResponse.profile;
+    accountCareer.history=careerResponse.history || [];
+    accountStore(ACCOUNT_PROFILE_KEY,JSON.stringify(account.profile));
+    renderAccountModal();
+  } catch(err) {
+    if(account.token !== token) return;
+    if(err.status === 401) accountSet(null,null);
+    const note=document.getElementById('career-history');
+    if(note && account.profile) note.textContent='Не удалось загрузить карьеру. Проверь подключение и повтори вход.';
+  } finally {
+    accountCareerLoading = false;
+    if(account.token && account.token !== token) loadAccountCareer();
+  }
+}
 const ACCOUNT_PENDING_KEY = 'dotasense-pending-results';
 function pendingResults(){
   try { const list = JSON.parse(accountRead(ACCOUNT_PENDING_KEY) || '[]'); return Array.isArray(list) ? list : []; }
@@ -12142,10 +12316,36 @@ function makeMatchId(){
 /* Отправляет результат на сервер. Если сервер недоступен — результат остаётся в очереди
    и будет досчитан при следующем входе/открытии игры (дубли сервер отбрасывает по matchId). */
 async function accountSendResult(entry){
-  const data = await accountApi('result', { token: account.token, won: !!entry.won, matchId: entry.matchId, ranked: entry.ranked === true });
+  const data = await accountApi('result', {
+    token: account.token, won: !!entry.won, matchId: entry.matchId,
+    ranked: entry.ranked === true, stats: entry.stats || {}
+  });
   account.profile = data.profile;
   accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
   return data;
+}
+function currentMatchCareerStats(){
+  const roster = heroes.filter(hero => hero && hero.type === 'hero' && !hero.isIllusion);
+  const netWorthOf = hero => Math.floor((hero.coins || 0) + (hero.inventory || []).reduce((total, item) =>
+    total + (item ? (SHOP_ITEMS[item.id]?.totalCost || SHOP_ITEMS[item.id]?.cost || 0) : 0), 0));
+  const participants = roster.map(hero => ({
+    nick: hero === playerHero && account.profile ? account.profile.nick : hero.def.name,
+    heroId: hero.def.id,
+    team: hero.team,
+    kills: hero.kills || 0,
+    deaths: hero.deaths || 0,
+    assists: hero.assists || 0,
+    netWorth: netWorthOf(hero)
+  }));
+  return {
+    heroId: playerHero && playerHero.def ? playerHero.def.id : '',
+    kills: playerHero ? playerHero.kills || 0 : 0,
+    deaths: playerHero ? playerHero.deaths || 0 : 0,
+    assists: playerHero ? playerHero.assists || 0 : 0,
+    netWorth: playerHero ? netWorthOf(playerHero) : 0,
+    winnerTeam: winner === 1 ? 1 : 0,
+    participants
+  };
 }
 async function accountFlushPending(){
   if(!account.token) return;
@@ -12162,11 +12362,11 @@ async function accountFlushPending(){
   savePendingResults(left);
   renderAccountModal();
 }
-async function accountRecordResult(won, matchId, ranked){
+async function accountRecordResult(won, matchId, ranked, stats){
   account.lastGain = 0;
   if(!account.token) return;
   matchId = matchId || makeMatchId();
-  const entry = { won: !!won, matchId, ranked: !!ranked };
+  const entry = { won: !!won, matchId, ranked: !!ranked, stats: stats || {} };
   const before = account.profile ? account.profile.level : 0;
   /* Сначала кладём в очередь: если вкладку закроют раньше ответа сервера — результат не потеряется. */
   savePendingResults(pendingResults().concat(entry));
@@ -12175,6 +12375,7 @@ async function accountRecordResult(won, matchId, ranked){
     savePendingResults(pendingResults().filter(item => item.matchId !== matchId));
     account.lastGain = data.profile.level - before;
     renderAccountModal();
+    loadAccountCareer();
     accountFlushPending();
   } catch(err) {
     if(err.status === 401) accountSet(null, null);
@@ -12355,12 +12556,14 @@ function renderAccountModal(){
   accountUi.guest.hidden = !!profile;
   accountUi.user.hidden = !profile;
   accountUi.title.textContent = profile ? 'Профиль' : 'Аккаунт';
+  renderCareerPanel();
   if(profile){
+    accountUi.user.dataset.frame = profile.frame || 'iron';
     const avatarItem = profile.avatar && avatarImages[profile.avatar];
     accountUi.avatar.textContent = avatarItem ? '' : profile.nick.charAt(0).toUpperCase();
     accountUi.avatar.style.backgroundImage = avatarItem ? 'url(' + avatarItem.url + ')' : '';
     accountUi.name.textContent = profile.nick;
-    accountUi.rank.textContent = '✦ ' + accountRank(profile.level);
+    accountUi.rank.textContent = '✦ ' + (profile.title || accountRank(profile.level)) + ' · ' + accountRank(profile.level);
     const total = (profile.wins || 0) + (profile.losses || 0);
     const rate = total ? Math.round((profile.wins || 0) / total * 100) : 0;
     accountUi.stats.textContent = 'Побед: ' + (profile.wins || 0) + '  •  Поражений: ' + (profile.losses || 0) + '  •  Матчей: ' + total + (total ? '  •  ' + rate + '%' : '');
@@ -12451,6 +12654,7 @@ async function submitLogout(){
       account.profile = data.profile;
       accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
       renderAccountModal();
+      loadAccountCareer();
       accountFlushPending();
     }).catch(err => {
       if(err.status === 401) accountSet(null, null);
@@ -12942,13 +13146,14 @@ function drawDotaSenseHome(){
   const prof={x:gear.x-Math.round(12*s)-profW,y:gear.y,w:profW,h:profH};
   menuProfileRect=prof;
   const profHover=hit(prof);
-  menuButtonHitboxes.push({x:prof.x,y:prof.y,w:prof.w,h:prof.h,key:'profile'});
-  dsMetalPanel(prof.x,prof.y,prof.w,prof.h,profHover?'#e65a46':'#6b2a2a');
   const pf=account.profile;
+  const frameColor=pf&&pf.frame==='legend'?'#ffd568':pf&&pf.frame==='dominion'?'#d797ff':pf&&pf.frame==='veteran'?'#67c9df':'#6b2a2a';
+  menuButtonHitboxes.push({x:prof.x,y:prof.y,w:prof.w,h:prof.h,key:'profile'});
+  dsMetalPanel(prof.x,prof.y,prof.w,prof.h,profHover?'#e65a46':frameColor);
   const pNick=pf?pf.nick:'Гость', pLevel=pf?pf.level:0;
   ctx.save();
   const av=profH-Math.round(12*s);
-  ctx.fillStyle='#14090c'; ctx.strokeStyle='#8f6a62'; ctx.lineWidth=2;
+  ctx.fillStyle='#14090c'; ctx.strokeStyle=pf?frameColor:'#8f6a62'; ctx.lineWidth=2;
   ctx.fillRect(prof.x+6,prof.y+6,av,av); ctx.strokeRect(prof.x+6,prof.y+6,av,av);
   ctx.fillStyle='#d9d0bf'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
   if(!(pf && pf.avatar && drawAvatarImage(pf.avatar,prof.x+6,prof.y+6,av))) ctx.fillText(pf?pNick.charAt(0).toUpperCase():'?',prof.x+6+av/2,prof.y+6+av/2+1);
@@ -12960,8 +13165,8 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#e8c984'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial';
   let shownNick=pNick; while(shownNick.length>3 && ctx.measureText(shownNick).width>maxTextW) shownNick=shownNick.slice(0,-1);
   ctx.fillText(shownNick+(shownNick!==pNick?'…':''),tx0,prof.y+Math.round(15*s));
-  ctx.fillStyle=pf?'#8fb8e8':'rgba(255,200,170,0.75)'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial';
-  ctx.fillText(pf?'✦ '+accountRank(pLevel):'Нажми, чтобы войти',tx0,prof.y+Math.round(31*s));
+  ctx.fillStyle=pf?frameColor:'rgba(255,200,170,0.75)'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial';
+  ctx.fillText(pf?'✦ '+(pf.title||accountRank(pLevel)):'Нажми, чтобы войти',tx0,prof.y+Math.round(31*s));
   ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(12*s)+'px Consolas, monospace';
   ctx.fillText(pf?'◆ Побед: '+pf.wins+'  Поражений: '+pf.losses:'Создай аккаунт',tx0,prof.y+Math.round(46*s));
   ctx.textAlign='right'; ctx.fillStyle=profHover?'#ffd568':'rgba(255,240,199,0.45)'; ctx.font=Math.round(14*s)+'px Segoe UI, Arial';
@@ -12977,10 +13182,10 @@ function drawDotaSenseHome(){
   ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
   ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
   const news=[
-    {tag:'0.7.3b',title:'МАГАЗИН: НОВЫЕ ИКОНКИ',art:'heart'},
-    {tag:'0.7.3b',title:'САВЕЛИЙ: E И R ПОЧИНЕНЫ',art:'hp'},
-    {tag:'ОНЛАЙН',title:'РЕЙТИНГ И СТАТИСТИКА',art:'3v3',action:'online'},
-    {tag:'ОБНОВЛЕНИЕ',title:'ЗДОРОВЬЕ БОЙЦОВ +15%',art:'shovel',action:'changelog'}
+    {tag:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',art:'heart',action:'account'},
+    {tag:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',art:'3v3',action:'leaderboard'},
+    {tag:'0.7.4b',title:'ОПЫТ, ТИТУЛЫ И РАМКИ',art:'hp',action:'account'},
+    {tag:'КАРЬЕРА',title:'ОТКРЫТЬ ПРОФИЛЬ',art:'shovel',action:'account'}
   ];
   const cGap=Math.round(10*s), cTop=nY+Math.round(52*s);
   const cH=Math.floor((nH-Math.round(52*s)-Math.round(12*s)-cGap*(news.length-1))/news.length);
@@ -13583,7 +13788,7 @@ function drawOver(){
   if(!resultAnnounced){
     resultAnnounced = true;
     announce(winner === myTeam ? 'Victory!' : 'Defeat!', {interrupt:true, rate:0.8});
-    if(!testMode) accountRecordResult(won, makeMatchId(), rankedOnlineMatch);
+    if(!testMode) accountRecordResult(won, makeMatchId(), rankedOnlineMatch, currentMatchCareerStats());
     rankedOnlineMatch=false;
   }
   const accent = won ? '#69f08a' : '#ff6672';
