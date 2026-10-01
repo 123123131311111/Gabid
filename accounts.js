@@ -10,6 +10,8 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'accounts.json');
 const NICK_RE = /^[\p{L}\p{N}_\- ]{3,16}$/u;
 const MAX_BODY = 4096;
+/* Допустимые аватарки (должны совпадать со списком AVATAR_DEFS в game.js). */
+const AVATAR_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','mo3gi','regina','juggernaut','sniper','chip','shovel','tower','ancient','rune','creep']);
 
 let db = { accounts: {}, sessions: {} };
 try {
@@ -31,7 +33,7 @@ function save() {
 
 const keyOf = nick => nick.trim().toLowerCase();
 const hashPassword = (password, salt) => crypto.scryptSync(password, salt, 64).toString('hex');
-const publicProfile = acc => ({ nick: acc.nick, level: acc.level, wins: acc.wins, losses: acc.losses });
+const publicProfile = acc => ({ nick: acc.nick, level: acc.level, wins: acc.wins || 0, losses: acc.losses || 0, avatar: AVATAR_IDS.has(acc.avatar) ? acc.avatar : '' });
 
 function makeSession(key) {
   const token = crypto.randomBytes(24).toString('hex');
@@ -75,7 +77,7 @@ const routes = {
     const key = keyOf(nick);
     if (db.accounts[key]) return [409, { error: 'Этот ник уже занят' }];
     const salt = crypto.randomBytes(16).toString('hex');
-    db.accounts[key] = { nick, salt, hash: hashPassword(body.password, salt), level: 0, wins: 0, losses: 0, created: Date.now() };
+    db.accounts[key] = { nick, salt, hash: hashPassword(body.password, salt), level: 0, wins: 0, losses: 0, avatar: '', created: Date.now() };
     return [200, { token: makeSession(key), profile: publicProfile(db.accounts[key]) }];
   },
   login(body, ip) {
@@ -113,17 +115,41 @@ const routes = {
     save();
     return [200, { profile: publicProfile(auth.acc) }];
   },
-  /* Результат матча. Клиент присылает только факт победы/поражения;
-     уровень = количество побед (каждая победа над ботами или игроками +1). */
+  /* Смена аватарки. */
+  avatar(body) {
+    const auth = authed(body);
+    if (!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const id = String(body.avatar || '');
+    if (id && !AVATAR_IDS.has(id)) return [400, { error: 'Неизвестная аватарка' }];
+    auth.acc.avatar = id;
+    save();
+    return [200, { profile: publicProfile(auth.acc) }];
+  },
+  /* Результат матча. Клиент присылает факт победы/поражения и уникальный matchId:
+     один и тот же матч не засчитывается дважды, а отложенные результаты (например,
+     если сервер был недоступен) можно досылать позже. Уровень = количество побед. */
   result(body) {
     const auth = authed(body);
     if (!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const acc = auth.acc;
     const now = Date.now();
-    if (auth.session.lastResult && now - auth.session.lastResult < 60000) return [200, { profile: publicProfile(auth.acc), ignored: true }];
+    const matchId = typeof body.matchId === 'string' && /^[a-z0-9]{6,40}$/i.test(body.matchId) ? body.matchId : null;
+    acc.recent ||= [];
+    acc.times ||= [];
+    if (matchId) {
+      if (acc.recent.includes(matchId)) return [200, { profile: publicProfile(acc), ignored: true }];
+    } else if (auth.session.lastResult && now - auth.session.lastResult < 60000) {
+      return [200, { profile: publicProfile(acc), ignored: true }];
+    }
+    acc.times = acc.times.filter(t => now - t < 3600000);
+    if (acc.times.length >= 40) return [200, { profile: publicProfile(acc), ignored: true }];
+    acc.times.push(now);
     auth.session.lastResult = now;
-    if (body.won === true) { auth.acc.wins += 1; auth.acc.level += 1; } else auth.acc.losses += 1;
+    if (matchId) { acc.recent.push(matchId); if (acc.recent.length > 60) acc.recent.shift(); }
+    acc.wins = acc.wins || 0; acc.losses = acc.losses || 0;
+    if (body.won === true) { acc.wins += 1; acc.level += 1; } else acc.losses += 1;
     save();
-    return [200, { profile: publicProfile(auth.acc) }];
+    return [200, { profile: publicProfile(acc) }];
   }
 };
 

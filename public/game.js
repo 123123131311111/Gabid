@@ -376,7 +376,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.0';
+const GAME_VERSION = '0.7.2';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.0: аккаунты (ник и пароль, смена ника, уровень с нуля растёт с каждой победы над ботами и игроками), новый фон главного меню с рунной печатью и алым вихрем, золотая тройка в логотипе, пропуск выбора бойцов сразу после пика и 5-секундная заставка при входе в матч',
   'Обновление 0.5.0: последовательное разрушение построек по линиям — сначала внешняя башня, затем внутренняя башня, казармы и только после этого трон',
@@ -445,7 +445,18 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.6.2', title:'ТРУСЫ ДИАНЫ И НОВОЕ МЕНЮ', changes:[
+  const sections = [{version:'0.7.2', title:'НОВЫЕ БАШНИ И ТРОН', changes:[
+    'Башни Сил Света перерисованы: светлый каменный обелиск с голубым светящимся узором, золотой кромкой и круглым основанием с водой.',
+    'Башни Сил Тьмы перерисованы: чёрный шипастый камень на груде глыб, красные пульсирующие прожилки и огненное «око» под шляпой башни.',
+    'Трон Сил Света теперь дерево с розовой сакурой, белыми камнями, голубыми кристаллами, световым столбом и порталом; лепестки медленно падают.',
+    'Трон Сил Тьмы теперь пять чёрных шипастых башен-когтей вокруг раскалённого красного ядра с языками пламени и искрами.',
+    'Под каждой постройкой есть кольцо цвета команды, а в онлайн-матче внешний вид зависит от настоящей стороны комнаты (Свет или Тьма).'
+  ]},{version:'0.7.1', title:'ПРОФИЛЬ, АВАТАРКИ И РАЗМИНКА', changes:[
+    'В профиле считаются все победы и поражения, а также число матчей и процент побед; в главном меню рядом с аватаркой видны победы и поражения.',
+    'Каждый матч получает свой номер: один и тот же результат не засчитывается дважды, а если сервер был недоступен, результат досчитается при следующем входе.',
+    'Добавлено 20 аватарок: 15 портретов героев игры и 5 тематических эмблем (Лопата, Башня, Древний, Руна, Крип). Выбор находится в окне профиля и сохраняется на сервере.',
+    'Во время отсчёта «До начала битвы» герои свободно ходят по своей базе (ПКМ), боты тоже двигаются; это работает и в онлайн-матче 3 на 3. Боя, крипов и волн до конца отсчёта нет.'
+  ]},{version:'0.6.2', title:'ТРУСЫ ДИАНЫ И НОВОЕ МЕНЮ', changes:[
     'Добавлен предмет «Трусы Дианы» (3500 монет): +60 к урону атак и способностей, а активная аура включается и выключается без перезарядки и наносит небольшой урон врагам и крипам рядом.',
     'Добавлен предмет «Жирфсютин» (4000 монет): +1800 к максимальному и текущему здоровью.',
     'В магазин фраз добавлена новая фраза «Лопата челлендж».',
@@ -999,6 +1010,40 @@ function updatePrematch(dt){
   }
   if(prematchTime <= 0) prematchTime = 0;
 }
+/* Подготовка к бою: герои (и боты) свободно ходят по своей базе, но без боя,
+   крипов и волн. Игрок двигается правой кнопкой мыши, боты бродят у фонтана.
+   В онлайне позиции других игроков приходят с сервера, а свой герой двигается
+   локально и отправляет позицию как обычно. */
+const PREMATCH_ROAM_RADIUS = BASE_HEAL_RADIUS * 1.5;
+function updatePrematchMovement(dt){
+  for(const h of heroes){
+    if(!h || h.dead || h.isDummy || h.isOnlineRemote) continue;
+    const base = BASES[h.team];
+    if(!base) continue;
+    h.attackTarget = null;
+    if(h !== playerHero){
+      h.prematchWanderT = (h.prematchWanderT || 0) - dt;
+      if(h.prematchWanderT <= 0 || !h.moveTarget){
+        const ang = Math.random() * Math.PI * 2;
+        const dist = Math.sqrt(Math.random()) * PREMATCH_ROAM_RADIUS * 0.8;
+        h.moveTarget = {x: base.x + Math.cos(ang) * dist, y: base.y + Math.sin(ang) * dist};
+        h.prematchWanderT = 1.5 + Math.random() * 3;
+      }
+    } else if(h.moveTarget){
+      const mdx = h.moveTarget.x - base.x, mdy = h.moveTarget.y - base.y;
+      const md = Math.hypot(mdx, mdy);
+      if(md > PREMATCH_ROAM_RADIUS){
+        h.moveTarget = {x: base.x + mdx / md * PREMATCH_ROAM_RADIUS, y: base.y + mdy / md * PREMATCH_ROAM_RADIUS};
+      }
+    }
+    h.updateMove(dt);
+    const dx = h.x - base.x, dy = h.y - base.y, d = Math.hypot(dx, dy);
+    if(d > PREMATCH_ROAM_RADIUS){
+      h.x = base.x + dx / d * PREMATCH_ROAM_RADIUS;
+      h.y = base.y + dy / d * PREMATCH_ROAM_RADIUS;
+    }
+  }
+}
 function drawPrematchOverlay(){
   if(prematchTime <= 0 || gameState !== 'playing') return;
   const sec = Math.ceil(prematchTime);
@@ -1011,7 +1056,7 @@ function drawPrematchOverlay(){
   ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.strokeText(String(sec), VW/2, VH*0.2 + VH*0.17);
   ctx.fillStyle = sec <= 5 ? '#ff4a3a' : '#fff0c7'; ctx.fillText(String(sec), VW/2, VH*0.2 + VH*0.17);
   ctx.font = '13px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('Закупайся в магазине — герои и крипы начнут бой после отсчёта', VW/2, VH*0.2 + VH*0.23);
+  ctx.fillText('Закупайся в магазине и разминайся у базы (ПКМ — идти) — бой начнётся после отсчёта', VW/2, VH*0.2 + VH*0.23);
   ctx.restore();
 }
 function noteStructureAttack(target, source, fromSync){
@@ -5576,7 +5621,7 @@ function startGame(playerIndex, draftPicks=null){
   explored = new Uint8Array(GRID*GRID);
   gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
    barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
-  firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
+  structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
   structureProgress=[createStructureProgress(),createStructureProgress()];
    rampageBanner={t:0, owner:null, streak:0};
   shopOpen=false;
@@ -5666,8 +5711,10 @@ function startGame(playerIndex, draftPicks=null){
   canvas.focus();
 }
 
+let structuresSwapped = false;
 function orientOnlineMapForTeam(globalTeam){
   if(globalTeam !== 1) return;
+  structuresSwapped = true;
   [BASES[0],BASES[1]] = [BASES[1],BASES[0]];
   for(const lane of LANES) lane.reverse();
   for(const tower of TOWER_SPOTS) tower.team = 1-tower.team;
@@ -5692,7 +5739,7 @@ function startTestMode(playerIndex){
   explored = new Uint8Array(GRID*GRID);
   gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
   barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
-  firstBloodDone=false; resultAnnounced=false; prematchTime=0;
+  structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=0;
   structureProgress=[createStructureProgress(),createStructureProgress()];
   rampageBanner={t:0, owner:null, streak:0};
   shopOpen=false; shopGuideOpen=false; shopScrollRow=0; pendingPurchaseId=null;
@@ -6167,7 +6214,7 @@ function updateEnemyAI(h, dt){
 
 function update(dt){
   if(gameState !== 'playing') return;
-  if(prematchTime > 0){ updatePrematch(dt); return; }
+  if(prematchTime > 0){ updatePrematch(dt); updatePrematchMovement(dt); return; }
   gameTime += dt;
   updateBotChatReplies();
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
@@ -7659,6 +7706,198 @@ function drawNeutralCreepBody(u, col){
   ctx.strokeStyle=col; ctx.globalAlpha=0.68; ctx.lineWidth=2;
   ctx.beginPath(); ctx.arc(0,0,u.radius+3,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
 }
+
+/* =========================================================
+   Модели башен и трона в стиле Dota 2:
+   Силы Света — светлый камень с голубым свечением и сакура,
+   Силы Тьмы — чёрный шипастый камень с красными прожилками и огнём.
+   ========================================================= */
+function structurePoly(points, fill, stroke, lw){
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.closePath();
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
+
+function drawLightTowerModel(r, t){
+  const s = r / 20;
+  ctx.save();
+  ctx.scale(s, s);
+  const pulse = 0.65 + 0.35 * Math.sin(t * 2.2);
+  /* каменное основание-диск с водой */
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 12, 26, 10, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#b8ab8c'; ctx.strokeStyle = '#6f654f'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(0, 10, 24, 9, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#9fe6f5'; ctx.globalAlpha = 0.55 + 0.25 * pulse;
+  ctx.beginPath(); ctx.ellipse(0, 10, 15, 5.5, 0, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+  /* корпус-обелиск */
+  const body = ctx.createLinearGradient(-14, 0, 14, 0);
+  body.addColorStop(0, '#cfc4a6'); body.addColorStop(0.5, '#efe6cf'); body.addColorStop(1, '#a79b7d');
+  structurePoly([[-12,10],[-14,-8],[-10,-24],[-3,-34],[8,-31],[14,-20],[13,-4],[11,10]], body, '#6f654f', 1.6);
+  /* голова-«птичий клюв» */
+  structurePoly([[-10,-24],[-3,-34],[8,-31],[16,-27],[8,-24],[-1,-22]], '#f6efdc', '#6f654f', 1.4);
+  /* голубое свечение в трещинах */
+  ctx.save();
+  ctx.shadowColor = '#7fe3ff'; ctx.shadowBlur = 8 * pulse;
+  ctx.fillStyle = 'rgba(130,225,255,' + (0.75 + 0.2 * pulse) + ')';
+  structurePoly([[-9,-20],[-1,-24],[3,-21],[-4,-17]], ctx.fillStyle, null);
+  structurePoly([[-10,-9],[2,-13],[8,-9],[-1,-4]], ctx.fillStyle, null);
+  structurePoly([[-8,2],[1,-1],[6,3],[-2,7]], ctx.fillStyle, null);
+  structurePoly([[4,-29],[8,-28],[6,-25]], ctx.fillStyle, null);
+  ctx.restore();
+  /* золотая кромка */
+  ctx.strokeStyle = 'rgba(224,178,70,0.85)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(-13, 8); ctx.lineTo(-14, -8); ctx.stroke();
+  ctx.restore();
+}
+
+function drawDarkTowerModel(r, t){
+  const s = r / 20;
+  ctx.save();
+  ctx.scale(s, s);
+  const pulse = 0.6 + 0.4 * Math.sin(t * 3.1 + 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 12, 27, 10, 0, 0, Math.PI*2); ctx.fill();
+  /* груда камней в основании */
+  structurePoly([[-24,12],[-17,2],[-9,6],[-2,-2],[8,5],[17,0],[25,12],[10,17],[-12,17]], '#2b2e33', '#0d0f12', 1.6);
+  structurePoly([[-17,2],[-9,6],[-12,12],[-22,11]], '#3a3e44', null);
+  /* корпус из чёрных блоков */
+  structurePoly([[-11,6],[-13,-8],[-9,-20],[-12,-26],[-4,-30],[0,-36],[6,-30],[13,-24],[10,-12],[12,6]], '#23262b', '#0d0f12', 1.8);
+  structurePoly([[-13,-8],[-9,-20],[-5,-15],[-8,-3]], '#32363c', null);
+  structurePoly([[3,-27],[10,-14],[8,4],[2,2]], '#181a1e', null);
+  /* «шляпа» башни */
+  structurePoly([[-16,-24],[-6,-30],[-2,-38],[6,-37],[10,-31],[18,-26],[8,-22],[-8,-22]], '#1b1d21', '#0d0f12', 1.6);
+  /* красные прожилки */
+  ctx.save();
+  ctx.shadowColor = '#ff3b2b'; ctx.shadowBlur = 8 * pulse;
+  ctx.strokeStyle = 'rgba(255,70,50,' + (0.7 + 0.3 * pulse) + ')'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(-11,-14); ctx.lineTo(-3,-9); ctx.lineTo(4,-12); ctx.lineTo(11,-6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-9,-2); ctx.lineTo(0,2); ctx.lineTo(8,-1); ctx.stroke();
+  ctx.restore();
+  /* огненное око под шляпой */
+  ctx.save();
+  ctx.shadowColor = '#ff8a3d'; ctx.shadowBlur = 12 * pulse;
+  ctx.fillStyle = 'rgba(255,150,60,' + (0.8 + 0.2 * pulse) + ')';
+  ctx.beginPath(); ctx.ellipse(-3, -23, 4.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff1c0'; ctx.beginPath(); ctx.ellipse(-3, -23, 1.8, 1.2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawLightAncientModel(r, t){
+  const s = r / 46;
+  ctx.save();
+  ctx.scale(s, s);
+  const pulse = 0.65 + 0.35 * Math.sin(t * 1.8);
+  /* каменная площадка */
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 20, 62, 24, 0, 0, Math.PI*2); ctx.fill();
+  const plates = [[-54,18,-34,2,-8,10,-14,22],[8,10,38,0,56,16,34,26],[-30,24,-4,12,26,24,6,34]];
+  structurePoly([[-56,14],[-38,-2],[-6,-8],[30,-4],[56,12],[40,28],[0,34],[-38,30]], '#8d8672', '#4f4a3b', 2);
+  structurePoly([[-44,12],[-24,2],[0,-2],[24,2],[44,12],[22,24],[-20,24]], '#a49d86', null);
+  /* сияющий голубой портал в центре */
+  const portal = ctx.createRadialGradient(0, 6, 2, 0, 6, 34);
+  portal.addColorStop(0, 'rgba(235,252,255,' + (0.95) + ')');
+  portal.addColorStop(0.4, 'rgba(120,220,255,' + (0.7 * pulse + 0.2) + ')');
+  portal.addColorStop(1, 'rgba(60,160,230,0)');
+  ctx.fillStyle = portal; ctx.beginPath(); ctx.ellipse(0, 6, 36, 20, 0, 0, Math.PI*2); ctx.fill();
+  /* световой столб */
+  const beam = ctx.createLinearGradient(0, -90, 0, 6);
+  beam.addColorStop(0, 'rgba(150,225,255,0)'); beam.addColorStop(1, 'rgba(150,225,255,' + (0.35 * pulse + 0.15) + ')');
+  ctx.fillStyle = beam; ctx.fillRect(-14, -90, 28, 96);
+  /* ствол дерева сакуры */
+  structurePoly([[-14,18],[-10,-6],[-18,-22],[-8,-16],[-2,-34],[4,-16],[14,-24],[8,-4],[16,18],[0,12]], '#5a4332', '#2e2118', 2);
+  /* кристаллы */
+  ctx.save(); ctx.shadowColor = '#8be9fd'; ctx.shadowBlur = 10 * pulse;
+  structurePoly([[-46,6],[-42,-30],[-34,-4]], '#bfeeff', '#4aa8c9', 1.4);
+  structurePoly([[-30,-2],[-26,-40],[-20,-8]], '#9fe3ff', '#4aa8c9', 1.4);
+  structurePoly([[34,0],[40,-32],[46,2]], '#bfeeff', '#4aa8c9', 1.4);
+  ctx.restore();
+  /* белые каменные глыбы */
+  structurePoly([[-30,-6],[-18,-26],[-4,-22],[-6,-4]], '#e9dfc8', '#8a7f66', 1.6);
+  structurePoly([[8,-8],[16,-30],[30,-24],[32,-6]], '#e9dfc8', '#8a7f66', 1.6);
+  structurePoly([[-16,12],[-4,-2],[10,2],[12,16]], '#cfc3a6', '#8a7f66', 1.6);
+  /* розовая крона */
+  const blossoms = [[-34,-14,13],[-18,-30,15],[0,-38,16],[18,-30,15],[34,-14,13],[-8,-18,12],[12,-14,12],[-26,0,10],[28,2,10],[0,-24,12]];
+  blossoms.forEach((b, i) => {
+    const sway = Math.sin(t * 1.2 + i) * 1.2;
+    ctx.fillStyle = i % 2 ? '#f27fb3' : '#ff9fc9';
+    ctx.beginPath(); ctx.arc(b[0] + sway, b[1], b[2], 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,225,238,0.55)';
+    ctx.beginPath(); ctx.arc(b[0] + sway - b[2]*0.25, b[1] - b[2]*0.3, b[2]*0.45, 0, Math.PI*2); ctx.fill();
+  });
+  /* лепестки */
+  ctx.fillStyle = 'rgba(255,170,205,0.85)';
+  for(let i=0;i<6;i++){
+    const ph = (t * 0.35 + i / 6) % 1;
+    ctx.beginPath(); ctx.ellipse(-30 + i * 12 + Math.sin(ph * 6 + i) * 6, -20 + ph * 50, 2.4, 1.4, ph * 6, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawDarkAncientModel(r, t){
+  const s = r / 46;
+  ctx.save();
+  ctx.scale(s, s);
+  const pulse = 0.6 + 0.4 * Math.sin(t * 2.6);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(0, 20, 64, 25, 0, 0, Math.PI*2); ctx.fill();
+  /* тёмная каменная плита */
+  structurePoly([[-58,14],[-40,-4],[-6,-10],[32,-6],[58,12],[42,30],[0,36],[-40,32]], '#34373d', '#0d0f12', 2);
+  structurePoly([[-44,14],[-22,2],[2,-2],[26,2],[46,14],[22,26],[-22,26]], '#2a2d32', null);
+  /* раскалённое ядро */
+  const core = ctx.createRadialGradient(0, 8, 2, 0, 8, 38);
+  core.addColorStop(0, 'rgba(255,245,190,1)');
+  core.addColorStop(0.3, 'rgba(255,150,50,' + (0.85 * pulse + 0.15) + ')');
+  core.addColorStop(0.7, 'rgba(210,40,20,' + (0.55 * pulse + 0.15) + ')');
+  core.addColorStop(1, 'rgba(120,10,10,0)');
+  ctx.fillStyle = core; ctx.beginPath(); ctx.ellipse(0, 8, 42, 22, 0, 0, Math.PI*2); ctx.fill();
+  /* языки пламени */
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for(let i=0;i<5;i++){
+    const fx = -18 + i * 9, h = 18 + 10 * Math.sin(t * 5 + i * 1.7);
+    const fg = ctx.createLinearGradient(0, 10, 0, 10 - h);
+    fg.addColorStop(0, 'rgba(255,120,40,0.6)'); fg.addColorStop(1, 'rgba(255,60,20,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.moveTo(fx - 5, 10); ctx.quadraticCurveTo(fx, 10 - h * 0.6, fx + Math.sin(t * 4 + i) * 3, 10 - h); ctx.quadraticCurveTo(fx + 3, 10 - h * 0.4, fx + 5, 10); ctx.fill();
+  }
+  ctx.restore();
+  /* шипастые башни-когти по кругу (сзади → спереди) */
+  const spires = [
+    {x:-34,y:-4,h:62,w:12},{x:34,y:-4,h:62,w:12},
+    {x:-42,y:18,h:48,w:11},{x:42,y:18,h:48,w:11},
+    {x:0,y:-8,h:70,w:12}
+  ];
+  spires.forEach((sp, i) => {
+    const lean = sp.x === 0 ? 0 : (sp.x < 0 ? 5 : -5);
+    structurePoly([[sp.x - sp.w, sp.y + 12],[sp.x - sp.w * 0.6, sp.y - sp.h * 0.45],[sp.x + lean, sp.y - sp.h],[sp.x + sp.w * 0.6, sp.y - sp.h * 0.45],[sp.x + sp.w, sp.y + 12]], '#1c1e22', '#07080a', 1.8);
+    structurePoly([[sp.x - sp.w, sp.y + 12],[sp.x - sp.w * 0.6, sp.y - sp.h * 0.45],[sp.x + lean, sp.y - sp.h],[sp.x - 1, sp.y - sp.h * 0.2]], '#2d3036', null);
+    /* красный отсвет изнутри */
+    ctx.save(); ctx.shadowColor = '#ff3b2b'; ctx.shadowBlur = 8 * pulse;
+    ctx.strokeStyle = 'rgba(255,80,50,' + (0.5 + 0.4 * pulse) + ')'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(sp.x, sp.y + 10); ctx.lineTo(sp.x + (sp.x < 0 ? 3 : -3), sp.y - sp.h * 0.5); ctx.stroke();
+    ctx.restore();
+  });
+  /* искры */
+  ctx.fillStyle = 'rgba(255,190,90,0.9)';
+  for(let i=0;i<7;i++){
+    const ph = (t * 0.6 + i / 7) % 1;
+    ctx.beginPath(); ctx.arc(-20 + i * 7 + Math.sin(ph * 8 + i) * 4, 8 - ph * 60, 1.6 * (1 - ph) + 0.4, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawStructureModel(u, col){
+  const t = gameTime || performance.now() / 1000;
+  const light = (u.team === 0) !== structuresSwapped;
+  /* цветное кольцо у основания — чтобы команду было видно с первого взгляда */
+  ctx.save();
+  ctx.strokeStyle = col; ctx.globalAlpha = 0.55; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(0, u.radius * 0.45, u.radius * (u.isBase ? 1.35 : 1.45), u.radius * (u.isBase ? 0.55 : 0.6), 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+  if(u.isBase){ light ? drawLightAncientModel(u.radius, t) : drawDarkAncientModel(u.radius, t); }
+  else { light ? drawLightTowerModel(u.radius, t) : drawDarkTowerModel(u.radius, t); }
+}
+
 function drawUnit(u){
   if(u.dead) return;
   if(u.invisible) return;
@@ -7765,21 +8004,7 @@ function drawUnit(u){
   }
 
   if(u.type === 'tower' || u.type === 'ancient'){
-    const sz = u.radius;
-    ctx.fillStyle = u.isBase ? '#3a3a55' : '#4a4a68';
-    ctx.strokeStyle = col; ctx.lineWidth = 5;
-    ctx.beginPath();
-    if(u.isBase){
-      ctx.moveTo(0,-sz); ctx.lineTo(sz,0); ctx.lineTo(0,sz); ctx.lineTo(-sz,0);
-      ctx.closePath();
-    } else {
-      ctx.rect(-sz*0.75, -sz, sz*1.5, sz*2);
-    }
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(0, u.isBase ? 0 : -sz*1.15, u.isBase ? 18 : 13, 0, Math.PI*2);
-    ctx.fill();
+    drawStructureModel(u, col);
   } else if(u.type === 'barracks'){
     const barracksGradient=ctx.createLinearGradient(-u.radius,-u.radius,u.radius,u.radius);
     barracksGradient.addColorStop(0,u.team===0?'#8fb8c4':'#a65e68');
@@ -11557,19 +11782,187 @@ async function accountApi(name, payload){
   }
   return data;
 }
-async function accountRecordResult(won){
+const ACCOUNT_PENDING_KEY = 'dotasense-pending-results';
+function pendingResults(){
+  try { const list = JSON.parse(accountRead(ACCOUNT_PENDING_KEY) || '[]'); return Array.isArray(list) ? list : []; }
+  catch(err) { return []; }
+}
+function savePendingResults(list){
+  accountStore(ACCOUNT_PENDING_KEY, list.length ? JSON.stringify(list.slice(-40)) : null);
+}
+function makeMatchId(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+/* Отправляет результат на сервер. Если сервер недоступен — результат остаётся в очереди
+   и будет досчитан при следующем входе/открытии игры (дубли сервер отбрасывает по matchId). */
+async function accountSendResult(entry){
+  const data = await accountApi('result', { token: account.token, won: !!entry.won, matchId: entry.matchId });
+  account.profile = data.profile;
+  accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
+  return data;
+}
+async function accountFlushPending(){
+  if(!account.token) return;
+  let list = pendingResults();
+  if(!list.length) return;
+  const left = [];
+  for(const entry of list){
+    try { await accountSendResult(entry); }
+    catch(err) {
+      if(err.status === 401){ left.push(entry); break; }
+      if(err.network || err.status >= 500 || err.status === 429) left.push(entry);
+    }
+  }
+  savePendingResults(left);
+  renderAccountModal();
+}
+async function accountRecordResult(won, matchId){
   account.lastGain = 0;
   if(!account.token) return;
+  matchId = matchId || makeMatchId();
+  const entry = { won: !!won, matchId };
   const before = account.profile ? account.profile.level : 0;
+  /* Сначала кладём в очередь: если вкладку закроют раньше ответа сервера — результат не потеряется. */
+  savePendingResults(pendingResults().concat(entry));
   try {
-    const data = await accountApi('result', { token: account.token, won: !!won });
-    account.profile = data.profile;
-    accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
+    const data = await accountSendResult(entry);
+    savePendingResults(pendingResults().filter(item => item.matchId !== matchId));
     account.lastGain = data.profile.level - before;
+    renderAccountModal();
+    accountFlushPending();
   } catch(err) {
     if(err.status === 401) accountSet(null, null);
+    else if(!(err.network || err.status >= 500 || err.status === 429)) savePendingResults(pendingResults().filter(item => item.matchId !== matchId));
     console.warn('Не удалось сохранить результат матча:', err.message);
   }
+}
+
+/* =========================================================
+   АВАТАРКИ: 15 героев игры + 5 тематических эмблем
+   ========================================================= */
+const AVATAR_DEFS = [
+  {id:'pyro'},{id:'warlord'},{id:'grisha'},{id:'golly'},{id:'sasych'},
+  {id:'ilya'},{id:'malit'},{id:'arcady'},{id:'illusionist'},{id:'shadow'},
+  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'chip'},
+  {id:'shovel', name:'Лопата', c1:'#3a2415', c2:'#d7b36a'},
+  {id:'tower',  name:'Башня',  c1:'#102a4a', c2:'#8be9fd'},
+  {id:'ancient',name:'Древний',c1:'#3c1010', c2:'#ff6b57'},
+  {id:'rune',   name:'Руна',   c1:'#241046', c2:'#c79bff'},
+  {id:'creep',  name:'Крип',   c1:'#12301a', c2:'#7dff9a'}
+];
+const avatarImages = Object.create(null);
+let avatarCacheBuilt = false;
+
+function drawThemeAvatar(def, S){
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0,0,S,S); ctx.clip();
+  const bg = ctx.createLinearGradient(0,0,S,S);
+  bg.addColorStop(0,'#0b0f1a'); bg.addColorStop(0.55,def.c1); bg.addColorStop(1,'#05070d');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,S,S);
+  const glow = ctx.createRadialGradient(S*.5,S*.45,2,S*.5,S*.45,S*.7);
+  glow.addColorStop(0, def.c2 + 'aa'); glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0,0,S,S);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const cx = S/2, cy = S/2;
+  if(def.id === 'shovel'){
+    dsShovelGlyph(cx, cy, S*.8, '#e3e8ee');
+  } else if(def.id === 'tower'){
+    ctx.fillStyle = '#9fb6cf'; ctx.strokeStyle = '#0a1422'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.rect(cx-S*.17, cy-S*.14, S*.34, S*.5); ctx.fill(); ctx.stroke();
+    for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.rect(cx+i*S*.13-S*.05, cy-S*.26, S*.1, S*.12); ctx.fill(); ctx.stroke(); }
+    ctx.fillStyle = def.c2; ctx.shadowColor = def.c2; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(cx, cy+S*.04, S*.07, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0a1422'; ctx.fillRect(cx-S*.05, cy+S*.2, S*.1, S*.16);
+  } else if(def.id === 'ancient'){
+    ctx.fillStyle = def.c2; ctx.strokeStyle = '#ffe2c9'; ctx.lineWidth = 3; ctx.shadowColor = def.c2; ctx.shadowBlur = 16;
+    ctx.beginPath(); ctx.moveTo(cx, cy-S*.34); ctx.lineTo(cx+S*.22, cy); ctx.lineTo(cx, cy+S*.34); ctx.lineTo(cx-S*.22, cy); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, cy-S*.34); ctx.lineTo(cx, cy+S*.34); ctx.moveTo(cx-S*.22, cy); ctx.lineTo(cx+S*.22, cy); ctx.stroke();
+  } else if(def.id === 'rune'){
+    ctx.strokeStyle = def.c2; ctx.lineWidth = 3; ctx.shadowColor = def.c2; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(cx, cy, S*.33, 0, Math.PI*2); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, S*.26, 0, Math.PI*2); ctx.stroke();
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx, cy-S*.2); ctx.lineTo(cx, cy+S*.2);
+    ctx.moveTo(cx, cy-S*.1); ctx.lineTo(cx+S*.14, cy-S*.2);
+    ctx.moveTo(cx, cy+S*.02); ctx.lineTo(cx-S*.14, cy-S*.08);
+    ctx.moveTo(cx, cy+S*.12); ctx.lineTo(cx+S*.14, cy+S*.03); ctx.stroke(); ctx.shadowBlur = 0;
+  } else if(def.id === 'creep'){
+    ctx.fillStyle = '#4fb86a'; ctx.strokeStyle = '#0a1d10'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy+S*.04, S*.27, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e8e4cf';
+    ctx.beginPath(); ctx.moveTo(cx-S*.2, cy-S*.14); ctx.lineTo(cx-S*.3, cy-S*.34); ctx.lineTo(cx-S*.08, cy-S*.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+S*.2, cy-S*.14); ctx.lineTo(cx+S*.3, cy-S*.34); ctx.lineTo(cx+S*.08, cy-S*.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffec6b'; ctx.beginPath(); ctx.arc(cx-S*.1, cy, S*.05, 0, Math.PI*2); ctx.arc(cx+S*.1, cy, S*.05, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#0a1d10'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy+S*.14, S*.1, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = def.c2 + 'aa'; ctx.lineWidth = 2; ctx.strokeRect(1,1,S-2,S-2);
+  ctx.restore();
+}
+
+/* Рисуем в левом верхнем углу основного холста и копируем в скрытые холсты.
+   Вызывается в начале кадра сразу после clearRect, поэтому на экране ничего не мелькает. */
+function buildAvatarCache(){
+  avatarCacheBuilt = true;
+  const S = 96;
+  for(const def of AVATAR_DEFS){
+    try {
+      ctx.save();
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,S,S);
+      const heroDef = HERO_DEFS.find(item => item.id === def.id);
+      if(heroDef) drawHeroTexture(heroDef, 0, 0, S, S, 0, false);
+      else if(def.c1) drawThemeAvatar(def, S);
+      else { ctx.restore(); continue; }
+      ctx.restore();
+      const off = document.createElement('canvas');
+      off.width = S; off.height = S;
+      off.getContext('2d').drawImage(canvas, 0, 0, S, S, 0, 0, S, S);
+      avatarImages[def.id] = { canvas: off, url: off.toDataURL('image/png'), name: heroDef ? heroDef.name : def.name };
+    } catch(err) { try { ctx.restore(); } catch(e) {} console.warn('Аватарка не создана:', def.id, err); }
+  }
+  ctx.clearRect(0,0,S,S);
+  renderAccountModal();
+}
+function drawAvatarImage(id, x, y, size){
+  const item = avatarImages[id];
+  if(!item) return false;
+  ctx.drawImage(item.canvas, x, y, size, size);
+  return true;
+}
+async function accountSetAvatar(id){
+  if(accountBusy || !account.token) return;
+  accountBusy = true;
+  try {
+    const data = await accountApi('avatar', { token: account.token, avatar: id });
+    accountSet(account.token, data.profile);
+    setAccountMessage('Аватарка изменена', true);
+  } catch(err) {
+    if(err.status === 401) accountSet(null, null);
+    setAccountMessage(err.message);
+  }
+  accountBusy = false;
+}
+function renderAvatarPicker(){
+  const box = document.getElementById('acc-avatars');
+  if(!box) return;
+  const current = account.profile ? account.profile.avatar : '';
+  if(box.childElementCount !== AVATAR_DEFS.length || box.dataset.ready !== String(avatarCacheBuilt)){
+    box.innerHTML = '';
+    for(const def of AVATAR_DEFS){
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'acc-avatar-opt'; button.dataset.id = def.id;
+      const item = avatarImages[def.id];
+      if(item){ button.style.backgroundImage = 'url(' + item.url + ')'; button.title = item.name; button.setAttribute('aria-label', item.name); }
+      button.addEventListener('click', () => accountSetAvatar(def.id));
+      button.addEventListener('pointerenter', () => playSynthSfx('hover'));
+      box.appendChild(button);
+    }
+    box.dataset.ready = String(avatarCacheBuilt);
+  }
+  for(const button of box.children) button.classList.toggle('selected', button.dataset.id === current);
 }
 
 const accountUi = {
@@ -11614,11 +12007,16 @@ function renderAccountModal(){
   accountUi.user.hidden = !profile;
   accountUi.title.textContent = profile ? 'Профиль' : 'Аккаунт';
   if(profile){
-    accountUi.avatar.textContent = profile.nick.charAt(0).toUpperCase();
+    const avatarItem = profile.avatar && avatarImages[profile.avatar];
+    accountUi.avatar.textContent = avatarItem ? '' : profile.nick.charAt(0).toUpperCase();
+    accountUi.avatar.style.backgroundImage = avatarItem ? 'url(' + avatarItem.url + ')' : '';
     accountUi.name.textContent = profile.nick;
     accountUi.rank.textContent = '✦ ' + accountRank(profile.level);
-    accountUi.stats.textContent = 'Побед: ' + profile.wins + '  •  Поражений: ' + profile.losses;
+    const total = (profile.wins || 0) + (profile.losses || 0);
+    const rate = total ? Math.round((profile.wins || 0) / total * 100) : 0;
+    accountUi.stats.textContent = 'Побед: ' + (profile.wins || 0) + '  •  Поражений: ' + (profile.losses || 0) + '  •  Матчей: ' + total + (total ? '  •  ' + rate + '%' : '');
     accountUi.level.textContent = String(profile.level);
+    renderAvatarPicker();
   }
 }
 function openAccountModal(){
@@ -11641,6 +12039,7 @@ async function submitAccountForm(){
     const data = await accountApi(accountMode, { nick, password });
     accountUi.pass.value = '';
     accountSet(data.token, data.profile);
+    accountFlushPending();
     setAccountMessage((accountMode === 'register' ? 'Аккаунт создан. Добро пожаловать, ' : 'С возвращением, ') + data.profile.nick + '!', true);
   } catch(err) {
     setAccountMessage(err.message);
@@ -11697,6 +12096,7 @@ async function submitLogout(){
       account.profile = data.profile;
       accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
       renderAccountModal();
+      accountFlushPending();
     }).catch(err => {
       if(err.status === 401) accountSet(null, null);
     });
@@ -12195,7 +12595,7 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#14090c'; ctx.strokeStyle='#8f6a62'; ctx.lineWidth=2;
   ctx.fillRect(prof.x+6,prof.y+6,av,av); ctx.strokeRect(prof.x+6,prof.y+6,av,av);
   ctx.fillStyle='#d9d0bf'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(pf?pNick.charAt(0).toUpperCase():'?',prof.x+6+av/2,prof.y+6+av/2+1);
+  if(!(pf && pf.avatar && drawAvatarImage(pf.avatar,prof.x+6,prof.y+6,av))) ctx.fillText(pf?pNick.charAt(0).toUpperCase():'?',prof.x+6+av/2,prof.y+6+av/2+1);
   const badgeW=Math.max(Math.round(28*s),Math.round((String(pLevel).length*8+12)*s));
   ctx.fillStyle='#b4231f'; ctx.fillRect(prof.x+6+av/2-badgeW/2,prof.y+profH-Math.round(9*s),badgeW,Math.round(13*s));
   ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(10*s)+'px Consolas, monospace'; ctx.fillText(String(pLevel),prof.x+6+av/2,prof.y+profH-Math.round(2.5*s));
@@ -12207,7 +12607,7 @@ function drawDotaSenseHome(){
   ctx.fillStyle=pf?'#8fb8e8':'rgba(255,200,170,0.75)'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial';
   ctx.fillText(pf?'✦ '+accountRank(pLevel):'Нажми, чтобы войти',tx0,prof.y+Math.round(31*s));
   ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(12*s)+'px Consolas, monospace';
-  ctx.fillText(pf?'◆ Побед: '+pf.wins:'Создай аккаунт',tx0,prof.y+Math.round(46*s));
+  ctx.fillText(pf?'◆ Побед: '+pf.wins+'  Поражений: '+pf.losses:'Создай аккаунт',tx0,prof.y+Math.round(46*s));
   ctx.textAlign='right'; ctx.fillStyle=profHover?'#ffd568':'rgba(255,240,199,0.45)'; ctx.font=Math.round(14*s)+'px Segoe UI, Arial';
   ctx.fillText('✎',prof.x+prof.w-Math.round(10*s),prof.y+Math.round(16*s));
   ctx.restore();
@@ -12827,7 +13227,7 @@ function drawOver(){
   if(!resultAnnounced){
     resultAnnounced = true;
     announce(winner === myTeam ? 'Victory!' : 'Defeat!', {interrupt:true, rate:0.8});
-    if(!testMode) accountRecordResult(won);
+    if(!testMode) accountRecordResult(won, makeMatchId());
   }
   const accent = won ? '#69f08a' : '#ff6672';
   const now = performance.now() / 1000;
@@ -12890,6 +13290,7 @@ function loop(now){
     ctx.globalCompositeOperation = 'source-over';
     ctx.filter = 'none';
     ctx.clearRect(0,0,VW,VH);
+    if(!avatarCacheBuilt){ buildAvatarCache(); ctx.clearRect(0,0,VW,VH); }
 
     if(gameState === 'menu'){
       if(domMatchState){ document.body.classList.remove('in-match'); domMatchState=false; }

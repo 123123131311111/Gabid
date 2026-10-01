@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.0</title>
-<link rel="stylesheet" href="/style.css?v=0.7.0">
+<link rel="stylesheet" href="/style.css?v=0.7.2">
 </head>
 <body>
 <div id="topbar">
@@ -50,6 +50,8 @@
         </div>
         <div class="acc-level"><small>УРОВЕНЬ</small><b id="acc-level">0</b></div>
       </div>
+      <div class="acc-avatars-title">Аватарка</div>
+      <div class="acc-avatars" id="acc-avatars"></div>
       <label>Сменить ник<input id="acc-newnick" type="text" maxlength="16" spellcheck="false" placeholder="Новый ник"></label>
       <div class="acc-row">
         <button type="button" class="acc-primary" id="acc-rename">СМЕНИТЬ НИК</button>
@@ -60,7 +62,7 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="/game.js?v=0.7.0"></script>
+<script src="/game.js?v=0.7.2"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');

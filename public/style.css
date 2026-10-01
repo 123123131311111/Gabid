@@ -305,3 +305,11 @@ canvas {
 .acc-level { text-align: center; }
 .acc-level small { display: block; color: rgba(255,240,199,.55); font: 700 9px Consolas, monospace; letter-spacing: .18em; }
 .acc-level b { color: #ffd568; font: 900 34px Georgia, serif; text-shadow: 0 0 14px rgba(255,190,80,.5); }
+
+.acc-avatar { background-size: cover; background-position: center; background-repeat: no-repeat; image-rendering: auto; }
+.acc-avatars-title { margin: 0 0 6px; color: rgba(255,240,199,.55); font: 700 10px Consolas, monospace; letter-spacing: .18em; text-transform: uppercase; }
+.acc-avatars { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
+.acc-avatar-opt { aspect-ratio: 1; padding: 0; border: 2px solid rgba(143,106,98,.55); border-radius: 6px; background: #14090c center / cover no-repeat; cursor: pointer; transition: transform .12s, border-color .12s, box-shadow .12s; }
+.acc-avatar-opt:hover { transform: translateY(-2px); border-color: #e65a46; }
+.acc-avatar-opt.selected { border-color: #ffd568; box-shadow: 0 0 0 2px rgba(255,213,104,.35), 0 0 14px rgba(255,213,104,.35); }
+.acc-panel { max-height: 94vh; overflow-y: auto; }
