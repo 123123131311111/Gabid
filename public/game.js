@@ -6,6 +6,11 @@ const rnd   = (a,b) => a + Math.random()*(b-a);
 
 const canvas = document.getElementById('game');
 const ctx    = canvas.getContext('2d');
+const onlineEntryElement = document.getElementById('online-entry');
+const terrainFrameCanvas = document.createElement('canvas');
+const terrainFrameCtx = terrainFrameCanvas.getContext('2d');
+let terrainFrameValid = false;
+let terrainFrameIndex = 0;
 const fogCanvas = document.createElement('canvas');
 const fogCtx    = fogCanvas.getContext('2d');
 /* Референсная модель Шадоу лежит рядом с этой HTML-игрой. */
@@ -440,8 +445,10 @@ const CHANGELOG_HISTORY = [
 const CHANGELOG = (() => {
   const sections = [{version:'0.6.1c', title:'HUD И ТЕМП ИГРЫ', changes:[
     'Добавлена верхняя лента героев матча: павшие бойцы отображаются серыми, как в Dota.',
-    'Инвентарь перестроен в сетку 2 на 3, магазин получил быстрый доступ и счётчик монет рядом с кнопкой.',
-    'Добавлены отдельные иконки ПТ, Клыков Васьки и Мунуции, а игровой цикл оптимизирован без удаления механик.'
+    'Инвентарь перестроен в горизонтальную сетку 3 на 2, магазин получил быстрый доступ и счётчик монет рядом с кнопкой.',
+    'Добавлены отдельные иконки ПТ, Клыков Васьки и Мунуции, а игровой цикл оптимизирован без удаления механик.',
+    'Исправлено распределение ботов: на мид выходят один союзный и два вражеских бота; остальные держат свои линии.',
+    'Снижена стоимость отрисовки внеэкранных эффектов, частиц и DOM-обновлений на каждом кадре.'
   ]},{version:'0.6.1b', title:'БОИ 4 НА 4', changes:[
     'Обычный режим расширен до 4 на 4: дополнительный союзный и вражеский боты занимают мид.',
     'Лесные нейтралы получили новые силуэты, а их лагеря отмечены тотемами и кострами.',
@@ -5750,14 +5757,14 @@ function updateEnemyAI(h, dt){
     .sort((left,right) => (right.type === 'hero') - (left.type === 'hero'))[0];
   /* В первые 5 минут бот может помочь соседней линии, если там уже
      началась драка рядом с союзником, а не продолжать слепо идти по своей. */
-  const nearbyFight = units
+  const nearbyFight = (gameTime < MID_PUSH_TIME || h.midPushAssignment) ? units
     .filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead &&
       Math.hypot(unit.x-h.x,unit.y-h.y) <= Math.min(820,h.vision))
     .filter(unit => units.some(ally =>
       ally.type === 'hero' && ally.team === h.team && !ally.dead &&
       ally !== h && Math.hypot(ally.x-unit.x,ally.y-unit.y) < 520
     ))
-    .sort((left,right) => Math.hypot(left.x-h.x,left.y-h.y) - Math.hypot(right.x-h.x,right.y-h.y))[0];
+    .sort((left,right) => Math.hypot(left.x-h.x,left.y-h.y) - Math.hypot(right.x-h.x,right.y-h.y))[0] : null;
   const visibleEnemy = nearbyFight || laneEnemy;
   if(gameTime < MID_PUSH_TIME && visibleEnemy){
     h.laneState = 'lane';
@@ -8939,6 +8946,12 @@ function drawHealthBar(u){
   }
 }
 
+function isWorldPointVisible(x,y,padding=140){
+  return Number.isFinite(x) && Number.isFinite(y) &&
+    x>=cam.x-VW/2-padding && x<=cam.x+VW/2+padding &&
+    y>=cam.y-VH/2-padding && y<=cam.y+VH/2+padding;
+}
+
 function drawWorldObjects(){
   for(const gb of grassBends){
     const k = gb.t/gb.life;
@@ -9043,6 +9056,7 @@ function drawWorldObjects(){
   }
 
   for(const p of projectiles){
+    if(!isWorldPointVisible(p.x,p.y,180)) continue;
     ctx.save();
     ctx.shadowBlur = 14; ctx.shadowColor = p.color;
     ctx.fillStyle = p.color;
@@ -9104,6 +9118,8 @@ function drawWorldObjects(){
   }
 
   for(const f of fxs){
+    const fxX=Number.isFinite(f.x)?f.x:f.x1, fxY=Number.isFinite(f.y)?f.y:f.y1;
+    if(!isWorldPointVisible(fxX,fxY,Math.max(180,f.r||0))) continue;
     const k = f.t/f.life;
     ctx.save();
     if(f.type === 'ring'){
@@ -9306,6 +9322,7 @@ function drawWorldObjects(){
   }
 
   for(const p of particles){
+    if(!isWorldPointVisible(p.x,p.y,90)) continue;
     const k = p.t/p.life;
     ctx.save();
     ctx.globalAlpha = (1-k)*0.9;
@@ -9335,6 +9352,7 @@ function drawWorldObjects(){
   }
 
   for(const t of texts){
+    if(!isWorldPointVisible(t.x,t.y,120)) continue;
     const a = 1-t.t/t.life;
     ctx.save();
     ctx.globalAlpha = clamp(a,0,1);
@@ -11261,7 +11279,7 @@ function drawCosmicBackdrop(now){
 
 function drawMenu(){
   menuButtonHitboxes=[];
-  const onlineEntry=document.getElementById('online-entry');
+  const onlineEntry=onlineEntryElement;
   const showOnlineEntry=menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
   const hideOnlineEntry=!showOnlineEntry;
   if(onlineEntry.hidden!==hideOnlineEntry){
@@ -11699,6 +11717,7 @@ function drawOver(){
 }
 
 let lastTime = performance.now();
+let domMatchState = false;
 function loop(now){
   try {
     let dt = (now - lastTime)/1000;
@@ -11712,13 +11731,13 @@ function loop(now){
     ctx.clearRect(0,0,VW,VH);
 
     if(gameState === 'menu'){
-      document.body.classList.remove('in-match');
+      if(domMatchState){ document.body.classList.remove('in-match'); domMatchState=false; }
       startMenuMusic();
       updateDraft(dt);
       updateMenuHover();
       drawMenu();
     } else {
-      document.body.classList.add('in-match');
+      if(!domMatchState){ document.body.classList.add('in-match'); domMatchState=true; }
       stopMenuMusic();
       update(dt);
       if(!Number.isFinite(cam.x) || !Number.isFinite(cam.y)){
@@ -11728,7 +11747,22 @@ function loop(now){
       }
       ctx.save();
       ctx.translate(-cam.x + VW/2, -cam.y + VH/2);
-      drawTerrain();
+      terrainFrameIndex++;
+      const redrawTerrain = !terrainFrameValid || terrainFrameIndex % 2 === 0;
+      if(redrawTerrain){
+        drawTerrain();
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        terrainFrameCtx.clearRect(0,0,VW,VH);
+        terrainFrameCtx.drawImage(canvas,0,0);
+        ctx.restore();
+        terrainFrameValid = true;
+      } else {
+        ctx.save();
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.drawImage(terrainFrameCanvas,0,0);
+        ctx.restore();
+      }
       drawWorldObjects();
       ctx.restore();
       drawFog();
@@ -11773,6 +11807,9 @@ function resize(){
   VH = canvas.height = window.innerHeight;
   fogCanvas.width  = VW;
   fogCanvas.height = VH;
+  terrainFrameCanvas.width = VW;
+  terrainFrameCanvas.height = VH;
+  terrainFrameValid = false;
 }
 window.addEventListener('resize', resize);
 resize();
@@ -12279,7 +12316,7 @@ requestAnimationFrame(loop);
       sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
         speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
     }
-    const entry = document.getElementById('online-entry');
+    const entry = onlineEntryElement;
     if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
   }, 50);
 })();
