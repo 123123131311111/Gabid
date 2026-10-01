@@ -5431,6 +5431,9 @@ function startGame(playerIndex, draftPicks=null){
   const enemyAllyHero2 = new Hero(HERO_DEFS[enemyAllyIndex2], 1);
   const allyMidHero = new Hero(HERO_DEFS[allyMidIndex], 0);
   const enemyMidHero = new Hero(HERO_DEFS[enemyMidIndex], 1);
+  allyMidHero.midPushAssignment = true;
+  enemyHero.midPushAssignment = true;
+  enemyMidHero.midPushAssignment = true;
   const placeHeroOnLane = (hero, lane) => {
     hero.assignedLane = lane;
     const path = LANES[lane];
@@ -5600,9 +5603,9 @@ function laneDistanceToPoint(x, y, lane){
 }
 
 function botLaneObjective(h){
-  const lane = gameTime >= MID_PUSH_TIME ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
+  const lane = gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
   const path = LANES[lane];
-  if(gameTime >= MID_PUSH_TIME){
+  if(gameTime >= MID_PUSH_TIME && h.midPushAssignment){
     return path[h.team === 0 ? path.length - 1 : 0];
   }
   /* До 5:00 герой держит свою линию, не телепортируясь сразу под чужую базу. */
@@ -5631,7 +5634,7 @@ function getBotStructureObjective(h, lane){
 }
 
 function updateBotFarm(h){
-  const lane = gameTime >= MID_PUSH_TIME ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
+  const lane = gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
   let bestCamp=null, bestScore=Infinity;
   for(const camp of NEUTRAL_CAMPS){
     const center=camp[0];
@@ -5739,8 +5742,8 @@ function updateEnemyAI(h, dt){
     castSkill(h, 1, h.x, h.y);
   }
 
-  const strategicLane = gameTime >= MID_PUSH_TIME ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
-  if(gameTime >= MID_PUSH_TIME) h.assignedLane = 0;
+  const strategicLane = gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
+  if(gameTime >= MID_PUSH_TIME && h.midPushAssignment) h.assignedLane = 0;
   const laneEnemy = units
     .filter(unit => unit.team !== h.team && unit.team !== 2 && !unit.dead &&
       isUnitOnBotLane(unit, strategicLane) && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
@@ -5769,7 +5772,7 @@ function updateEnemyAI(h, dt){
     h.jungleTimer = 18;
     h.laneTimer = 24;
     return;
-  } else if(gameTime >= MID_PUSH_TIME){
+  } else if(gameTime >= MID_PUSH_TIME && h.midPushAssignment){
     h.laneState = 'mid-push';
   }
 
@@ -6324,13 +6327,9 @@ function updateVision(){
   }
   for(const unit of units){
     if(unit.team===0 || unit.dead) continue;
-    for(const source of units){
-      if(source.team!==0 || source.dead) continue;
-      if(Math.hypot(source.x-unit.x, source.y-unit.y) < source.vision){
-        visibleUnitCache.add(unit);
-        break;
-      }
-    }
+    const gx=clamp(Math.floor(unit.x/CELL),0,GRID-1);
+    const gy=clamp(Math.floor(unit.y/CELL),0,GRID-1);
+    if(visGrid[gy*GRID+gx]) visibleUnitCache.add(unit);
   }
   for(let i=0;i<visGrid.length;i++) if(visGrid[i]) explored[i] = 1;
 }
@@ -8909,7 +8908,7 @@ function drawUnit(u){
     ctx.fillText('Ур. ' + u.level, u.x, u.y - u.radius - 38);
     ctx.font='bold 10px Segoe UI, Arial';
     ctx.fillStyle='rgba(255,239,184,0.9)';
-    const roleLabel = gameTime >= MID_PUSH_TIME ? 'МИД • PUSH' : LANE_NAMES[u.assignedLane || 0];
+    const roleLabel = gameTime >= MID_PUSH_TIME && u.midPushAssignment ? 'МИД • PUSH' : LANE_NAMES[u.assignedLane || 0];
     ctx.strokeText(roleLabel, u.x, u.y - u.radius - 50);
     ctx.fillText(roleLabel, u.x, u.y - u.radius - 50);
     ctx.restore();
@@ -9414,7 +9413,7 @@ function combatHudLayout(){
     panel: {x, y: VH - panelH - bottom, w: Math.min(totalW, VW - margin * 2), h: panelH},
     stats: {x: x + 78, y: VH - panelH - bottom, w: statsW - 78},
     skills: {x: x + statsW + 12, y: VH - 106, w: skillSize, h: skillSize, gap: skillGap},
-    items: {x: x + statsW + skillsW + 24, y: VH - (compact ? 158 : 178), w: itemSize, h: itemSize, gap: itemGap, columns:2, rows:3}
+    items: {x: x + statsW + skillsW + 24, y: VH - (compact ? 112 : 132), w: itemSize, h: itemSize, gap: itemGap, columns:3, rows:2}
   };
 }
 
@@ -10287,9 +10286,7 @@ function drawMatchHeroStrip(){
     const dead=!!hero.dead;
     ctx.save();
     ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(px,y,size,size);
-    ctx.filter=dead?'grayscale(1) brightness(0.58)':'none';
-    drawHeroTexture(hero.def,px,y,size,size,now,false);
-    ctx.filter='none';
+    drawHeroStripIcon(hero.def,px,y,size,now,dead);
     ctx.strokeStyle=dead?'#66707c':teamColor; ctx.lineWidth=dead?1.5:2; ctx.strokeRect(px,y,size,size);
     if(dead){
       ctx.fillStyle='rgba(8,10,14,0.42)'; ctx.fillRect(px,y,size,size);
@@ -10302,6 +10299,30 @@ function drawMatchHeroStrip(){
       ctx.fillStyle='rgba(255,255,255,0.48)'; ctx.fillRect(px+size+gap/2,y+3,1,size+3);
     }
   });
+  ctx.restore();
+}
+
+function drawHeroStripIcon(def,x,y,size,now,dead){
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(x,y,size,size,4); ctx.clip();
+  const base=ctx.createLinearGradient(x,y,x+size,y+size);
+  base.addColorStop(0,dead?'#4b535d':def.color2);
+  base.addColorStop(0.5,dead?'#30363e':def.color);
+  base.addColorStop(1,'#080b12');
+  ctx.fillStyle=base; ctx.fillRect(x,y,size,size);
+  ctx.globalAlpha=dead?0.32:0.42; ctx.strokeStyle=dead?'#a4adb7':def.color2; ctx.lineWidth=1;
+  for(let line=0;line<4;line++){
+    ctx.beginPath(); ctx.moveTo(x-size*.2,y+size*(0.2+line*.22)); ctx.lineTo(x+size*1.1,y+size*(0.02+line*.22)); ctx.stroke();
+  }
+  ctx.globalAlpha=dead?0.55:1;
+  ctx.fillStyle=dead?'#737d88':(def.color2||'#e8eef7');
+  ctx.beginPath(); ctx.arc(x+size*.5,y+size*.42,size*.21,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=dead?'#363d45':(def.color||'#172337');
+  ctx.beginPath(); ctx.ellipse(x+size*.5,y+size*.76,size*.34,size*.3,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=dead?'#c0c6cc':'#101621';
+  ctx.beginPath(); ctx.arc(x+size*.44,y+size*.41,Math.max(1.2,size*.035),0,Math.PI*2); ctx.arc(x+size*.56,y+size*.41,Math.max(1.2,size*.035),0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=dead?0.35:0.85; ctx.fillStyle='#fff0c7'; ctx.font='bold '+Math.max(8,size*.22)+'px Segoe UI, Arial'; ctx.textAlign='center';
+  ctx.fillText((def.name||'?').slice(0,2).toUpperCase(),x+size*.5,y+size*.94);
   ctx.restore();
 }
 
