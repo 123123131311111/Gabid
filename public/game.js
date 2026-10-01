@@ -378,8 +378,10 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.4b';
+const GAME_VERSION = '0.7.5a';
 const CHANGELOG_HISTORY = [
+  'Обновление 0.7.5a: ребаланс магазина и юнитов — цены и эффекты предметов обновлены, а главное меню переведено на более космическую синтезаторную тему',
+  'Обновление 0.7.5a: Шрам-Аркадия, БКБ, Мантированная сталь, Волосы Ильи, Подушка Тимура, Оторванная рука мо3гов и Дагонская империя пересмотрены под новый темп поздней игры',
   'Обновление 0.7.4b: первые 3 минуты боты фармят линейных и лесных крипов вместо ранних драк и сноса башен; HP всех башен увеличено втрое',
   'Обновление 0.7.4b: мировой топ вынесен из карьеры профиля в отдельное окно; кнопка «МИРОВОЙ ТОП» находится в левом нижнем углу меню',
   'Обновление 0.7.4b: профиль показывает победы, поражения, убийства, смерти, любимых бойцов и подробные отчёты последних матчей',
@@ -455,7 +457,13 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.4', title:'ИСПРАВЛЕНИЯ МУЛЬТИПЛЕЕРА', changes:[
+  const sections = [{version:'0.7.5a', title:'РЕБАЛАНС ЮНИТОВ И МАГАЗИНА', changes:[
+    'Пересмотрены цены предметов магазина: Шрам-Аркадия 2400, БКБ 1750, Мантированная сталь 2400, Волосы Ильи 1500, Подушка Тимура 200, Оторванная рука мо3гов 1300, Дагонская империя 1100.',
+    'Дагонская империя ослаблена по КД до 10 секунд, но усилена до 1200 магического урона по отдельной цели.',
+    'Яйцо-голли ослаблено до +250 к скорости на 2 секунды, что делает актив более управляемым и предсказуемым.',
+    'Ребаланс юнитов и магазина доведён до более ровного темпа на 1–30 уровнях: поздняя игра стала менее жёсткой, а ранние пики и контроль лучше работают в командных драках.',
+    'Главное меню переведено на более космическую синтезаторную тему и спокойный, дальний арпеджио в стиле глубокой космической сцены.'
+  ]},{version:'0.7.4', title:'ИСПРАВЛЕНИЯ МУЛЬТИПЛЕЕРА', changes:[
     'Исправлено: в мультиплеере бойцы других игроков отображались на твоём экране не теми, кого они выбрали (скиллы при этом были правильные).',
     'Мунуция подорожала с 2000 до 4500 монет.'
   ]},{version:'0.7.3a', title:'САВЕЛИЙ: ФОРМА ТРАНСФОРМЕРА', changes:[
@@ -534,28 +542,28 @@ const SHOP_ITEMS = {
   mango: {name:'Манго', icon:'◆', cost:70, desc:'Активный: восстанавливает 100 маны. Не расходуется — можно использовать повторно.', color:'#72e6a5', active:true},
   joelBoots: {name:'Сапог Джоэла', icon:'▲', cost:500, desc:'Пассивно: +45 к скорости передвижения.', color:'#e7c77a', speed:45, active:false},
   tango: {name:'Танго', icon:'♣', cost:90, desc:'Активный расходуемый предмет: съедает ближайшее дерево и восстанавливает 90 HP.', color:'#79d46c', active:true},
-  fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +105 к обычным атакам и к урону способностей.', color:'#ff8d8d', active:false},
-  bkb: {name:'БКБ', icon:'✚', cost:2150, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
+  fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +100 к обычным атакам и к урону способностей.', color:'#ff8d8d', damage:100, active:false},
+  bkb: {name:'БКБ', icon:'✚', cost:1750, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
   pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 200 монет. Пассивно: +150 урона, +60 скорости передвижения и ускорение атак.', color:'#ff9e5d', active:false},
   blink: {name:'Блинк', icon:'◇', cost:1150, range:500, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
   evsyutin: {name:'Еблет Евсютина', icon:'♥', cost:1250, desc:'Пассивно: +500 к максимальному и текущему здоровью.', color:'#ff7898', hp:500, active:false},
-  mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2100, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', active:true},
+  mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2400, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', active:true},
   manaTome: {name:'Научилсяловить', icon:'✧', cost:550, desc:'Пассивно: увеличивает восстановление маны на 10%.', color:'#7ed6ff', manaRegen:0.10, active:false},
   manaHooves: {name:'Капыта-Дерезладия', icon:'♢', cost:1400, desc:'Пассивно: +800 к максимальной и текущей мане.', color:'#c59cff', maxMp:800, active:false},
   superBoots: {name:'Супер сапог', icon:'⬆', cost:2950, desc:'Пассивно: +70 к скорости передвижения. Активный: ещё +110 скорости на 6 сек. КД 24 сек.', color:'#ffd34f', speed:70, activeSpeed:110, activeDuration:6, cooldown:24, active:true},
   aghanimHead: {name:'Бошка Агнии', icon:'✹', cost:3000, desc:'Активный: на 10 сек. даёт +180 урона, +100 скорости передвижения и ускоряет атаки. КД 30 сек.', color:'#ff74d4', activeDuration:10, cooldown:30, active:true},
-  ilyaHair: {name:'Волосы Ильи', icon:'☄', cost:2000, desc:'Пассивно: +10 скорости, +60 урона и -20% урона от обычных атак. Активный: оглушает выбранного врага на 4 сек. КД 25 сек.', color:'#e9f5ff', cooldown:25, active:true, speed:10, damage:60, attackResist:0.2, stunDuration:4},
+  ilyaHair: {name:'Волосы Ильи', icon:'☄', cost:1500, desc:'Пассивно: +10 скорости, +60 урона и -20% урона от обычных атак. Активный: оглушает выбранного врага на 4 сек. КД 25 сек.', color:'#e9f5ff', cooldown:25, active:true, speed:10, damage:60, attackResist:0.2, stunDuration:4},
   aghanimShard: {name:'Аганим шард', icon:'⬢', cost:1400, desc:'При покупке добавляет герою персональную способность G. Эффект зависит от выбранного героя и предмет не занимает слот инвентаря.', color:'#8be9fd', active:false, cooldown:35},
   enemy302: {name:'Враги-302 школы', icon:'⌛', cost:1350, desc:'Пассивно: сокращает перезарядку всех обычных способностей героя на 30%. На предметы не влияет.', color:'#f3b4ff', cooldownReduction:0.30, active:false},
-  tornBrainHand: {name:'Оторванная рука мо3гов', icon:'☠', cost:1800, desc:'Активный: телепортирует героя к выбранному врагу и наносит ему 350 физического урона. КД 24 сек.', color:'#d7a879', cooldown:24, active:true},
+  tornBrainHand: {name:'Оторванная рука мо3гов', icon:'☠', cost:1300, desc:'Активный: телепортирует героя к выбранному врагу и наносит ему 350 физического урона. КД 12 сек.', color:'#d7a879', cooldown:12, active:true},
   munition: {name:'Мунуция', icon:'⚙', cost:4500, desc:'Активный: на 3 сек. резко ускоряет атаки героя. КД 18 сек.', color:'#f5d36b', activeDuration:3, cooldown:18, attackSpeed:6, active:true},
   hatchet: {name:'Топорик', icon:'🪓', cost:125, desc:'Пассивно: +35 урона. Активный: срубает ближайшее дерево в радиусе 150. КД 10 сек.', color:'#c68b5b', cooldown:10, damage:35, active:true}
   ,satanic: {name:'Сатаник', icon:'♦', cost:2900, desc:'Пассивно: +660 к максимальному и текущему здоровью. Обычные атаки возвращают 25% нанесённого урона.', color:'#d83b55', hp:660, lifesteal:0.25, active:false}
-  ,arcadiaScar: {name:'Шрам-Аркадия', icon:'✦', cost:1450, desc:'Активный: на 7 сек. даёт +250 урона и ускоряет атаки в 3 раза относительно базовой скорости. КД 24 сек.', color:'#ff7043', activeDuration:7, damage:250, attackSpeed:2, cooldown:24, active:true}
+  ,arcadiaScar: {name:'Шрам-Аркадия', icon:'✦', cost:2400, desc:'Активный: на 7 сек. даёт +250 урона и ускоряет атаки в 3 раза относительно базовой скорости. КД 24 сек.', color:'#ff7043', activeDuration:7, damage:250, attackSpeed:2, cooldown:24, active:true}
   ,kinglandia: {name:'Кингляндия', icon:'♛', cost:4450, desc:'Пассивно: +650 к урону обычных атак.', color:'#f4d35e', damage:650, active:false}
   ,gur: {name:'Гур', icon:'⬆', cost:1600, desc:'Активный: подбрасывает выбранного врага на 0,8 сек. и даёт герою на 12 сек. +150 урона, +100 скорости передвижения и ускорение атак. КД 28 сек.', color:'#d9f2ff', activeDuration:12, damage:150, attackSpeed:0.8, moveSpeed:100, cooldown:28, active:true}
-  ,dagonEmpire: {name:'Дагонская империя', icon:'⚡', cost:1250, desc:'Активный: наносит выбранному вражескому бойцу 500 магического урона. КД 45 сек.', color:'#ff4f8b', cooldown:45, active:true}
-  ,timurPillow: {name:'Подушка тимура', icon:'☁', cost:350, desc:'Активный расходуемый предмет: лечит 600 HP за 10 секунд. Любой урон врага сразу прерывает лечение.', color:'#9ed8ff', active:true}
+  ,dagonEmpire: {name:'Дагонская империя', icon:'⚡', cost:1100, desc:'Активный: наносит выбранному вражескому бойцу 1200 магического урона. КД 10 сек.', color:'#ff4f8b', cooldown:10, damage:1200, active:true}
+  ,timurPillow: {name:'Подушка тимура', icon:'☁', cost:200, desc:'Активный расходуемый предмет: лечит 600 HP за 10 секунд. Любой урон врага сразу прерывает лечение.', color:'#9ed8ff', active:true}
   ,brainEye: {name:'Оторванный Глаз Мозгов', icon:'◉', cost:1900, desc:'Пассивно: +210 к дальности атаки героя.', color:'#ff8fd8', attackRange:210, active:false}
   ,aghanimScepter: {name:'Аганим Скептер', icon:'✹', cost:2000, desc:'Пассивно: улучшает уникальную механику героя — дополнительные снаряды, заряды, радиус или урон зависят от героя.', color:'#b992ff', active:false}
 };
@@ -570,6 +578,16 @@ for(const item of Object.values(SHOP_ITEMS)){
   if(typeof item.cost === 'number') item.cost = Math.round(item.cost * 0.93);
   if(typeof item.totalCost === 'number') item.totalCost = Math.round(item.totalCost * 0.93);
 }
+SHOP_ITEMS.bkb.cost = 1750;
+SHOP_ITEMS.mantledSteel.cost = 2400;
+SHOP_ITEMS.ilyaHair.cost = 1500;
+SHOP_ITEMS.arcadiaScar.cost = 2400;
+SHOP_ITEMS.dagonEmpire.cost = 1100;
+SHOP_ITEMS.dagonEmpire.cooldown = 10;
+SHOP_ITEMS.dagonEmpire.damage = 1200;
+SHOP_ITEMS.timurPillow.cost = 200;
+SHOP_ITEMS.tornBrainHand.cost = 1300;
+SHOP_ITEMS.tornBrainHand.cooldown = 12;
 /* Новые предметы добавлены ПОСЛЕ множителя 0.93, поэтому цена в магазине ровно такая, как указана. */
 SHOP_ITEMS.dianaPants = {
   name:'Трусы Дианы', icon:'♡', cost:3500, color:'#ff6fb0', active:true,
@@ -583,9 +601,10 @@ SHOP_ITEMS.girfsyutin = {
 };
 SHOP_ITEMS.eggGolly = {
   name:'Яйцо-голли', icon:'🥚', cost:1800, color:'#8be9fd', active:true,
-  desc:'Активный: на 3 секунды даёт +500 к скорости передвижения. КД 25 секунд.',
-  activeDuration:3, cooldown:25, moveSpeed:500
+  desc:'Активный: на 2 секунды даёт +250 к скорости передвижения. КД 25 секунд.',
+  activeDuration:2, cooldown:25, moveSpeed:250
 };
+SHOP_ITEMS.eggGolly.cost = 1800;
 SHOP_ITEM_IDS.push('dianaPants','girfsyutin','eggGolly');
 
 const CREATOR_BUILDS = {
@@ -1225,8 +1244,8 @@ function botTaunt(hero, event='generic'){
  * Она не использует чужой музыкальный файл и существует только пока
  * gameState === 'menu'. После первого клика браузер разрешает звук.
  */
-const MENU_MUSIC_BASS = [55, 65.41, 73.42, 55, 49, 65.41, 58.27, 49];
-const MENU_MUSIC_MELODY = [261.63, 0, 293.66, 0, 220, 0, 196, 0];
+const MENU_MUSIC_BASS = [55, 73.42, 82.41, 98, 110, 123.47, 146.83, 110];
+const MENU_MUSIC_MELODY = [293.66, 0, 329.63, 0, 392, 0, 349.23, 0];
 
 function playMenuNote(frequency, duration, volume, type='sine'){
   if(!menuAudioContext || !menuMusicGain || !frequency) return;
@@ -1655,34 +1674,56 @@ function applyDamage(target, amount, source){
       for(const nearby of units){
           if(nearby !== target && !nearby.dead && nearby.team !== sourceHero.team && nearby.team !== 2 && !isBuilding(nearby) &&
             Math.hypot(nearby.x-target.x, nearby.y-target.y) < 130)
-            applyDamage(nearby, amount * 0.60, {team:sourceHero.team, source:sourceHero, attack:true});
+            applyDamage(nearby, amount * 0.60, {team:sourceHero.team, source:sourceHero, attack:true, fangsDamageIncluded:true, fangsDamageScale:0.60, dianaDamageIncluded:true, dianaDamageScale:0.60});
       }
       sourceHero.splashing = false;
       fxBeam(sourceHero.x, sourceHero.y, target.x, target.y, '#ff707a', 0.16);
     }
   }
   if(sourceHero && sourceHero.def && !(source && source.attack)){
-    amount *= sourceHero.def.balanceScale || 1;
+    const bloodrage = sourceHero.buffs && sourceHero.buffs.find(buff => buff.type === 'bloodrage');
+    if(bloodrage) amount *= bloodrage.spellMult;
+    const shardSpell = sourceHero.buffs && sourceHero.buffs.find(buff => buff.type === 'shardSpell');
+    if(shardSpell) amount *= shardSpell.val;
+    if(sourceHero.spellAmp) amount *= 1 + sourceHero.spellAmp;
+    const heroScale = sourceHero.def.id === 'grisha'
+      ? GRISHA_ABILITY_DAMAGE_MULT
+      : (sourceHero.def.abilityDamageScale || 1);
+    const skillLevelScale = sourceHero.castingSkillLevel > 1
+      ? 1 + (sourceHero.castingSkillLevel - 1) * 0.22
+      : 1;
+    const lateSkillScale = sourceHero.def.lateSkillGrowth
+      ? 1 + Math.max(0, sourceHero.level - 10) * sourceHero.def.lateSkillGrowth
+      : 1;
+    amount *= heroScale * skillLevelScale * heroLevelSkillDamageMult(sourceHero.level) * lateSkillScale;
   }
   const reflect = target.buffs && target.buffs.find(buff => buff.type === 'mageReflect');
   if(reflect && sourceHero && sourceHero.team !== target.team && source && !source.attack){
     applyDamage(sourceHero, amount * reflect.val, {team:target.team, source:target, magic:true});
     fxRing(target.x, target.y, 105, '#d58cff', 0.35);
   }
-  if(sourceHero && sourceHero.castingSkillLevel > 1 && !(source && source.attack)){
-    amount *= 1 + (sourceHero.castingSkillLevel - 1) * 0.08;
-  }
-  /* Урон способностей и ультимейтов растёт вместе с уровнем героя,
-     как и урон от обычной атаки. */
-  if(sourceHero && sourceHero.level > 1 && !(source && source.attack)){
-    amount *= 1 + (sourceHero.level - 1) * 0.03;
-  }
   noteStructureAttack(target, source, false);
   const armor = target.getArmor ? target.getArmor() : (target.armor || 0);
   const structureBonus = target.type === 'tower' ? 1.2 : 1;
-  const dmg = source && source.trueDamage
-    ? Math.max(1, amount)
-    : Math.max(1, amount * armorMult(armor) * structureBonus);
+  const fangsBonus = sourceHero && sourceHero.inventory && sourceHero.inventory.some(item => item && item.id === 'fangs')
+    ? SHOP_ITEMS.fangs.damage
+    : 0;
+  const dianaBonus = sourceHero && sourceHero.inventory && sourceHero.inventory.some(item => item && item.id === 'dianaPants')
+    ? SHOP_ITEMS.dianaPants.damage
+    : 0;
+  const fangsInAmount = fangsBonus && source && source.fangsDamageIncluded
+    ? fangsBonus * (source.fangsDamageScale || 1)
+    : 0;
+  const dianaInAmount = dianaBonus && source && source.dianaDamageIncluded
+    ? dianaBonus * (source.dianaDamageScale || 1)
+    : 0;
+  const amountBeforeFlatBonuses = Math.max(0, amount - fangsInAmount - dianaInAmount);
+  const mitigatedDamage = source && source.trueDamage
+    ? Math.max(1, amountBeforeFlatBonuses)
+    : Math.max(1, amountBeforeFlatBonuses * armorMult(armor) * structureBonus);
+  const fangsDamage = fangsBonus * (source && source.attack ? (source.fangsDamageScale || 1) : 1);
+  const dianaDamage = dianaBonus * (source && source.attack ? (source.dianaDamageScale || 1) : 1);
+  const dmg = mitigatedDamage + fangsDamage + dianaDamage;
   if(isStructure(target) && target.isServerAuthoritative && window.__shadowOnlineMatch){
     const onlineSocket = window.__shadowOnlineSocket;
     if(onlineSocket && onlineSocket.connected && sourceHero && sourceHero.isPlayer &&
@@ -1728,29 +1769,7 @@ function attackLevelDamageMult(level){
   return 1 + Math.min(level - 15, 15) * 0.006;
 }
 function abilityDamage(source, amount){
-  const heroScale = source && source.def && Number.isFinite(source.def.abilityDamageScale)
-    ? source.def.abilityDamageScale
-    : 1;
-  const reduced = amount * heroScale * (source && source.def && source.def.id === 'grisha'
-    ? GRISHA_ABILITY_DAMAGE_MULT
-    : 1);
-  const bloodrage = source && source.buffs && source.buffs.find(b => b.type === 'bloodrage');
-  const empowered = bloodrage ? reduced * bloodrage.spellMult : reduced;
-  const shard = source && source.buffs && source.buffs.find(buff => buff.type === 'shardSpell');
-  const shardEmpowered = shard ? empowered * shard.val : empowered;
-  const skillLevelBonus = source && source.castingSkillLevel > 1 ? 1 + (source.castingSkillLevel - 1) * 0.22 : 1;
-  const heroLevelBonus = source && source.level ? heroLevelSkillDamageMult(source.level) : 1;
-  const lateLevelGrowth = source && source.def && source.def.lateSkillGrowth
-    ? 1 + Math.max(0, source.level - 10) * source.def.lateSkillGrowth
-    : 1;
-  const talentEmpowered = (source && source.spellAmp ? shardEmpowered * (1 + source.spellAmp) : shardEmpowered) * skillLevelBonus * heroLevelBonus * lateLevelGrowth;
-  const scepterEmpowered = hasScepterSkillBoost(source) ? talentEmpowered * 1.2 : talentEmpowered;
-  let itemBonus = 0;
-  if(source && source.inventory){
-    if(source.inventory.some(i => i && i.id === 'fangs')) itemBonus += 105;
-    if(source.inventory.some(i => i && i.id === 'dianaPants')) itemBonus += SHOP_ITEMS.dianaPants.damage;
-  }
-  return scepterEmpowered + itemBonus;
+  return amount;
 }
 
 function killUnit(u, source){
@@ -2214,8 +2233,9 @@ function omnislashStrike(hero, slash){
   hero.x = clamp(target.x - Math.cos(angle) * 42, 60, WORLD-60);
   hero.y = clamp(target.y - Math.sin(angle) * 42, 60, WORLD-60);
   hero.facing = angle;
-  const damage = hero.getDamage() * (1.18 + slash.level * 0.08);
-  applyDamage(target, damage, {team:hero.team, source:hero, attack:true});
+  const slashDamageScale = 1.18 + slash.level * 0.08;
+  const damage = hero.getDamage() * slashDamageScale;
+  applyDamage(target, damage, {team:hero.team, source:hero, attack:true, fangsDamageIncluded:true, fangsDamageScale:slashDamageScale, dianaDamageIncluded:true, dianaDamageScale:slashDamageScale});
   fxBeam(hero.x, hero.y, target.x, target.y, '#fff2a8', 0.18);
   fxRing(target.x, target.y, 38, '#ffe066', 0.35);
   spawnParticles(target.x, target.y, '#fff7c7', 9, 0.42);
@@ -2251,7 +2271,7 @@ function activateInventoryItem(hero, index){
     if(item.cooldown > 0){ flashMsg(hero, 'Яйцо-голли на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
     item.cooldown = SHOP_ITEMS.eggGolly.cooldown;
     item.activeTimer = SHOP_ITEMS.eggGolly.activeDuration;
-    addText(hero.x, hero.y - 56, 'ЯЙЦО-ГОЛЛИ: +500 СКОРОСТИ', '#8be9fd', 1.1, 16);
+    addText(hero.x, hero.y - 56, 'ЯЙЦО-ГОЛЛИ: +250 СКОРОСТИ', '#8be9fd', 1.1, 16);
     fxRing(hero.x, hero.y, 96, '#8be9fd', 0.6);
     return true;
   }
@@ -2354,9 +2374,10 @@ function activateInventoryItem(hero, index){
     if(!target || target.team === hero.team || target.dead || isBuilding(target)){
       flashMsg(hero, 'Наведите на вражеского бойца'); return false;
     }
-    applyDamage(target, 500, {team:hero.team, source:hero, magic:true});
+    const damage = SHOP_ITEMS.dagonEmpire.damage || 1200;
+    applyDamage(target, damage, {team:hero.team, source:hero, magic:true});
     item.cooldown = SHOP_ITEMS.dagonEmpire.cooldown;
-    addText(target.x, target.y - 56, 'ДАГОН: -500', '#ff4f8b', 1.0, 16);
+    addText(target.x, target.y - 56, 'ДАГОН: -' + damage, '#ff4f8b', 1.0, 16);
     fxBeam(hero.x, hero.y, target.x, target.y, '#ff4f8b', 0.4);
     return true;
   }
@@ -2583,7 +2604,7 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=105; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
   getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
   getSpeed(){ let s=this.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'joelBoots')) s+=SHOP_ITEMS.joelBoots.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) s+=60; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) s+=SHOP_ITEMS.ilyaHair.speed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) s+=this.skills[2].level*27.5; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) s+=SHOP_ITEMS.gur.moveSpeed; const eggGolly=this.inventory && this.inventory.find(i => i && i.id === 'eggGolly'); if(eggGolly && eggGolly.activeTimer>0) s+=SHOP_ITEMS.eggGolly.moveSpeed; if(this.buffs.some(b=>b.type==='haste')) s+=180; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) s*=1.18; const superBoots=this.inventory && this.inventory.find(i => i && i.id === 'superBoots'); if(superBoots){ s+=SHOP_ITEMS.superBoots.speed; if(superBoots.activeTimer>0) s+=SHOP_ITEMS.superBoots.activeSpeed; } const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) s+=100; for(const b of this.buffs) if(b.type === 'spd') s*=(1+b.val); const thirst=this.def && this.def.id === 'sasych' ? heroes.filter(h => h.team !== this.team && !h.dead && h.type === 'hero').reduce((sum,h) => sum+(1-h.hp/h.maxHp)*0.48,0) : 0; s*=1+thirst; if(this.slowT>0) s*=(1-this.slow); return s; }
   addBuff(b){ this.buffs.push(b); }
@@ -2705,7 +2726,7 @@ class Unit {
           const pelletDamage=Math.max(33,this.getDamage()*0.38+Math.max(0,this.level-8)*0.75);
           for(let pellet=0;pellet<bullets;pellet++){
             const spread=(pellet-(bullets-1)/2)*0.075;
-            const projectile=spawnProjectile(this.x,this.y,t,pelletDamage,{team:this.team,source:this,attack:true,incendiary},1100,'#ffb36b',8);
+            const projectile=spawnProjectile(this.x,this.y,t,pelletDamage,{team:this.team,source:this,attack:true,incendiary,fangsDamageIncluded:true,fangsDamageScale:0.38,dianaDamageIncluded:true,dianaDamageScale:0.38},1100,'#ffb36b',8);
             projectile.spread=spread;
             projectile.incendiary=incendiary;
           }
@@ -2714,7 +2735,7 @@ class Unit {
           return;
         }
         if(this.getAttackRange()>220){
-          const shotSource={team:this.team, source:this, attack:true};
+          const shotSource={team:this.team, source:this, attack:true, fangsDamageIncluded:true, dianaDamageIncluded:true};
           let shotDamage=this.getDamage();
           if(this.def && this.def.id === 'sniper' && this.skills && this.skills[1] && this.skills[1].level > 0){
             const headshotLevel=this.skills[1].level;
@@ -2746,7 +2767,8 @@ class Unit {
             t.slowT = Math.max(t.slowT || 0, 2);
             t.attackSlow = 0.35;
             t.attackSlowT = Math.max(t.attackSlowT || 0, 2);
-            applyDamage(t, this.getDamage() * (unleash.damageMultiplier || 1.15), {team: this.team, source: this, attack: true});
+            const unleashDamageMultiplier = unleash.damageMultiplier || 1.15;
+            applyDamage(t, this.getDamage() * unleashDamageMultiplier, {team: this.team, source: this, attack: true, fangsDamageIncluded:true, fangsDamageScale:unleashDamageMultiplier, dianaDamageIncluded:true, dianaDamageScale:unleashDamageMultiplier});
             if(finisher){
               const pulseRadius = unleash.pulseRadius || 150;
               for(const unit of units){
@@ -2768,12 +2790,14 @@ class Unit {
             }
           } else {
             let attackDamage=this.getDamage();
+            let fangsDamageScale=1;
             if(this.def && this.def.id === 'juggernaut' && this.skills && this.skills[2] &&
                this.skills[2].level > 0){
               const bladeDanceLevel=this.skills[2].level;
                const critChance=[0,0.20,0.30,0.40,0.50][bladeDanceLevel] || 0;
                if(Math.random() < critChance){
-                 attackDamage *= [0,1.7,1.9,2.1,2.3][bladeDanceLevel] || 1.7;
+                 fangsDamageScale=[0,1.7,1.9,2.1,2.3][bladeDanceLevel] || 1.7;
+                 attackDamage *= fangsDamageScale;
                 addText(t.x,t.y-t.radius-18,'КРИТ!','#fff0a8',0.7,14);
                 fxRing(t.x,t.y,30,'#ffe066',0.22);
               }
@@ -2788,7 +2812,7 @@ class Unit {
                 this.buffs = this.buffs.filter(buff => buff !== totemBuff);
               }
             }
-            applyDamage(t, attackDamage, {team: this.team, source: this, attack: true});
+            applyDamage(t, attackDamage, {team: this.team, source: this, attack: true, fangsDamageIncluded:true, fangsDamageScale, dianaDamageIncluded:true, dianaDamageScale:fangsDamageScale});
           }
           if(this.def && this.def.id === 'electricGosha') applyElectricOverload(this, t);
           if(this.owner && this.owner.def && this.owner.def.id === 'illusionist' && this.owner.isPlayer && Math.random() < 0.15) spawnPassiveIllusion(this.owner, t);
@@ -3104,7 +3128,7 @@ function explodeMo3giDrone(drone){
   for(const unit of units){
     if(unit.dead || unit.team === drone.team || unit.team === 2) continue;
     if(Math.hypot(unit.x-drone.x, unit.y-drone.y) <= radius + unit.radius)
-      applyDamage(unit, abilityDamage(hero, damage), {team:drone.team, source:hero, attack:true});
+      applyDamage(unit, abilityDamage(hero, damage), {team:drone.team, source:hero});
   }
 }
 
@@ -3239,6 +3263,9 @@ function spawnSteelCopies(hero){
   addText(hero.x, hero.y-80, 'КОПИИ СТАЛИ', '#d9e6f5', 1.4, 18);
 }
 
+const REBALANCE_HERO_POOL = ['Пиро','Шадоу','Голли','Ригина','Малит','Снайпер','Илья','Гриша'];
+const REBALANCE_ITEM_POOL = ['БКБ','ПТ','Дагон','Шрам-Аркадия','Яйцо-голли','Волосы Ильи'];
+
 function spawnIllusion(hero, options={}){
   const angle = options.angle === undefined ? Math.random()*Math.PI*2 : options.angle;
   const life = (options.life || 12) + (hero.illusionLifeBonus || 0);
@@ -3265,10 +3292,11 @@ function spawnPassiveIllusion(hero, target){
 
 class Tower extends Unit {
   constructor(team, x, y, base, lane=null, tier=1){
+    const ancientHp = Math.round(43200 * 1.08);
     super({
       x, y, team,
       radius: base?46:(tier===1?19:22), speed:0,
-      hp: base?43200:6000,
+      hp: base?ancientHp:6000,
       dmg: base?220:82,
       atkRange: base?850:(tier===1?560:680),
       atkTime: base?0.8:1.05,
@@ -4698,9 +4726,9 @@ const SHARD_SKILLS = {
     cast(h){ spawnMo3giDrone(h,Math.max(1,h.skills[0]?.level||1),true); }},
   mageHunter: {name:'Антимагический клинок', short:'G', type:'self', maxLevel:1, cd:[0,28], mana:[0,80], desc:'Следующая атака наносит дополнительный урон и полностью выжигает ману цели.', cast(h){ h.addBuff({type:'shardBlade',t:10}); addText(h.x,h.y-62,'АНТИМАГИЧЕСКИЙ КЛИНОК','#caa5ff',1.1,15); }},
   dawnMaiden: {name:'Рассветный щит', short:'G', type:'self', maxLevel:1, cd:[0,30], mana:[0,90], desc:'Снижает входящий урон и лечит союзников рядом 8 секунд.', cast(h){ h.addBuff({type:'dawnShardShield',val:0.30,t:8}); heroBurst(h,'#fff0a8',105,30); }},
-  exileKnight: {name:'Клеймо изгнанника', short:'G', type:'point', maxLevel:1, cd:[0,26], mana:[0,75], range:700, desc:'Помечает врага и наносит ему мощный удар с оглушением.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } applyDamage(target,h.getDamage()*1.65,{team:h.team,source:h,attack:true}); target.addBuff({type:'shardMark',val:0.20,t:8}); target.stunTimer=Math.max(target.stunTimer,1.1); fxRing(target.x,target.y,78,'#ff7180',0.55); }},
+  exileKnight: {name:'Клеймо изгнанника', short:'G', type:'point', maxLevel:1, cd:[0,26], mana:[0,75], range:700, desc:'Помечает врага и наносит ему мощный удар с оглушением.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } applyDamage(target,h.getDamage()*1.65,{team:h.team,source:h,attack:true,fangsDamageIncluded:true,fangsDamageScale:1.65,dianaDamageIncluded:true,dianaDamageScale:1.65}); target.addBuff({type:'shardMark',val:0.20,t:8}); target.stunTimer=Math.max(target.stunTimer,1.1); fxRing(target.x,target.y,78,'#ff7180',0.55); }},
   pyro: {name:'Огненный щит', short:'G', type:'self', maxLevel:1, cd:[0,28], mana:[0,80], desc:'Щит снижает урон атак на 35% на 8 секунд.', cast(h){ h.addBuff({type:'shardShield',val:0.35,t:8}); fxRing(h.x,h.y,90,'#ff9d5c',0.55); }},
-  warlord: {name:'Бросок клинка', short:'G', type:'point', maxLevel:1, cd:[0,24], mana:[0,70], range:700, desc:'Наносит цели сильный удар и оглушает на 1.2 секунды.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } applyDamage(target,h.getDamage()*1.8,{team:h.team,source:h,attack:true}); target.stunTimer=Math.max(target.stunTimer,1.2); fxRing(target.x,target.y,70,'#8be9fd',0.5); }},
+  warlord: {name:'Бросок клинка', short:'G', type:'point', maxLevel:1, cd:[0,24], mana:[0,70], range:700, desc:'Наносит цели сильный удар и оглушает на 1.2 секунды.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } applyDamage(target,h.getDamage()*1.8,{team:h.team,source:h,attack:true,fangsDamageIncluded:true,fangsDamageScale:1.8,dianaDamageIncluded:true,dianaDamageScale:1.8}); target.stunTimer=Math.max(target.stunTimer,1.2); fxRing(target.x,target.y,70,'#8be9fd',0.5); }},
   grisha: {name:'Усиление стихий', short:'G', type:'self', maxLevel:1, cd:[0,30], mana:[0,90], desc:'Усиливает следующее заклинание Гриши на 50%.', cast(h){ h.addBuff({type:'shardSpell',val:1.5,t:12}); }},
   golly: {name:'Ледяная броня', short:'G', type:'self', maxLevel:1, cd:[0,30], mana:[0,90], desc:'Даёт 12 брони на 10 секунд.', cast(h){ h.addBuff({type:'shardArmor',val:12,t:10}); fxRing(h.x,h.y,100,'#8be9fd',0.55); }},
   sasych: {name:'Кровавая метка', short:'G', type:'point', maxLevel:1, cd:[0,28], mana:[0,70], range:700, desc:'Помечает врага: он получает на 25% больше урона 8 секунд.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } target.addBuff({type:'shardMark',val:0.25,t:8}); }},
@@ -5209,8 +5237,7 @@ const HERO_STAT_BALANCE = {
 
 for(const def of HERO_DEFS){
   [def.baseHp, def.hpPerLvl, def.baseDmg, def.dmgPerLvl, def.abilityDamageScale] = HERO_STAT_BALANCE[def.id];
-  def.baseHp = Math.round(def.baseHp * 1.15);
-  def.hpPerLvl = Math.round(def.hpPerLvl * 1.15 * 10) / 10;
+  if(def.damageScale === undefined) def.damageScale = 1;
   if(def.lateSkillGrowth) def.lateSkillGrowth *= 0.25;
   if(def.lateAttackGrowth) def.lateAttackGrowth *= 0.25;
 }
@@ -5225,7 +5252,7 @@ class Hero extends Unit {
     super({
       x:BASES[team].x, y:BASES[team].y, team,
       radius:24, speed:def.speed * balanceScale,
-      hp:def.baseHp * balanceScale + 500 + 350, dmg:def.baseDmg * (def.damageScale || balanceScale),
+      hp:def.baseHp, dmg:def.baseDmg,
       atkRange:def.atkRange, atkTime:def.atkTime,
       armor:def.baseArmor * balanceScale, vision:def.vision,
       type:'hero', xpValue:420
@@ -5302,7 +5329,7 @@ class Hero extends Unit {
     this.level++; this.skillPoints++;
     const d = this.def;
     const balanceScale = d.balanceScale || 1;
-    this.maxHp += d.hpPerLvl * balanceScale; this.hp = Math.min(this.maxHp, this.hp + d.hpPerLvl * balanceScale);
+    this.maxHp += d.hpPerLvl; this.hp = Math.min(this.maxHp, this.hp + d.hpPerLvl);
     this.maxMp += d.mpPerLvl * balanceScale; this.mp = Math.min(this.maxMp, this.mp + d.mpPerLvl * balanceScale);
     this.dmg += d.dmgPerLvl * (d.damageScale || balanceScale); this.armor += d.armorPerLvl * balanceScale;
     if(this.level >= 10 && this.level % 5 === 0) offerTalent(this);
@@ -11737,6 +11764,7 @@ function handleMenuClick(mx, my){
         else if(hit.action==='account'){ openAccountModal(); }
         else if(hit.action==='leaderboard') window.openLeaderboard();
         else if(hit.action==='changelog'){ changelogOpen=true; changelogScroll=0; }
+        else if(hit.action==='fighters'){ menuStage='heroes'; menuHeroPage=0; }
         return;
       }
     }
@@ -13226,7 +13254,11 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(17*s)+'px Georgia, serif';
   ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
   ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
+  const rebalanceHero = REBALANCE_HERO_POOL[Math.floor(Math.random()*REBALANCE_HERO_POOL.length)];
+  const rebalanceItem = REBALANCE_ITEM_POOL[Math.floor(Math.random()*REBALANCE_ITEM_POOL.length)];
   const news=[
+    {tag:'0.7.5a',title:'РЕБАЛАНС ЮНИТОВ',art:'unit', hero:rebalanceHero, action:'fighters'},
+    {tag:'0.7.5a',title:'РЕБАЛАНС ПРЕДМЕТОВ',art:'item', item:rebalanceItem, action:'store'},
     {tag:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',art:'heart',action:'account'},
     {tag:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',art:'3v3',action:'leaderboard'},
     {tag:'0.7.4b',title:'ОПЫТ, ТИТУЛЫ И РАМКИ',art:'hp',action:'account'},
@@ -13240,12 +13272,27 @@ function drawDotaSenseHome(){
     ctx.save();
     ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
     const art=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
-    art.addColorStop(0,'#3a0d12'); art.addColorStop(1,'#120508');
+    const artTone = entry.art === 'unit' ? ['#381420','#0f1729'] : entry.art === 'item' ? ['#1a1c2d','#2a0b1c'] : ['#3a0d12','#120508'];
+    art.addColorStop(0,artTone[0]); art.addColorStop(1,artTone[1]);
     ctx.fillStyle=art; ctx.fillRect(card.x,card.y,card.w,card.h);
     const gx=card.x+card.w*0.62, gy=card.y+card.h*0.42;
     ctx.globalAlpha=0.9;
     if(entry.art==='shovel') dsShovelGlyph(gx,gy,card.h*0.62);
-    else {
+    else if(entry.art==='unit'){
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.shadowColor='#8be9fd'; ctx.shadowBlur=22;
+      ctx.fillStyle='#ffd073'; ctx.font='bold '+Math.round(card.h*0.46)+'px Georgia, serif';
+      ctx.fillText('⚔', gx, gy - Math.round(6*s));
+      ctx.fillStyle='#f3ead1'; ctx.font='bold '+Math.round(card.h*0.18)+'px Segoe UI, Arial';
+      ctx.fillText((entry.hero || 'ГОЛЛИ').toUpperCase(), gx, gy + Math.round(card.h*0.18));
+    } else if(entry.art==='item'){
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.shadowColor='#ff73b8'; ctx.shadowBlur=20;
+      ctx.fillStyle='#9be5ff'; ctx.font='bold '+Math.round(card.h*0.5)+'px Segoe UI, Arial';
+      ctx.fillText('✦', gx, gy - Math.round(6*s));
+      ctx.fillStyle='#e7f3ff'; ctx.font='bold '+Math.round(card.h*0.17)+'px Segoe UI, Arial';
+      ctx.fillText((entry.item || 'ПТ').toUpperCase(), gx, gy + Math.round(card.h*0.18));
+    } else {
       ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.shadowColor='#ff3b2a'; ctx.shadowBlur=18;
       if(entry.art==='3v3'){ ctx.fillStyle='#f0b040'; ctx.font='bold '+Math.round(card.h*0.5)+'px Georgia, serif'; ctx.fillText('3v3',gx,gy); }
       else { ctx.fillStyle=entry.art==='heart'?'#ff6fb0':'#ff9a5c'; ctx.font='bold '+Math.round(card.h*0.55)+'px Segoe UI, Arial'; ctx.fillText(entry.art==='heart'?'♡':'♥',gx,gy); }
