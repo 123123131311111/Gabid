@@ -97,8 +97,8 @@ function startRoom(room){
       team: spot.team,
       x: position.x,
       y: position.y,
-      hp: 2000,
-      maxHp: 2000,
+      hp: 6000,
+      maxHp: 6000,
       atkRange: 560,
       dmg: 82,
       atkTime: 1.05,
@@ -110,8 +110,8 @@ function startRoom(room){
       facing: 0
     };
   }
-  room.towers[makeTowerId(0, null, null, true)] = {id:makeTowerId(0, null, null, true),team:0,x:BASES[0].x,y:BASES[0].y,hp:14400,maxHp:14400,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
-  room.towers[makeTowerId(1, null, null, true)] = {id:makeTowerId(1, null, null, true),team:1,x:BASES[1].x,y:BASES[1].y,hp:14400,maxHp:14400,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
+  room.towers[makeTowerId(0, null, null, true)] = {id:makeTowerId(0, null, null, true),team:0,x:BASES[0].x,y:BASES[0].y,hp:43200,maxHp:43200,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
+  room.towers[makeTowerId(1, null, null, true)] = {id:makeTowerId(1, null, null, true),team:1,x:BASES[1].x,y:BASES[1].y,hp:43200,maxHp:43200,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
   const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
   for(const member of Object.values(room.players))

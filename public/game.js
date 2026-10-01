@@ -275,6 +275,7 @@ const TEAM_COL = ['#4caf50', '#e53935', '#b58a55'];
 const TEAM_NAME = ['Свет', 'Тьма'];
 const LANE_NAMES = ['МИД', 'ВЕРХ', 'НИЗ'];
 const MID_PUSH_TIME = 300;
+const BOT_FARM_PHASE_TIME = 180;
 const makeTowerId = (team, lane, tier, base = false) => base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
 
 const BASES = [ {x:480, y:3120}, {x:3120, y:480} ];
@@ -379,6 +380,7 @@ let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
 const GAME_VERSION = '0.7.4b';
 const CHANGELOG_HISTORY = [
+  'Обновление 0.7.4b: первые 3 минуты боты фармят линейных и лесных крипов вместо ранних драк и сноса башен; HP всех башен увеличено втрое',
   'Обновление 0.7.4b: мировой топ вынесен из карьеры профиля в отдельное окно; кнопка «МИРОВОЙ ТОП» находится в левом нижнем углу меню',
   'Обновление 0.7.4b: профиль показывает победы, поражения, убийства, смерти, любимых бойцов и подробные отчёты последних матчей',
   'Обновление 0.7.4b: за матчи начисляется опыт, уровни открывают титулы и рамки; мировой топ сортируется по общему числу побед над ботами и игроками',
@@ -3263,7 +3265,7 @@ class Tower extends Unit {
     super({
       x, y, team,
       radius: base?46:(tier===1?19:22), speed:0,
-      hp: base?14400:2000,
+      hp: base?43200:6000,
       dmg: base?220:82,
       atkRange: base?850:(tier===1?560:680),
       atkTime: base?0.8:1.05,
@@ -6072,6 +6074,27 @@ function updateEnemyAI(h, dt){
   }
   if(hpPct < 0.65 && h.def.id === 'warlord' && h.skills[1].level > 0 && h.skills[1].cd <= 0){
     castSkill(h, 1, h.x, h.y);
+  }
+
+  if(gameTime < BOT_FARM_PHASE_TIME){
+    const farmLane = Number.isInteger(h.assignedLane) ? h.assignedLane : 0;
+    const laneCreep = units
+      .filter(unit => unit.type === 'creep' && unit.team !== h.team && !unit.dead &&
+        laneDistanceToPoint(unit.x,unit.y,farmLane) < 190 && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
+      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    if(laneCreep){
+      h.laneState = 'lane';
+      h.attackTarget = laneCreep;
+      h.moveTarget = null;
+      return;
+    }
+    if(updateBotFarm(h)) return;
+    h.attackTarget = null;
+    h.laneState = 'lane';
+    const path = LANES[farmLane] || LANES[0];
+    const farmingWaypoint = path[h.team === 0 ? Math.min(1,path.length-1) : Math.max(0,path.length-2)];
+    h.moveTarget = {x:farmingWaypoint.x+rnd(-70,70),y:farmingWaypoint.y+rnd(-70,70)};
+    return;
   }
 
   const strategicLane = gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
@@ -11180,7 +11203,7 @@ function drawHUD(){
   ctx.fillText('Монеты: ' + h.coins, VW-24, 108);
   ctx.fillStyle = gameTime < MID_PUSH_TIME ? '#8be9fd' : '#ffd568';
   ctx.font = 'bold 14px Segoe UI, Arial';
-  ctx.fillText(gameTime < MID_PUSH_TIME ? 'Фаза: линии + лес' : 'Фаза: общий пуш мида', VW-24, 178);
+  ctx.fillText(gameTime < BOT_FARM_PHASE_TIME ? 'Фаза: фарм крипов' : (gameTime < MID_PUSH_TIME ? 'Фаза: драки по линиям' : 'Фаза: общий пуш мида'), VW-24, 178);
   if(h.def.id === 'shadow'){
     ctx.fillStyle = '#ff8a3d';
     ctx.font = 'bold 16px Segoe UI, Arial';
