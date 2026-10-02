@@ -378,8 +378,10 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.5a';
+const GAME_VERSION = '0.7.5c';
 const CHANGELOG_HISTORY = [
+  'Обновление 0.7.5c: Йосып, Срака мо3гов, новый порядок бот-закупа и исправление навыков Ригины',
+  'Обновление 0.7.5b: боты получили приоритетные активные предметы; события меню получили новые иллюстрации',
   'Обновление 0.7.5a: ребаланс магазина и юнитов — цены и эффекты предметов обновлены, а главное меню переведено на более космическую синтезаторную тему',
   'Обновление 0.7.5a: Шрам-Аркадия, БКБ, Мантированная сталь, Волосы Ильи, Подушка Тимура, Оторванная рука мо3гов и Дагонская империя пересмотрены под новый темп поздней игры',
   'Обновление 0.7.4b: первые 3 минуты боты фармят линейных и лесных крипов вместо ранних драк и сноса башен; HP всех башен увеличено втрое',
@@ -457,7 +459,12 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.5a', title:'РЕБАЛАНС ЮНИТОВ И МАГАЗИНА', changes:[
+  const sections = [{version:'0.7.5c', title:'ЙОСЫП И НОВЫЕ ПРЕДМЕТЫ', changes:[
+    'Йосып стал зелёным шестилапым жуком; Блювака оставляет видимый яд, четыре лужи сохраняются 6 секунд, а ультимейт высасывает 75 HP в секунду в течение 12 секунд.',
+    'Добавлена Срака мо3гов за 3300 монет: активация на 2 секунды даёт +350 к скорости атаки и +250 к урону; для предмета нарисована отдельная иконка.',
+    'Боты теперь покупают Клыки Васьки, Сапог Джоэла и ПТ в одном порядке, а затем приоритетно собирают Мунуцию, Мантированную сталь и Бошку Агнии и активируют предметы в бою.',
+    'Исправлено падение игрового кадра, когда бот-Ригина использовала навыки рядом с вражеским героем. Иллюстрации событий меню стали разнообразнее.'
+  ]},{version:'0.7.5a', title:'РЕБАЛАНС ЮНИТОВ И МАГАЗИНА', changes:[
     'Пересмотрены цены предметов магазина: Шрам-Аркадия 2400, БКБ 1750, Мантированная сталь 2400, Волосы Ильи 1500, Подушка Тимура 200, Оторванная рука мо3гов 1300, Дагонская империя 1100.',
     'Дагонская империя ослаблена по КД до 10 секунд, но усилена до 1200 магического урона по отдельной цели.',
     'Яйцо-голли ослаблено до +250 к скорости на 2 секунды, что делает актив более управляемым и предсказуемым.',
@@ -565,6 +572,7 @@ const SHOP_ITEMS = {
   ,dagonEmpire: {name:'Дагонская империя', icon:'⚡', cost:1100, desc:'Активный: наносит выбранному вражескому бойцу 1200 магического урона. КД 10 сек.', color:'#ff4f8b', cooldown:10, damage:1200, active:true}
   ,timurPillow: {name:'Подушка тимура', icon:'☁', cost:200, desc:'Активный расходуемый предмет: лечит 600 HP за 10 секунд. Любой урон врага сразу прерывает лечение.', color:'#9ed8ff', active:true}
   ,brainEye: {name:'Оторванный Глаз Мозгов', icon:'◉', cost:1900, desc:'Пассивно: +210 к дальности атаки героя.', color:'#ff8fd8', attackRange:210, active:false}
+  ,brainAss: {name:'Срака мо3гов', icon:'✹', cost:3300, desc:'Активный: на 2 секунды даёт +350 к скорости атаки и +250 к урону. КД 24 секунды.', color:'#ff638d', activeDuration:2, attackSpeed:3.5, damage:250, cooldown:24, active:true}
   ,aghanimScepter: {name:'Аганим Скептер', icon:'✹', cost:2000, desc:'Пассивно: улучшает уникальную механику героя — дополнительные снаряды, заряды, радиус или урон зависят от героя.', color:'#b992ff', active:false}
 };
 const SHOP_ITEM_IDS = [
@@ -572,7 +580,7 @@ const SHOP_ITEM_IDS = [
   'mantledSteel','manaTome','manaHooves','superBoots','aghanimHead',
   'ilyaHair','aghanimShard','enemy302','tornBrainHand','munition',
   'hatchet','satanic','arcadiaScar','kinglandia','gur','dagonEmpire',
-  'timurPillow','brainEye','aghanimScepter'
+  'timurPillow','brainEye','aghanimScepter','brainAss'
 ];
 for(const item of Object.values(SHOP_ITEMS)){
   if(typeof item.cost === 'number') item.cost = Math.round(item.cost * 0.93);
@@ -588,6 +596,7 @@ SHOP_ITEMS.dagonEmpire.damage = 1200;
 SHOP_ITEMS.timurPillow.cost = 200;
 SHOP_ITEMS.tornBrainHand.cost = 1300;
 SHOP_ITEMS.tornBrainHand.cooldown = 12;
+SHOP_ITEMS.brainAss.cost = 3300;
 /* Новые предметы добавлены ПОСЛЕ множителя 0.93, поэтому цена в магазине ровно такая, как указана. */
 SHOP_ITEMS.dianaPants = {
   name:'Трусы Дианы', icon:'♡', cost:3500, color:'#ff6fb0', active:true,
@@ -1680,7 +1689,7 @@ function applyDamage(target, amount, source){
       fxBeam(sourceHero.x, sourceHero.y, target.x, target.y, '#ff707a', 0.16);
     }
   }
-  if(sourceHero && sourceHero.def && !(source && source.attack)){
+  if(sourceHero && sourceHero.def && !(source && (source.attack || source.skipAbilityScaling))){
     const bloodrage = sourceHero.buffs && sourceHero.buffs.find(buff => buff.type === 'bloodrage');
     if(bloodrage) amount *= bloodrage.spellMult;
     const shardSpell = sourceHero.buffs && sourceHero.buffs.find(buff => buff.type === 'shardSpell');
@@ -1745,12 +1754,38 @@ function applyDamage(target, amount, source){
     sourceHero.hp = Math.min(sourceHero.maxHp, sourceHero.hp + dmg * SHOP_ITEMS.satanic.lifesteal);
   }
   target.hp -= dmg;
+  if(source && source.attack && sourceHero && sourceHero.def && sourceHero.def.id === 'yosyp' && target.buffs){
+    const passive = sourceHero.skills.find(skill => skill.id === 'yosypBlowback');
+    if(passive && passive.level > 0 && target.team !== sourceHero.team && !isBuilding(target)){
+      target.buffs = target.buffs.filter(buff => buff.type !== 'yosypPoison' || buff.source !== sourceHero);
+      target.addBuff({type:'yosypPoison',damage:sourceHero.dmg*(0.12+passive.level*0.04),tick:0,t:3,source:sourceHero});
+      spawnParticles(target.x,target.y,'#9cff62',8,0.45);
+    }
+  }
   target.hitFlash = 0.18;
   if(target.type === 'hero') target.combatTimer = 3.2;
   if(sourceHero && sourceHero.type === 'hero') sourceHero.combatTimer = 3.2;
   addText(target.x + rnd(-12,12), target.y - target.radius - 6,
           Math.round(dmg), target.type==='hero' ? '#ff5555' : '#ffd24a', 0.8, 15);
   if(target.hp <= 0) killUnit(target, source);
+}
+
+function tickYosypEffects(unit, dt){
+  const poison=unit.buffs.find(buff=>buff.type==='yosypPoison');
+  if(poison && poison.source && !unit.dead){
+    poison.tick=(poison.tick||0)+dt;
+    if(poison.tick>=1 || poison.t<=dt+1e-6){ poison.tick=Math.max(0,poison.tick-1); applyDamage(unit,poison.damage,{team:poison.source.team,source:poison.source,magic:true}); }
+  }
+  const drain=unit.buffs.find(buff=>buff.type==='yosypDrain');
+  if(drain && drain.source && !unit.dead){
+    drain.tick=(drain.tick||0)+dt;
+    if(drain.tick>=1 || drain.t<=dt+1e-6){
+      drain.tick=Math.max(0,drain.tick-1);
+      applyDamage(unit,75,{team:drain.source.team,source:drain.source,magic:true,trueDamage:true,skipAbilityScaling:true});
+      if(!drain.source.dead) drain.source.hp=Math.min(drain.source.maxHp,drain.source.hp+75);
+      fxBeam(drain.source.x,drain.source.y,unit.x,unit.y,'#8aff62',0.24);
+    }
+  }
 }
 
 function canBreakBarracks(barracks){
@@ -2347,6 +2382,16 @@ function activateInventoryItem(hero, index){
     fxRing(hero.x, hero.y, 80, '#f5d36b', 0.5);
     return true;
   }
+  if(item.id === 'brainAss'){
+    if(item.cooldown > 0){ flashMsg(hero, 'Срака мо3гов на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    item.cooldown = SHOP_ITEMS.brainAss.cooldown;
+    item.activeTimer = SHOP_ITEMS.brainAss.activeDuration;
+    hero.addBuff({type:'dmg',id:'brainAssDamage',val:SHOP_ITEMS.brainAss.damage,t:SHOP_ITEMS.brainAss.activeDuration});
+    hero.addBuff({type:'as',id:'brainAssAttackSpeed',val:SHOP_ITEMS.brainAss.attackSpeed,t:SHOP_ITEMS.brainAss.activeDuration});
+    addText(hero.x, hero.y - 56, 'СРАКА МО3ГОВ: РАЗГОН', '#ff638d', 1.0, 16);
+    fxRing(hero.x, hero.y, 86, '#ff638d', 0.55);
+    return true;
+  }
   if(item.id === 'arcadiaScar'){
     if(item.cooldown > 0){ flashMsg(hero, 'Шрам-Аркадия на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
     item.cooldown = SHOP_ITEMS.arcadiaScar.cooldown;
@@ -2487,33 +2532,34 @@ function confirmShopPurchase(id){
 function buyBotItem(hero){
   const bootsIndex = hero.inventory.findIndex(i => i && i.id === 'joelBoots');
   const fangsIndex = hero.inventory.findIndex(i => i && i.id === 'fangs');
-  const emptySlot = hero.inventory.findIndex(i => !i);
-  if(bootsIndex >= 0 && fangsIndex >= 0 && hero.coins >= SHOP_ITEMS.pt.cost){
+  const ptOwned = hero.inventory.some(i => i && i.id === 'pt');
+  const starterId = ptOwned ? null : fangsIndex < 0 ? 'fangs' : bootsIndex < 0 ? 'joelBoots' : null;
+  if(starterId){
+    const item = SHOP_ITEMS[starterId];
+    const slot = hero.inventory.findIndex(i => !i);
+    if(slot >= 0 && hero.coins >= item.cost){
+      hero.coins -= item.cost;
+      hero.inventory[slot] = createInventoryItem(starterId);
+      applyItemStats(hero, starterId);
+    }
+    return;
+  }
+  if(!ptOwned && bootsIndex >= 0 && fangsIndex >= 0 && hero.coins >= SHOP_ITEMS.pt.cost){
     hero.coins -= SHOP_ITEMS.pt.cost;
     hero.inventory[bootsIndex] = createInventoryItem('pt');
     hero.inventory[fangsIndex] = null;
     applyItemStats(hero, 'pt');
     return;
   }
-  const lateChoices = ['bkb','blink','evsyutin','mantledSteel','manaHooves','superBoots','aghanimHead','ilyaHair','enemy302','tornBrainHand','munition','hatchet','satanic','arcadiaScar','kinglandia','gur','brainEye','aghanimScepter'];
-  const earlyChoices = ['fangs','joelBoots','manaTome','enemy302'];
-  const choices = gameTime > 90 ? lateChoices : earlyChoices;
-  const availableChoices = choices.filter(id => {
-    if(id === 'blink' && hero.inventory.some(item => item && item.id === 'blink')) return false;
-    return !hero.inventory.some(item => item && item.id === id);
-  });
-  if(!availableChoices.length) return;
-  const id = availableChoices[Math.floor(Math.random()*availableChoices.length)];
-  const item = SHOP_ITEMS[id];
-  if(id === 'aghanimShard'){
-    if(hero.coins < item.cost) return;
-    hero.coins -= item.cost;
-    grantShardSkill(hero);
-    return;
-  }
+  if(!ptOwned) return;
+  const priority = ['munition','mantledSteel','aghanimHead'];
+  const remaining = ['bkb','blink','evsyutin','manaHooves','superBoots','ilyaHair','enemy302','tornBrainHand','hatchet','satanic','arcadiaScar','kinglandia','gur','brainEye','aghanimScepter','brainAss'];
+  const owned = new Set(hero.inventory.filter(Boolean).map(item => item.id));
+  const id = [...priority,...remaining].find(itemId => !owned.has(itemId) && SHOP_ITEMS[itemId] &&
+    hero.coins >= SHOP_ITEMS[itemId].cost && hero.inventory.some(item => !item));
+  if(!id) return;
   const slot = hero.inventory.findIndex(i => !i);
-  if(!item || slot < 0 || hero.coins < item.cost) return;
-  hero.coins -= item.cost;
+  hero.coins -= SHOP_ITEMS[id].cost;
   hero.inventory[slot] = createInventoryItem(id);
   applyItemStats(hero, id);
 }
@@ -2822,6 +2868,7 @@ class Unit {
     }
   }
   update(dt){
+    tickYosypEffects(this,dt);
     this.tickTimers(dt);
     const burning=this.buffs.find(buff=>buff.type==='burning');
     if(burning){
@@ -4495,6 +4542,42 @@ const REGINA_SKILLS = {
   }}
 };
 
+const YOSYP_SKILLS = {
+  yosypBlowback:{name:'Блювака',short:'Q',type:'self',passive:true,maxLevel:4,cd:[0,0,0,0,0],mana:[0,0,0,0,0],desc:'Пассивно отравляет врагов обычными атаками. Яд наносит дополнительный урон от базовой атаки в течение 3 секунд.',cast(){ }},
+  yosypPuddles:{name:'Четыре лужи',short:'W',type:'self',maxLevel:4,cd:[0,18,16,14,12],mana:[0,70,80,90,100],desc:'Бросает 4 лужи вокруг героя: враги в зонах получают небольшой урон и оглушение. Лужи остаются на земле 6 секунд.',cast(h,x,y,lvl){
+    const angles=[-Math.PI/4,Math.PI/4,3*Math.PI/4,5*Math.PI/4];
+    const distances=[145,245,145,245];
+    const radius=104+lvl*7, damage=abilityDamage(h,55+lvl*22), hit=new Set();
+    for(let index=0;index<angles.length;index++){
+      const px=clamp(h.x+Math.cos(angles[index])*distances[index],60,WORLD-60);
+      const py=clamp(h.y+Math.sin(angles[index])*distances[index],60,WORLD-60);
+      aoes.push({x:px,y:py,radius,dmg:0,manaDmg:0,team:h.team,source:h,delay:0,t:0,color:'#91ed62',applied:true,life:6,dead:false,visual:'yosypPuddle'});
+      fxRing(px,py,radius,'#a7ff70',0.75);
+      spawnParticles(px,py,'#a7ff70',18,0.75);
+      for(const unit of units){
+        if(hit.has(unit)||unit.dead||unit.team===h.team||unit.team===2||isBuilding(unit)) continue;
+        if(Math.hypot(unit.x-px,unit.y-py)<=radius+unit.radius){
+          hit.add(unit);
+          applyDamage(unit,damage,h);
+          unit.stunTimer=Math.max(unit.stunTimer,0.85+lvl*0.12);
+        }
+      }
+    }
+    addText(h.x,h.y-72,'ЧЕТЫРЕ ЛУЖИ','#a7ff70',1.0,16);
+  }},
+  yosypDrain:{name:'Зелёный отсос',short:'R',type:'point',maxLevel:3,cd:[0,70,60,50],mana:[0,130,170,210],range:1100,ult:true,desc:'Направляет луч во вражеского героя и высасывает 75 HP в секунду в течение 12 секунд.',cast(h,x,y,lvl){
+    const target=pickUnitAt(x,y);
+    if(!target||target.team===h.team||target.dead||target.type!=='hero') { flashMsg(h,'Наведите ульту на вражеского героя'); return false; }
+    target.buffs=target.buffs.filter(buff=>buff.type!=='yosypDrain');
+    target.addBuff({type:'yosypDrain',tick:0,t:12,source:h});
+    fxBeam(h.x,h.y,target.x,target.y,'#91ed62',0.7);
+    fxRing(target.x,target.y,60,'#a7ff70',0.55);
+    addText(target.x,target.y-64,'ЙОСЫП ВЫСАСЫВАЕТ HP','#baff89',1.2,16);
+    return true;
+  }}
+};
+Object.assign(SKILLS,YOSYP_SKILLS);
+
 const TRIBUPAINER_SKILLS = {
   tribuIncendiary: {name:'Поджигающие пули',short:'Q',type:'self',passive:false,maxLevel:4,cd:[0,14,12,10,8],mana:[0,45,55,65,75],desc:'На 10 секунд дробовик поджигает цель на 5–8 секунд; урон горения растёт с уровнем навыка.',cast(h){ h.tribuIncendiaryTimer=10; addText(h.x,h.y-62,'ПОДЖИГАЮЩИЕ ПУЛИ','#ff8a3d',1.1,16); fxRing(h.x,h.y,78,'#ff5a24',0.45); }},
   tribuShield: {name:'Щит дробовика',short:'W',type:'self',maxLevel:4,cd:[0,3,3,3,3],mana:[0,45,50,55,60],desc:'Щит на 3 секунды блокирует 30% входящего урона.',cast(h,x,y,lvl){ h.buffs=h.buffs.filter(buff=>buff.type!=='tribuShield'); h.addBuff({type:'tribuShield',val:0.30,t:3}); addText(h.x,h.y-62,'ЩИТ: -30% УРОНА','#8be9fd',1.0,16); fxRing(h.x,h.y,88,'#8be9fd',0.5); }},
@@ -5142,6 +5225,16 @@ const HERO_DEFS = [
       skills:['reginaDispose','reginaRebound','reginaUnleash'], weapon:{type:'dualBlades',color:'#ff9fbd',size:1.05}
     },
   {
+    id:'yosyp', name:'Йосып', title:'Зелёный токсик',
+    color:'#42612d', color2:'#a7ff70',
+    baseHp:930, hpPerLvl:122, baseMp:360, mpPerLvl:44,
+    baseDmg:78, dmgPerLvl:8.4, speed:164,
+    atkRange:175, atkTime:1.02, baseArmor:5, armorPerLvl:0.62,
+    vision:1020, hpRegen:2.5, mpRegen:2.4,
+    lateSkillGrowth:0.016,
+    skills:['yosypBlowback','yosypPuddles','yosypDrain'], weapon:{type:'club',color:'#a7ff70',size:1.12}
+  },
+  {
     id:'dawnMaiden', name:'Рассветная дева', title:'Танк / инициатор',
     balanceScale:0.78, damageScale:1,
     color:'#8a5424', color2:'#fff3b0', baseHp:1160, hpPerLvl:154,
@@ -5230,6 +5323,7 @@ const HERO_STAT_BALANCE = {
   malit:[930,116,68,3.2,0.95], arcady:[620,74,52,3.5,1], illusionist:[680,82,60,3.6,0.94],
   shadow:[850,97,58,3.2,1], electricGosha:[720,86,54,3.5,1.02], mo3gi:[800,95,64,3.8,0.95],
   tribupainer:[850,102,32,2.5,0.95], mageHunter:[760,92,52,2.5,0.92], regina:[870,105,60,2.6,0.94],
+  yosyp:[860,102,70,7.8,0.98],
   dawnMaiden:[1080,137,72,3,0.92], exileKnight:[900,112,90,3.7,0.92], juvsyut:[970,128,68,3.2,0.95],
   chip:[760,90,58,3.3,1.03], savely:[970,116,80,3.4,0.94], juggernaut:[930,110,78,3,0.94],
   earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04]
@@ -5429,6 +5523,7 @@ class Hero extends Unit {
       return;
     }
     this.combatTimer = Math.max(0, (this.combatTimer || 0) - dt);
+    tickYosypEffects(this,dt);
     this.tickTimers(dt);
     const bladeFury=this.buffs.find(buff=>buff.type==='bladeFury');
     const omnislash=this.buffs.find(buff=>buff.type==='omnislash');
@@ -6087,6 +6182,13 @@ function updateEnemyAI(h, dt){
   if(steelIndex >= 0 && h.inventory[steelIndex].cooldown <= 0 && h.attackTarget){
     useInventoryItem(h, steelIndex);
   }
+  const botTarget = h.attackTarget && !h.attackTarget.dead && h.attackTarget.team !== h.team ? h.attackTarget : null;
+  const botTargetDistance = botTarget ? Math.hypot(botTarget.x-h.x,botTarget.y-h.y) : Infinity;
+  for(const itemId of ['aghanimHead','munition']){
+    const itemIndex = h.inventory.findIndex(item => item && item.id === itemId);
+    if(itemIndex >= 0 && h.inventory[itemIndex].cooldown <= 0 && botTarget &&
+       botTargetDistance <= h.getAttackRange() + botTarget.radius + 100) useInventoryItem(h,itemIndex);
+  }
   if(h.aiTimer > 0) return;
   h.aiTimer = 0.18;
 
@@ -6340,6 +6442,26 @@ function updateEnemyAI(h, dt){
     return;
   }
 
+  if(h.def.id === 'regina' || h.def.id === 'yosyp'){
+    if(target){
+      const d=Math.hypot(target.x-h.x,target.y-h.y);
+      h.attackTarget=target; h.moveTarget=null;
+      if(h.def.id==='regina'){
+        if(h.skills[2] && h.skills[2].level>0 && h.skills[2].cd<=0 && d<420) castSkill(h,2,h.x,h.y);
+        else if(h.skills[1] && h.skills[1].level>0 && h.skills[1].cd<=0 && d<760) castSkill(h,1,target.x,target.y);
+        else if(h.skills[0] && h.skills[0].cd<=0 && d<620) castSkill(h,0,target.x,target.y);
+      } else {
+        if(h.skills[2] && h.skills[2].level>0 && h.skills[2].cd<=0 && target.type==='hero' && d<1050) castSkill(h,2,target.x,target.y);
+        else if(h.skills[1] && h.skills[1].level>0 && h.skills[1].cd<=0 && d<700) castSkill(h,1,h.x,h.y);
+      }
+    } else {
+      h.attackTarget=null;
+      const goal=botLaneObjective(h);
+      h.moveTarget={x:goal.x+rnd(-100,100),y:goal.y+rnd(-100,100)};
+    }
+    return;
+  }
+
   /* === ПИРОМАНТ / ВОЖДЬ === */
   if(target){
     const d = Math.hypot(target.x-h.x, target.y-h.y);
@@ -6364,7 +6486,7 @@ function updateEnemyAI(h, dt){
         castSkill(h, 1, h.x, h.y);
       if(isHero && h.skills[2].level>0 && h.skills[2].cd<=0 && d>200 && d<620)
         castSkill(h, 2, target.x, target.y);
-      if(isHero && h.skills[3].level>0 && h.skills[3].cd<=0 && d<400)
+      if(isHero && h.skills[3] && h.skills[3].level>0 && h.skills[3].cd<=0 && d<400)
         castSkill(h, 3, h.x, h.y);
     }
   } else {
@@ -7622,6 +7744,7 @@ function drawReferenceTexture(image, accent){
 }
 
 function drawUnitWeapon(unit){
+  if(unit.def && unit.def.id === 'yosyp') return;
   const weapon=getWeaponConfig(unit);
   if(!weapon) return;
   const target=unit.attackTarget && unit.attackTarget.alive ? unit.attackTarget : null;
@@ -8213,7 +8336,7 @@ function drawUnit(u){
     ctx.fillStyle='rgba(255,220,150,0.8)'; ctx.fillRect(-6,5,4,5); ctx.fillRect(2,5,4,5);
   } else if(u.type === 'hero'){
     const isReferenceModel = ['juggernaut','sniper'].includes(u.def.id);
-    const isDetailedModel = ['sasych','ilya','malit','arcady','juvsyut','chip','earthshaker'].includes(u.def.id) || isReferenceModel;
+    const isDetailedModel = ['sasych','ilya','malit','arcady','juvsyut','chip','earthshaker','yosyp'].includes(u.def.id) || isReferenceModel;
     if(!isDetailedModel){
     const pulse = 1 + Math.sin(gameTime*3)*0.06;
     ctx.strokeStyle = col;
@@ -9096,6 +9219,49 @@ function drawUnit(u){
        ctx.fillStyle='#ffeff2'; ctx.beginPath(); ctx.arc(-7,-13,1,0,Math.PI*2); ctx.arc(7,-13,1,0,Math.PI*2); ctx.fill();
        ctx.strokeStyle='#7e3d3d'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-7,-3); ctx.quadraticCurveTo(0,1,7,-3); ctx.stroke();
        ctx.restore();
+     } else if(u.def.id==='yosyp'){
+       const s=u.radius/24;
+       ctx.save(); ctx.scale(s,s);
+       const gait=Math.sin(gameTime*10+(u.walkPhase||0));
+       ctx.fillStyle='rgba(20,55,22,0.34)';
+       ctx.beginPath(); ctx.ellipse(0,23,39,18,0,0,Math.PI*2); ctx.fill();
+       for(const side of [-1,1]){
+         for(let leg=0;leg<3;leg++){
+           const anchorY=leg*13+1;
+           const swing=gait*(leg===1?4:-4)*(side===1?1:-1);
+           const kneeX=side*(27+Math.abs(swing)*0.35), kneeY=anchorY+7+swing;
+           const footX=side*(39+Math.abs(swing)), footY=anchorY+17-swing*0.35;
+           ctx.strokeStyle='#294b21'; ctx.lineWidth=5; ctx.lineCap='round'; ctx.lineJoin='round';
+           ctx.beginPath(); ctx.moveTo(side*13,anchorY); ctx.lineTo(kneeX,kneeY); ctx.lineTo(footX,footY); ctx.stroke();
+           ctx.strokeStyle='#88c84d'; ctx.lineWidth=2;
+           ctx.beginPath(); ctx.moveTo(side*14,anchorY-1); ctx.lineTo(kneeX,kneeY-1); ctx.stroke();
+           ctx.fillStyle='#a7e85b'; ctx.beginPath(); ctx.arc(kneeX,kneeY,3,0,Math.PI*2); ctx.fill();
+         }
+       }
+       ctx.shadowColor='#82ff42'; ctx.shadowBlur=18;
+       const shell=ctx.createLinearGradient(-22,-5,22,35);
+       shell.addColorStop(0,'#c0ef67'); shell.addColorStop(0.3,'#72b936'); shell.addColorStop(0.72,'#3f812d'); shell.addColorStop(1,'#234c28');
+       ctx.fillStyle=shell; ctx.strokeStyle='#183d25'; ctx.lineWidth=2.6;
+       ctx.beginPath(); ctx.ellipse(0,14,23,31,0,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+       ctx.strokeStyle='rgba(208,255,129,0.74)'; ctx.lineWidth=1.5;
+       ctx.beginPath(); ctx.moveTo(0,-14); ctx.bezierCurveTo(-2,0,-2,24,0,43); ctx.stroke();
+       for(let plate=0;plate<3;plate++){
+         ctx.strokeStyle='rgba(31,76,34,0.62)'; ctx.lineWidth=1.4;
+         ctx.beginPath(); ctx.ellipse(0,plate*12+4,21-plate*1.5,7,0,0,Math.PI*2); ctx.stroke();
+       }
+       const head=ctx.createRadialGradient(-6,-27,2,0,-22,20);
+       head.addColorStop(0,'#a9e758'); head.addColorStop(0.65,'#579b35'); head.addColorStop(1,'#234d2b');
+       ctx.fillStyle=head; ctx.strokeStyle='#1b3d27'; ctx.lineWidth=2.4;
+       ctx.beginPath(); ctx.ellipse(0,-23,18,16,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle='#132b22'; ctx.shadowColor='#baff62'; ctx.shadowBlur=9;
+       ctx.beginPath(); ctx.ellipse(-10,-25,5,7,-0.25,0,Math.PI*2); ctx.ellipse(10,-25,5,7,0.25,0,Math.PI*2); ctx.fill();
+       ctx.fillStyle='#d9ff8c'; ctx.beginPath(); ctx.arc(-11,-27,1.8,0,Math.PI*2); ctx.arc(9,-27,1.8,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+       ctx.strokeStyle='#436e31'; ctx.lineWidth=2.5; ctx.lineCap='round';
+       ctx.beginPath(); ctx.moveTo(-7,-34); ctx.quadraticCurveTo(-21,-51,-27,-44); ctx.moveTo(7,-34); ctx.quadraticCurveTo(21,-51,27,-44); ctx.stroke();
+       ctx.fillStyle='#a7e85b'; ctx.beginPath(); ctx.arc(-27,-44,3,0,Math.PI*2); ctx.arc(27,-44,3,0,Math.PI*2); ctx.fill();
+       ctx.strokeStyle='#244a28'; ctx.lineWidth=2;
+       ctx.beginPath(); ctx.moveTo(-7,-13); ctx.lineTo(-12,-6); ctx.lineTo(-3,-9); ctx.moveTo(7,-13); ctx.lineTo(12,-6); ctx.lineTo(3,-9); ctx.stroke();
+       ctx.restore();
      } else if(u.def.id==='grisha'){
       /* Гриша — беловолосый арканист в духе референса: длинные волосы,
          бледное лицо, светящиеся глаза, третий глаз и высокий воротник. */
@@ -9537,6 +9703,21 @@ function drawUnit(u){
     ctx.beginPath(); ctx.arc(0,0,u.radius+8+Math.sin(gameTime*12)*2,0,Math.PI*2); ctx.stroke();
     ctx.shadowBlur = 0;
   }
+  if(u.buffs && u.buffs.some(buff => buff.type === 'yosypPoison')){
+    const pulse=0.5+0.5*Math.sin(gameTime*11);
+    ctx.save();
+    ctx.globalAlpha=0.58+pulse*0.24;
+    ctx.strokeStyle='#a7ff54'; ctx.lineWidth=2.5; ctx.shadowColor='#7dff3f'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(0,0,u.radius+7+pulse*3,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur=8; ctx.fillStyle='#a7ff54'; ctx.strokeStyle='#e2ff9e'; ctx.lineWidth=1;
+    for(let bubble=0;bubble<4;bubble++){
+      const angle=gameTime*2.4+bubble*Math.PI/2;
+      const orbit=u.radius*0.68;
+      const x=Math.cos(angle)*orbit, y=Math.sin(angle)*orbit-5;
+      ctx.beginPath(); ctx.arc(x,y,2.5+(bubble%2),0,Math.PI*2); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
   ctx.restore();
   const dianaAura = u.inventory && u.inventory.find(i => i && i.id === 'dianaPants' && i.auraOn);
   if(dianaAura && !u.dead){
@@ -9612,6 +9793,29 @@ function isWorldPointVisible(x,y,padding=140){
 }
 
 function drawWorldObjects(){
+  for(const puddle of aoes){
+    if(puddle.visual !== 'yosypPuddle' || puddle.dead) continue;
+    const fade=Math.max(0,Math.min(1,puddle.t/0.16,(puddle.life-puddle.t)/0.55));
+    if(fade<=0) continue;
+    const pulse=1+Math.sin(gameTime*4+puddle.x*0.02)*0.045;
+    ctx.save(); ctx.translate(puddle.x,puddle.y); ctx.scale(pulse,1);
+    ctx.globalAlpha=fade*0.82;
+    const slime=ctx.createRadialGradient(-puddle.radius*0.18,-puddle.radius*0.12,2,0,0,puddle.radius);
+    slime.addColorStop(0,'rgba(190,255,104,0.9)');
+    slime.addColorStop(0.44,'rgba(91,190,48,0.82)');
+    slime.addColorStop(0.82,'rgba(32,91,36,0.8)');
+    slime.addColorStop(1,'rgba(18,47,28,0.12)');
+    ctx.fillStyle=slime; ctx.strokeStyle='rgba(187,255,102,0.9)'; ctx.lineWidth=2.5;
+    ctx.shadowColor='#89ff48'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.ellipse(0,0,puddle.radius,puddle.radius*0.68,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.fillStyle='rgba(220,255,137,0.85)';
+    for(let bubble=0;bubble<3;bubble++){
+      const x=Math.sin(gameTime*2+bubble*2.1+puddle.y)*puddle.radius*0.42;
+      const y=Math.cos(gameTime*1.7+bubble*2.5+puddle.x)*puddle.radius*0.22;
+      ctx.beginPath(); ctx.arc(x,y,3+bubble%2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
   for(const gb of grassBends){
     const k = gb.t/gb.life;
     const pressAmt = k < 0.15 ? k/0.15 : Math.max(0, 1 - (k-0.15)/0.85);
@@ -10679,6 +10883,19 @@ function drawItemIcon(item, x, y, size){
     ctx.fillStyle='#11131d'; ctx.fillRect(-size*.15,-size*.47,size*.3,size*.13);
     ctx.fillStyle='#e14b42'; ctx.beginPath(); ctx.arc(size*.02,-size*.51,size*.08,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle='#f28b56'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(size*.19,size*.23); ctx.lineTo(size*.35,size*.39); ctx.stroke();
+    ctx.restore();
+  } else if(item.id === 'brainAss'){
+    ctx.save();
+    ctx.shadowColor='#ff638d'; ctx.shadowBlur=12;
+    const shape=ctx.createLinearGradient(-size*.35,-size*.35,size*.32,size*.4);
+    shape.addColorStop(0,'#ffc0cf'); shape.addColorStop(.5,'#e94d82'); shape.addColorStop(1,'#76244f');
+    ctx.fillStyle=shape; ctx.strokeStyle='#ffe0a8'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(-size*.31,-size*.25); ctx.quadraticCurveTo(-size*.1,-size*.42,0,-size*.23);
+    ctx.quadraticCurveTo(size*.14,-size*.42,size*.31,-size*.22); ctx.lineTo(size*.25,size*.2);
+    ctx.quadraticCurveTo(0,size*.45,-size*.25,size*.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle='#ffd7e1'; ctx.lineWidth=Math.max(1.2,size*.035);
+    ctx.beginPath(); ctx.moveTo(-size*.13,-size*.12); ctx.bezierCurveTo(-size*.28,-size*.02,-size*.05,size*.02,-size*.18,size*.13);
+    ctx.moveTo(size*.13,-size*.12); ctx.bezierCurveTo(size*.28,-size*.02,size*.05,size*.02,size*.18,size*.13); ctx.stroke();
     ctx.restore();
   } else if(item.id === 'eggGolly'){
     ctx.save();
@@ -11999,6 +12216,13 @@ function drawHeroTexture(def, x, y, w, h, now, large=false){
     ctx.strokeStyle='#ff9fbd'; ctx.lineWidth=5;
     ctx.beginPath(); ctx.moveTo(-58,-34); ctx.lineTo(-92,-91); ctx.moveTo(58,-34); ctx.lineTo(92,-91); ctx.stroke();
     ctx.fillStyle='#fff0f5'; ctx.beginPath(); ctx.arc(-12,-112,4,0,Math.PI*2); ctx.arc(12,-112,4,0,Math.PI*2); ctx.fill();
+  } else if(def.id==='yosyp'){
+    ctx.fillStyle='#344623'; ctx.strokeStyle='#b6ff72'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(-44,-118); ctx.lineTo(-28,-156); ctx.lineTo(0,-141); ctx.lineTo(28,-156); ctx.lineTo(44,-118); ctx.lineTo(34,-75); ctx.lineTo(-34,-75); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#b6ff72'; ctx.shadowColor='#8dff55'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(-12,-110,6,0,Math.PI*2); ctx.arc(12,-110,6,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    ctx.strokeStyle='#d9f5a6'; ctx.lineWidth=7; ctx.beginPath(); ctx.moveTo(60,-22); ctx.lineTo(89,-94); ctx.stroke();
+    ctx.fillStyle='#8aa65a'; ctx.beginPath(); ctx.ellipse(89,-98,13,8,-.3,0,Math.PI*2); ctx.fill();
   } else if(def.id==='electricGosha'){
     ctx.fillStyle='#7feaff'; ctx.strokeStyle='#237aa3'; ctx.lineWidth=4;
     ctx.beginPath(); ctx.moveTo(-40,-119); ctx.lineTo(-22,-158); ctx.lineTo(-6,-132); ctx.lineTo(9,-164); ctx.lineTo(24,-132); ctx.lineTo(43,-151); ctx.lineTo(39,-99); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -13176,9 +13400,9 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(14*s)+'px Georgia, serif';
   ctx.fillText('НОВИНКИ МАГАЗИНА',colX+Math.round(16*s),aY+Math.round(22*s));
   const showcase=[
-    {id:'blink',line:'Исправлена иконка и покупка предмета'},
-    {id:'dianaPants',line:'Исправлена аура и иконка предмета'},
-    {id:'girfsyutin',line:'+1800 к здоровью'}
+    {id:'brainAss',line:'+350 скорости атаки и +250 урона'},
+    {id:'aghanimHead',line:'Активация усиливает героя на 10 секунд'},
+    {id:'munition',line:'Боты теперь включают активный залп'}
   ];
   showcase.forEach((entry,index)=>{
     const def=SHOP_ITEMS[entry.id];
@@ -13257,12 +13481,12 @@ function drawDotaSenseHome(){
   const rebalanceHero = REBALANCE_HERO_POOL[Math.floor(Math.random()*REBALANCE_HERO_POOL.length)];
   const rebalanceItem = REBALANCE_ITEM_POOL[Math.floor(Math.random()*REBALANCE_ITEM_POOL.length)];
   const news=[
-    {tag:'0.7.5a',title:'РЕБАЛАНС ЮНИТОВ',art:'unit', hero:rebalanceHero, action:'fighters'},
-    {tag:'0.7.5a',title:'РЕБАЛАНС ПРЕДМЕТОВ',art:'item', item:rebalanceItem, action:'store'},
+    {tag:'0.7.5c',title:'ЙОСЫП: НОВЫЙ БОЕЦ',art:'unit', hero:'Йосып', action:'fighters'},
+    {tag:'0.7.5c',title:'СРАКА МО3ГОВ: НОВЫЙ АКТИВ',art:'item', item:'Срака мо3гов', itemId:'brainAss', action:'store'},
+    {tag:'0.7.5c',title:'БОТЫ: ПРИОРИТЕТНЫЙ ЗАКУП',art:'bot', action:'fighters'},
+    {tag:'0.7.5b',title:'ИСПРАВЛЕНИЕ РИГИНЫ',art:'hero', hero:'Ригина', action:'fighters'},
     {tag:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',art:'heart',action:'account'},
-    {tag:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',art:'3v3',action:'leaderboard'},
-    {tag:'0.7.4b',title:'ОПЫТ, ТИТУЛЫ И РАМКИ',art:'hp',action:'account'},
-    {tag:'КАРЬЕРА',title:'ОТКРЫТЬ ПРОФИЛЬ',art:'shovel',action:'account'}
+    {tag:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',art:'3v3',action:'leaderboard'}
   ];
   const cGap=Math.round(10*s), cTop=nY+Math.round(52*s);
   const cH=Math.floor((nH-Math.round(52*s)-Math.round(12*s)-cGap*(news.length-1))/news.length);
@@ -13272,26 +13496,37 @@ function drawDotaSenseHome(){
     ctx.save();
     ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
     const art=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
-    const artTone = entry.art === 'unit' ? ['#381420','#0f1729'] : entry.art === 'item' ? ['#1a1c2d','#2a0b1c'] : ['#3a0d12','#120508'];
+    const artTone = entry.art === 'unit' ? ['#284020','#071b18'] : entry.art === 'item' ? ['#42142c','#140d24'] : entry.art === 'bot' ? ['#16383c','#101426'] : ['#3a0d12','#120508'];
     art.addColorStop(0,artTone[0]); art.addColorStop(1,artTone[1]);
     ctx.fillStyle=art; ctx.fillRect(card.x,card.y,card.w,card.h);
     const gx=card.x+card.w*0.62, gy=card.y+card.h*0.42;
     ctx.globalAlpha=0.9;
-    if(entry.art==='shovel') dsShovelGlyph(gx,gy,card.h*0.62);
-    else if(entry.art==='unit'){
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.shadowColor='#8be9fd'; ctx.shadowBlur=22;
-      ctx.fillStyle='#ffd073'; ctx.font='bold '+Math.round(card.h*0.46)+'px Georgia, serif';
-      ctx.fillText('⚔', gx, gy - Math.round(6*s));
-      ctx.fillStyle='#f3ead1'; ctx.font='bold '+Math.round(card.h*0.18)+'px Segoe UI, Arial';
-      ctx.fillText((entry.hero || 'ГОЛЛИ').toUpperCase(), gx, gy + Math.round(card.h*0.18));
+    if(entry.art==='unit' || entry.art==='hero'){
+      const heroDef=HERO_DEFS.find(def=>def.name===entry.hero) || HERO_DEFS[0];
+      drawHeroTexture(heroDef,card.x+card.w*.42,card.y-2,card.w*.59,card.h-24,performance.now()/1000);
+      ctx.globalAlpha=1;
+      ctx.fillStyle='rgba(0,0,0,.3)'; ctx.fillRect(card.x+card.w*.42,card.y,card.w*.59,card.h-24);
+      ctx.strokeStyle=heroDef.color2; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(gx,gy,card.h*.37,0,Math.PI*2); ctx.stroke();
     } else if(entry.art==='item'){
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.shadowColor='#ff73b8'; ctx.shadowBlur=20;
-      ctx.fillStyle='#9be5ff'; ctx.font='bold '+Math.round(card.h*0.5)+'px Segoe UI, Arial';
-      ctx.fillText('✦', gx, gy - Math.round(6*s));
-      ctx.fillStyle='#e7f3ff'; ctx.font='bold '+Math.round(card.h*0.17)+'px Segoe UI, Arial';
-      ctx.fillText((entry.item || 'ПТ').toUpperCase(), gx, gy + Math.round(card.h*0.18));
+      for(let ray=0;ray<12;ray++){
+        const angle=ray*Math.PI/6+performance.now()/6000;
+        ctx.strokeStyle=ray%2?'rgba(255,192,207,.18)':'rgba(255,224,168,.3)';
+        ctx.lineWidth=ray%3===0?2:1;
+        ctx.beginPath(); ctx.moveTo(gx+Math.cos(angle)*card.h*.15,gy+Math.sin(angle)*card.h*.15);
+        ctx.lineTo(gx+Math.cos(angle)*card.h*.48,gy+Math.sin(angle)*card.h*.48); ctx.stroke();
+      }
+      const featuredItem=SHOP_ITEMS[entry.itemId] || Object.values(SHOP_ITEMS).find(item=>item.name===entry.item);
+      drawItemIcon({id:entry.itemId||'brainAss',color:featuredItem&&featuredItem.color},gx,gy,card.h*.75);
+    } else if(entry.art==='bot'){
+      const colors=['#a7ff70','#ffd568','#ff638d'];
+      for(let mark=0;mark<3;mark++){
+        const px=gx+(mark-1)*card.h*.38;
+        ctx.fillStyle='rgba(8,12,18,.8)'; ctx.strokeStyle=colors[mark]; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(px,gy,card.h*.22,0,Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle=colors[mark]; ctx.beginPath(); ctx.arc(px,gy-card.h*.03,card.h*.07,0,Math.PI*2); ctx.fill();
+        ctx.fillRect(px-card.h*.12,gy+card.h*.07,card.h*.24,card.h*.1);
+      }
     } else {
       ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.shadowColor='#ff3b2a'; ctx.shadowBlur=18;
       if(entry.art==='3v3'){ ctx.fillStyle='#f0b040'; ctx.font='bold '+Math.round(card.h*0.5)+'px Georgia, serif'; ctx.fillText('3v3',gx,gy); }

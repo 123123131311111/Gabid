@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const NICK_RE = /^[\p{L}\p{N}_\- ]{3,16}$/u;
 const MAX_BODY = 4096;
 const AVATAR_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','mo3gi','regina','juggernaut','sniper','chip','savely','shovel','tower','ancient','rune','creep']);
-const HERO_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper']);
+const HERO_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper']);
 const MONGODB_URI = process.env.MONGODB_URI;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
