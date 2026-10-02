@@ -183,13 +183,28 @@ canvas {
 #world-leaderboard-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
 #world-leaderboard-list li { min-height: 48px; padding: 5px 12px; border-left: 3px solid rgba(139,233,253,.28); background: rgba(255,255,255,.035); }
 #world-leaderboard-list li.me { border-left-color: #ffd568; background: rgba(215,179,106,.12); }
+#world-leaderboard-list li { cursor: pointer; }
 .leaderboard-place { color: #8be9fd; font: 700 15px Consolas,monospace; }
 #world-leaderboard-list li:nth-child(-n+3) .leaderboard-place { color: #ffd568; }
 .leaderboard-player { min-width: 0; }
 .leaderboard-player strong { display: block; overflow: hidden; color: #fff0c7; font: 700 13px 'Segoe UI',sans-serif; text-overflow: ellipsis; white-space: nowrap; }
 .leaderboard-player small { display: block; margin-top: 3px; color: rgba(255,255,255,.48); font: 10px 'Segoe UI',sans-serif; }
+.leaderboard-profile-link { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+.leaderboard-profile-link:hover strong { color: #ff6b74; }
 .leaderboard-wins { color: #ffd568; font: 900 17px Consolas,monospace; text-align: right; text-shadow: 0 0 12px rgba(255,213,104,.22); }
 #leaderboard-status { min-height: 18px; margin-top: 12px; color: rgba(255,255,255,.55); font: 11px 'Segoe UI',sans-serif; text-align: center; }
+#leaderboard-profile-back { min-height: 34px; padding: 6px 11px; border: 1px solid #9f3440; background: #170b10; color: #ffb7bc; cursor: pointer; font: 700 10px Consolas,monospace; }
+.leaderboard-profile-heading { display: flex; align-items: center; gap: 14px; margin: 18px 0; padding: 16px; border-left: 3px solid #df394a; background: rgba(255,255,255,.035); }
+.leaderboard-profile-avatar { display: grid; width: 58px; aspect-ratio: 1; flex: 0 0 auto; place-items: center; border: 2px solid #bd3744; border-radius: 50%; background: #1c0b10; color: #ffe4e4; font: 900 24px Georgia,serif; }
+.leaderboard-profile-heading h3 { margin: 0 0 5px; color: #fff0c7; font: 700 19px 'Segoe UI',sans-serif; }
+.leaderboard-profile-heading span { color: rgba(255,255,255,.58); font: 11px 'Segoe UI',sans-serif; }
+.leaderboard-profile-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+.leaderboard-profile-stat { min-width: 0; padding: 10px 6px; border: 1px solid rgba(208,68,79,.24); background: rgba(255,255,255,.035); text-align: center; }
+.leaderboard-profile-stat b { display: block; color: #ff777f; font: 900 18px Consolas,monospace; }
+.leaderboard-profile-stat span { color: rgba(255,255,255,.5); font: 9px Consolas,monospace; }
+#leaderboard-player-profile h4 { margin: 20px 0 9px; color: #daaa68; font: 700 10px Consolas,monospace; }
+.leaderboard-profile-favorites { display: flex; flex-wrap: wrap; gap: 7px; }
+.leaderboard-profile-favorites span { padding: 7px 9px; border: 1px solid rgba(208,68,79,.3); color: #f1dede; font: 11px 'Segoe UI',sans-serif; }
 
 #mode-picker {
   position: fixed;

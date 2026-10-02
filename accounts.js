@@ -116,6 +116,14 @@ async function authed(body){
   return acc ? { acc, session } : null;
 }
 
+async function profileForToken(token){
+  token=String(token||'');
+  if(!/^[a-f0-9]{48}$/i.test(token)) return null;
+  await connect();
+  const auth=await authed({token});
+  return auth ? publicProfile(auth.acc) : null;
+}
+
 const attempts = new Map();
 function tooMany(ip){
   const now = Date.now();
@@ -367,4 +375,4 @@ function handle(req, res){
   return true;
 }
 
-module.exports = { handle, connect };
+module.exports = { handle, connect, profileForToken };

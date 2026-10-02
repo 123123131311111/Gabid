@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.6a</title>
-<link rel="stylesheet" href="./style.css?v=0.7.6a">
+<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.6b</title>
+<link rel="stylesheet" href="./style.css?v=0.7.6b">
 </head>
 <body>
 <div id="topbar">
@@ -19,9 +19,21 @@
     <div class="acc-eyebrow">DOTA SENSE 3 · ПОБЕДЫ</div>
     <h2 id="leaderboard-title">МИРОВОЙ ТОП</h2>
     <p>Победы в матчах с ботами и игроками</p>
-    <div class="leaderboard-columns"><span>МЕСТО</span><span>ИГРОК / ТИТУЛ</span><span>ПОБЕДЫ</span></div>
-    <ol id="world-leaderboard-list" aria-live="polite"></ol>
-    <div id="leaderboard-status" role="status"></div>
+    <div id="leaderboard-list-view">
+      <div class="leaderboard-columns"><span>МЕСТО</span><span>ИГРОК / ТИТУЛ</span><span>ПОБЕДЫ</span></div>
+      <ol id="world-leaderboard-list" aria-live="polite"></ol>
+      <div id="leaderboard-status" role="status"></div>
+    </div>
+    <section id="leaderboard-player-profile" hidden aria-label="Профиль игрока">
+      <button type="button" id="leaderboard-profile-back">← К СПИСКУ</button>
+      <div class="leaderboard-profile-heading">
+        <div id="leaderboard-profile-avatar" class="leaderboard-profile-avatar"></div>
+        <div><h3 id="leaderboard-profile-name"></h3><span id="leaderboard-profile-title"></span></div>
+      </div>
+      <div id="leaderboard-profile-stats" class="leaderboard-profile-stats"></div>
+      <h4>ЛЮБИМЫЕ БОЙЦЫ</h4>
+      <div id="leaderboard-profile-favorites" class="leaderboard-profile-favorites"></div>
+    </section>
   </div>
 </section>
 <section id="mode-picker" hidden>
@@ -88,7 +100,7 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="./game.js?v=0.7.6a"></script>
+<script src="./game.js?v=0.7.6b"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
@@ -144,7 +156,10 @@
       status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.players.length + '/6';
       renderRoom(next);
     });
-    nextSocket.on('room:error', data => { joinRequested = false; status.textContent = data.message; start.disabled = false; button.disabled = false; });
+    nextSocket.on('room:error', data => {
+      joinRequested = false; status.textContent = data.message; start.disabled = false; button.disabled = false; button.textContent = 'Найти игроков';
+      if(data.code==='ACCOUNT_REQUIRED' && typeof openAccountModal==='function') openAccountModal();
+    });
     nextSocket.on('room:started', () => { status.textContent = 'Матч запускается...'; start.disabled = true; });
     nextSocket.on('match:begin', data => { started = true; window.__shadowOnlineMatch = data; canvas.focus(); });
     window.__shadowOnlineSocket = nextSocket;
@@ -176,11 +191,26 @@
     if(target && !target.contains(event.relatedTarget)) playSynthSfx('hover');
   });
   entry.addEventListener('click', () => { picker.hidden = false; });
+  function accountSessionToken(){
+    try { return localStorage.getItem('dotasense-account-token') || ''; }
+    catch(err) { return ''; }
+  }
   function emitMatchJoin(){
-    const profile = window.__shadowAccountProfile || {};
-    socket.emit('match:join', { nick:profile.nick, title:profile.title, frame:profile.frame });
+    const token=accountSessionToken();
+    if(!token || !window.__shadowAccountProfile){
+      status.textContent='Войдите в аккаунт, чтобы играть в мультиплеер.';
+      button.disabled=false; button.textContent='Найти игроков';
+      if(typeof openAccountModal==='function') openAccountModal();
+      return;
+    }
+    socket.emit('match:join', { accountToken:token });
   }
   button.addEventListener('click', () => {
+    if(!accountSessionToken() || !window.__shadowAccountProfile){
+      status.textContent='Для игры в мультиплеер нужен аккаунт.';
+      if(typeof openAccountModal==='function') openAccountModal();
+      return;
+    }
     if(!socket){
       if(typeof io !== 'function'){
         status.textContent = 'Онлайн-сервер недоступен';

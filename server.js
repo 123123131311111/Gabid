@@ -479,12 +479,24 @@ function tickRoom(room, dt){
 
 io.on('connection', socket => {
   emitOnlineCount();
-  socket.on('match:join', data => {
+  socket.on('match:join', async data => {
     if(roomOf(socket)) return emitLobby(roomOf(socket));
+    if(socket.data.matchJoinPending) return;
+    socket.data.matchJoinPending=true;
+    let profile;
+    try {
+      profile=await accounts.profileForToken(data && data.accountToken);
+    } catch(err) {
+      socket.data.matchJoinPending=false;
+      console.error('accounts: multiplayer authentication failed', err && err.name ? err.name : 'Error');
+      return socket.emit('room:error',{code:'ACCOUNT_CHECK_FAILED',message:'Не удалось проверить аккаунт. Попробуйте ещё раз.'});
+    }
+    socket.data.matchJoinPending=false;
+    if(!profile) return socket.emit('room:error',{code:'ACCOUNT_REQUIRED',message:'Для игры в мультиплеер войдите в аккаунт.'});
     const room = findOpenRoom() || createRoom(socket.id);
     const slot = nextOpenSlot(room);
     if(!Number.isInteger(slot)) return socket.emit('room:error',{message:'Комната заполнена.'});
-    room.players[socket.id] = createLobbyPlayer(socket.id, slot, data || {});
+    room.players[socket.id] = createLobbyPlayer(socket.id, slot, profile);
     socketRooms.set(socket.id, room.id); socket.join(room.id); emitLobby(room);
   });
   socket.on('room:select', data => {
