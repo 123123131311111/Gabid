@@ -276,6 +276,11 @@ const TEAM_NAME = ['Свет', 'Тьма'];
 const LANE_NAMES = ['МИД', 'ВЕРХ', 'НИЗ'];
 const MID_PUSH_TIME = 300;
 const BOT_FARM_PHASE_TIME = 180;
+const BOT_SCENARIO_NAMES = [
+  'Фарм и быстрый пуш мида', 'Лесная засада-ганг', 'Давление по бокам',
+  'Ранний инвайд вражеского леса', 'Оборона и контратака', 'Роаминг и перетяжки'
+];
+let botTeamScenarios = [];
 const makeTowerId = (team, lane, tier, base = false) => base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
 
 const BASES = [ {x:480, y:3120}, {x:3120, y:480} ];
@@ -333,6 +338,15 @@ let testDummies = [];
 let testDummySpawnAngle = 0;
 let testHeroPickerOpen = false;
 let storeOpen = false;
+let storeTab = 'shop';
+let storeCategory = 'skins';
+let redReginaSkinOwned = false;
+let redReginaSkinEquipped = false;
+try {
+  const savedCosmetics = JSON.parse(localStorage.getItem('shadowRampageCosmetics') || '{}');
+  redReginaSkinOwned = savedCosmetics.redReginaOwned === true;
+  redReginaSkinEquipped = redReginaSkinOwned && savedCosmetics.redReginaEquipped === true;
+} catch(err) {}
 let storePhraseOwned = false;
 let storeChipOwned = false;
 let storeAudioOwned = false;
@@ -378,8 +392,10 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.5c';
+const GAME_VERSION = '0.7.6a';
 const CHANGELOG_HISTORY = [
+  'Обновление 0.7.6a: вместо магазина фраз появился магазин с бесплатным скином «Красная Ригина» и отдельным инвентарём для его применения',
+  'Обновление 0.7.6: для Света и Тьмы независимо выбираются сценарии поведения ботов с шестью фазами; боты меняют линии, фармят лес и переходят к совместным атакам по таймеру, убийствам и падению башен',
   'Обновление 0.7.5c: Йосып, Срака мо3гов, новый порядок бот-закупа и исправление навыков Ригины',
   'Обновление 0.7.5b: боты получили приоритетные активные предметы; события меню получили новые иллюстрации',
   'Обновление 0.7.5a: ребаланс магазина и юнитов — цены и эффекты предметов обновлены, а главное меню переведено на более космическую синтезаторную тему',
@@ -459,7 +475,13 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.5c', title:'ЙОСЫП И НОВЫЕ ПРЕДМЕТЫ', changes:[
+  const sections = [{version:'0.7.6a', title:'СКИНЫ И ИНВЕНТАРЬ', changes:[
+    'Магазин фраз заменён магазином с бесплатным скином «Красная Ригина»; добавлен отдельный инвентарь, где скин можно применить или снять.',
+    'Раздел с фразами сохранён внутри магазина.'
+  ]},{version:'0.7.6', title:'ШЕСТЬ СЦЕНАРИЕВ БОТОВ', changes:[
+    'Свет и Тьма независимо получают один из шести сценариев: фарм и пуш мида, лесная засада, давление по бокам, инвайд леса, оборона с контратакой или роуминг.',
+    'Поведение проходит шесть фаз с переходами по времени, убийствам героев и уничтожению башен; выбывшие боты не останавливают действия оставшейся команды.'
+  ]},{version:'0.7.5c', title:'ЙОСЫП И НОВЫЕ ПРЕДМЕТЫ', changes:[
     'Йосып стал зелёным шестилапым жуком; Блювака оставляет видимый яд, четыре лужи сохраняются 6 секунд, а ультимейт высасывает 75 HP в секунду в течение 12 секунд.',
     'Добавлена Срака мо3гов за 3300 монет: активация на 2 секунды даёт +350 к скорости атаки и +250 к урону; для предмета нарисована отдельная иконка.',
     'Боты теперь покупают Клыки Васьки, Сапог Джоэла и ПТ в одном порядке, а затем приоритетно собирают Мунуцию, Мантированную сталь и Бошку Агнии и активируют предметы в бою.',
@@ -1382,6 +1404,21 @@ function unlockStorePhrase(id){
   if(id==='shovel') storeShovelOwned=true;
 }
 
+function saveReginaSkinState(){
+  try {
+    localStorage.setItem('shadowRampageCosmetics',JSON.stringify({
+      redReginaOwned:redReginaSkinOwned,redReginaEquipped:redReginaSkinEquipped
+    }));
+  } catch(err) {}
+}
+
+function setReginaSkinEquipped(equipped){
+  if(!redReginaSkinOwned) return;
+  redReginaSkinEquipped=equipped;
+  if(playerHero && playerHero.def.id==='regina') playerHero.skinId=equipped?'reginaRed':null;
+  saveReginaSkinState();
+}
+
 function updatePhraseWheelSelection(){
   if(!phraseWheelOpen) return;
   const dx = mouse.x - VW/2;
@@ -1878,6 +1915,7 @@ function killUnit(u, source){
     if(playerHero) announce(u.team === playerHero.team ? 'Your tower has fallen!' : 'Enemy tower has been destroyed!', {interrupt:true});
   }
   if(u.type === 'tower'){
+    noteBotScenarioTower(1-u.team,u);
     const progress = structureProgress[u.team];
     if(progress && progress.lanes[u.lane]){
       progress.lane = u.lane;
@@ -1903,6 +1941,7 @@ function killUnit(u, source){
     if(Math.hypot(h.x-u.x, h.y-u.y) < 1500) gainXp(h, u.xpValue || 40);
   }
   if(u.type === 'hero'){
+    noteBotScenarioKill(1-u.team,u);
       playSynthSfx('death');
      if(u === playerHero && rewardHero && rewardHero.team === 1)
        botTaunt(rewardHero, 'playerDeath');
@@ -5850,7 +5889,7 @@ function startGame(playerIndex, draftPicks=null){
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
-  gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
+  gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
    barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
   structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
   structureProgress=[createStructureProgress(),createStructureProgress()];
@@ -5893,6 +5932,7 @@ function startGame(playerIndex, draftPicks=null){
 
   playerHero = new Hero(HERO_DEFS[playerIndex], 0);
   playerHero.isPlayer = true;
+  if(redReginaSkinEquipped && playerHero.def.id==='regina') playerHero.skinId='reginaRed';
   enemyHero  = new Hero(HERO_DEFS[enemyIndex], 1);
   const allyHero = new Hero(HERO_DEFS[allyIndex], 0);
   const allyHero2 = new Hero(HERO_DEFS[allyIndex2], 0);
@@ -5900,6 +5940,8 @@ function startGame(playerIndex, draftPicks=null){
   const enemyAllyHero2 = new Hero(HERO_DEFS[enemyAllyIndex2], 1);
   const allyMidHero = new Hero(HERO_DEFS[allyMidIndex], 0);
   const enemyMidHero = new Hero(HERO_DEFS[enemyMidIndex], 1);
+  createBotScenario(0,[allyHero,allyHero2,allyMidHero]);
+  createBotScenario(1,[enemyHero,enemyAllyHero,enemyAllyHero2,enemyMidHero]);
   allyMidHero.midPushAssignment = true;
   enemyHero.midPushAssignment = true;
   enemyMidHero.midPushAssignment = true;
@@ -6086,6 +6128,132 @@ function botLaneObjective(h){
   return safePoint || path[0];
 }
 
+function createBotScenario(team, members){
+  const scenarioId = Math.floor(Math.random() * 6) + 1;
+  botTeamScenarios[team] = {id:scenarioId,phase:1,elapsed:0,midKill:false,towers:Object.create(null),members};
+  members.forEach((hero,index) => { hero.botScenarioSlot = index; });
+}
+
+function noteBotScenarioKill(team, victim){
+  const scenario = botTeamScenarios[team];
+  if(scenario && victim && laneDistanceToPoint(victim.x,victim.y,0) < 520) scenario.midKill = true;
+}
+
+function noteBotScenarioTower(team, tower){
+  const scenario = botTeamScenarios[team];
+  if(scenario && tower && tower.type === 'tower' && tower.team !== team){
+    scenario.towers[tower.lane + ':' + tower.tier] = true;
+  }
+}
+
+function scenarioTowerDown(scenario,lane){
+  return !!scenario.towers[lane + ':1'];
+}
+
+function advanceBotScenario(scenario, dt){
+  if(!scenario || scenario.phase >= 6) return;
+  scenario.elapsed += dt;
+  const allies = scenario.members.filter(hero => hero && !hero.dead);
+  const readyLevel = allies.length > 0 && allies.every(hero => hero.level >= 3);
+  const sideTowersDown = scenarioTowerDown(scenario,1) && scenarioTowerDown(scenario,2);
+  let advance = false;
+  switch(scenario.id){
+    case 1:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 8 :
+        scenario.phase === 2 ? scenario.elapsed >= 150 :
+        scenario.phase === 3 ? scenario.elapsed >= 25 :
+        scenario.phase === 4 ? scenarioTowerDown(scenario,0) || scenario.elapsed >= 180 :
+        scenario.phase === 5 ? sideTowersDown || scenario.elapsed >= 120 : false;
+      break;
+    case 2:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 10 :
+        scenario.phase === 2 ? readyLevel || scenario.elapsed >= 100 :
+        scenario.phase === 3 ? scenario.midKill || scenario.elapsed >= 100 :
+        scenario.phase === 4 ? scenarioTowerDown(scenario,0) || scenario.elapsed >= 140 :
+        scenario.phase === 5 ? scenarioTowerDown(scenario,2) || scenario.elapsed >= 120 : false;
+      break;
+    case 3:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 8 :
+        scenario.phase === 2 ? gameTime >= 240 :
+        scenario.phase === 3 ? scenario.elapsed >= 30 :
+        scenario.phase === 4 ? sideTowersDown || scenario.elapsed >= 150 :
+        scenario.phase === 5 ? scenario.elapsed >= 30 : false;
+      break;
+    case 4:
+      advance = scenario.phase === 1 ? gameTime >= 120 :
+        scenario.phase === 2 ? scenario.elapsed >= 25 :
+        scenario.phase === 3 ? scenario.elapsed >= 55 :
+        scenario.phase === 4 ? scenarioTowerDown(scenario,1) || scenario.elapsed >= 120 :
+        scenario.phase === 5 ? scenario.elapsed >= 50 : false;
+      break;
+    case 5:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 8 :
+        scenario.phase === 2 ? scenario.midKill || scenario.elapsed >= 240 :
+        scenario.phase === 3 ? scenario.elapsed >= 10 :
+        scenario.phase === 4 ? scenarioTowerDown(scenario,0) || scenario.elapsed >= 150 :
+        scenario.phase === 5 ? scenario.elapsed >= 60 : false;
+      break;
+    case 6:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 60 :
+        scenario.phase === 2 ? scenario.elapsed >= 90 :
+        scenario.phase === 3 ? scenario.elapsed >= 30 :
+        scenario.phase === 4 ? Object.keys(scenario.towers).length > 0 || scenario.elapsed >= 150 :
+        scenario.phase === 5 ? scenario.elapsed >= 90 : false;
+      break;
+  }
+  if(advance){ scenario.phase++; scenario.elapsed = 0; }
+}
+
+function updateBotScenarios(dt){
+  for(const scenario of botTeamScenarios) advanceBotScenario(scenario,dt);
+}
+
+function botScenarioDirective(hero){
+  const scenario = botTeamScenarios[hero.team];
+  if(!scenario) return null;
+  const slot = hero.botScenarioSlot || 0;
+  const lanes = (values) => values[Math.min(slot,values.length-1)];
+  let lane = 0, jungle = false, passive = false, rune = false;
+  switch(scenario.id){
+    case 1:
+      if(scenario.phase <= 2){ lane=lanes([1,2,2]); jungle=slot===2; passive=scenario.phase===2; }
+      else if(scenario.phase <= 4) lane=0;
+      else if(scenario.phase === 5) lane=lanes([1,1,2]);
+      else jungle=true;
+      break;
+    case 2:
+      if(scenario.phase <= 2){ lane=slot===2?2:1; jungle=slot<2; passive=scenario.phase===2; }
+      else if(scenario.phase <= 4) lane=slot===2?2:0;
+      else lane=2;
+      break;
+    case 3:
+      if(scenario.phase <= 4){ lane=lanes([1,2,0]); passive=scenario.phase===2; }
+      else lane=0;
+      break;
+    case 4:
+      if(scenario.phase===1 || scenario.phase===6) jungle=true;
+      else if(scenario.phase===2) lane=lanes([1,2,0]);
+      else if(scenario.phase===3){ lane=0; rune=true; }
+      else if(scenario.phase===4) lane=slot<2?1:0;
+      else lane=0;
+      break;
+    case 5:
+      if(scenario.phase<=2){ lane=slot===0?1:2; passive=scenario.phase===2; }
+      else if(scenario.phase<=4 || scenario.phase===6) lane=0;
+      else jungle=true;
+      break;
+    case 6:
+      if(scenario.phase<=2) lane=slot===2 ? (Math.floor(scenario.elapsed/18)%3) : (slot===0?1:slot===1?2:0);
+      else if(scenario.phase===3) lane=slot===0?2:slot===1?1:0;
+      else if(scenario.phase===4) lane=units
+        .filter(unit => unit.type==='tower' && unit.team!==hero.team && !unit.dead)
+        .sort((left,right)=>left.hp/left.maxHp-right.hp/right.maxHp)[0]?.lane ?? 0;
+      else lane=0;
+      break;
+  }
+  return {lane,jungle,passive,rune,scenario};
+}
+
 function isUnitOnBotLane(unit, lane){
   if(unit.type === 'tower' || unit.type === 'barracks') return unit.lane === lane;
   if(unit.type === 'ancient') return true;
@@ -6191,6 +6359,11 @@ function updateEnemyAI(h, dt){
   }
   if(h.aiTimer > 0) return;
   h.aiTimer = 0.18;
+  const scenarioDirective = botScenarioDirective(h);
+  if(scenarioDirective){
+    h.assignedLane = scenarioDirective.lane;
+    h.midPushAssignment = scenarioDirective.lane === 0;
+  }
 
   const base = BASES[h.team];
   const hpPct = h.hp / h.maxHp;
@@ -6227,7 +6400,7 @@ function updateEnemyAI(h, dt){
         Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
       .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0]
     : null;
-  if(gameTime < BOT_FARM_PHASE_TIME && !farmPhaseEnemy){
+  if(!scenarioDirective && gameTime < BOT_FARM_PHASE_TIME && !farmPhaseEnemy){
     const farmLane = Number.isInteger(h.assignedLane) ? h.assignedLane : 0;
     const laneCreep = units
       .filter(unit => unit.type === 'creep' && unit.team !== h.team && !unit.dead &&
@@ -6247,9 +6420,31 @@ function updateEnemyAI(h, dt){
     h.moveTarget = {x:farmingWaypoint.x+rnd(-70,70),y:farmingWaypoint.y+rnd(-70,70)};
     return;
   }
+  if(scenarioDirective && scenarioDirective.passive){
+    const defender = units.filter(unit => unit.type==='hero' && unit.team!==h.team && !unit.dead &&
+      Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
+      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    if(defender){ h.attackTarget=defender; h.moveTarget=null; return; }
+    const creep = units.filter(unit => unit.type==='creep' && unit.team!==h.team && !unit.dead &&
+      laneDistanceToPoint(unit.x,unit.y,scenarioDirective.lane)<220 && Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
+      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    if(creep){ h.laneState='lane'; h.attackTarget=creep; h.moveTarget=null; return; }
+    if(updateBotFarm(h)) return;
+    h.attackTarget=null;
+    const safePath=LANES[scenarioDirective.lane]||LANES[0];
+    const safePoint=safePath[h.team===0?Math.min(1,safePath.length-1):Math.max(0,safePath.length-2)];
+    h.moveTarget={x:safePoint.x,y:safePoint.y};
+    return;
+  }
+  if(scenarioDirective && scenarioDirective.rune && runes.length){
+    const rune=runes.slice().sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    if(Math.hypot(rune.x-h.x,rune.y-h.y)>48){ h.attackTarget=null; h.moveTarget={x:rune.x,y:rune.y}; return; }
+  }
+  if(scenarioDirective && scenarioDirective.jungle && !farmPhaseEnemy && updateBotFarm(h)) return;
 
-  const strategicLane = gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
-  if(gameTime >= MID_PUSH_TIME && h.midPushAssignment) h.assignedLane = 0;
+  const strategicLane = scenarioDirective ? scenarioDirective.lane :
+    (gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0));
+  if(!scenarioDirective && gameTime >= MID_PUSH_TIME && h.midPushAssignment) h.assignedLane = 0;
   const laneEnemy = units
     .filter(unit => unit.team !== h.team && unit.team !== 2 && !unit.dead &&
       isUnitOnBotLane(unit, strategicLane) && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
@@ -6500,6 +6695,7 @@ function update(dt){
   if(gameState !== 'playing') return;
   if(prematchTime > 0){ updatePrematch(dt); updatePrematchMovement(dt); return; }
   gameTime += dt;
+  updateBotScenarios(dt);
   updateBotChatReplies();
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
   if(rampageBanner.t > 0) rampageBanner.t = Math.max(0, rampageBanner.t - dt);
@@ -7708,6 +7904,8 @@ function drawTerrain(){
 }
 
 function getWeaponConfig(unit){
+  if(unit.def && unit.def.id==='regina' && unit.skinId==='reginaRed')
+    return {...unit.def.weapon,color:'#ff344f'};
   if(unit.def && unit.def.weapon) return unit.def.weapon;
   if(unit.type === 'creep'){
     return unit.ranged
@@ -8273,7 +8471,7 @@ function drawUnit(u){
     ctx.restore();
   }
   if(u.type === 'hero'){
-    const heroAccent = u.def.color2 || col;
+    const heroAccent = u.skinId === 'reginaRed' ? '#ff344f' : (u.def.color2 || col);
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = heroAccent;
@@ -9192,29 +9390,29 @@ function drawUnit(u){
        ctx.fillStyle='#fff0a8'; ctx.font='bold 9px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText('C',0,21);
        ctx.restore();
      } else if(u.def.id==='regina'){
-       // Ригина повторяет референс: рыжий высокий хвост, синяя форма,
-       // светлая кираса, зелёный плащ и походный рюкзак.
+      // Палитра меняется для выбранного игроком косметического образа.
+      const redSkin=u.skinId==='reginaRed';
        const s = u.radius/24;
        ctx.save();
        ctx.scale(s,s);
-       ctx.fillStyle='rgba(29,54,83,0.34)'; ctx.shadowColor='#ff6f91'; ctx.shadowBlur=18;
+       ctx.fillStyle=redSkin?'rgba(100,12,30,0.38)':'rgba(29,54,83,0.34)'; ctx.shadowColor=redSkin?'#ff263f':'#ff6f91'; ctx.shadowBlur=18;
        ctx.beginPath(); ctx.ellipse(0,15,33,39,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-       ctx.fillStyle='#31557f'; ctx.strokeStyle='#172d49'; ctx.lineWidth=2;
+       ctx.fillStyle=redSkin?'#78172b':'#31557f'; ctx.strokeStyle=redSkin?'#310b18':'#172d49'; ctx.lineWidth=2;
        ctx.beginPath(); ctx.moveTo(-22,-4); ctx.lineTo(-31,31); ctx.lineTo(0,41); ctx.lineTo(31,31); ctx.lineTo(22,-4); ctx.closePath(); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#d9e4ea'; ctx.strokeStyle='#a7bfd0'; ctx.lineWidth=1.5;
+       ctx.fillStyle=redSkin?'#eadce0':'#d9e4ea'; ctx.strokeStyle=redSkin?'#c88995':'#a7bfd0'; ctx.lineWidth=1.5;
        ctx.beginPath(); ctx.moveTo(-15,-2); ctx.lineTo(15,-2); ctx.lineTo(18,28); ctx.quadraticCurveTo(0,36,-18,28); ctx.closePath(); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#3f78b1'; ctx.fillRect(-5,0,4,24); ctx.fillRect(3,0,4,24);
-       ctx.fillStyle='#9a6844'; ctx.strokeStyle='#4b3025'; ctx.lineWidth=2;
+       ctx.fillStyle=redSkin?'#c62842':'#3f78b1'; ctx.fillRect(-5,0,4,24); ctx.fillRect(3,0,4,24);
+       ctx.fillStyle=redSkin?'#692536':'#9a6844'; ctx.strokeStyle=redSkin?'#32101a':'#4b3025'; ctx.lineWidth=2;
        ctx.beginPath(); ctx.roundRect(-29,0,9,28,3); ctx.roundRect(20,0,9,28,3); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#243b3c'; ctx.strokeStyle='#6c8a80';
+       ctx.fillStyle=redSkin?'#4a101f':'#243b3c'; ctx.strokeStyle=redSkin?'#cf5267':'#6c8a80';
        ctx.beginPath(); ctx.moveTo(-28,-4); ctx.lineTo(-38,-18); ctx.lineTo(-30,-30); ctx.lineTo(-18,-12); ctx.closePath(); ctx.fill(); ctx.stroke();
        ctx.beginPath(); ctx.moveTo(28,-4); ctx.lineTo(38,-18); ctx.lineTo(30,-30); ctx.lineTo(18,-12); ctx.closePath(); ctx.fill(); ctx.stroke();
        ctx.fillStyle='#e0a276'; ctx.strokeStyle='#6d4434'; ctx.lineWidth=1.5;
        ctx.beginPath(); ctx.ellipse(0,-13,18,21,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#a84f2d'; ctx.strokeStyle='#5c2e22'; ctx.lineWidth=2;
+       ctx.fillStyle=redSkin?'#52101e':'#a84f2d'; ctx.strokeStyle=redSkin?'#260810':'#5c2e22'; ctx.lineWidth=2;
        ctx.beginPath(); ctx.moveTo(-19,-17); ctx.quadraticCurveTo(-15,-39,4,-37); ctx.quadraticCurveTo(20,-35,22,-18); ctx.lineTo(15,-25); ctx.quadraticCurveTo(2,-33,-10,-24); ctx.closePath(); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#c96535'; ctx.beginPath(); ctx.arc(25,-34,13,0,Math.PI*2); ctx.fill(); ctx.stroke();
-       ctx.strokeStyle='#e8a06c'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-12,-25); ctx.lineTo(-19,-7); ctx.moveTo(7,-29); ctx.lineTo(16,-12); ctx.stroke();
+       ctx.fillStyle=redSkin?'#b12640':'#c96535'; ctx.beginPath(); ctx.arc(25,-34,13,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.strokeStyle=redSkin?'#e4465d':'#e8a06c'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-12,-25); ctx.lineTo(-19,-7); ctx.moveTo(7,-29); ctx.lineTo(16,-12); ctx.stroke();
        ctx.fillStyle='#6f352b'; ctx.beginPath(); ctx.arc(-7,-12,2.4,0,Math.PI*2); ctx.arc(7,-12,2.4,0,Math.PI*2); ctx.fill();
        ctx.fillStyle='#ffeff2'; ctx.beginPath(); ctx.arc(-7,-13,1,0,Math.PI*2); ctx.arc(7,-13,1,0,Math.PI*2); ctx.fill();
        ctx.strokeStyle='#7e3d3d'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-7,-3); ctx.quadraticCurveTo(0,1,7,-3); ctx.stroke();
@@ -11794,8 +11992,35 @@ function menuSettingsLayout(panel){
   };
 }
 function menuStoreRect(){ if(menuWide()) return menuNavRect(2); return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
+function storePanelLayout(){
+  const width=Math.max(0,Math.min(660,VW-24)), height=Math.max(0,Math.min(560,VH-24));
+  const panel={x:(VW-width)/2,y:(VH-height)/2,w:width,h:height};
+  const tabGap=10, tabWidth=(width-48-tabGap)/2;
+  const tabs={
+    shop:{x:panel.x+24,y:panel.y+76,w:tabWidth,h:38},
+    inventory:{x:panel.x+24+tabWidth+tabGap,y:panel.y+76,w:tabWidth,h:38}
+  };
+  const categoryGap=8, categoryWidth=(width-48-categoryGap)/2;
+  const categories={
+    skins:{x:panel.x+24,y:panel.y+124,w:categoryWidth,h:30},
+    phrases:{x:panel.x+24+categoryWidth+categoryGap,y:panel.y+124,w:categoryWidth,h:30}
+  };
+  const phraseGap=8, phraseWidth=(width-48-phraseGap*2)/3;
+  const phraseHeight=Math.min(76,Math.max(40,(height-245)/3));
+  const phraseCards=STORE_PHRASE_CARDS.map((card,index)=>({
+    x:panel.x+24+(index%3)*(phraseWidth+phraseGap),
+    y:panel.y+166+Math.floor(index/3)*(phraseHeight+phraseGap),w:phraseWidth,h:phraseHeight
+  }));
+  return {
+    panel,tabs,categories,phraseCards,
+    skinCard:{x:panel.x+24,y:panel.y+166,w:width-48,h:Math.max(72,height-270)},
+    action:{x:panel.x+24,y:panel.y+height-104,w:width-48,h:42},
+    close:{x:panel.x+24,y:panel.y+height-54,w:width-48,h:40}
+  };
+}
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.7.6a',title:'КРАСНАЯ РИГИНА И ИНВЕНТАРЬ',description:'Забери первый бесплатный скин в магазине, примени его в инвентаре и используй на Ригине в матче.',compactDescription:'Бесплатный скин Ригины и новый инвентарь.'},
   {version:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',description:'Победы, поражения, убийства, смерти, любимые бойцы и подробные отчёты последних игр с итогом команд.',compactDescription:'Карьера игрока и отчёты последних матчей.'},
   {version:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',description:'Смотри десятку игроков с наибольшим числом побед над ботами и игроками. MMR отображается как дополнительная статистика.',compactDescription:'Глобальный топ по победам в матчах.'},
   {version:'0.7.4b',title:'ПРОГРЕСС АККАУНТА',description:'Личные показатели, любимые герои и недавние результаты остаются с аккаунтом после следующего входа.',compactDescription:'Статистика сохраняется в аккаунте.'},
@@ -11951,12 +12176,27 @@ function handleMenuClick(mx, my){
     storeOpen=!storeOpen; changelogOpen=false; settingsOpen=false; return;
   }
   if(storeOpen){
-    const panel={x:VW/2-330,y:VH/2-250,w:660,h:500};
-    const close={x:panel.x+230,y:panel.y+426,w:200,h:44};
-    if(mx>=close.x&&mx<=close.x+close.w&&my>=close.y&&my<=close.y+close.h){storeOpen=false;return;}
-    for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
-      const card={x:panel.x+18+(index%3)*216,y:panel.y+124+Math.floor(index/3)*98,w:194,h:88};
-      if(mx>=card.x&&mx<=card.x+card.w&&my>=card.y&&my<=card.y+card.h){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
+    const layout=storePanelLayout();
+    const inside=(rect)=>mx>=rect.x&&mx<=rect.x+rect.w&&my>=rect.y&&my<=rect.y+rect.h;
+    if(inside(layout.close)){storeOpen=false;return;}
+    if(inside(layout.tabs.shop)){storeTab='shop';return;}
+    if(inside(layout.tabs.inventory)){storeTab='inventory';return;}
+    if(storeTab==='shop'){
+      if(inside(layout.categories.skins)){storeCategory='skins';return;}
+      if(inside(layout.categories.phrases)){storeCategory='phrases';return;}
+      if(storeCategory==='phrases'){
+        for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
+          if(inside(layout.phraseCards[index])){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
+        }
+      } else if(inside(layout.action)){
+        redReginaSkinOwned=true;
+        saveReginaSkinState();
+        storeTab='inventory';
+        return;
+      }
+    } else if(inside(layout.action)){
+      if(redReginaSkinOwned) setReginaSkinEquipped(!redReginaSkinEquipped);
+      else { storeTab='shop'; storeCategory='skins'; }
     }
     return;
   }
@@ -12210,10 +12450,11 @@ function drawHeroTexture(def, x, y, w, h, now, large=false){
     ctx.fillStyle='#ff4b24'; ctx.shadowColor='#ff4b24'; ctx.shadowBlur=16; ctx.beginPath(); ctx.arc(-12,-104,6,0,Math.PI*2); ctx.arc(12,-104,6,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
     ctx.strokeStyle='#ff7043'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(64,-22); ctx.lineTo(104,-94); ctx.stroke();
   } else if(def.id==='regina'){
-    ctx.fillStyle='#e9b39e'; ctx.strokeStyle='#59243c'; ctx.lineWidth=3;
+    const redSkin=def.skinId==='reginaRed';
+    ctx.fillStyle='#e9b39e'; ctx.strokeStyle=redSkin?'#4b0b18':'#59243c'; ctx.lineWidth=3;
     ctx.beginPath(); ctx.arc(0,-112,34,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#5a2940'; ctx.beginPath(); ctx.arc(0,-130,42,Math.PI,Math.PI*2); ctx.fill();
-    ctx.strokeStyle='#ff9fbd'; ctx.lineWidth=5;
+    ctx.fillStyle=redSkin?'#641126':'#5a2940'; ctx.beginPath(); ctx.arc(0,-130,42,Math.PI,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=redSkin?'#ff4058':'#ff9fbd'; ctx.lineWidth=5;
     ctx.beginPath(); ctx.moveTo(-58,-34); ctx.lineTo(-92,-91); ctx.moveTo(58,-34); ctx.lineTo(92,-91); ctx.stroke();
     ctx.fillStyle='#fff0f5'; ctx.beginPath(); ctx.arc(-12,-112,4,0,Math.PI*2); ctx.arc(12,-112,4,0,Math.PI*2); ctx.fill();
   } else if(def.id==='yosyp'){
@@ -12238,7 +12479,7 @@ function drawHeroTexture(def, x, y, w, h, now, large=false){
     dead:false, invisible:false, liftTimer:0, buffs:[],
     hitFlash:0, slowT:0, bkbActive:0, hpRegenBoost:false,
     hp:100, maxHp:100, mp:100, maxMp:100, level:1,
-    facing:-Math.PI/2, isPlayer:false, shadowSouls:0,
+    facing:-Math.PI/2, isPlayer:false, shadowSouls:0, skinId:def.skinId||null,
     orbs:['Q','W','E']
   };
   ctx.save();
@@ -12356,24 +12597,65 @@ function drawDraftSkillPanel(now){
 }
 
 function drawStorePanel(){
-  const panel={x:VW/2-330,y:VH/2-250,w:660,h:500};
+  const layout=storePanelLayout(), panel=layout.panel;
   ctx.fillStyle='rgba(0,0,0,0.62)'; ctx.fillRect(0,0,VW,VH);
   ctx.save();
   ctx.fillStyle='rgba(7,12,22,0.98)'; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
-  ctx.strokeStyle='#8be9fd'; ctx.lineWidth=2.5; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
-  ctx.textAlign='center'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 28px Georgia, serif'; ctx.fillText('МАГАЗИН ФРАЗ',VW/2,panel.y+54);
-  ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='13px Segoe UI, Arial'; ctx.fillText('Откройте фразу и используйте её в катке клавишей K',VW/2,panel.y+82);
-  STORE_PHRASE_CARDS.forEach((card,index)=>{
-    const x=panel.x+18+(index%3)*216;
-    const y=panel.y+124+Math.floor(index/3)*98;
-    const owned=isStorePhraseOwned(card.id);
-    ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(x,y,194,88);
-    ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(x,y,194,88);
-    ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(card.title,x+12,y+24);
-    ctx.fillStyle='#fff'; ctx.font='bold '+(card.desc.length>20?'11':'14')+'px Segoe UI, Arial'; ctx.fillText(card.desc,x+12,y+50);
-    ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'ПОЛУЧИТЬ БЕСПЛАТНО',x+12,y+72);
-  });
-  const close={x:panel.x+230,y:panel.y+426,w:200,h:44}; drawMenuButton(close,'ЗАКРЫТЬ',{active:true});
+  ctx.strokeStyle='#e15b55'; ctx.lineWidth=2.5; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
+  ctx.textAlign='center'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 25px Georgia, serif'; ctx.fillText('МАГАЗИН',VW/2,panel.y+40);
+  ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='12px Segoe UI, Arial'; ctx.fillText('Косметика и предметы коллекции',VW/2,panel.y+59);
+  drawMenuButton(layout.tabs.shop,'МАГАЗИН',{active:storeTab==='shop'});
+  drawMenuButton(layout.tabs.inventory,'ИНВЕНТАРЬ',{active:storeTab==='inventory'});
+
+  if(storeTab==='shop'){
+    drawMenuButton(layout.categories.skins,'СКИНЫ',{active:storeCategory==='skins'});
+    drawMenuButton(layout.categories.phrases,'ФРАЗЫ',{active:storeCategory==='phrases'});
+    if(storeCategory==='skins'){
+      const card=layout.skinCard, regina=HERO_DEFS.find(hero=>hero.id==='regina');
+      ctx.fillStyle='rgba(24,16,25,0.96)'; ctx.fillRect(card.x,card.y,card.w,card.h);
+      ctx.strokeStyle='#b52d3c'; ctx.lineWidth=2; ctx.strokeRect(card.x,card.y,card.w,card.h);
+      if(regina) drawHeroTexture({...regina,color:'#5b101e',color2:'#ff4058',skinId:'reginaRed'},card.x+12,card.y+12,Math.min(120,card.w*0.34),card.h-24,performance.now()/1000);
+      const detailsX=card.x+Math.min(150,card.w*0.42), detailsWidth=card.x+card.w-detailsX-10;
+      ctx.textAlign='left'; ctx.fillStyle='#ff5968'; ctx.font='bold '+Math.min(18,Math.max(13,detailsWidth/9))+'px Segoe UI, Arial';
+      ctx.fillText('КРАСНАЯ РИГИНА',detailsX,card.y+42);
+      ctx.fillStyle='rgba(255,240,235,0.76)'; ctx.font='13px Segoe UI, Arial';
+      wrapMenuText('Алый боевой образ Ригины. Не меняет характеристики героя.',detailsWidth,'13px Segoe UI, Arial').slice(0,3)
+        .forEach((line,index)=>ctx.fillText(line,detailsX,card.y+72+index*18));
+      ctx.fillStyle='#78e6a8'; ctx.font='bold 13px Segoe UI, Arial'; ctx.fillText('БЕСПЛАТНО',detailsX,card.y+card.h-22);
+      drawMenuButton(layout.action,redReginaSkinOwned?'ПОЛУЧЕНО • В ИНВЕНТАРЕ':'ЗАБРАТЬ БЕСПЛАТНО',{primary:!redReginaSkinOwned});
+    } else {
+      STORE_PHRASE_CARDS.forEach((card,index)=>{
+        const rect=layout.phraseCards[index], owned=isStorePhraseOwned(card.id);
+        ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(rect.x,rect.y,rect.w,rect.h);
+        ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
+        ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(card.title,rect.x+8,rect.y+20);
+        ctx.fillStyle='#fff'; ctx.font='11px Segoe UI, Arial';
+        wrapMenuText(card.desc,rect.w-16,'11px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,rect.x+8,rect.y+39+lineIndex*13));
+        ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 10px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'БЕСПЛАТНО',rect.x+8,rect.y+rect.h-8);
+      });
+    }
+  } else if(redReginaSkinOwned){
+    const card=layout.skinCard, regina=HERO_DEFS.find(hero=>hero.id==='regina');
+    ctx.fillStyle='rgba(24,16,25,0.96)'; ctx.fillRect(card.x,card.y,card.w,card.h);
+    ctx.strokeStyle=redReginaSkinEquipped?'#72e6a5':'#b52d3c'; ctx.lineWidth=2; ctx.strokeRect(card.x,card.y,card.w,card.h);
+    if(regina) drawHeroTexture({...regina,color:'#5b101e',color2:'#ff4058',skinId:'reginaRed'},card.x+12,card.y+12,Math.min(120,card.w*0.34),card.h-24,performance.now()/1000);
+    const detailsX=card.x+Math.min(150,card.w*0.42), detailsWidth=card.x+card.w-detailsX-10;
+    ctx.textAlign='left'; ctx.fillStyle='#ff5968'; ctx.font='bold '+Math.min(18,Math.max(13,detailsWidth/9))+'px Segoe UI, Arial';
+    ctx.fillText('КРАСНАЯ РИГИНА',detailsX,card.y+42);
+    ctx.fillStyle=redReginaSkinEquipped?'#72e6a5':'rgba(255,240,235,0.7)'; ctx.font='13px Segoe UI, Arial';
+    ctx.fillText(redReginaSkinEquipped?'СКИН ПРИМЕНЁН':'ГОТОВ К ПРИМЕНЕНИЮ',detailsX,card.y+70);
+    ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='12px Segoe UI, Arial';
+    wrapMenuText('Будет виден, когда выбран герой Ригина.',detailsWidth,'12px Segoe UI, Arial').slice(0,2)
+      .forEach((line,index)=>ctx.fillText(line,detailsX,card.y+94+index*16));
+    drawMenuButton(layout.action,redReginaSkinEquipped?'СНЯТЬ СКИН':'ПРИМЕНИТЬ СКИН',{primary:!redReginaSkinEquipped});
+  } else {
+    ctx.textAlign='center'; ctx.fillStyle='#dce5ef'; ctx.font='bold 17px Segoe UI, Arial';
+    ctx.fillText('ИНВЕНТАРЬ ПОКА ПУСТ',VW/2,panel.y+panel.h*0.58);
+    ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='13px Segoe UI, Arial';
+    ctx.fillText('Заберите бесплатный скин в магазине.',VW/2,panel.y+panel.h*0.58+25);
+    drawMenuButton(layout.action,'ОТКРЫТЬ МАГАЗИН',{primary:true});
+  }
+  drawMenuButton(layout.close,'ЗАКРЫТЬ',{active:true});
   ctx.restore();
 }
 
@@ -13434,7 +13716,7 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#fff0c7'; ctx.font='bold '+Math.round(19*s)+'px Georgia, serif';
   ctx.fillText('ЛОПАТА ЧЕЛЛЕНДЖ',challenge.x+Math.round(92*s),challenge.y+Math.round(46*s));
   ctx.fillStyle='rgba(235,225,215,0.65)'; ctx.font=Math.round(11*s)+'px Segoe UI, Arial';
-  ctx.fillText(isStorePhraseOwned('shovel')?'Получено • жми K в бою':'Забери бесплатно в магазине фраз',challenge.x+Math.round(92*s),challenge.y+Math.round(69*s));
+  ctx.fillText(isStorePhraseOwned('shovel')?'Получено • жми K в бою':'Забери бесплатно во вкладке «Фразы»',challenge.x+Math.round(92*s),challenge.y+Math.round(69*s));
   ctx.restore();
 
   /* --- профиль (клик открывает окно аккаунта) --- */
@@ -13553,7 +13835,7 @@ function drawDotaSenseHome(){
   /* --- нижняя панель навигации --- */
   drawMenuButton(menuFightersRect(),'⚔  БОЙЦЫ',{active:true,radius:8,large:true,fontSize:Math.round(16*s)});
   drawMenuButton(menuChangelogRect(),'▣  ЧЕНДЖЛОГ',{radius:8,large:true,fontSize:Math.round(16*s)});
-  drawMenuButton(menuStoreRect(),'♫  МАГАЗИН ФРАЗ',{radius:8,large:true,fontSize:Math.round(16*s)});
+  drawMenuButton(menuStoreRect(),'▣  МАГАЗИН',{radius:8,large:true,fontSize:Math.round(16*s)});
 
   /* --- статус и версия --- */
   ctx.save();
@@ -13867,7 +14149,7 @@ function drawMenu(){
     const changelog = menuChangelogRect();
     drawMenuButton(changelog,'▣  CHANGELOG',{radius:8});
     const storeButton=menuStoreRect();
-    drawMenuButton(storeButton,'♫  МАГАЗИН ФРАЗ',{radius:8});
+    drawMenuButton(storeButton,'▣  МАГАЗИН',{radius:8});
     ctx.font = '14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
     if(VW>=820 && VH>=820) ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
     return;
@@ -14781,6 +15063,10 @@ requestAnimationFrame(loop);
         speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
     }
     const entry = onlineEntryElement;
-    if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
+    if(entry){
+      const visible=gameState==='menu'&&menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
+      entry.hidden=!visible;
+      entry.style.display=visible?'block':'none';
+    }
   }, 50);
 })();
