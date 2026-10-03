@@ -616,7 +616,7 @@ let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
 const GAME_VERSION = '0.7.7';
 const CHANGELOG_HISTORY = [
-  'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — теперь он поедает лесных крипов и слабых героев, получая постоянные бонусы к здоровью и урону; «Разбег» усилен; боты умеют фармить ультом',
+  'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
   'Обновление 0.7.7: карта увеличена на 30%, здоровье башен и трона увеличено втрое, обновлены Иллюзионист и панель героя, активные предметы расходуют ману, добавлена анимированная заставка',
   'Обновление 0.7.6b: исправлен скин Красная Ригина, скорость героев снижена на 10%, добавлен активный предмет «Замисть», звон монет при покупке, профили из мирового топа и вход в мультиплеер только с аккаунтом',
   'Обновление 0.7.6a: вместо магазина фраз появился магазин с бесплатным скином «Красная Ригина» и отдельным инвентарём для его применения',
@@ -5377,24 +5377,25 @@ const MO3GI_SKILLS = {
 };
 
 /* ===== Джувсют: «Большой обед» — пожирание лесных крипов ===== */
-const JUVSYUT_DEVOUR_BONUS = [null, {hp:40, dmg:3}, {hp:50, dmg:4}, {hp:60, dmg:6}];
-const JUVSYUT_DEVOUR_WINDOW = 10;      // сек. окна пожирания после каста
+const JUVSYUT_DEVOUR_BONUS = [null, {hp:40, dmg:5}, {hp:50, dmg:10}, {hp:60, dmg:20}];
+const JUVSYUT_HERO_DMG_BONUS = 100;   // фиксированный урон за съеденного героя
 const JUVSYUT_HUNGER_TIME = 60;        // сек. без еды до потери одного стака
 const JUVSYUT_HERO_STACKS = 10;        // герой = 10 лесных крипов
 const JUVSYUT_HERO_EAT_HP = 200;       // героя можно съесть, только если HP <= 200
-const JUVSYUT_EAT_REACH = 120;         // дистанция авто-поедания в окне (от края юнита)
 
 function juvsyutDevourState(h){
-  if(!h.devour) h.devour = {count:0, hp:0, dmg:0, hunger:0, active:0, tick:0};
+  if(!h.devour) h.devour = {count:0, hp:0, dmg:0, hunger:0};
   return h.devour;
 }
-function juvsyutDevourGain(h, stacks, lvl){
+function juvsyutDevourGain(h, stacks, lvl, fixedDmg){
   const st = juvsyutDevourState(h);
   const b = JUVSYUT_DEVOUR_BONUS[Math.max(1, Math.min(3, lvl || 1))];
-  const hp = b.hp * stacks, dmg = b.dmg * stacks;
+  const hp = b.hp * stacks;
+  const dmg = (fixedDmg !== undefined) ? fixedDmg : b.dmg * stacks;
+  const maxBefore = h.maxHp, dmgBefore = h.dmg;
   st.count += stacks; st.hp += hp; st.dmg += dmg; st.hunger = 0;
   h.maxHp += hp; h.hp += hp; h.dmg += dmg;
-  addText(h.x, h.y - 96, 'СЪЕДЕНО ×' + st.count + '  (+' + st.hp + ' HP, +' + st.dmg + ' урона)', '#ffb36b', 1.3, 15);
+  addText(h.x, h.y - 96, '+' + Math.round(h.maxHp - maxBefore) + ' HP, +' + Math.round(h.dmg - dmgBefore) + ' урона  (всего ×' + st.count + ': +' + Math.round(st.hp) + ' HP, +' + Math.round(st.dmg) + ' урона)', '#ffb36b', 1.5, 15);
 }
 function juvsyutDevourLose(h){
   const st = h.devour;
@@ -5414,7 +5415,7 @@ function juvsyutResetDevour(h){
     h.hp = Math.min(h.hp, h.maxHp);
     h.dmg = Math.max(1, h.dmg - st.dmg);
   }
-  st.count = 0; st.hp = 0; st.dmg = 0; st.hunger = 0; st.active = 0; st.tick = 0;
+  st.count = 0; st.hp = 0; st.dmg = 0; st.hunger = 0;
 }
 function juvsyutEatNeutral(h, creep, lvl){
   fxBeam(h.x, h.y, creep.x, creep.y, '#ffb36b', 0.25);
@@ -5441,74 +5442,31 @@ function updateJuvsyutDevour(h, dt){
     st.hunger += dt;
     if(st.hunger >= JUVSYUT_HUNGER_TIME){ st.hunger = 0; juvsyutDevourLose(h); }
   } else st.hunger = 0;
-  /* Окно пожирания: в течение 10 секунд поедаем лесных крипов рядом. */
-  if(st.active > 0){
-    st.active = Math.max(0, st.active - dt);
-    st.tick -= dt;
-    if(st.tick <= 0){
-      let near = null, nearD = Infinity;
-      for(const u of units){
-        if(u.dead || u.type !== 'neutral') continue;
-        const d = Math.hypot(u.x - h.x, u.y - h.y) - u.radius - h.radius;
-        if(d <= JUVSYUT_EAT_REACH && d < nearD){ near = u; nearD = d; }
-      }
-      if(near){
-        juvsyutEatNeutral(h, near, h.skills[3] ? h.skills[3].level : 1);
-        st.tick = 0.45;
-      } else st.tick = 0.1;
-    }
-    if(st.active <= 0) addText(h.x, h.y - 80, 'ОБЕД ОКОНЧЕН', '#ffd0a8', 1.0, 14);
-  }
 }
 /* ИИ бота: ходит к лагерям и использует ульт на лесных крипов / добивает слабых героев.
    Возвращает true, если бот занят этим в текущем тике. */
 function juvsyutBotThink(h, hpPct){
   const ult = h.skills[3];
-  if(!ult || ult.level < 1 || h.stunTimer > 0) return false;
-  const st = juvsyutDevourState(h);
-  const enemyHero = units.filter(u => u.type === 'hero' && u.team !== h.team && !u.dead && !u.isIllusion)
-    .sort((a, b) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y))[0];
-  const enemyDist = enemyHero ? Math.hypot(enemyHero.x - h.x, enemyHero.y - h.y) : Infinity;
-  const neutrals = units.filter(u => u.type === 'neutral' && !u.dead);
-  const nearestNeutral = (maxD) => {
-    let best = null, bestD = maxD;
-    for(const u of neutrals){
-      const d = Math.hypot(u.x - h.x, u.y - h.y);
-      if(d < bestD){ bestD = d; best = u; }
-    }
-    return best;
-  };
-  const ready = ult.cd <= 0 && h.mp >= ult.def.mana[ult.level];
-
-  /* 1) Окно пожирания: бежим к ближайшему крипу и едим. */
-  if(st.active > 0){
-    if(enemyDist < 450) return false;
-    const n = nearestNeutral(1400);
-    if(n){
-      h.laneState = 'jungle'; h.attackTarget = n; h.moveTarget = {x:n.x, y:n.y};
-      return true;
-    }
-    return false;
-  }
-  if(!ready) return false;
-
-  /* 2) Добить героя с HP <= 200 — это бонус за 10 крипов. */
+  if(!ult || ult.level < 1 || h.stunTimer > 0 || ult.cd > 0) return false;
+  /* 1) Добить героя с HP <= 200 — бонус за 10 крипов. */
   const victim = units.find(u => u.type === 'hero' && u.team !== h.team && !u.dead && !u.isIllusion &&
-    !u.invulnerable && u.hp <= JUVSYUT_HERO_EAT_HP && Math.hypot(u.x - h.x, u.y - h.y) <= 520);
+    !u.invulnerable && u.hp <= JUVSYUT_HERO_EAT_HP && Math.hypot(u.x - h.x, u.y - h.y) <= 560);
   if(victim && castSkill(h, 3, victim.x, victim.y)) return true;
-
-  /* 3) Крипы рядом — запускаем ульт (одиночку не тратим, пока не голодаем). */
-  const close = nearestNeutral(520);
-  if(close && enemyDist >= 450){
-    const pack = neutrals.filter(u => Math.hypot(u.x - close.x, u.y - close.y) <= 600).length;
-    if((pack >= 2 || st.hunger >= 40) && castSkill(h, 3, close.x, close.y)) return true;
+  /* 2) Ближайший лесной крип в зоне каста — съедаем. */
+  let near = null, nearD = 560;
+  for(const u of units){
+    if(u.dead || u.type !== 'neutral') continue;
+    const d = Math.hypot(u.x - h.x, u.y - h.y);
+    if(d < nearD){ nearD = d; near = u; }
   }
-
-  /* 4) Ульт готов, врагов рядом нет — идём в лес. */
+  const enemyClose = units.some(u => u.type === 'hero' && u.team !== h.team && !u.dead &&
+    Math.hypot(u.x - h.x, u.y - h.y) < 450);
+  if(near && !enemyClose && castSkill(h, 3, near.x, near.y)) return true;
+  /* 3) Ульт готов, врагов рядом нет — идём в лес к лагерю. */
   const pushing = gameTime >= MID_PUSH_TIME && h.midPushAssignment;
-  if(!pushing && enemyDist >= 700 && hpPct > 0.5 && neutrals.length){
-    if(updateBotFarm(h)) return true;
-  }
+  const enemyNear = units.some(u => u.type === 'hero' && u.team !== h.team && !u.dead &&
+    Math.hypot(u.x - h.x, u.y - h.y) < 700);
+  if(!pushing && !enemyNear && hpPct > 0.5 && updateBotFarm(h)) return true;
   return false;
 }
 
@@ -5569,12 +5527,11 @@ const JUVSYUT_CHIP_SKILLS = {
   },
   juvsyutFeast: {
     name:'Большой обед', short:'R', type:'point', maxLevel:3,
-    cd:[0,68,58,48], mana:[0,165,205,245], range:560, ult:true,
-    desc:'Наведите на лесного крипа — съедаете его и 10 секунд можете поедать только лесных крипов (без лимита). Каждый крип навсегда даёт +HP и урон (ур.1: +40/+3, ур.2: +50/+4, ур.3: +60/+6). 60 секунд без еды — теряется один стак. На вражеского героя с HP ≤ 200: съедаете его (бонус как за 10 крипов); если HP выше 200 — способность не срабатывает и не тратит КД и ману. Смерть сбрасывает все бонусы.',
+    cd:[0,10,8,5], mana:[0,0,0,0], range:600, ult:true,
+    desc:'Наведите на лесного крипа — Джувсют съедает его и навсегда получает +HP и урон (ур.1: +40 HP и +5 урона, ур.2: +50 и +10, ур.3: +60 и +20). Перезарядка 10/8/5 с, мана не тратится. Без еды 60 секунд — теряется один стак. На вражеского героя с HP ≤ 200: съедает его (+HP как за 10 крипов и +100 урона); если HP выше 200 — не срабатывает, перезарядка не включается. Смерть сбрасывает все бонусы.',
     cast(h,x,y,lvl){
       const target=juvsyutFindDevourTarget(h,x,y);
       if(!target){ flashMsg(h,'Наведите на лесного крипа или героя с HP ≤ 200'); return false; }
-      const st=juvsyutDevourState(h);
       if(target.type==='hero'){
         if(target.invulnerable){ flashMsg(h,'Цель неуязвима'); return false; }
         if(target.hp>JUVSYUT_HERO_EAT_HP){ flashMsg(h,'У героя больше 200 HP'); return false; }
@@ -5582,15 +5539,13 @@ const JUVSYUT_CHIP_SKILLS = {
         fxRing(target.x,target.y,120,'#ff9d62',0.8);
         spawnParticles(target.x,target.y,'#ffe0bd',48,1.5);
         killUnit(target,h);
-        juvsyutDevourGain(h,JUVSYUT_HERO_STACKS,lvl);
+        juvsyutDevourGain(h,JUVSYUT_HERO_STACKS,lvl,JUVSYUT_HERO_DMG_BONUS);
         addText(h.x,h.y-120,'ГЕРОЙ СЪЕДЕН!  ×'+JUVSYUT_HERO_STACKS,'#ff9d62',1.6,20);
       } else {
         juvsyutEatNeutral(h,target,lvl);
       }
-      st.active=JUVSYUT_DEVOUR_WINDOW; st.tick=0.45;
-      fxRing(h.x,h.y,150,'#ff9d62',0.85);
-      spawnParticles(h.x,h.y,'#ffe0bd',40,1.4);
-      addText(h.x,h.y-82,'БОЛЬШОЙ ОБЕД  '+JUVSYUT_DEVOUR_WINDOW+' С','#ffd0a8',1.3,18);
+      fxRing(h.x,h.y,130,'#ff9d62',0.7);
+      addText(h.x,h.y-82,'БОЛЬШОЙ ОБЕД','#ffd0a8',1.2,17);
       return true;
     }
   },
