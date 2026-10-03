@@ -66,7 +66,7 @@ const sniperTexture = new Image();
 sniperTexture.decoding = 'async';
 sniperTexture.onerror = () => { sniperTexture.onerror = null; sniperTexture.src = ''; };
 sniperTexture.src = './изображение_1790414627915.png';
-/* ===== ТЕКСТУРЫ КАРТЫ 0.7.7: зелёный лес Света, чёрный лес Тьмы, вода и песок ===== */
+/* ===== ТЕКСТУРЫ КАРТЫ 0.7.6: зелёный лес Света, чёрный лес Тьмы, вода и песок ===== */
 function mulberry32(seed){
   let a = seed|0;
   return function(){
@@ -491,7 +491,7 @@ const waterPatternA = ctx.createPattern(waterCausticCanvasA, 'repeat');
 const waterPatternB = ctx.createPattern(waterCausticCanvasB, 'repeat');
 let VW = 0, VH = 0;
 
-const WORLD  = 5000;
+const WORLD  = 6500;
 const GRID   = 52;
 const CELL   = WORLD / GRID;
 const TEAM_COL = ['#4caf50', '#e53935', '#b58a55'];
@@ -616,6 +616,7 @@ let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
 const GAME_VERSION = '0.7.7';
 const CHANGELOG_HISTORY = [
+  'Обновление 0.7.7: карта увеличена на 30%, здоровье башен и трона увеличено втрое, обновлены Иллюзионист и панель героя, активные предметы расходуют ману, добавлена анимированная заставка',
   'Обновление 0.7.6b: исправлен скин Красная Ригина, скорость героев снижена на 10%, добавлен активный предмет «Замисть», звон монет при покупке, профили из мирового топа и вход в мультиплеер только с аккаунтом',
   'Обновление 0.7.6a: вместо магазина фраз появился магазин с бесплатным скином «Красная Ригина» и отдельным инвентарём для его применения',
   'Обновление 0.7.6: для Света и Тьмы независимо выбираются сценарии поведения ботов с шестью фазами; боты меняют линии, фармят лес и переходят к совместным атакам по таймеру, убийствам и падению башен',
@@ -698,7 +699,12 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.7', title:'КАРТА, МАГАЗИН И НОВОСТИ', changes:[
+  const sections = [{version:'0.7.7', title:'КАРТА, БОЙЦЫ И БАЛАНС', changes:[
+    'Карта увеличена на 30%; масштабирование согласовано между игрой и сервером.',
+    'Здоровье башен и трона сохранено на утроенном уровне.',
+    'Иллюзионист получил бирюзово-золотую модель с короной, посохом и золотой иллюзией; нижняя панель героя разделена на ровные секции.',
+    'Активация активных предметов расходует ману: Мунуция — 60, Мантированная сталь — 80, Шрам-Аркадия — 100, Бошка Агнии — 90; прочие активные предметы — 60, кроме предметов-исключений.',
+    'При запуске показывается анимированная заставка мира с рунической печатью и свечением.',
     'Лес Сил Света получил такой же выразительный силуэт деревьев, как лес Сил Тьмы, с зелёной листвой. Игровые столкновения и расположение деревьев не менялись.',
     'Песчаное дно реки стало детальнее, а вода получила более чёткий берег и многослойные блики.',
     'В магазине предметы показаны компактными иконками; название, цена и описание появляются при наведении.',
@@ -809,19 +815,19 @@ const SHOP_ITEMS = {
   pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 200 монет. Пассивно: +150 урона, +60 скорости передвижения и ускорение атак.', color:'#ff9e5d', active:false},
   blink: {name:'Блинк', icon:'◇', cost:1150, range:500, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
   evsyutin: {name:'Еблет Евсютина', icon:'♥', cost:1250, desc:'Пассивно: +500 к максимальному и текущему здоровью.', color:'#ff7898', hp:500, active:false},
-  mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2400, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', active:true},
+  mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2400, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', manaCost:80, active:true},
   manaTome: {name:'Научилсяловить', icon:'✧', cost:550, desc:'Пассивно: увеличивает восстановление маны на 10%.', color:'#7ed6ff', manaRegen:0.10, active:false},
   manaHooves: {name:'Капыта-Дерезладия', icon:'♢', cost:1400, desc:'Пассивно: +800 к максимальной и текущей мане.', color:'#c59cff', maxMp:800, active:false},
   superBoots: {name:'Супер сапог', icon:'⬆', cost:2950, desc:'Пассивно: +70 к скорости передвижения. Активный: ещё +110 скорости на 6 сек. КД 24 сек.', color:'#ffd34f', speed:70, activeSpeed:110, activeDuration:6, cooldown:24, active:true},
-  aghanimHead: {name:'Бошка Агнии', icon:'✹', cost:3000, desc:'Активный: на 10 сек. даёт +180 урона, +100 скорости передвижения и ускоряет атаки. КД 30 сек.', color:'#ff74d4', activeDuration:10, cooldown:30, active:true},
+  aghanimHead: {name:'Бошка Агнии', icon:'✹', cost:3000, desc:'Активный: на 10 сек. даёт +180 урона, +100 скорости передвижения и ускоряет атаки. КД 30 сек.', color:'#ff74d4', manaCost:90, activeDuration:10, cooldown:30, active:true},
   ilyaHair: {name:'Волосы Ильи', icon:'☄', cost:1500, desc:'Пассивно: +10 скорости, +60 урона и -20% урона от обычных атак. Активный: оглушает выбранного врага на 4 сек. КД 25 сек.', color:'#e9f5ff', cooldown:25, active:true, speed:10, damage:60, attackResist:0.2, stunDuration:4},
   aghanimShard: {name:'Аганим шард', icon:'⬢', cost:1400, desc:'При покупке добавляет герою персональную способность G. Эффект зависит от выбранного героя и предмет не занимает слот инвентаря.', color:'#8be9fd', active:false, cooldown:35},
   enemy302: {name:'Враги-302 школы', icon:'⌛', cost:1350, desc:'Пассивно: сокращает перезарядку всех обычных способностей героя на 30%. На предметы не влияет.', color:'#f3b4ff', cooldownReduction:0.30, active:false},
   tornBrainHand: {name:'Оторванная рука мо3гов', icon:'☠', cost:1300, desc:'Активный: телепортирует героя к выбранному врагу и наносит ему 350 физического урона. КД 12 сек.', color:'#d7a879', cooldown:12, active:true},
-  munition: {name:'Мунуция', icon:'⚙', cost:4500, desc:'Активный: на 3 сек. резко ускоряет атаки героя. КД 18 сек.', color:'#f5d36b', activeDuration:3, cooldown:18, attackSpeed:6, active:true},
+  munition: {name:'Мунуция', icon:'⚙', cost:4500, desc:'Активный: на 3 сек. резко ускоряет атаки героя. КД 18 сек.', color:'#f5d36b', manaCost:60, activeDuration:3, cooldown:18, attackSpeed:6, active:true},
   hatchet: {name:'Топорик', icon:'🪓', cost:125, desc:'Пассивно: +35 урона. Активный: срубает ближайшее дерево в радиусе 150. КД 10 сек.', color:'#c68b5b', cooldown:10, damage:35, active:true}
   ,satanic: {name:'Сатаник', icon:'♦', cost:2900, desc:'Пассивно: +660 к максимальному и текущему здоровью. Обычные атаки возвращают 25% нанесённого урона.', color:'#d83b55', hp:660, lifesteal:0.25, active:false}
-  ,arcadiaScar: {name:'Шрам-Аркадия', icon:'✦', cost:2400, desc:'Активный: на 7 сек. даёт +250 урона и ускоряет атаки в 3 раза относительно базовой скорости. КД 24 сек.', color:'#ff7043', activeDuration:7, damage:250, attackSpeed:2, cooldown:24, active:true}
+  ,arcadiaScar: {name:'Шрам-Аркадия', icon:'✦', cost:2400, desc:'Активный: на 7 сек. даёт +250 урона и ускоряет атаки в 3 раза относительно базовой скорости. КД 24 сек.', color:'#ff7043', manaCost:100, activeDuration:7, damage:250, attackSpeed:2, cooldown:24, active:true}
   ,kinglandia: {name:'Кингляндия', icon:'♛', cost:4450, desc:'Пассивно: +650 к урону обычных атак.', color:'#f4d35e', damage:650, active:false}
   ,gur: {name:'Гур', icon:'⬆', cost:1600, desc:'Активный: подбрасывает выбранного врага на 0,8 сек. и даёт герою на 12 сек. +150 урона, +100 скорости передвижения и ускорение атак. КД 28 сек.', color:'#d9f2ff', activeDuration:12, damage:150, attackSpeed:0.8, moveSpeed:100, cooldown:28, active:true}
   ,dagonEmpire: {name:'Дагонская империя', icon:'⚡', cost:1100, desc:'Активный: наносит выбранному вражескому бойцу 1200 магического урона. КД 10 сек.', color:'#ff4f8b', cooldown:10, damage:1200, active:true}
@@ -2643,7 +2649,34 @@ function getInvokeCooldown(hero, key){
   return hero.spellCooldowns[key] || 0;
 }
 
+const FREE_ACTIVATION_ITEM_IDS = new Set([
+  'mango','tango','pt','manaHooves','kayaSange','kayaSanga','kayaAndSange',
+  'dianaPants','evsyutin','disperser','dneperseer','dnieperseer'
+]);
+const FREE_ACTIVATION_ITEM_NAMES = new Set(['Кая и Санга','Днепёрсеер','Диспёрсер']);
+
+function getActivationManaCost(item){
+  if(!item) return 0;
+  const definition = SHOP_ITEMS[item.id];
+  if(!definition || !definition.active) return 0;
+  if(FREE_ACTIVATION_ITEM_IDS.has(item.id) || FREE_ACTIVATION_ITEM_NAMES.has(definition.name)) return 0;
+  return Number.isFinite(definition.manaCost) ? definition.manaCost : 60;
+}
+
 function activateInventoryItem(hero, index){
+  const item = hero.inventory[index];
+  if(!item) return false;
+  const cost = getActivationManaCost(item);
+  if(cost > 0 && hero.mp < cost){
+    flashMsg(hero, 'Недостаточно маны для ' + item.name + ': ' + cost);
+    return false;
+  }
+  if(!performInventoryItemActivation(hero, index)) return false;
+  if(cost > 0) hero.mp -= cost;
+  return true;
+}
+
+function performInventoryItemActivation(hero, index){
   const item = hero.inventory[index];
   if(!item) return false;
   if(hero.nullifyTimer > 0 && NULLIFY_BLOCKED_ITEMS.has(item.id)){ flashMsg(hero, 'Нуллификатор: предмет заблокирован'); return false; }
@@ -3523,7 +3556,7 @@ const DECORATIVE_HOUSES = [
   {x:1420,y:2980,s:0.78,roof:'#684c78',wall:'#b68d69'}
 ];
 
-const MAP_SCALE = 1.42;
+const MAP_SCALE = 1.846;
 let mapScaled = false;
 function mapPoint(x, y){
   return {x:(x-1800)*MAP_SCALE + WORLD/2, y:(y-1800)*MAP_SCALE + WORLD/2};
@@ -5850,7 +5883,7 @@ const HERO_DEFS = [
   },
   {
     id:'illusionist', name:'Иллюзионист', title:'Повелитель отражений',
-    color:'#9b6cff', color2:'#eadbff',
+    color:'#0e5461', color2:'#79e4e4',
     baseHp:720, hpPerLvl:95, baseMp:340, mpPerLvl:42,
     baseDmg:72, dmgPerLvl:8, speed:162,
     atkRange:500, atkTime:1.08,
@@ -10312,20 +10345,35 @@ function drawUnit(u){
       ctx.save();
       ctx.scale(s,s);
 
-      // Тёмная мантия и ледяно-фиолетовая аура.
-      ctx.fillStyle='rgba(118,83,190,0.32)';
-      ctx.shadowColor='#a96dff'; ctx.shadowBlur=18;
+      // Золотой призрачный двойник повторяет силуэт мага.
+      ctx.save();
+      ctx.translate(34,-8);
+      ctx.globalAlpha=0.22+Math.sin(gameTime*2.4)*0.035;
+      ctx.fillStyle='#f2d28a'; ctx.strokeStyle='#fff0bd'; ctx.lineWidth=1.5;
+      ctx.shadowColor='#f4d27d'; ctx.shadowBlur=13;
+      ctx.beginPath(); ctx.ellipse(0,-17,12,15,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-13,-4); ctx.lineTo(-20,25); ctx.lineTo(0,31);
+      ctx.lineTo(20,25); ctx.lineTo(13,-4); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(11,-10); ctx.lineTo(29,-33); ctx.stroke();
+      ctx.restore();
+
+      // Бирюзовая мантия с золотой отделкой.
+      ctx.fillStyle='rgba(67,218,220,0.25)';
+      ctx.shadowColor='#62e7e8'; ctx.shadowBlur=18;
       ctx.beginPath(); ctx.ellipse(0,14,32,24,0,0,Math.PI*2); ctx.fill();
       ctx.shadowBlur=0;
-      ctx.fillStyle='#1e2c49'; ctx.strokeStyle='#435b82'; ctx.lineWidth=2;
+      ctx.fillStyle='#123b4c'; ctx.strokeStyle='#d5ae5c'; ctx.lineWidth=2;
       ctx.beginPath(); ctx.moveTo(-25,2); ctx.lineTo(-31,31); ctx.lineTo(0,38);
       ctx.lineTo(31,31); ctx.lineTo(25,2); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle='#f2d58a'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(-21,9); ctx.lineTo(-25,27); ctx.lineTo(0,33);
+      ctx.lineTo(25,27); ctx.lineTo(21,9); ctx.stroke();
 
-      // Серебряные наплечники.
-      ctx.fillStyle='#899bb2'; ctx.strokeStyle='#273c5d'; ctx.lineWidth=2;
+      // Рельефные золотые наплечники.
+      ctx.fillStyle='#d8b35f'; ctx.strokeStyle='#6b4926'; ctx.lineWidth=2;
       ctx.beginPath(); ctx.ellipse(-22,6,12,8,-0.35,0,Math.PI*2); ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.ellipse(22,6,12,8,0.35,0,Math.PI*2); ctx.fill(); ctx.stroke();
-      ctx.strokeStyle='#d5e8ff'; ctx.lineWidth=1.2;
+      ctx.strokeStyle='#fff0bd'; ctx.lineWidth=1.2;
       ctx.beginPath(); ctx.arc(-22,6,7,0,Math.PI*2); ctx.arc(22,6,7,0,Math.PI*2); ctx.stroke();
 
       // Острые эльфийские уши.
@@ -10346,41 +10394,41 @@ function drawUnit(u){
       ctx.fillStyle='rgba(221,250,255,0.24)';
       ctx.beginPath(); ctx.moveTo(-13,-5); ctx.lineTo(-5,0); ctx.lineTo(-12,11); ctx.closePath(); ctx.fill();
 
-      // Белые колючие волосы.
-      ctx.fillStyle='#f0f4ee'; ctx.strokeStyle='#99aabb'; ctx.lineWidth=1.5;
+      // Золотая корона с высокими лучами.
+      ctx.fillStyle='#f4d36e'; ctx.strokeStyle='#fff0b5'; ctx.lineWidth=1.5;
       ctx.beginPath();
       ctx.moveTo(-19,-16); ctx.lineTo(-25,-28); ctx.lineTo(-13,-25);
       ctx.lineTo(-11,-38); ctx.lineTo(-3,-28); ctx.lineTo(4,-41);
       ctx.lineTo(9,-28); ctx.lineTo(20,-34); ctx.lineTo(17,-19);
       ctx.lineTo(9,-12); ctx.lineTo(0,-20); ctx.lineTo(-9,-12); ctx.closePath();
       ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#cad6d5';
+      ctx.fillStyle='#dceff0';
       ctx.beginPath(); ctx.moveTo(-18,-12); ctx.quadraticCurveTo(-28,3,-19,19);
       ctx.lineTo(-12,23); ctx.lineTo(-12,-7); ctx.closePath(); ctx.fill();
       ctx.beginPath(); ctx.moveTo(18,-12); ctx.quadraticCurveTo(28,3,19,19);
       ctx.lineTo(12,23); ctx.lineTo(12,-7); ctx.closePath(); ctx.fill();
 
       // Брови, нос и длинная белая борода.
-      ctx.strokeStyle='#24445e'; ctx.lineWidth=2.5; ctx.lineCap='round';
+      ctx.strokeStyle='#183d50'; ctx.lineWidth=2.5; ctx.lineCap='round';
       ctx.beginPath(); ctx.moveTo(-12,-10); ctx.lineTo(-3,-13); ctx.moveTo(3,-13); ctx.lineTo(12,-10);
       ctx.moveTo(0,-6); ctx.lineTo(-3,5); ctx.lineTo(3,6); ctx.stroke();
-      ctx.fillStyle='#e9f2ec'; ctx.strokeStyle='#8c9ca5'; ctx.lineWidth=1.2;
+      ctx.fillStyle='#e6f2e7'; ctx.strokeStyle='#9caeaa'; ctx.lineWidth=1.2;
       ctx.beginPath();
       ctx.moveTo(-12,4); ctx.quadraticCurveTo(-8,18,0,30);
       ctx.quadraticCurveTo(8,18,12,4); ctx.quadraticCurveTo(7,9,0,12);
       ctx.quadraticCurveTo(-7,9,-12,4); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.strokeStyle='rgba(102,124,139,0.75)'; ctx.lineWidth=1;
+      ctx.strokeStyle='rgba(102,148,155,0.75)'; ctx.lineWidth=1;
       ctx.beginPath(); ctx.moveTo(-7,9); ctx.lineTo(-3,24); ctx.moveTo(0,11); ctx.lineTo(0,28); ctx.moveTo(7,9); ctx.lineTo(3,24); ctx.stroke();
 
       // Сияющие глаза.
-      ctx.shadowColor='#d9ffff'; ctx.shadowBlur=14; ctx.fillStyle='#efffff';
+      ctx.shadowColor='#82ffff'; ctx.shadowBlur=14; ctx.fillStyle='#eaffff';
       ctx.beginPath(); ctx.ellipse(-8,-6,4,2.4,-0.12,0,Math.PI*2);
       ctx.ellipse(8,-6,4,2.4,0.12,0,Math.PI*2); ctx.fill();
       ctx.shadowBlur=0;
 
       // Кристалл на груди.
-      ctx.fillStyle='#b875ff'; ctx.strokeStyle='#f0d7ff'; ctx.lineWidth=1.5;
-      ctx.shadowColor='#b875ff'; ctx.shadowBlur=12;
+      ctx.fillStyle='#42e5df'; ctx.strokeStyle='#f2ffff'; ctx.lineWidth=1.5;
+      ctx.shadowColor='#45fff3'; ctx.shadowBlur=12;
       ctx.beginPath(); ctx.moveTo(0,10); ctx.lineTo(6,18); ctx.lineTo(0,27);
       ctx.lineTo(-6,18); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.shadowBlur=0; ctx.lineCap='butt';
@@ -10406,11 +10454,11 @@ function drawUnit(u){
       ctx.beginPath(); ctx.arc(u.radius*1.62,-u.radius*1.38,10,-0.25,Math.PI*0.95); ctx.stroke();
       ctx.fillStyle='#d56a55'; ctx.beginPath(); ctx.arc(u.radius*1.62,-u.radius*1.38,3,0,Math.PI*2); ctx.fill();
     } else if(u.def.id==='illusionist'){
-      ctx.strokeStyle='#6d4b9f'; ctx.lineWidth=4; ctx.lineCap='round';
+      ctx.strokeStyle='#684521'; ctx.lineWidth=4; ctx.lineCap='round';
       ctx.beginPath(); ctx.moveTo(7,7); ctx.lineTo(u.radius*1.45,-u.radius*1.35); ctx.stroke();
-      ctx.strokeStyle='#e5d5ff'; ctx.lineWidth=2;
+      ctx.strokeStyle='#f1d278'; ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(u.radius*1.5,-u.radius*1.45,7,0,Math.PI*2); ctx.stroke();
-      ctx.fillStyle='#b875ff'; ctx.shadowColor='#b875ff'; ctx.shadowBlur=10;
+      ctx.fillStyle='#57f5ec'; ctx.shadowColor='#57f5ec'; ctx.shadowBlur=10;
       ctx.beginPath(); ctx.arc(u.radius*1.5,-u.radius*1.45,4,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
     } else if(u.def.id==='shadow'){
        ctx.strokeStyle='#ff3b1f'; ctx.lineWidth=4; ctx.lineCap='round';
@@ -12006,16 +12054,19 @@ function drawItemIcon(item, x, y, size){
   ctx.restore();
 }
 
-function getShopItemDescription(item, hero){
+function getShopItemDescription(item, hero, itemId=null){
   if(!item) return '';
+  const id = itemId || item.id;
   let description = item.desc;
-  if(item.id === 'aghanimShard' && hero && hero.def){
+  if(id === 'aghanimShard' && hero && hero.def){
     const shard = SHARD_SKILLS[hero.def.id];
     if(shard) description += ' Сейчас для ' + hero.def.name + ': ' + shard.name + ' — ' + shard.desc;
   }
-  if(item.id === 'aghanimScepter' && hero && hero.def && SCEPTER_UPGRADES[hero.def.id]){
+  if(id === 'aghanimScepter' && hero && hero.def && SCEPTER_UPGRADES[hero.def.id]){
     description += ' Улучшение этого героя: ' + SCEPTER_UPGRADES[hero.def.id] + '.';
   }
+  const manaCost = getActivationManaCost({id});
+  if(manaCost > 0) description += ' Активация расходует ' + manaCost + ' маны.';
   return description;
 }
 
@@ -12111,7 +12162,7 @@ function drawShop(){
     ctx.fillStyle='rgba(190,145,78,0.16)'; ctx.fillRect(panelX+1,panelY+40,panelW-2,1);
     ctx.textAlign='left'; ctx.fillStyle=selected.color; ctx.font='bold 16px Georgia, serif';
     ctx.fillText(selected.name + '  •  ' + selected.cost + ' монет',panelX+16,panelY+28);
-    drawWrappedText(getShopItemDescription(selected, h), panelX+16, panelY+58, panelW-32, 18, '#fff', '13px Segoe UI, Arial');
+    drawWrappedText(getShopItemDescription(selected, h, hoveredShopItem || selectedShopItem), panelX+16, panelY+58, panelW-32, 18, '#fff', '13px Segoe UI, Arial');
     ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='11px Segoe UI, Arial';
     ctx.fillText(selected.active ? 'Активный предмет' : 'Пассивный предмет',panelX+16,panelY+panelH-14);
   }
@@ -12128,7 +12179,7 @@ function drawPurchaseConfirm(){
   ctx.strokeStyle=item.color; ctx.lineWidth=3; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
   ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.font='bold 19px Segoe UI, Arial';
   ctx.fillText('Купить ' + item.name + '?',VW/2,panel.y+42);
-  drawWrappedText(getShopItemDescription(item, playerHero),VW/2-190,panel.y+75,380,18,'rgba(255,255,255,0.72)','13px Segoe UI, Arial');
+  drawWrappedText(getShopItemDescription(item, playerHero, pendingPurchaseId),VW/2-190,panel.y+75,380,18,'rgba(255,255,255,0.72)','13px Segoe UI, Arial');
   ctx.fillStyle='#ffd568'; ctx.font='bold 16px Segoe UI, Arial'; ctx.fillText(item.cost + ' монет',VW/2,panel.y+155);
   const confirm={x:panel.x+35,y:panel.y+178,w:175,h:44}, cancel={x:panel.x+250,y:panel.y+178,w:175,h:44};
   ctx.fillStyle='#3dba73'; ctx.fillRect(confirm.x,confirm.y,confirm.w,confirm.h);
@@ -12370,9 +12421,17 @@ function drawBottomHeroPanel(hero){
   ctx.save();
   const panelFill=ctx.createLinearGradient(panel.x,panel.y,panel.x,panel.y+panel.h);
   panelFill.addColorStop(0,'rgba(18,26,38,0.97)'); panelFill.addColorStop(1,'rgba(4,8,15,0.98)');
-  ctx.fillStyle=panelFill; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
-  ctx.strokeStyle=hero.def.color2; ctx.lineWidth=2; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
-  ctx.strokeStyle='rgba(255,255,255,0.17)'; ctx.lineWidth=1; ctx.strokeRect(panel.x+4,panel.y+4,panel.w-8,panel.h-8);
+  ctx.beginPath(); ctx.roundRect(panel.x,panel.y,panel.w,panel.h,8); ctx.fillStyle=panelFill; ctx.fill();
+  ctx.strokeStyle=hero.def.color2; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(panel.x+4,panel.y+4,panel.w-8,panel.h-8,5);
+  ctx.strokeStyle='rgba(255,255,255,0.17)'; ctx.lineWidth=1; ctx.stroke();
+  if(VW>=720){
+    const skillsRight=layout.skills.x+hero.skills.length*layout.skills.w+(hero.skills.length-1)*layout.skills.gap;
+    ctx.strokeStyle='rgba(139,233,253,0.28)'; ctx.lineWidth=1;
+    for(const dividerX of [(stats.x+stats.w+layout.skills.x)/2,(skillsRight+layout.items.x)/2]){
+      ctx.beginPath(); ctx.moveTo(dividerX,panel.y+14); ctx.lineTo(dividerX,panel.y+panel.h-14); ctx.stroke();
+    }
+  }
   if(VW<720){
     drawHeroTexture(hero.def,panel.x+8,panel.y+14,42,66,performance.now()/1000,false);
     const barX=stats.x+8, barW=panel.x+panel.w-12-barX, barH=10;

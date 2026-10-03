@@ -7,7 +7,190 @@
   --cyan: #8be9fd;
 }
 
-html,
+  #boot-loader {
+    position: fixed;
+    z-index: 999;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 40%, rgba(53,105,76,.48), rgba(11,18,22,.9) 36%, rgba(2,5,10,.98) 100%),
+      linear-gradient(120deg, #0b1619, #080b12);
+    transition: opacity .52s ease, visibility .52s ease;
+  }
+
+  #boot-loader::before,
+  #boot-loader::after {
+    position: absolute;
+    inset: -20%;
+    content: '';
+    pointer-events: none;
+  }
+
+  #boot-loader::before {
+    background:
+      repeating-conic-gradient(from 8deg at 50% 50%, rgba(215,179,106,.12) 0deg 1deg, transparent 1deg 14deg),
+      radial-gradient(circle at 50% 50%, transparent 0 20%, rgba(58,153,133,.13) 21% 21.2%, transparent 21.5% 31%, rgba(215,179,106,.12) 31.2% 31.4%, transparent 32%);
+    -webkit-mask-image: radial-gradient(circle, transparent 0 20%, #000 20.5% 68%, transparent 68.5%);
+    mask-image: radial-gradient(circle, transparent 0 20%, #000 20.5% 68%, transparent 68.5%);
+    animation: loader-seal 48s linear infinite;
+  }
+
+  #boot-loader::after {
+    opacity: .3;
+    background:
+      radial-gradient(circle at 14% 25%, rgba(255,214,114,.8) 0 1px, transparent 2px),
+      radial-gradient(circle at 82% 38%, rgba(139,233,253,.7) 0 1px, transparent 2px),
+      radial-gradient(circle at 28% 76%, rgba(255,214,114,.6) 0 1px, transparent 2px),
+      repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.025) 4px);
+    animation: loader-embers 8s ease-in-out infinite alternate;
+  }
+
+  #boot-loader.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .boot-shell {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    justify-items: center;
+    gap: 18px;
+    min-width: min(420px, calc(100vw - 32px));
+    padding: 30px 24px 24px;
+    border: 1px solid rgba(215,179,106,.7);
+    border-radius: 5px;
+    background: linear-gradient(135deg, rgba(22,40,45,.94), rgba(5,10,17,.97) 48%, rgba(23,15,17,.95));
+    box-shadow: 0 0 0 1px rgba(139,233,253,.14), 0 28px 70px rgba(0,0,0,.65), inset 0 0 24px rgba(139,233,253,.07);
+  }
+
+  .boot-shell::before {
+    position: absolute;
+    inset: 8px;
+    border: 1px solid rgba(215,179,106,.22);
+    content: '';
+    pointer-events: none;
+  }
+
+  .boot-logo {
+    color: #f8e8ba;
+    font: 900 32px Georgia, serif;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    text-shadow: 0 0 18px rgba(255,220,140,.35);
+    animation: loader-title-glow 3s ease-in-out infinite alternate;
+  }
+
+  .boot-ring {
+    position: relative;
+    width: 92px;
+    height: 92px;
+    margin: 4px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, rgba(255,214,114,.95), rgba(110,226,172,.85), rgba(139,233,253,.95), rgba(255,214,114,.95));
+    box-shadow: 0 0 20px rgba(139,233,253,.5), inset 0 0 20px rgba(255,255,255,.2);
+    animation: loader-spin 1.5s linear infinite;
+  }
+
+  .boot-ring::before,
+  .boot-ring::after {
+    position: absolute;
+    border-radius: 50%;
+    content: '';
+  }
+
+  .boot-ring::before {
+    inset: 12px;
+    border: 1px solid rgba(215,179,106,.7);
+    background: rgba(4,9,15,.93);
+  }
+
+  .boot-ring::after {
+    inset: -12px;
+    border: 1px dashed rgba(255,240,199,.54);
+    box-shadow: 0 0 16px rgba(139,233,253,.22);
+    animation: loader-spin 9s linear infinite reverse;
+  }
+
+  .boot-ring span {
+    position: absolute;
+    z-index: 1;
+    inset: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,214,114,.82), rgba(139,233,253,.3) 52%, transparent 72%);
+    box-shadow: 0 0 18px rgba(255,214,114,.34);
+  }
+
+  .boot-ring span::after {
+    position: absolute;
+    inset: 29%;
+    border: 1px solid rgba(255,240,199,.8);
+    background: linear-gradient(135deg, #fff0c7, rgba(73,231,222,.78));
+    box-shadow: 0 0 16px rgba(255,214,114,.78);
+    content: '';
+    transform: rotate(45deg);
+  }
+
+  .boot-text {
+    color: rgba(226,241,255,.85);
+    font: 700 10px 'Trebuchet MS', 'Segoe UI', sans-serif;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    animation: loader-text-pulse 1.8s ease-in-out infinite alternate;
+  }
+
+  .boot-bar {
+    width: min(280px, 74vw);
+    height: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(139,233,253,.48);
+    border-radius: 999px;
+    background: rgba(12,24,28,.8);
+  }
+
+  .boot-bar span {
+    display: block;
+    width: 42%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(139,233,253,.75), rgba(255,214,114,.95), rgba(52,196,120,.92));
+    box-shadow: 0 0 18px rgba(139,233,253,.62);
+    animation: loader-progress 1.6s ease-in-out infinite alternate;
+  }
+
+  @keyframes loader-spin { to { transform: rotate(360deg); } }
+  @keyframes loader-progress {
+    0% { transform: translateX(-16%) scaleX(.85); }
+    100% { transform: translateX(130%) scaleX(1.08); }
+  }
+  @keyframes loader-seal { to { transform: rotate(360deg) scale(1.06); } }
+  @keyframes loader-embers {
+    from { transform: translate3d(-1%,0,0); opacity: .16; }
+    to { transform: translate3d(1%,-1%,0); opacity: .38; }
+  }
+  @keyframes loader-title-glow {
+    from { text-shadow: 0 0 12px rgba(255,220,140,.2); }
+    to { text-shadow: 0 0 24px rgba(255,220,140,.55), 0 0 34px rgba(139,233,253,.2); }
+  }
+  @keyframes loader-text-pulse { from { opacity: .56; } to { opacity: 1; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    #boot-loader::before,
+    #boot-loader::after,
+    .boot-ring,
+    .boot-ring::after,
+    .boot-bar span,
+    .boot-logo,
+    .boot-text {
+      animation-duration: .01ms;
+      animation-iteration-count: 1;
+    }
+  }
+
+  html,
 body {
   width: 100%;
   height: 100%;
