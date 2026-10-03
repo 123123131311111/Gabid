@@ -66,7 +66,7 @@ const sniperTexture = new Image();
 sniperTexture.decoding = 'async';
 sniperTexture.onerror = () => { sniperTexture.onerror = null; sniperTexture.src = ''; };
 sniperTexture.src = './изображение_1790414627915.png';
-/* ===== ТЕКСТУРЫ КАРТЫ 0.7.5: трава Света, чёрная трава Тьмы, земля, дороги ===== */
+/* ===== ТЕКСТУРЫ КАРТЫ 0.7.7: зелёный лес Света, чёрный лес Тьмы, вода и песок ===== */
 function mulberry32(seed){
   let a = seed|0;
   return function(){
@@ -341,6 +341,36 @@ const dirtPatternLight = ctx.createPattern(buildDirtTile(DIRT_PALETTES.light, 10
 const dirtPatternDark  = ctx.createPattern(buildDirtTile(DIRT_PALETTES.dark, 202), 'repeat');
 const pathTexturePattern = ctx.createPattern(buildRoadTile(ROAD_PALETTES.light, 11), 'repeat');
 const darkPathTexturePattern = ctx.createPattern(buildRoadTile(ROAD_PALETTES.dark, 29), 'repeat');
+function buildSandTile(){
+  const size=192, tile=document.createElement('canvas');
+  tile.width=tile.height=size;
+  const g=tile.getContext('2d'), random=mulberry32(71077);
+  g.fillStyle='#b79a61'; g.fillRect(0,0,size,size);
+  for(let i=0;i<42;i++){
+    const x=random()*size, y=random()*size, radius=8+random()*22, light=random()<0.55;
+    texWrap(size,x,y,radius,(px,py)=>{
+      const patch=g.createRadialGradient(px,py,0,px,py,radius);
+      patch.addColorStop(0,light?'rgba(255,231,173,0.17)':'rgba(92,65,34,0.13)');
+      patch.addColorStop(1,'rgba(183,154,97,0)');
+      g.fillStyle=patch; g.fillRect(px-radius,py-radius,radius*2,radius*2);
+    });
+  }
+  for(let i=0;i<620;i++){
+    const x=random()*size, y=random()*size, radius=0.35+random()*1.2;
+    const color=random()<0.54?'rgba(255,238,188,0.34)':'rgba(79,57,31,0.28)';
+    const angle=random()*Math.PI;
+    texWrap(size,x,y,radius*2,(px,py)=>{
+      g.fillStyle=color; g.beginPath(); g.ellipse(px,py,radius*1.7,radius,angle,0,Math.PI*2); g.fill();
+    });
+  }
+  for(let i=0;i<18;i++){
+    const x=random()*size, y=random()*size, length=5+random()*12;
+    g.strokeStyle='rgba(93,70,39,0.2)'; g.lineWidth=0.7+random()*0.6;
+    g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x+length*0.45,y-2,x+length,y+1); g.stroke();
+  }
+  return tile;
+}
+const sandTexturePattern=ctx.createPattern(buildSandTile(),'repeat');
 const DECOR_STONE_SHADES = {
   light:GRASS_PALETTES.light.stones.map(shadeOf),
   dark:GRASS_PALETTES.dark.stones.map(shadeOf)
@@ -568,7 +598,6 @@ let draggedInventoryIndex = -1;
 let lastPressedKey = '';
 let shopOpen = false;
 let shopGuideOpen = false;
-let selectedShopItem = null;
 let pendingPurchaseId = null;
 let shopScrollRow = 0;
 let inspectUnit = null;
@@ -585,7 +614,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.6b';
+const GAME_VERSION = '0.7.7';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.6b: исправлен скин Красная Ригина, скорость героев снижена на 10%, добавлен активный предмет «Замисть», звон монет при покупке, профили из мирового топа и вход в мультиплеер только с аккаунтом',
   'Обновление 0.7.6a: вместо магазина фраз появился магазин с бесплатным скином «Красная Ригина» и отдельным инвентарём для его применения',
@@ -669,7 +698,12 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.6b', title:'ПРЕДМЕТЫ, СКИНЫ И ОНЛАЙН', changes:[
+  const sections = [{version:'0.7.7', title:'КАРТА, МАГАЗИН И НОВОСТИ', changes:[
+    'Лес Сил Света получил такой же выразительный силуэт деревьев, как лес Сил Тьмы, с зелёной листвой. Игровые столкновения и расположение деревьев не менялись.',
+    'Песчаное дно реки стало детальнее, а вода получила более чёткий берег и многослойные блики.',
+    'В магазине предметы показаны компактными иконками; название, цена и описание появляются при наведении.',
+    'В меню обновлены новости и события: представлены предметы «Замисть» и «Дисперсер» и улучшенная карта. Песчаная текстура создаётся один раз и повторно используется.'
+  ]},{version:'0.7.6b', title:'ПРЕДМЕТЫ, СКИНЫ И ОНЛАЙН', changes:[
     'Скин «Красная Ригина» теперь переносится в боевого героя во всех режимах. Скорость героев снижена на 10%.',
     'Добавлен предмет «Замисть» за 2900 монет: активация даёт +65% сопротивления урону, +100 к урону и +50 к скорости.',
     'Покупка предмета сопровождается звоном монет. Кнопки главного меню получили красно-чёрное оформление.',
@@ -869,6 +903,7 @@ SHOP_ITEMS.disperser = {
   speed:30, manaBurn:250, burnDamageRatio:0.6, slow:0.5, slowDuration:4, hasteSpeed:180, hasteDuration:4, cooldown:14, castRange:650
 };
 SHOP_ITEM_IDS.push('kayaSange','windWaker','holyLocket','nullifier','disperser');
+const SHOP_ITEM_VIEWS = SHOP_ITEM_IDS.map(id => ({...SHOP_ITEMS[id], id}));
 
 /* Общие помощники для новых предметов. */
 function heroHasItem(unit, id){ return !!(unit && unit.inventory && unit.inventory.some(i => i && i.id === id)); }
@@ -3932,21 +3967,23 @@ function createMapTrees(){
       if(!nearBase && canPlaceTree(treeX, treeY, 120)) trees.push({x:treeX,y:treeY,radius:24,kind:['pine','broadleaf','crystal','birch','autumn'][Math.floor(Math.random()*5)]});
     }
   }
-  /* На стороне Сил Тьмы (верхне-правая половина, y < x) растут только мёртвые
-     чёрные деревья с красно-оранжевой листвой. Вариант зависит от координат,
-     поэтому у всех игроков в онлайне лес выглядит одинаково. */
+  /* Оба леса используют одинаковые силуэты; цвет и вариант задаются координатами. */
   for(const tree of trees){
     if(isDireSide(tree.x, tree.y)){
       tree.kind = 'dire';
+      tree.v = Math.abs(Math.floor(tree.x*7 + tree.y*13)) % DIRE_TREE_VARIANTS;
+    } else {
+      tree.kind = 'radiant';
       tree.v = Math.abs(Math.floor(tree.x*7 + tree.y*13)) % DIRE_TREE_VARIANTS;
     }
   }
 }
 
-/* ===== Мёртвые деревья Сил Тьмы: чёрные кривые ветви и пышные красные кроны ===== */
+/* ===== Деревья обеих сторон: ветви и кроны рисуются в кэшируемые спрайты ===== */
 const DIRE_TREE_VARIANTS = 8;
 const DIRE_SPRITE = {W:260, H:240, OX:130, OY:175, S:2};
 const direTreeSprites = [];
+const radiantTreeSprites = [];
 function isDireSide(x, y){ return y < x; }
 function direRng(seed){
   let a = seed >>> 0;
@@ -3958,11 +3995,12 @@ function direRng(seed){
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function getDireTreeSprite(variant){
-  if(!direTreeSprites[variant]) direTreeSprites[variant] = buildDireTreeSprite(variant);
-  return direTreeSprites[variant];
+function getDireTreeSprite(variant, radiant=false){
+  const sprites=radiant?radiantTreeSprites:direTreeSprites;
+  if(!sprites[variant]) sprites[variant] = buildDireTreeSprite(variant,radiant);
+  return sprites[variant];
 }
-function buildDireTreeSprite(variant){
+function buildDireTreeSprite(variant,radiant=false){
   const {W,H,OX,OY,S} = DIRE_SPRITE;
   const c = document.createElement('canvas');
   c.width = W*S; c.height = H*S;
@@ -4039,7 +4077,9 @@ function buildDireTreeSprite(variant){
     const low = tips.filter(t => t.y>BASE_Y-70 && t.y<BASE_Y-25 && picked.every(p=>Math.hypot(p.x-t.x,p.y-t.y)>38));
     if(low.length) picked.push(low[Math.floor(rnd()*low.length)]);
   }
-  const palette = ['#7d2118','#a22d1c','#c13f23','#d9532b','#ec6e3a'];
+  const palette = radiant
+    ? ['#1e542d','#28743a','#359447','#4cad50','#74c95a']
+    : ['#7d2118','#a22d1c','#c13f23','#d9532b','#ec6e3a'];
   for(const tip of picked){
     const R = 17 + rnd()*9;
     const fx = tip.x + (rnd()-0.5)*4, fy = tip.y - R*0.25;
@@ -4047,7 +4087,8 @@ function buildDireTreeSprite(variant){
     g.fillStyle='rgba(0,0,0,0.30)';
     g.beginPath(); g.ellipse(fx+2,fy+R*0.55,R*0.95,R*0.55,0,0,Math.PI*2); g.fill();
     const glow = g.createRadialGradient(fx,fy,R*0.3,fx,fy,R*1.6);
-    glow.addColorStop(0,'rgba(255,90,40,0.16)'); glow.addColorStop(1,'rgba(255,90,40,0)');
+    glow.addColorStop(0,radiant?'rgba(105,235,100,0.13)':'rgba(255,90,40,0.16)');
+    glow.addColorStop(1,radiant?'rgba(105,235,100,0)':'rgba(255,90,40,0)');
     g.fillStyle=glow; g.beginPath(); g.arc(fx,fy,R*1.6,0,Math.PI*2); g.fill();
     /* основной объём — тёмный шар */
     g.fillStyle=palette[0];
@@ -4064,7 +4105,9 @@ function buildDireTreeSprite(variant){
     /* мелкие блики и тёмные просветы */
     for(let i=0;i<Math.round(R*0.8);i++){
       const a = rnd()*Math.PI*2, d = Math.sqrt(rnd())*R*0.8;
-      g.fillStyle = rnd()<0.6 ? 'rgba(255,170,100,0.75)' : 'rgba(60,12,10,0.55)';
+      g.fillStyle = radiant
+        ? (rnd()<0.6?'rgba(190,255,150,0.72)':'rgba(16,58,25,0.58)')
+        : (rnd()<0.6?'rgba(255,170,100,0.75)':'rgba(60,12,10,0.55)');
       g.beginPath(); g.arc(fx+Math.cos(a)*d, fy+Math.sin(a)*d - R*0.1, 0.9+rnd()*1.3, 0, Math.PI*2); g.fill();
     }
     /* тёмный обод снизу для объёма */
@@ -4074,14 +4117,16 @@ function buildDireTreeSprite(variant){
 
   /* упавшие листья у корней */
   for(let i=0;i<9;i++){
-    g.fillStyle = rnd()<0.5 ? 'rgba(200,70,38,0.8)' : 'rgba(120,32,24,0.8)';
+    g.fillStyle = radiant
+      ? (rnd()<0.5?'rgba(115,195,70,0.8)':'rgba(55,125,48,0.8)')
+      : (rnd()<0.5?'rgba(200,70,38,0.8)':'rgba(120,32,24,0.8)');
     g.beginPath(); g.ellipse(-26+rnd()*54, BASE_Y+2+rnd()*8, 2.4, 1.3, rnd()*3, 0, Math.PI*2); g.fill();
   }
   return c;
 }
-function drawDireTree(tree){
+function drawDireTree(tree,radiant=false){
   const {W,H,OX,OY} = DIRE_SPRITE;
-  const sprite = getDireTreeSprite(tree.v || 0);
+  const sprite = getDireTreeSprite(tree.v || 0,radiant);
   /* лёгкое покачивание на ветру вокруг основания */
   const sway = Math.sin(gameTime*1.1 + tree.x*0.013 + tree.y*0.007) * 0.025;
   ctx.save();
@@ -4089,7 +4134,7 @@ function drawDireTree(tree){
   ctx.transform(1,0,sway,1,0,0);
   ctx.drawImage(sprite, -OX, -OY-38, W, H);
   ctx.restore();
-  /* медленно падающие красные листья */
+  /* Медленно падающие листья добавляют жизни лесу обеих сторон. */
   for(let i=0;i<2;i++){
     const phase = (gameTime*0.22 + i*0.5 + (tree.x*0.0017 + tree.y*0.0011)) % 1;
     const lx = -34 + i*38 + Math.sin(phase*7 + i*2) * 11 + phase*26;
@@ -4097,7 +4142,7 @@ function drawDireTree(tree){
     ctx.save();
     ctx.globalAlpha = Math.sin(phase*Math.PI) * 0.85;
     ctx.translate(lx,ly); ctx.rotate(phase*9 + i);
-    ctx.fillStyle = i ? '#e2582c' : '#b8341f';
+    ctx.fillStyle = radiant ? (i?'#93d96b':'#55ad4a') : (i?'#e2582c':'#b8341f');
     ctx.beginPath(); ctx.ellipse(0,0,3.2,1.7,0,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
@@ -6529,7 +6574,6 @@ function startGame(playerIndex, draftPicks=null){
   pendingPurchaseId=null;
   talentOpen=false; talentChoices=[]; talentHero=null;
   talentTreeOpen=false;
-  selectedShopItem=null;
   chatMessages=[];
   chatInputOpen=false;
    lastTauntIndex={weak:-1, strong:-1, generic:-1};
@@ -6646,7 +6690,7 @@ function startTestMode(playerIndex){
   rampageBanner={t:0, owner:null, streak:0};
   shopOpen=false; shopGuideOpen=false; shopScrollRow=0; pendingPurchaseId=null;
   talentOpen=false; talentChoices=[]; talentHero=null; talentTreeOpen=false;
-  selectedShopItem=null; chatMessages=[]; chatInputOpen=false;
+  chatMessages=[]; chatInputOpen=false;
   lastTauntIndex={weak:-1, strong:-1, generic:-1}; pendingBotReplies=[];
   changelogOpen=false; settingsOpen=false;
   cameraManual=false; cameraKeys.x=0; cameraKeys.y=0; cameraDrag.active=false;
@@ -8247,10 +8291,13 @@ function drawTerrain(){
   ctx.strokeStyle = 'rgba(26,34,30,0.34)';
   ctx.lineWidth = 494; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(90, 90); ctx.lineTo(WORLD-90, WORLD-90); ctx.stroke();
-  ctx.strokeStyle = '#b79a61';
+  ctx.strokeStyle = sandTexturePattern || '#b79a61';
   ctx.lineWidth = 470; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(90, 90); ctx.lineTo(WORLD-90, WORLD-90); ctx.stroke();
-  /* Сама вода теперь заметно прозрачнее — дно и берега просвечивают сквозь неё. */
+  /* Светлая кромка отделяет песчаный берег от прозрачной воды. */
+  ctx.strokeStyle = 'rgba(203,229,191,0.28)';
+  ctx.lineWidth = 378; ctx.stroke();
+  /* Сама вода остаётся прозрачной — песчаное дно и берег видны сквозь неё. */
   ctx.strokeStyle = 'rgba(45,125,151,0.26)';
   ctx.lineWidth = 360; ctx.stroke();
   ctx.strokeStyle = 'rgba(112,198,211,0.10)';
@@ -8473,8 +8520,8 @@ function drawTerrain(){
     ctx.beginPath(); ctx.ellipse(9,34,29,10,-0.18,0,Math.PI*2); ctx.fill();
     ctx.fillStyle='rgba(205,230,166,0.10)';
     ctx.beginPath(); ctx.ellipse(-8,25,15,4,-0.18,0,Math.PI*2); ctx.fill();
-    if(tree.kind==='dire'){
-      drawDireTree(tree);
+    if(tree.kind==='dire' || tree.kind==='radiant'){
+      drawDireTree(tree,tree.kind==='radiant');
     } else if(tree.kind==='pine'){
       ctx.fillStyle='#4b2c1f'; ctx.fillRect(-5,2,10,38);
       ctx.fillStyle='#1a543e'; ctx.beginPath(); ctx.moveTo(0,-38); ctx.lineTo(-23,10); ctx.lineTo(23,10); ctx.closePath(); ctx.fill();
@@ -11191,7 +11238,7 @@ function shopLayout(){
   const h = Math.min(640, Math.max(420, VH-72));
   const r = {x:Math.max(12,VW/2-560),y:Math.max(36,(VH-h)/2),w:Math.min(1120,VW-24),h};
   const detailsW = VW >= 980 ? 282 : 0;
-  const columns = VW >= 980 ? 5 : (VW < 620 ? 3 : 4);
+  const columns = VW >= 980 ? 9 : (VW < 620 ? 4 : 5);
   const gap = 8;
   const visibleRows = Math.max(1, Math.floor((r.h-70)/78));
   const totalRows = Math.ceil(SHOP_ITEM_IDS.length/columns);
@@ -11306,7 +11353,6 @@ function handleHudClick(mx, my){
     for(let i=0;i<SHOP_ITEM_IDS.length;i++){
       const r = shopItemRect(i);
       if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h){
-        selectedShopItem = SHOP_ITEM_IDS[i];
         confirmShopPurchase(SHOP_ITEM_IDS[i]);
         return true;
       }
@@ -12027,7 +12073,7 @@ function drawShop(){
     ctx.restore();
     return;
   }
-  const entries=SHOP_ITEM_IDS.map(id=>({...SHOP_ITEMS[id], id}));
+  const entries=SHOP_ITEM_VIEWS;
   let hoveredShopItem = null;
   for(let i=0;i<entries.length;i++){
     const itemRow = Math.floor(i/columns);
@@ -12043,10 +12089,7 @@ function drawShop(){
       ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1; ctx.strokeRect(ir.x+3,ir.y+3,ir.w-6,ir.h-6);
     }
     ctx.fillStyle='rgba(255,231,185,0.08)'; ctx.fillRect(ir.x+4,ir.y+4,ir.w-8,3);
-    drawItemIcon(item,ir.x+25,ir.y+34,40);
-    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(item.name,ir.x+46,ir.y+18);
-    ctx.fillStyle='rgba(238,226,202,0.68)'; ctx.font='10px Segoe UI, Arial'; ctx.fillText(item.active ? 'АКТИВНЫЙ' : 'ПАССИВНЫЙ',ir.x+46,ir.y+36);
-    ctx.fillStyle='#f2ce87'; ctx.font='bold 12px Georgia, serif'; ctx.fillText(item.cost+' монет',ir.x+46,ir.y+58);
+    drawItemIcon(item,ir.x+ir.w/2,ir.y+ir.h/2,Math.min(54,ir.w-12));
   }
   if(totalRows > visibleRows){
     const trackX = r.x + r.w - detailsW - 12;
@@ -12057,22 +12100,20 @@ function drawShop(){
     ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(trackX,trackY,5,trackH);
     ctx.fillStyle='#8be9fd'; ctx.fillRect(trackX,thumbY,5,thumbH);
   }
-  const selected = SHOP_ITEMS[hoveredShopItem || selectedShopItem];
+  const selected = hoveredShopItem ? SHOP_ITEMS[hoveredShopItem] : null;
   if(selected){
-    const panelX = detailsW ? r.x + r.w - detailsW - 10 : r.x;
-    const panelY = detailsW ? r.y + 54 : r.y + r.h - 62;
-    const panelW = detailsW ? detailsW : r.w;
-    const panelH = detailsW ? 420 : 54;
+    const panelW = detailsW ? detailsW : Math.min(300,r.w-20);
+    const panelH = detailsW ? 420 : Math.min(220,r.h-76);
+    const panelX = detailsW ? r.x + r.w - detailsW - 10 : clamp(mouse.x+14,r.x+10,r.x+r.w-panelW-10);
+    const panelY = detailsW ? r.y + 54 : clamp(mouse.y+14,r.y+54,r.y+r.h-panelH-8);
     ctx.fillStyle='rgba(11,14,15,0.98)'; ctx.fillRect(panelX,panelY,panelW,panelH);
     ctx.strokeStyle='#b58a55'; ctx.lineWidth=2; ctx.strokeRect(panelX,panelY,panelW,panelH);
     ctx.fillStyle='rgba(190,145,78,0.16)'; ctx.fillRect(panelX+1,panelY+40,panelW-2,1);
     ctx.textAlign='left'; ctx.fillStyle=selected.color; ctx.font='bold 16px Georgia, serif';
     ctx.fillText(selected.name + '  •  ' + selected.cost + ' монет',panelX+16,panelY+28);
-     drawWrappedText(getShopItemDescription(selected, h), panelX+16, panelY+58, panelW-32, 18, '#fff', '13px Segoe UI, Arial');
-    if(detailsW){
-      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='11px Segoe UI, Arial';
-       ctx.fillText(selected.active ? 'Используйте ЛКМ по слоту или его клавишу.' : 'Действует постоянно.',panelX+16,panelY+350);
-    }
+    drawWrappedText(getShopItemDescription(selected, h), panelX+16, panelY+58, panelW-32, 18, '#fff', '13px Segoe UI, Arial');
+    ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='11px Segoe UI, Arial';
+    ctx.fillText(selected.active ? 'Активный предмет' : 'Пассивный предмет',panelX+16,panelY+panelH-14);
   }
   ctx.restore();
 }
@@ -12899,6 +12940,9 @@ function storePanelLayout(){
 }
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.7.7',title:'ОБНОВЛЁННАЯ КАРТА',description:'Зелёные деревья Света в стиле Тьмы, более выразительное песчаное дно и прозрачная вода с бликами.',compactDescription:'Зелёный лес Света, детальный песок и вода.'},
+  {version:'0.7.7',title:'НОВЫЕ ПРЕДМЕТЫ В МЕНЮ',description:'В новостях показаны Замисть и Диспёрсер, а также иллюстрация обновлённой карты.',compactDescription:'Замисть, Диспёрсер и улучшенная карта.'},
+  {version:'0.7.7',title:'МАГАЗИН КАК В DOTA',description:'Предметы показаны компактными иконками, а название, цена и описание появляются при наведении.',compactDescription:'Иконки предметов и описание при наведении.'},
   {version:'0.7.6b',title:'ПРЕДМЕТ «ЗАМИСТЬ» И ПРОФИЛИ',description:'Новый активный предмет, звон монет при покупке, профили игроков мирового топа и обязательный аккаунт для онлайна.',compactDescription:'Замисть, профили игроков и аккаунт для онлайна.'},
   {version:'0.7.6a',title:'КРАСНАЯ РИГИНА И ИНВЕНТАРЬ',description:'Забери первый бесплатный скин в магазине, примени его в инвентаре и используй на Ригине в матче.',compactDescription:'Бесплатный скин Ригины и новый инвентарь.'},
   {version:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',description:'Победы, поражения, убийства, смерти, любимые бойцы и подробные отчёты последних игр с итогом команд.',compactDescription:'Карьера игрока и отчёты последних матчей.'},
@@ -14598,9 +14642,9 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(14*s)+'px Georgia, serif';
   ctx.fillText('НОВИНКИ МАГАЗИНА',colX+Math.round(16*s),aY+Math.round(22*s));
   const showcase=[
-    {id:'brainAss',line:'+350 скорости атаки и +250 урона'},
-    {id:'aghanimHead',line:'Активация усиливает героя на 10 секунд'},
-    {id:'munition',line:'Боты теперь включают активный залп'}
+    {id:'zamist',line:'Защита, урон и скорость на 10 секунд'},
+    {id:'disperser',line:'Очищение союзника или замедление врага'},
+    {id:'brainAss',line:'+350 скорости атаки и +250 урона'}
   ];
   showcase.forEach((entry,index)=>{
     const def=SHOP_ITEMS[entry.id];
@@ -14676,13 +14720,11 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(17*s)+'px Georgia, serif';
   ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
   ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
-  const rebalanceHero = REBALANCE_HERO_POOL[Math.floor(Math.random()*REBALANCE_HERO_POOL.length)];
-  const rebalanceItem = REBALANCE_ITEM_POOL[Math.floor(Math.random()*REBALANCE_ITEM_POOL.length)];
   const news=[
-    {tag:'0.7.5c',title:'ЙОСЫП: НОВЫЙ БОЕЦ',art:'unit', hero:'Йосып', action:'fighters'},
-    {tag:'0.7.5c',title:'СРАКА МО3ГОВ: НОВЫЙ АКТИВ',art:'item', item:'Срака мо3гов', itemId:'brainAss', action:'store'},
-    {tag:'0.7.5c',title:'БОТЫ: ПРИОРИТЕТНЫЙ ЗАКУП',art:'bot', action:'fighters'},
-    {tag:'0.7.5b',title:'ИСПРАВЛЕНИЕ РИГИНЫ',art:'hero', hero:'Ригина', action:'fighters'},
+    {tag:'0.7.7',title:'УЛУЧШЕННАЯ КАРТА',art:'map',action:'changelog'},
+    {tag:'0.7.7',title:'ЗАМИСТЬ: НОВЫЙ АКТИВ',art:'item',item:'Замисть',itemId:'zamist',action:'store'},
+    {tag:'0.7.7',title:'ДИСПЁРСЕР: НОВЫЙ ПРЕДМЕТ',art:'item',item:'Диспёрсер',itemId:'disperser',action:'store'},
+    {tag:'0.7.5c',title:'СРАКА МО3ГОВ: НОВЫЙ АКТИВ',art:'item',item:'Срака мо3гов',itemId:'brainAss',action:'store'},
     {tag:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',art:'heart',action:'account'},
     {tag:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',art:'3v3',action:'leaderboard'}
   ];
@@ -14694,12 +14736,25 @@ function drawDotaSenseHome(){
     ctx.save();
     ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
     const art=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
-    const artTone = entry.art === 'unit' ? ['#284020','#071b18'] : entry.art === 'item' ? ['#42142c','#140d24'] : entry.art === 'bot' ? ['#16383c','#101426'] : ['#3a0d12','#120508'];
+    const artTone = entry.art === 'map' ? ['#315c36','#0d2825'] : entry.art === 'item' ? ['#42142c','#140d24'] : entry.art === 'bot' ? ['#16383c','#101426'] : ['#3a0d12','#120508'];
     art.addColorStop(0,artTone[0]); art.addColorStop(1,artTone[1]);
     ctx.fillStyle=art; ctx.fillRect(card.x,card.y,card.w,card.h);
     const gx=card.x+card.w*0.62, gy=card.y+card.h*0.42;
     ctx.globalAlpha=0.9;
-    if(entry.art==='unit' || entry.art==='hero'){
+    if(entry.art==='map'){
+      ctx.fillStyle='#4c793c'; ctx.fillRect(card.x,card.y,card.w,card.h);
+      ctx.strokeStyle='rgba(20,20,17,0.72)'; ctx.lineWidth=card.h*0.2; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(card.x+card.w*.08,card.y+card.h*.9); ctx.lineTo(card.x+card.w*.45,card.y+card.h*.55); ctx.lineTo(card.x+card.w*.92,card.y+card.h*.1); ctx.stroke();
+      ctx.strokeStyle='#c4a46a'; ctx.lineWidth=card.h*0.24;
+      ctx.beginPath(); ctx.moveTo(card.x+card.w*.04,card.y+card.h*.92); ctx.lineTo(card.x+card.w*.48,card.y+card.h*.48); ctx.lineTo(card.x+card.w*.96,card.y+card.h*.04); ctx.stroke();
+      ctx.strokeStyle='#267f99'; ctx.lineWidth=card.h*0.16;
+      ctx.beginPath(); ctx.moveTo(card.x+card.w*.04,card.y+card.h*.92); ctx.lineTo(card.x+card.w*.48,card.y+card.h*.48); ctx.lineTo(card.x+card.w*.96,card.y+card.h*.04); ctx.stroke();
+      for(let tree=0;tree<8;tree++){
+        const tx=card.x+card.w*(.1+(tree*37%78)/100), ty=card.y+card.h*(.15+(tree*23%65)/100);
+        ctx.fillStyle=tree%2?'#234c31':'#5e9b4c';
+        ctx.beginPath(); ctx.arc(tx,ty,card.h*.055,0,Math.PI*2); ctx.fill();
+      }
+    } else if(entry.art==='unit' || entry.art==='hero'){
       const heroDef=HERO_DEFS.find(def=>def.name===entry.hero) || HERO_DEFS[0];
       drawHeroTexture(heroDef,card.x+card.w*.42,card.y-2,card.w*.59,card.h-24,performance.now()/1000);
       ctx.globalAlpha=1;
