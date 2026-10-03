@@ -3,19 +3,49 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DotaSens — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.6.2</title>
-<link rel="stylesheet" href="/style.css?v=0.6.2">
+<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.7.6b</title>
+<link rel="stylesheet" href="./style.css?v=0.7.6b">
 </head>
 <body>
 <div id="topbar">
   <button id="online-entry" type="button">ОНЛАЙН 3 НА 3</button>
+  <output id="online-counter" aria-live="polite">Онлайн: —</output>
+  <button id="leaderboard-open" type="button">МИРОВОЙ ТОП · ПОБЕДЫ</button>
 </div>
 <canvas id="game" tabindex="0"></canvas>
+<section id="leaderboard-modal" hidden>
+  <div class="leaderboard-panel" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
+    <button type="button" id="leaderboard-close" aria-label="Закрыть таблицу">✕</button>
+    <div class="acc-eyebrow">DOTA SENSE 3 · ПОБЕДЫ</div>
+    <h2 id="leaderboard-title">МИРОВОЙ ТОП</h2>
+    <p>Победы в матчах с ботами и игроками</p>
+    <div id="leaderboard-list-view">
+      <div class="leaderboard-columns"><span>МЕСТО</span><span>ИГРОК / ТИТУЛ</span><span>ПОБЕДЫ</span></div>
+      <ol id="world-leaderboard-list" aria-live="polite"></ol>
+      <div id="leaderboard-status" role="status"></div>
+    </div>
+    <section id="leaderboard-player-profile" hidden aria-label="Профиль игрока">
+      <button type="button" id="leaderboard-profile-back">← К СПИСКУ</button>
+      <div class="leaderboard-profile-heading">
+        <div id="leaderboard-profile-avatar" class="leaderboard-profile-avatar"></div>
+        <div><h3 id="leaderboard-profile-name"></h3><span id="leaderboard-profile-title"></span></div>
+      </div>
+      <div id="leaderboard-profile-stats" class="leaderboard-profile-stats"></div>
+      <h4>ЛЮБИМЫЕ БОЙЦЫ</h4>
+      <div id="leaderboard-profile-favorites" class="leaderboard-profile-favorites"></div>
+    </section>
+  </div>
+</section>
 <section id="mode-picker" hidden>
   <div class="mode-panel">
     <div>DotaSens</div>
     <h1>Онлайн 3 на 3</h1>
-    <p id="match-status">Нажми кнопку, чтобы создать или найти комнату.</p>
+    <p id="match-status">Найди комнату, посмотри статистику и настрой профиль перед матчем.</p>
+    <div class="online-tools" aria-label="Возможности онлайн-меню">
+      <div class="online-tool"><b id="online-profile-name">ГОСТЬ</b><span id="online-profile-stats">Войди в аккаунт для рейтинга и истории матчей</span></div>
+      <button type="button" id="online-account">ПРОФИЛЬ И СТАТИСТИКА</button>
+      <button type="button" id="online-changelog">ЧТО НОВОГО</button>
+    </div>
     <div id="room-state"></div>
     <div class="mode-actions">
       <button type="button" id="online-button">Найти игроков</button>
@@ -23,8 +53,54 @@
     </div>
   </div>
 </section>
+<section id="account-modal" hidden>
+  <div class="acc-panel" role="dialog" aria-modal="true" aria-labelledby="acc-title">
+    <button type="button" class="acc-close" id="acc-close" aria-label="Закрыть">✕</button>
+    <div class="acc-eyebrow">DOTA SENSE 3</div>
+    <h2 id="acc-title">Аккаунт</h2>
+
+    <div id="acc-guest">
+      <div class="acc-tabs">
+        <button type="button" id="acc-tab-login" class="active">Вход</button>
+        <button type="button" id="acc-tab-register">Регистрация</button>
+      </div>
+      <label>Ник<input id="acc-nick" type="text" maxlength="16" autocomplete="username" spellcheck="false" placeholder="ShadowHunter"></label>
+      <label>Пароль<input id="acc-pass" type="password" maxlength="64" autocomplete="current-password" placeholder="••••••••"></label>
+      <button type="button" class="acc-primary" id="acc-submit">ВОЙТИ</button>
+      <p class="acc-hint">Аккаунт сохраняется на сервере. Уровень стартует с 0 и растёт с каждой победой — над ботами или над игроками.</p>
+    </div>
+
+    <div id="acc-user" hidden>
+      <div class="acc-card">
+        <div class="acc-avatar" id="acc-avatar">S</div>
+        <div class="acc-info">
+          <strong id="acc-name">—</strong>
+          <span id="acc-rank">—</span>
+          <span id="acc-stats">—</span>
+        </div>
+        <div class="acc-level"><small>УРОВЕНЬ</small><b id="acc-level">0</b></div>
+      </div>
+      <section id="career-panel" class="career-panel" hidden aria-label="Карьера игрока">
+        <div class="career-section-heading"><span>КАРЬЕРА</span><small id="career-xp">0 XP</small></div>
+        <div id="career-summary" class="career-summary"></div>
+        <div class="career-section-heading"><span>ЛЮБИМЫЕ БОЙЦЫ</span></div>
+        <div id="career-favorites" class="career-favorites"></div>
+        <div class="career-section-heading"><span>ПОСЛЕДНИЕ МАТЧИ</span><small>20</small></div>
+        <div id="career-history" class="career-history"></div>
+      </section>
+      <div class="acc-avatars-title">Аватарка</div>
+      <div class="acc-avatars" id="acc-avatars"></div>
+      <label>Сменить ник<input id="acc-newnick" type="text" maxlength="16" spellcheck="false" placeholder="Новый ник"></label>
+      <div class="acc-row">
+        <button type="button" class="acc-primary" id="acc-rename">СМЕНИТЬ НИК</button>
+        <button type="button" class="acc-ghost" id="acc-logout">ВЫЙТИ</button>
+      </div>
+    </div>
+    <div class="acc-error" id="acc-error" role="alert"></div>
+  </div>
+</section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="/game.js?v=0.6.2"></script>
+<script src="./game.js?v=0.7.6b"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
@@ -33,34 +109,124 @@
   const start = document.getElementById('room-start');
   const status = document.getElementById('match-status');
   const roomState = document.getElementById('room-state');
-  let socket = null;
+  const onlineAccount = document.getElementById('online-account');
+  const onlineChangelog = document.getElementById('online-changelog');
+  const leaderboardModal = document.getElementById('leaderboard-modal');
+  document.getElementById('leaderboard-open').addEventListener('click', () => window.openLeaderboard());
+  document.getElementById('leaderboard-close').addEventListener('click', () => window.closeLeaderboard());
+  leaderboardModal.addEventListener('click', event => { if(event.target === leaderboardModal) window.closeLeaderboard(); });
+  document.addEventListener('keydown', event => { if(event.key === 'Escape' && !leaderboardModal.hidden) window.closeLeaderboard(); });
+  const onlineProfileName = document.getElementById('online-profile-name');
+  const onlineProfileStats = document.getElementById('online-profile-stats');
+  let socket = typeof io === 'function' ? io() : null;
   let room = null;
   let started = false;
+  let joinRequested = false;
+  const onlineCounter = document.getElementById('online-counter');
+  function bindSocket(nextSocket){
+    nextSocket.on('connect', () => {
+      if(joinRequested){
+        joinRequested = false;
+        emitMatchJoin();
+      } else if(!room && !started){
+        button.disabled = false;
+        button.textContent = 'Найти игроков';
+      }
+    });
+    nextSocket.on('update-online', data => {
+      const count = Number.isFinite(data && data.count) ? data.count : null;
+      onlineCounter.textContent = count === null ? 'Онлайн: недоступен' : 'Онлайн: ' + count;
+      onlineCounter.dataset.state = count === null ? 'offline' : 'online';
+    });
+    nextSocket.on('disconnect', () => {
+      joinRequested = false;
+      onlineCounter.textContent = 'Онлайн: недоступен';
+      onlineCounter.dataset.state = 'offline';
+      if(!started) status.textContent = 'Соединение потеряно';
+    });
+    nextSocket.on('connect_error', () => {
+      joinRequested = false;
+      onlineCounter.textContent = 'Онлайн: недоступен';
+      onlineCounter.dataset.state = 'offline';
+      if(!started){ status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить'; }
+    });
+    nextSocket.on('lobbyUpdate', next => {
+      room = next;
+      button.style.display = 'none';
+      status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.players.length + '/6';
+      renderRoom(next);
+    });
+    nextSocket.on('room:error', data => {
+      joinRequested = false; status.textContent = data.message; start.disabled = false; button.disabled = false; button.textContent = 'Найти игроков';
+      if(data.code==='ACCOUNT_REQUIRED' && typeof openAccountModal==='function') openAccountModal();
+    });
+    nextSocket.on('room:started', () => { status.textContent = 'Матч запускается...'; start.disabled = true; });
+    nextSocket.on('match:begin', data => { started = true; window.__shadowOnlineMatch = data; canvas.focus(); });
+    window.__shadowOnlineSocket = nextSocket;
+  }
+  if(socket) bindSocket(socket);
+  else {
+    onlineCounter.textContent = 'Онлайн: недоступен';
+    onlineCounter.dataset.state = 'offline';
+  }
+  function renderOnlineProfile(){
+    const profile = window.__shadowAccountProfile || null;
+    if(!profile){
+      onlineProfileName.textContent = 'ГОСТЬ';
+      onlineProfileStats.textContent = 'Войди в аккаунт для рейтинга и истории матчей';
+      return;
+    }
+    const total = (profile.wins || 0) + (profile.losses || 0);
+    const rate = total ? Math.round((profile.wins || 0) / total * 100) : 0;
+    onlineProfileName.textContent = profile.nick + ' • УР. ' + profile.level;
+    onlineProfileStats.textContent = 'Рейтинг: ' + (profile.rating || 0) + ' • Победы: ' + (profile.wins || 0) + ' • Матчи: ' + total + ' • Винрейт: ' + rate + '%';
+  }
+  onlineAccount.addEventListener('click', () => { if(typeof openAccountModal === 'function') openAccountModal(); });
+  onlineChangelog.addEventListener('click', () => { picker.hidden = true; if(typeof openChangelog === 'function') openChangelog(); });
+  window.addEventListener('shadow:profile', renderOnlineProfile);
+  renderOnlineProfile();
   entry.addEventListener('pointerenter', () => playSynthSfx('hover'));
   picker.addEventListener('pointerover', event => {
     const target = event.target.closest('button');
     if(target && !target.contains(event.relatedTarget)) playSynthSfx('hover');
   });
   entry.addEventListener('click', () => { picker.hidden = false; });
+  function accountSessionToken(){
+    try { return localStorage.getItem('dotasense-account-token') || ''; }
+    catch(err) { return ''; }
+  }
+  function emitMatchJoin(){
+    const token=accountSessionToken();
+    if(!token || !window.__shadowAccountProfile){
+      status.textContent='Войдите в аккаунт, чтобы играть в мультиплеер.';
+      button.disabled=false; button.textContent='Найти игроков';
+      if(typeof openAccountModal==='function') openAccountModal();
+      return;
+    }
+    socket.emit('match:join', { accountToken:token });
+  }
   button.addEventListener('click', () => {
-    if(socket) return;
+    if(!accountSessionToken() || !window.__shadowAccountProfile){
+      status.textContent='Для игры в мультиплеер нужен аккаунт.';
+      if(typeof openAccountModal==='function') openAccountModal();
+      return;
+    }
+    if(!socket){
+      if(typeof io !== 'function'){
+        status.textContent = 'Онлайн-сервер недоступен';
+        onlineCounter.textContent = 'Онлайн: недоступен';
+        return;
+      }
+      socket = io();
+      bindSocket(socket);
+    }
+    if(room || joinRequested) return;
+    joinRequested = true;
     button.disabled = true;
     button.textContent = 'Создание комнаты...';
     status.textContent = 'Подключение к серверу';
-    socket = io();
-    window.__shadowOnlineSocket = socket;
-    socket.on('lobbyUpdate', next => {
-      room = next;
-      button.style.display = 'none';
-      status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.players.length + '/6';
-      renderRoom(next);
-    });
-    socket.on('room:error', data => { status.textContent = data.message; start.disabled = false; });
-    socket.on('room:started', () => { status.textContent = 'Матч запускается...'; start.disabled = true; });
-    socket.on('match:begin', data => { started = true; window.__shadowOnlineMatch = data; canvas.focus(); });
-    socket.on('connect_error', () => { status.textContent = 'Сервер недоступен'; button.disabled = false; button.textContent = 'Повторить'; socket = null; });
-    socket.on('disconnect', () => { if(!started) status.textContent = 'Соединение потеряно'; });
-    socket.emit('match:join');
+    if(socket.connected){ joinRequested = false; emitMatchJoin(); }
+    else socket.connect();
   });
   start.addEventListener('click', () => { if(socket && room && room.players.length >= 2 && room.hostId === socket.id) socket.emit('room:start'); });
 
@@ -79,8 +245,15 @@
       row.appendChild(label);
       if(member){
         const name = document.createElement('span');
-        name.textContent = member.id === socket.id ? 'Ты' : 'Игрок';
+        name.textContent = member.nick || (member.id === socket.id ? 'Ты' : 'Игрок');
+        if(member.frame) row.dataset.frame = member.frame;
         row.appendChild(name);
+        if(member.title){
+          const title = document.createElement('small');
+          title.className = 'room-title';
+          title.textContent = member.title;
+          row.appendChild(title);
+        }
         if(member.id === socket.id){
           const select = document.createElement('select');
           HERO_IDS_FOR_ROOM.forEach(hero => {
@@ -109,11 +282,11 @@
     {id:'pyro',name:'Пиромант'},{id:'warlord',name:'Вождь'},{id:'grisha',name:'Гриша'},
     {id:'sasych',name:'Сасыч'},{id:'malit',name:'Малит'},{id:'arcady',name:'Аркадий'},
     {id:'illusionist',name:'Иллюзионист'},{id:'mageHunter',name:'Охотник на магов'},
-    {id:'regina',name:'Ригина'},{id:'dawnMaiden',name:'Рассветная дева'},
+    {id:'regina',name:'Ригина'},{id:'yosyp',name:'Йосып'},{id:'dawnMaiden',name:'Рассветная дева'},
     {id:'exileKnight',name:'Рыцарь-изгнанник'},{id:'juggernaut',name:'Джаггернаут'},
     {id:'sniper',name:'Снайпер'},{id:'earthshaker',name:'Шмедик'},
     {id:'mo3gi',name:'Мо3ги'},{id:'tribupainer',name:'Трибупейнер'},
-    {id:'juvsyut',name:'Джувсют'},{id:'chip',name:'Чип'}
+    {id:'juvsyut',name:'Джувсют'},{id:'chip',name:'Чип'},{id:'savely',name:'Савелий'}
   ];
 })();
 </script>

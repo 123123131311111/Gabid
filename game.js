@@ -66,163 +66,356 @@ const sniperTexture = new Image();
 sniperTexture.decoding = 'async';
 sniperTexture.onerror = () => { sniperTexture.onerror = null; sniperTexture.src = ''; };
 sniperTexture.src = './изображение_1790414627915.png';
-const proceduralGrassCanvas = document.createElement('canvas');
-proceduralGrassCanvas.width = proceduralGrassCanvas.height = 512;
-const proceduralGrassCtx = proceduralGrassCanvas.getContext('2d');
-function buildProceduralGrassTexture(){
-  const g = proceduralGrassCtx.createLinearGradient(0,0,512,512);
-  g.addColorStop(0,'#263a16');
-  g.addColorStop(0.48,'#334b1d');
-  g.addColorStop(1,'#1d3217');
-  proceduralGrassCtx.fillStyle = g;
-  proceduralGrassCtx.fillRect(0,0,512,512);
-
-  /* Мягкие тональные пятна подложки — трава выглядит менее однородной ещё до стеблей. */
-  for(let i=0;i<26;i++){
-    const seed = Math.abs(Math.sin(i*91.3+7.1))%1;
-    const x=(seed*512+i*53)%512, y=(Math.abs(Math.cos(i*33.7))*512)%512;
-    const r=40+seed*90;
-    const grad = proceduralGrassCtx.createRadialGradient(x,y,0,x,y,r);
-    const lighter = seed>0.5;
-    grad.addColorStop(0, lighter?'rgba(120,150,68,0.16)':'rgba(20,32,14,0.22)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    proceduralGrassCtx.fillStyle=grad;
-    proceduralGrassCtx.beginPath(); proceduralGrassCtx.arc(x,y,r,0,Math.PI*2); proceduralGrassCtx.fill();
-  }
-
-  for(let x=12;x<512;x+=34){
-    for(let y=12;y<512;y+=38){
-      const seed = Math.abs(Math.sin(x*12.9898+y*78.233)*43758.5453)%1;
-      const seed2 = Math.abs(Math.sin(x*45.1+y*19.7)*7841.3)%1;
-      const px = x + (seed-0.5)*22;
-      const py = y + (Math.abs(Math.sin(seed*91.7))*0.8-0.4)*22;
-      const bladeColor = seed>0.6 ? '#5d8030' : (seed>0.34 ? '#456523' : (seed>0.14 ? '#6b8531' : '#3c5a1f'));
-
-      /* Лёгкая тень у основания пучка — стебли не "висят в воздухе". */
-      proceduralGrassCtx.fillStyle='rgba(10,16,8,0.16)';
-      proceduralGrassCtx.beginPath(); proceduralGrassCtx.ellipse(px+2,py+6,10,4,0,0,Math.PI*2); proceduralGrassCtx.fill();
-
-      const bladeCount = 4 + Math.floor(seed2*3);
-      for(let blade=0;blade<bladeCount;blade++){
-        const a = -1.15 + blade*(1.9/bladeCount) + seed*0.18;
-        const len = 9 + ((seed*31 + blade*7)%14) + seed2*6;
-        proceduralGrassCtx.strokeStyle = blade%2===0 ? bladeColor : (seed2>0.5?'#7a9a3e':bladeColor);
-        proceduralGrassCtx.lineWidth = 1.4 + seed2*1.3;
-        proceduralGrassCtx.beginPath();
-        proceduralGrassCtx.moveTo(px+blade*2-4,py+5);
-        proceduralGrassCtx.quadraticCurveTo(px+Math.cos(a)*len*0.4,py-len*0.35,px+Math.cos(a)*len,py-Math.sin(-a)*len);
-        proceduralGrassCtx.stroke();
-      }
-      if(seed>0.83){
-        const flowerColors=['#b98d55','#d4a9b0','#c4b65d','#e8e3c8'];
-        proceduralGrassCtx.fillStyle=flowerColors[Math.floor(seed*100)%flowerColors.length];
-        proceduralGrassCtx.beginPath(); proceduralGrassCtx.arc(px+8,py-4,3.5,0,Math.PI*2); proceduralGrassCtx.fill();
-        proceduralGrassCtx.fillStyle='#6b4a2a';
-        proceduralGrassCtx.beginPath(); proceduralGrassCtx.arc(px+8,py-4,1.2,0,Math.PI*2); proceduralGrassCtx.fill();
-      } else if(seed>0.7 && seed2>0.5){
-        /* Мелкий клевер вместо цветка для разнообразия. */
-        proceduralGrassCtx.fillStyle='rgba(70,110,45,0.85)';
-        for(const [ox,oy] of [[-3,0],[3,0],[0,-4]]){
-          proceduralGrassCtx.beginPath(); proceduralGrassCtx.arc(px+ox,py-6+oy,2.4,0,Math.PI*2); proceduralGrassCtx.fill();
-        }
-      } else if(seed<0.06){
-        /* Изредка мелкий камешек или веточка на земле. */
-        proceduralGrassCtx.fillStyle='rgba(70,58,40,0.6)';
-        proceduralGrassCtx.beginPath(); proceduralGrassCtx.ellipse(px,py+3,3.2,1.8,seed2*Math.PI,0,Math.PI*2); proceduralGrassCtx.fill();
-      }
-    }
+/* ===== ТЕКСТУРЫ КАРТЫ 0.7.5: трава Света, чёрная трава Тьмы, земля, дороги ===== */
+function mulberry32(seed){
+  let a = seed|0;
+  return function(){
+    a = (a + 0x6D2B79F5)|0;
+    let t = Math.imul(a ^ (a>>>15), 1|a);
+    t = (t + Math.imul(t ^ (t>>>7), 61|t)) ^ t;
+    return ((t ^ (t>>>14))>>>0) / 4294967296;
+  };
+}
+/* Рисует элемент во всех нужных смещениях, чтобы плитка стыковалась без швов. */
+function texWrap(S,x,y,r,fn){
+  for(const ox of [-S,0,S]) for(const oy of [-S,0,S]){
+    const px=x+ox, py=y+oy;
+    if(px+r<0 || px-r>S || py+r<0 || py-r>S) continue;
+    fn(px,py);
   }
 }
-buildProceduralGrassTexture();
-const grassTextureImage = new Image();
-let grassTexturePattern = ctx.createPattern(proceduralGrassCanvas, 'repeat');
-grassTextureImage.onload = () => {
-  grassTexturePattern = ctx.createPattern(grassTextureImage, 'repeat');
+function shadeOf(hex){
+  const n=parseInt(hex.slice(1),16);
+  const r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  const hi=`rgb(${Math.min(255,Math.round(r*1.28+26))},${Math.min(255,Math.round(g*1.28+26))},${Math.min(255,Math.round(b*1.28+26))})`;
+  const lo=`rgb(${Math.round(r*0.5)},${Math.round(g*0.5)},${Math.round(b*0.5)})`;
+  return {hi, mid:hex, lo};
+}
+function drawStoneShape(g,px,py,rx,ry,rot,shade,mossColor,mossAmt){
+  g.save(); g.translate(px,py); g.rotate(rot);
+  g.fillStyle='rgba(0,0,0,0.30)';
+  g.beginPath(); g.ellipse(rx*0.18+1.5,ry*0.45+2,rx*1.05,ry*0.92,0,0,Math.PI*2); g.fill();
+  const gr=g.createRadialGradient(-rx*0.35,-ry*0.45,0,0,0,Math.max(rx,ry)*1.15);
+  gr.addColorStop(0,shade.hi); gr.addColorStop(0.55,shade.mid); gr.addColorStop(1,shade.lo);
+  g.fillStyle=gr; g.beginPath(); g.ellipse(0,0,rx,ry,0,0,Math.PI*2); g.fill();
+  g.strokeStyle='rgba(0,0,0,0.38)'; g.lineWidth=1; g.stroke();
+  g.strokeStyle='rgba(255,255,255,0.34)'; g.lineWidth=Math.max(0.8,rx*0.12);
+  g.beginPath(); g.ellipse(0,0,rx*0.78,ry*0.78,0,Math.PI*1.12,Math.PI*1.55); g.stroke();
+  if(mossAmt>0){
+    g.fillStyle=mossColor; g.globalAlpha=mossAmt;
+    g.beginPath(); g.ellipse(-rx*0.2,-ry*0.5,rx*0.7,ry*0.38,0.2,0,Math.PI*2); g.fill();
+    g.globalAlpha=1;
+  }
+  g.restore();
+}
+
+const GRASS_PALETTES = {
+  light:{
+    base:'#335a1e', blobL:'rgba(150,196,74,0.20)', blobD:'rgba(12,34,10,0.32)',
+    blades:['#4f7d27','#5f9030','#74a63a','#3b6420','#8bbd47'], tip:'#b0d95e',
+    stones:['#cfc8b4','#b9b19c','#a59d88','#dcd5c0','#8f8876'], moss:'rgba(88,132,50,0.8)',
+    flowers:['#f6f2de','#f3d45c','#eaa8c2','#ffffff'], flowerCore:'#d99a2b', stem:'#3f6d22', flowerN:20,
+    dirt:'rgba(98,76,46,0.55)', dirtPatches:6, glow:false
+  },
+  dark:{
+    base:'#141a17', blobL:'rgba(72,98,80,0.20)', blobD:'rgba(0,0,0,0.42)',
+    blades:['#27392c','#1b2a20','#35523b','#0f1612','#48644c'], tip:'#648768',
+    stones:['#4b5254','#3c4244','#5b6265','#2f3437','#6a7172'], moss:'rgba(42,92,64,0.75)',
+    flowers:['#c2334f','#e0566f','#a82440','#e98aa0'], flowerCore:'#3a0f18', stem:'#1f3a28', flowerN:30,
+    dirt:'rgba(8,6,7,0.62)', dirtPatches:7, glow:true
+  }
 };
-grassTextureImage.src = './{69D0296D-9629-414F-AEB4-B15FF6B07E3D}_1789396600545.png';
 
-const proceduralPathCanvas = document.createElement('canvas');
-proceduralPathCanvas.width = proceduralPathCanvas.height = 256;
-const proceduralPathCtx = proceduralPathCanvas.getContext('2d');
-function buildProceduralPathTexture(){
-  /* Красивая мощёная дорога: крупные каменные плиты со швами вместо просто грунта. */
-  const p = proceduralPathCtx;
-  const base = p.createLinearGradient(0,0,256,256);
-  base.addColorStop(0,'#9a875f'); base.addColorStop(0.5,'#8a774f'); base.addColorStop(1,'#786643');
-  p.fillStyle = base; p.fillRect(0,0,256,256);
+function buildGrassTile(pal,seed){
+  const S=768, k=(S/512)*(S/512);
+  const c=document.createElement('canvas'); c.width=c.height=S;
+  const g=c.getContext('2d'); const R=mulberry32(seed);
+  g.fillStyle=pal.base; g.fillRect(0,0,S,S);
 
-  /* Тёмные швы между плитами рисуются первыми — они станут "затиркой". */
-  p.fillStyle = '#453a26';
-  p.fillRect(0,0,256,256);
+  for(let i=0;i<Math.round(38*k);i++){
+    const x=R()*S,y=R()*S,r=50+R()*130,light=R()>0.5;
+    texWrap(S,x,y,r,(px,py)=>{
+      const gr=g.createRadialGradient(px,py,0,px,py,r);
+      gr.addColorStop(0,light?pal.blobL:pal.blobD); gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.fillRect(px-r,py-r,r*2,r*2);
+    });
+  }
+  for(let i=0;i<Math.round(pal.dirtPatches*k);i++){
+    const x=R()*S,y=R()*S,rx=22+R()*36,ry=rx*(0.5+R()*0.4),rot=R()*3;
+    texWrap(S,x,y,rx,(px,py)=>{
+      g.save(); g.translate(px,py); g.rotate(rot);
+      const gr=g.createRadialGradient(0,0,0,0,0,rx);
+      gr.addColorStop(0,pal.dirt); gr.addColorStop(0.65,pal.dirt); gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.beginPath(); g.ellipse(0,0,rx,ry,0,0,Math.PI*2); g.fill(); g.restore();
+    });
+  }
+  for(let i=0;i<Math.round(2200*k);i++){
+    const x=R()*S,y=R()*S,len=4+R()*9,a=-Math.PI/2+(R()-0.5)*1.2;
+    const col=pal.blades[(R()*pal.blades.length)|0],al=0.45+R()*0.45,lw=0.9+R()*1.1;
+    texWrap(S,x,y,len,(px,py)=>{
+      g.globalAlpha=al; g.strokeStyle=col; g.lineWidth=lw;
+      g.beginPath(); g.moveTo(px,py); g.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len); g.stroke();
+    });
+  }
+  g.globalAlpha=1; g.lineCap='round';
 
-  const seedAt = (i,j) => Math.abs(Math.sin(i*127.1+j*311.7)*43758.5453)%1;
-  const TILE = 64, GAP = 5;
-  const stoneShades = ['#b9a06d','#ad9560','#a68c56','#c2aa76','#9c8552'];
+  const tufts=(count,scale)=>{
+    for(let i=0;i<count;i++){
+      const x=R()*S,y=R()*S,n=6+((R()*5)|0),bl=[];
+      for(let b=0;b<n;b++) bl.push({
+        a:-Math.PI/2+(b/(n-1)-0.5)*1.7+(R()-0.5)*0.25, len:(12+R()*18)*scale, bend:(R()-0.5)*10*scale,
+        col:R()<0.35?pal.tip:pal.blades[(R()*pal.blades.length)|0], lw:(1.2+R()*1.3)*Math.max(0.7,scale)
+      });
+      texWrap(S,x,y,36,(px,py)=>{
+        g.fillStyle='rgba(0,0,0,0.20)';
+        g.beginPath(); g.ellipse(px+2,py+3,11*scale,4*scale,0,0,Math.PI*2); g.fill();
+        for(const b of bl){
+          g.strokeStyle=b.col; g.lineWidth=b.lw;
+          g.beginPath(); g.moveTo(px+(b.a+1.57)*4,py);
+          g.quadraticCurveTo(px+Math.cos(b.a)*b.len*0.5+b.bend*0.4,py+Math.sin(b.a)*b.len*0.55,
+                             px+Math.cos(b.a)*b.len+b.bend,py+Math.sin(b.a)*b.len);
+          g.stroke();
+        }
+      });
+    }
+  };
+  tufts(Math.round(170*k),1);
+
+  const shades=pal.stones.map(shadeOf);
+  const placeStone=(x,y,rx,ry)=>{
+    const rot=R()*Math.PI, sh=shades[(R()*shades.length)|0], moss=R()<0.35?0.55+R()*0.3:0;
+    texWrap(S,x,y,rx+4,(px,py)=>drawStoneShape(g,px,py,rx,ry,rot,sh,pal.moss,moss));
+  };
+  for(let i=0;i<Math.round(20*k);i++){
+    const x=R()*S,y=R()*S,rx=4+R()*7;
+    placeStone(x,y,rx,rx*(0.6+R()*0.3));
+    if(R()<0.5){
+      const m=2+((R()*3)|0);
+      for(let q=0;q<m;q++){ const s=2+R()*3.2; placeStone(x+(R()-0.5)*28,y+(R()-0.5)*18,s,s*0.7); }
+    }
+  }
+  for(let i=0;i<Math.round(3*k);i++){ const rx=14+R()*7; placeStone(R()*S,R()*S,rx,rx*(0.62+R()*0.2)); }
+  tufts(Math.round(46*k),0.7);
+
+  for(let i=0;i<Math.round(pal.flowerN*k);i++){
+    const x=R()*S,y=R()*S,col=pal.flowers[(R()*pal.flowers.length)|0],sz=1.7+R()*1.5;
+    texWrap(S,x,y,10,(px,py)=>{
+      g.strokeStyle=pal.stem; g.lineWidth=1; g.beginPath(); g.moveTo(px,py+7); g.lineTo(px,py); g.stroke();
+      g.fillStyle=col;
+      for(let p=0;p<5;p++){ const a=p*Math.PI*2/5; g.beginPath(); g.arc(px+Math.cos(a)*sz*1.1,py+Math.sin(a)*sz*1.1,sz,0,Math.PI*2); g.fill(); }
+      g.fillStyle=pal.flowerCore; g.beginPath(); g.arc(px,py,sz*0.7,0,Math.PI*2); g.fill();
+    });
+  }
+  if(pal.glow){
+    for(let i=0;i<Math.round(7*k);i++){
+      let x=R()*S,y=R()*S; const sx=x,sy=y,pts=[[0,0]]; let a=R()*6.28,ax=0,ay=0;
+      for(let s=0;s<5;s++){ a+=(R()-0.5)*1.2; ax+=Math.cos(a)*(14+R()*18); ay+=Math.sin(a)*(14+R()*18); pts.push([ax,ay]); }
+      texWrap(S,sx,sy,170,(px,py)=>{
+        for(const [w,col] of [[5,'rgba(255,40,30,0.08)'],[2,'rgba(255,90,50,0.26)'],[0.8,'rgba(255,170,110,0.55)']]){
+          g.strokeStyle=col; g.lineWidth=w; g.beginPath(); g.moveTo(px,py);
+          for(const p of pts) g.lineTo(px+p[0],py+p[1]);
+          g.stroke();
+        }
+      });
+    }
+  }
+  return c;
+}
+
+function buildDirtTile(pal,seed){
+  const S=256, c=document.createElement('canvas'); c.width=c.height=S;
+  const g=c.getContext('2d'); const R=mulberry32(seed);
+  g.fillStyle=pal.base; g.fillRect(0,0,S,S);
+  for(let i=0;i<16;i++){
+    const x=R()*S,y=R()*S,r=30+R()*60,light=R()>0.5;
+    texWrap(S,x,y,r,(px,py)=>{
+      const gr=g.createRadialGradient(px,py,0,px,py,r);
+      gr.addColorStop(0,light?pal.hi:pal.lo); gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.fillRect(px-r,py-r,r*2,r*2);
+    });
+  }
+  for(let i=0;i<1100;i++){
+    const x=R()*S,y=R()*S,r=0.5+R()*1.5,col=R()>0.5?pal.hi:pal.lo,al=0.25+R()*0.4;
+    texWrap(S,x,y,r,(px,py)=>{ g.globalAlpha=al; g.fillStyle=col; g.beginPath(); g.arc(px,py,r,0,Math.PI*2); g.fill(); });
+  }
+  g.globalAlpha=1;
+  const shades=pal.stones.map(shadeOf);
+  for(let i=0;i<24;i++){
+    const x=R()*S,y=R()*S,rx=2+R()*4.5,ry=rx*(0.6+R()*0.3),rot=R()*3,sh=shades[(R()*shades.length)|0];
+    texWrap(S,x,y,rx+4,(px,py)=>drawStoneShape(g,px,py,rx,ry,rot,sh,'rgba(0,0,0,0)',0));
+  }
+  for(let i=0;i<5;i++){
+    let x=R()*S,y=R()*S,a=R()*6.28; const sx=x,sy=y,pts=[[0,0]]; let ax=0,ay=0;
+    for(let s=0;s<4;s++){ a+=(R()-0.5)*1.4; ax+=Math.cos(a)*(10+R()*16); ay+=Math.sin(a)*(10+R()*16); pts.push([ax,ay]); }
+    texWrap(S,sx,sy,90,(px,py)=>{
+      g.strokeStyle='rgba(0,0,0,0.38)'; g.lineWidth=1.3; g.beginPath(); g.moveTo(px,py);
+      for(const p of pts) g.lineTo(px+p[0],py+p[1]);
+      g.stroke();
+      if(pal.glow){
+        g.strokeStyle='rgba(255,100,60,0.45)'; g.lineWidth=0.8; g.beginPath(); g.moveTo(px,py);
+        for(const p of pts) g.lineTo(px+p[0],py+p[1]);
+        g.stroke();
+      }
+    });
+  }
+  return c;
+}
+const DIRT_PALETTES = {
+  light:{base:'#7b5d3a', hi:'rgba(190,150,98,0.28)', lo:'rgba(40,26,12,0.32)', stones:['#a99a82','#8f826c','#bdae94','#766a58'], glow:false},
+  dark:{base:'#241e1f', hi:'rgba(120,96,92,0.20)', lo:'rgba(0,0,0,0.45)', stones:['#4a4647','#3a3637','#5a5555','#2c292a'], glow:true}
+};
+
+function buildRoadTile(pal,seed){
+  const S=256, TILE=64, GAP=5;
+  const c=document.createElement('canvas'); c.width=c.height=S;
+  const p=c.getContext('2d'); const R=mulberry32(seed);
+  p.fillStyle=pal.grout; p.fillRect(0,0,S,S);
+  const seedAt=(i,j)=>{ const v=Math.sin(((i+4)%4)*127.1+((j+4)%4)*311.7+seed*0.37)*43758.5453; return v-Math.floor(v); };
+  const shades=pal.stones;
   for(let row=-1;row<=4;row++){
-    /* Кладка вразбежку: каждая вторая строка смещена на половину плитки. */
-    const offset = (row%2===0) ? 0 : TILE/2;
+    const offset=(((row%2)+2)%2===0)?0:TILE/2;
     for(let col=-1;col<=4;col++){
-      const cx = col*TILE + offset;
-      const cy = row*TILE;
-      const s1 = seedAt(row,col);
-      const s2 = seedAt(row+9,col+3);
-      const w = TILE - GAP - s1*6;
-      const h = TILE - GAP - s2*6;
-      const x = cx + GAP/2 + s1*3;
-      const y = cy + GAP/2 + s2*3;
-      const shade = stoneShades[Math.floor(s1*97)%stoneShades.length];
-
-      p.save();
-      p.beginPath();
-      const r = 6;
-      p.moveTo(x+r,y);
-      p.lineTo(x+w-r,y); p.quadraticCurveTo(x+w,y,x+w,y+r);
+      const cx=col*TILE+offset, cy=row*TILE;
+      const s1=seedAt(row,col), s2=seedAt(row+9,col+3);
+      const w=TILE-GAP-s1*6, h=TILE-GAP-s2*6;
+      const x=cx+GAP/2+s1*3, y=cy+GAP/2+s2*3;
+      const shade=shades[Math.floor(s1*97)%shades.length];
+      p.save(); p.beginPath();
+      const r=9;
+      p.moveTo(x+r,y); p.lineTo(x+w-r,y); p.quadraticCurveTo(x+w,y,x+w,y+r);
       p.lineTo(x+w,y+h-r); p.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
       p.lineTo(x+r,y+h); p.quadraticCurveTo(x,y+h,x,y+h-r);
-      p.lineTo(x,y+r); p.quadraticCurveTo(x,y,x+r,y);
-      p.closePath();
-      p.clip();
-
-      p.fillStyle = shade;
-      p.fillRect(x,y,w,h);
-
-      /* Объёмная фаска: светлый блик сверху-слева, тень снизу-справа. */
-      const bevel = p.createLinearGradient(x,y,x+w,y+h);
-      bevel.addColorStop(0,'rgba(255,244,214,0.30)');
-      bevel.addColorStop(0.18,'rgba(255,244,214,0.06)');
-      bevel.addColorStop(0.82,'rgba(30,22,10,0.05)');
-      bevel.addColorStop(1,'rgba(30,22,10,0.32)');
-      p.fillStyle = bevel;
-      p.fillRect(x,y,w,h);
-
-      /* Мелкие крапинки и потёртости прямо на плите. */
-      for(let k=0;k<5;k++){
-        const ks = seedAt(row*7+k, col*5+k*3);
-        const px = x + ks*w, py = y + Math.abs(Math.sin(ks*40))*h;
-        p.fillStyle = ks>0.5 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.14)';
-        p.beginPath(); p.arc(px,py,1+ks*2,0,Math.PI*2); p.fill();
+      p.lineTo(x,y+r); p.quadraticCurveTo(x,y,x+r,y); p.closePath(); p.clip();
+      p.fillStyle=shade; p.fillRect(x,y,w,h);
+      const dome=p.createRadialGradient(x+w*0.38,y+h*0.32,2,x+w*0.5,y+h*0.5,Math.max(w,h)*0.75);
+      dome.addColorStop(0,'rgba(255,248,226,0.13)'); dome.addColorStop(0.5,'rgba(255,248,226,0)'); dome.addColorStop(1,'rgba(10,6,2,0.46)');
+      p.fillStyle=dome; p.fillRect(x,y,w,h);
+      for(let q=0;q<22;q++){
+        const qs=seedAt(row*7+q,col*5+q*3), qt=seedAt(row*3+q*2,col*11+q);
+        p.globalAlpha=0.06+qt*0.12; p.fillStyle=qs>0.5?'#ffffff':'#000000';
+        p.beginPath(); p.arc(x+qs*w,y+qt*h,0.6+qt*1.7,0,Math.PI*2); p.fill();
       }
-      /* Тонкая трещинка через часть плит для живости камня. */
-      if(s2>0.72){
-        p.strokeStyle='rgba(35,26,14,0.28)'; p.lineWidth=1;
-        p.beginPath();
-        p.moveTo(x+w*0.2,y+h*0.15);
-        p.lineTo(x+w*0.5,y+h*0.5);
-        p.lineTo(x+w*0.35,y+h*0.85);
-        p.stroke();
+      p.globalAlpha=1;
+      if(s2>0.7){
+        p.strokeStyle='rgba(20,14,8,0.34)'; p.lineWidth=1;
+        p.beginPath(); p.moveTo(x+w*0.2,y+h*0.15); p.lineTo(x+w*0.5,y+h*0.5); p.lineTo(x+w*0.36,y+h*0.86); p.stroke();
       }
+      p.strokeStyle='rgba(0,0,0,0.42)'; p.lineWidth=3; p.stroke();
       p.restore();
     }
   }
-
-  /* Лёгкая общая виньетка, чтобы плитка не выглядела плоской при повторении. */
-  p.fillStyle = 'rgba(255,255,255,0.04)';
-  p.fillRect(0,0,256,4);
-  p.fillStyle = 'rgba(0,0,0,0.05)';
-  p.fillRect(0,252,256,4);
+  for(let i=0;i<16;i++){
+    const x=R()*S,y=R()*S,rr=5+R()*8;
+    texWrap(S,x,y,rr,(px,py)=>{
+      const gr=p.createRadialGradient(px,py,0,px,py,rr);
+      gr.addColorStop(0,pal.moss); gr.addColorStop(1,'rgba(0,0,0,0)');
+      p.fillStyle=gr; p.fillRect(px-rr,py-rr,rr*2,rr*2);
+    });
+  }
+  const ps=pal.pebbles.map(shadeOf);
+  for(let i=0;i<12;i++){
+    const x=R()*S,y=R()*S,rx=1.6+R()*2.2,rot=R()*3,sh=ps[(R()*ps.length)|0];
+    texWrap(S,x,y,rx+3,(px,py)=>drawStoneShape(p,px,py,rx,rx*0.72,rot,sh,'rgba(0,0,0,0)',0));
+  }
+  if(pal.glints){
+    for(let i=0;i<7;i++){
+      const x=R()*S,y=R()*S,len=6+R()*12,a=R()*3.14;
+      texWrap(S,x,y,len,(px,py)=>{
+        p.strokeStyle='rgba(255,80,50,0.35)'; p.lineWidth=1.2;
+        p.beginPath(); p.moveTo(px,py); p.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len); p.stroke();
+      });
+    }
+  }
+  return c;
 }
-buildProceduralPathTexture();
-const pathTexturePattern = ctx.createPattern(proceduralPathCanvas, 'repeat');
+const ROAD_PALETTES = {
+  light:{grout:'#3b3020', stones:['#a08a5c','#94804f','#8a7348','#ac9766','#7f6a3f'], moss:'rgba(84,126,48,0.55)', pebbles:['#b8ad98','#9a9078','#cbbfa6'], glints:false},
+  dark:{grout:'#120d0e', stones:['#302c2e','#282426','#3a3536','#2f2a32','#1f1c1e'], moss:'rgba(40,86,60,0.45)', pebbles:['#5b5658','#47434a','#6a6465'], glints:true}
+};
+
+const grassTileLight = buildGrassTile(GRASS_PALETTES.light, 1337);
+const grassTileDark  = buildGrassTile(GRASS_PALETTES.dark, 7331);
+let grassTexturePattern = ctx.createPattern(grassTileLight, 'repeat');
+const darkGrassTexturePattern = ctx.createPattern(grassTileDark, 'repeat');
+const dirtPatternLight = ctx.createPattern(buildDirtTile(DIRT_PALETTES.light, 101), 'repeat');
+const dirtPatternDark  = ctx.createPattern(buildDirtTile(DIRT_PALETTES.dark, 202), 'repeat');
+const pathTexturePattern = ctx.createPattern(buildRoadTile(ROAD_PALETTES.light, 11), 'repeat');
+const darkPathTexturePattern = ctx.createPattern(buildRoadTile(ROAD_PALETTES.dark, 29), 'repeat');
+const DECOR_STONE_SHADES = {
+  light:GRASS_PALETTES.light.stones.map(shadeOf),
+  dark:GRASS_PALETTES.dark.stones.map(shadeOf)
+};
+
+/* Декор на земле: пятна голой земли, россыпи камушков и валуны с мхом.
+   Позиции считаются один раз и рисуются только в поле зрения камеры. */
+let terrainDecor = null;
+function buildTerrainDecor(){
+  const R=mulberry32(90731), items=[];
+  const farFrom=(x,y,clear)=>{
+    if(pointSegmentDistance(x,y,90,90,WORLD-90,WORLD-90)<330) return false;
+    for(const lane of LANES) for(let i=1;i<lane.length;i++)
+      if(pointSegmentDistance(x,y,lane[i-1].x,lane[i-1].y,lane[i].x,lane[i].y)<clear) return false;
+    return true;
+  };
+  const rangeXY=()=>[80+R()*(WORLD-160),80+R()*(WORLD-160)];
+  for(let i=0;i<150;i++){
+    const [x,y]=rangeXY(); if(!farFrom(x,y,170)) continue;
+    const n=9, base=36+R()*74, pts=[];
+    for(let k=0;k<n;k++){ const a=k/n*Math.PI*2, rr=base*(0.7+R()*0.5); pts.push({x:Math.cos(a)*rr,y:Math.sin(a)*rr*0.66}); }
+    items.push({k:'dirt',x,y,pts});
+  }
+  for(let i=0;i<360;i++){
+    const [x,y]=rangeXY(); if(!farFrom(x,y,128)) continue;
+    const list=[], n=2+((R()*4)|0);
+    for(let k=0;k<n;k++){ const rx=3+R()*9; list.push({dx:(R()-0.5)*46,dy:(R()-0.5)*30,rx,ry:rx*(0.6+R()*0.3),rot:R()*3,sh:(R()*5)|0,moss:R()<0.35?0.6:0}); }
+    items.push({k:'stones',x,y,list});
+  }
+  for(let i=0;i<46;i++){
+    const [x,y]=rangeXY(); if(!farFrom(x,y,185)) continue;
+    const rx=16+R()*16, blades=[];
+    for(let k=0;k<7;k++) blades.push({a:-Math.PI/2+(k/6-0.5)*2.4,len:10+R()*12,dx:(R()-0.5)*rx*1.8});
+    items.push({k:'boulder',x,y,rx,ry:rx*(0.68+R()*0.16),rot:(R()-0.5)*0.5,sh:(R()*5)|0,blades});
+  }
+  return items;
+}
+function drawTerrainDecor(){
+  if(!terrainDecor) terrainDecor=buildTerrainDecor();
+  const mx=VW*0.75+180, my=VH*0.75+180;
+  for(const it of terrainDecor){
+    if(Math.abs(it.x-cam.x)>mx || Math.abs(it.y-cam.y)>my) continue;
+    const dark=it.x>it.y, key=dark?'dark':'light', shades=DECOR_STONE_SHADES[key];
+    const moss=(dark?GRASS_PALETTES.dark:GRASS_PALETTES.light).moss;
+    if(it.k==='dirt'){
+      const trace=(sc)=>{
+        const pts=it.pts, n=pts.length;
+        ctx.beginPath();
+        ctx.moveTo((pts[n-1].x+pts[0].x)/2*sc,(pts[n-1].y+pts[0].y)/2*sc);
+        for(let i=0;i<n;i++){ const p=pts[i], q=pts[(i+1)%n]; ctx.quadraticCurveTo(p.x*sc,p.y*sc,(p.x+q.x)/2*sc,(p.y+q.y)/2*sc); }
+        ctx.closePath();
+      };
+      ctx.save(); ctx.translate(it.x,it.y);
+      trace(1.22); ctx.fillStyle=dark?'rgba(0,0,0,0.22)':'rgba(30,40,14,0.20)'; ctx.fill();
+      trace(1.08); ctx.fillStyle=dark?'rgba(0,0,0,0.25)':'rgba(40,28,12,0.22)'; ctx.fill();
+      trace(1); ctx.fillStyle=dark?dirtPatternDark:dirtPatternLight; ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.30)'; ctx.lineWidth=3; ctx.stroke();
+      ctx.restore();
+    } else if(it.k==='stones'){
+      for(const s of it.list) drawStoneShape(ctx,it.x+s.dx,it.y+s.dy,s.rx,s.ry,s.rot,shades[s.sh],moss,s.moss);
+    } else if(it.k==='boulder'){
+      ctx.save();
+      ctx.lineCap='round';
+      for(const b of it.blades){
+        ctx.strokeStyle=dark?'#35523b':'#74a63a'; ctx.lineWidth=2;
+        const bx=it.x+b.dx, by=it.y+it.ry*0.6;
+        ctx.beginPath(); ctx.moveTo(bx,by);
+        ctx.quadraticCurveTo(bx+Math.cos(b.a)*b.len*0.4,by+Math.sin(b.a)*b.len*0.7,bx+Math.cos(b.a)*b.len,by+Math.sin(b.a)*b.len);
+        ctx.stroke();
+      }
+      ctx.restore();
+      drawStoneShape(ctx,it.x,it.y,it.rx,it.ry,it.rot,shades[it.sh],moss,0.7);
+    }
+  }
+}
 
 /* Две независимые процедурные текстуры воды: наложенные друг на друга и текущие
    с разной скоростью/направлением, они не дают реке выглядеть как один и тот же
@@ -275,6 +468,12 @@ const TEAM_COL = ['#4caf50', '#e53935', '#b58a55'];
 const TEAM_NAME = ['Свет', 'Тьма'];
 const LANE_NAMES = ['МИД', 'ВЕРХ', 'НИЗ'];
 const MID_PUSH_TIME = 300;
+const BOT_FARM_PHASE_TIME = 180;
+const BOT_SCENARIO_NAMES = [
+  'Фарм и быстрый пуш мида', 'Лесная засада-ганг', 'Давление по бокам',
+  'Ранний инвайд вражеского леса', 'Оборона и контратака', 'Роаминг и перетяжки'
+];
+let botTeamScenarios = [];
 const makeTowerId = (team, lane, tier, base = false) => base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
 
 const BASES = [ {x:480, y:3120}, {x:3120, y:480} ];
@@ -332,6 +531,15 @@ let testDummies = [];
 let testDummySpawnAngle = 0;
 let testHeroPickerOpen = false;
 let storeOpen = false;
+let storeTab = 'shop';
+let storeCategory = 'skins';
+let redReginaSkinOwned = false;
+let redReginaSkinEquipped = false;
+try {
+  const savedCosmetics = JSON.parse(localStorage.getItem('shadowRampageCosmetics') || '{}');
+  redReginaSkinOwned = savedCosmetics.redReginaOwned === true;
+  redReginaSkinEquipped = redReginaSkinOwned && savedCosmetics.redReginaEquipped === true;
+} catch(err) {}
 let storePhraseOwned = false;
 let storeChipOwned = false;
 let storeAudioOwned = false;
@@ -347,6 +555,7 @@ const EMBEDDED_STORE_AUDIO = '';
 const STORE_AUDIO_FALLBACK = 'C:/Users/elski/Downloads/korolia-ne-ubit.mp3';
 let portraitRenderMode = false;
 let winner = null;
+let rankedOnlineMatch = false;
 let visGrid    = new Uint8Array(GRID*GRID);
 let explored   = new Uint8Array(GRID*GRID);
 let visibleUnitCache = new WeakSet();
@@ -376,8 +585,24 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.6.2';
+const GAME_VERSION = '0.7.6b';
 const CHANGELOG_HISTORY = [
+  'Обновление 0.7.6b: исправлен скин Красная Ригина, скорость героев снижена на 10%, добавлен активный предмет «Замисть», звон монет при покупке, профили из мирового топа и вход в мультиплеер только с аккаунтом',
+  'Обновление 0.7.6a: вместо магазина фраз появился магазин с бесплатным скином «Красная Ригина» и отдельным инвентарём для его применения',
+  'Обновление 0.7.6: для Света и Тьмы независимо выбираются сценарии поведения ботов с шестью фазами; боты меняют линии, фармят лес и переходят к совместным атакам по таймеру, убийствам и падению башен',
+  'Обновление 0.7.5c: Йосып, Срака мо3гов, новый порядок бот-закупа и исправление навыков Ригины',
+  'Обновление 0.7.5b: боты получили приоритетные активные предметы; события меню получили новые иллюстрации',
+  'Обновление 0.7.5a: ребаланс магазина и юнитов — цены и эффекты предметов обновлены, а главное меню переведено на более космическую синтезаторную тему',
+  'Обновление 0.7.5a: Шрам-Аркадия, БКБ, Мантированная сталь, Волосы Ильи, Подушка Тимура, Оторванная рука мо3гов и Дагонская империя пересмотрены под новый темп поздней игры',
+  'Обновление 0.7.4b: первые 3 минуты боты фармят линейных и лесных крипов вместо ранних драк и сноса башен; HP всех башен увеличено втрое',
+  'Обновление 0.7.4b: мировой топ вынесен из карьеры профиля в отдельное окно; кнопка «МИРОВОЙ ТОП» находится в левом нижнем углу меню',
+  'Обновление 0.7.4b: профиль показывает победы, поражения, убийства, смерти, любимых бойцов и подробные отчёты последних матчей',
+  'Обновление 0.7.4b: за матчи начисляется опыт, уровни открывают титулы и рамки; мировой топ сортируется по общему числу побед над ботами и игроками',
+  'Обновление 0.7.4a: в главном меню появился счётчик подключённых к серверу игроков; число обновляется при входе и выходе, а при недоступном сервере показывается статус подключения',
+  'Обновление 0.7.4a: добавлена тихая космическая музыка меню, а на карте усилены тени леса и каменная фактура дорог',
+  'Обновление 0.7.3b: магазин получил новые изображения предметов и обновлённые плашки, изображения используются и в инвентаре; добавлены статистика и полезные функции онлайн-меню; исправлено перемещение предметов',
+  'Обновление 0.7.3b: исправлены форма Трансформера и ульта Савелия, здоровье всех бойцов увеличено на 15%',
+  'Обновление 0.7.0: аккаунты (ник и пароль, смена ника, уровень с нуля растёт с каждой победы над ботами и игроками), новый фон главного меню с рунной печатью и алым вихрем, золотая тройка в логотипе, пропуск выбора бойцов сразу после пика и 5-секундная заставка при входе в матч',
   'Обновление 0.5.0: последовательное разрушение построек по линиям — сначала внешняя башня, затем внутренняя башня, казармы и только после этого трон',
   'Обновление 0.4.2: ультимейт Рассветной девы переработан — метка у союзника создаёт пульсирующий световой круг (лечит союзников, жжёт врагов), затем героиня влетает в центр с мощным уроном и станом по площади',
   'Обновление 0.4.2: урон способностей и ультимейтов теперь растёт вместе с уровнем героя, как и урон от обычной атаки, у всех бойцов',
@@ -444,7 +669,53 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.6.2', title:'ТРУСЫ ДИАНЫ И НОВОЕ МЕНЮ', changes:[
+  const sections = [{version:'0.7.6b', title:'ПРЕДМЕТЫ, СКИНЫ И ОНЛАЙН', changes:[
+    'Скин «Красная Ригина» теперь переносится в боевого героя во всех режимах. Скорость героев снижена на 10%.',
+    'Добавлен предмет «Замисть» за 2900 монет: активация даёт +65% сопротивления урону, +100 к урону и +50 к скорости.',
+    'Покупка предмета сопровождается звоном монет. Кнопки главного меню получили красно-чёрное оформление.',
+    'Игроки мирового топа открывают подробный профиль по нажатию; для входа в онлайн-комнаты требуется действующий аккаунт.'
+  ]},{version:'0.7.6a', title:'СКИНЫ И ИНВЕНТАРЬ', changes:[
+    'Магазин фраз заменён магазином с бесплатным скином «Красная Ригина»; добавлен отдельный инвентарь, где скин можно применить или снять.',
+    'Раздел с фразами сохранён внутри магазина.'
+  ]},{version:'0.7.6', title:'ШЕСТЬ СЦЕНАРИЕВ БОТОВ', changes:[
+    'Свет и Тьма независимо получают один из шести сценариев: фарм и пуш мида, лесная засада, давление по бокам, инвайд леса, оборона с контратакой или роуминг.',
+    'Поведение проходит шесть фаз с переходами по времени, убийствам героев и уничтожению башен; выбывшие боты не останавливают действия оставшейся команды.'
+  ]},{version:'0.7.5c', title:'ЙОСЫП И НОВЫЕ ПРЕДМЕТЫ', changes:[
+    'Йосып стал зелёным шестилапым жуком; Блювака оставляет видимый яд, четыре лужи сохраняются 6 секунд, а ультимейт высасывает 75 HP в секунду в течение 12 секунд.',
+    'Добавлена Срака мо3гов за 3300 монет: активация на 2 секунды даёт +350 к скорости атаки и +250 к урону; для предмета нарисована отдельная иконка.',
+    'Боты теперь покупают Клыки Васьки, Сапог Джоэла и ПТ в одном порядке, а затем приоритетно собирают Мунуцию, Мантированную сталь и Бошку Агнии и активируют предметы в бою.',
+    'Исправлено падение игрового кадра, когда бот-Ригина использовала навыки рядом с вражеским героем. Иллюстрации событий меню стали разнообразнее.'
+  ]},{version:'0.7.5a', title:'РЕБАЛАНС ЮНИТОВ И МАГАЗИНА', changes:[
+    'Пересмотрены цены предметов магазина: Шрам-Аркадия 2400, БКБ 1750, Мантированная сталь 2400, Волосы Ильи 1500, Подушка Тимура 200, Оторванная рука мо3гов 1300, Дагонская империя 1100.',
+    'Дагонская империя ослаблена по КД до 10 секунд, но усилена до 1200 магического урона по отдельной цели.',
+    'Яйцо-голли ослаблено до +250 к скорости на 2 секунды, что делает актив более управляемым и предсказуемым.',
+    'Ребаланс юнитов и магазина доведён до более ровного темпа на 1–30 уровнях: поздняя игра стала менее жёсткой, а ранние пики и контроль лучше работают в командных драках.',
+    'Главное меню переведено на более космическую синтезаторную тему и спокойный, дальний арпеджио в стиле глубокой космической сцены.'
+  ]},{version:'0.7.4', title:'ИСПРАВЛЕНИЯ МУЛЬТИПЛЕЕРА', changes:[
+    'Исправлено: в мультиплеере бойцы других игроков отображались на твоём экране не теми, кого они выбрали (скиллы при этом были правильные).',
+    'Мунуция подорожала с 2000 до 4500 монет.'
+  ]},{version:'0.7.3a', title:'САВЕЛИЙ: ФОРМА ТРАНСФОРМЕРА', changes:[
+    'Добавлен новый playable-герой Савелий — толстый футбольный форвард ближнего боя с ролью кэрри / инициатора.',
+    'Добавлены Ловкий уворот, Звонкий клич, Форма Трансформера и ультимейт Яростный рев со страхом.',
+    'Аганим шард усиливает Звонкий клич замедлением и снижением брони, а Aghanim Scepter улучшает уворот и сопротивление магии.',
+    'Обновлены выбор героя, онлайн-ростер, визуальный портрет и changelog.'
+  ]},{version:'0.7.3', title:'РЕЙТИНГ, HUD И ЯЙЦО-ГОЛЛИ', changes:[
+    'Добавлен онлайн-рейтинг: за победу +25, за поражение −20 (минимум 0); каждые 100 очков повышают ранг от Рекрута 1 до Рекрута 5.',
+    'Ранг и число рейтинга теперь отображаются прямо на кнопке онлайна; рейтинг сохраняется в профиле аккаунта.',
+    'Добавлен активный предмет «Яйцо-голли» за 1800 монет: +500 к скорости передвижения на 3 секунды, перезарядка 25 секунд.',
+    'Панель героя, навыков и предметов перестраивается на узких экранах; оформление ячеек и шкал стало выразительнее.'
+  ]},{version:'0.7.2', title:'НОВЫЕ БАШНИ И ТРОН', changes:[
+    'Башни Сил Света перерисованы: светлый каменный обелиск с голубым светящимся узором, золотой кромкой и круглым основанием с водой.',
+    'Башни Сил Тьмы перерисованы: чёрный шипастый камень на груде глыб, красные пульсирующие прожилки и огненное «око» под шляпой башни.',
+    'Трон Сил Света теперь дерево с розовой сакурой, белыми камнями, голубыми кристаллами, световым столбом и порталом; лепестки медленно падают.',
+    'Трон Сил Тьмы теперь пять чёрных шипастых башен-когтей вокруг раскалённого красного ядра с языками пламени и искрами.',
+    'Под каждой постройкой есть кольцо цвета команды, а в онлайн-матче внешний вид зависит от настоящей стороны комнаты (Свет или Тьма).'
+  ]},{version:'0.7.1', title:'ПРОФИЛЬ, АВАТАРКИ И РАЗМИНКА', changes:[
+    'В профиле считаются все победы и поражения, а также число матчей и процент побед; в главном меню рядом с аватаркой видны победы и поражения.',
+    'Каждый матч получает свой номер: один и тот же результат не засчитывается дважды, а если сервер был недоступен, результат досчитается при следующем входе.',
+    'Добавлено 20 аватарок: 15 портретов героев игры и 5 тематических эмблем (Лопата, Башня, Древний, Руна, Крип). Выбор находится в окне профиля и сохраняется на сервере.',
+    'Во время отсчёта «До начала битвы» герои свободно ходят по своей базе (ПКМ), боты тоже двигаются; это работает и в онлайн-матче 3 на 3. Боя, крипов и волн до конца отсчёта нет.'
+  ]},{version:'0.6.2', title:'ТРУСЫ ДИАНЫ И НОВОЕ МЕНЮ', changes:[
     'Добавлен предмет «Трусы Дианы» (3500 монет): +60 к урону атак и способностей, а активная аура включается и выключается без перезарядки и наносит небольшой урон врагам и крипам рядом.',
     'Добавлен предмет «Жирфсютин» (4000 монет): +1800 к максимальному и текущему здоровью.',
     'В магазин фраз добавлена новая фраза «Лопата челлендж».',
@@ -499,29 +770,30 @@ const SHOP_ITEMS = {
   mango: {name:'Манго', icon:'◆', cost:70, desc:'Активный: восстанавливает 100 маны. Не расходуется — можно использовать повторно.', color:'#72e6a5', active:true},
   joelBoots: {name:'Сапог Джоэла', icon:'▲', cost:500, desc:'Пассивно: +45 к скорости передвижения.', color:'#e7c77a', speed:45, active:false},
   tango: {name:'Танго', icon:'♣', cost:90, desc:'Активный расходуемый предмет: съедает ближайшее дерево и восстанавливает 90 HP.', color:'#79d46c', active:true},
-  fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +105 к обычным атакам и к урону способностей.', color:'#ff8d8d', active:false},
-  bkb: {name:'БКБ', icon:'✚', cost:2150, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
+  fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +100 к обычным атакам и к урону способностей.', color:'#ff8d8d', damage:100, active:false},
+  bkb: {name:'БКБ', icon:'✚', cost:1750, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
   pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 200 монет. Пассивно: +150 урона, +60 скорости передвижения и ускорение атак.', color:'#ff9e5d', active:false},
-  blink: {name:'Блинк', icon:'◇', cost:1150, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
+  blink: {name:'Блинк', icon:'◇', cost:1150, range:500, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
   evsyutin: {name:'Еблет Евсютина', icon:'♥', cost:1250, desc:'Пассивно: +500 к максимальному и текущему здоровью.', color:'#ff7898', hp:500, active:false},
-  mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2100, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', active:true},
+  mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2400, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', active:true},
   manaTome: {name:'Научилсяловить', icon:'✧', cost:550, desc:'Пассивно: увеличивает восстановление маны на 10%.', color:'#7ed6ff', manaRegen:0.10, active:false},
   manaHooves: {name:'Капыта-Дерезладия', icon:'♢', cost:1400, desc:'Пассивно: +800 к максимальной и текущей мане.', color:'#c59cff', maxMp:800, active:false},
   superBoots: {name:'Супер сапог', icon:'⬆', cost:2950, desc:'Пассивно: +70 к скорости передвижения. Активный: ещё +110 скорости на 6 сек. КД 24 сек.', color:'#ffd34f', speed:70, activeSpeed:110, activeDuration:6, cooldown:24, active:true},
   aghanimHead: {name:'Бошка Агнии', icon:'✹', cost:3000, desc:'Активный: на 10 сек. даёт +180 урона, +100 скорости передвижения и ускоряет атаки. КД 30 сек.', color:'#ff74d4', activeDuration:10, cooldown:30, active:true},
-  ilyaHair: {name:'Волосы Ильи', icon:'☄', cost:2000, desc:'Пассивно: +10 скорости, +60 урона и -20% урона от обычных атак. Активный: оглушает выбранного врага на 4 сек. КД 25 сек.', color:'#e9f5ff', cooldown:25, active:true, speed:10, damage:60, attackResist:0.2, stunDuration:4},
+  ilyaHair: {name:'Волосы Ильи', icon:'☄', cost:1500, desc:'Пассивно: +10 скорости, +60 урона и -20% урона от обычных атак. Активный: оглушает выбранного врага на 4 сек. КД 25 сек.', color:'#e9f5ff', cooldown:25, active:true, speed:10, damage:60, attackResist:0.2, stunDuration:4},
   aghanimShard: {name:'Аганим шард', icon:'⬢', cost:1400, desc:'При покупке добавляет герою персональную способность G. Эффект зависит от выбранного героя и предмет не занимает слот инвентаря.', color:'#8be9fd', active:false, cooldown:35},
   enemy302: {name:'Враги-302 школы', icon:'⌛', cost:1350, desc:'Пассивно: сокращает перезарядку всех обычных способностей героя на 30%. На предметы не влияет.', color:'#f3b4ff', cooldownReduction:0.30, active:false},
-  tornBrainHand: {name:'Оторванная рука мо3гов', icon:'☠', cost:1800, desc:'Активный: телепортирует героя к выбранному врагу и наносит ему 350 физического урона. КД 24 сек.', color:'#d7a879', cooldown:24, active:true},
-  munition: {name:'Мунуция', icon:'⚙', cost:2000, desc:'Активный: на 3 сек. резко ускоряет атаки героя. КД 18 сек.', color:'#f5d36b', activeDuration:3, cooldown:18, attackSpeed:6, active:true},
+  tornBrainHand: {name:'Оторванная рука мо3гов', icon:'☠', cost:1300, desc:'Активный: телепортирует героя к выбранному врагу и наносит ему 350 физического урона. КД 12 сек.', color:'#d7a879', cooldown:12, active:true},
+  munition: {name:'Мунуция', icon:'⚙', cost:4500, desc:'Активный: на 3 сек. резко ускоряет атаки героя. КД 18 сек.', color:'#f5d36b', activeDuration:3, cooldown:18, attackSpeed:6, active:true},
   hatchet: {name:'Топорик', icon:'🪓', cost:125, desc:'Пассивно: +35 урона. Активный: срубает ближайшее дерево в радиусе 150. КД 10 сек.', color:'#c68b5b', cooldown:10, damage:35, active:true}
   ,satanic: {name:'Сатаник', icon:'♦', cost:2900, desc:'Пассивно: +660 к максимальному и текущему здоровью. Обычные атаки возвращают 25% нанесённого урона.', color:'#d83b55', hp:660, lifesteal:0.25, active:false}
-  ,arcadiaScar: {name:'Шрам-Аркадия', icon:'✦', cost:1450, desc:'Активный: на 7 сек. даёт +250 урона и ускоряет атаки в 3 раза относительно базовой скорости. КД 24 сек.', color:'#ff7043', activeDuration:7, damage:250, attackSpeed:2, cooldown:24, active:true}
+  ,arcadiaScar: {name:'Шрам-Аркадия', icon:'✦', cost:2400, desc:'Активный: на 7 сек. даёт +250 урона и ускоряет атаки в 3 раза относительно базовой скорости. КД 24 сек.', color:'#ff7043', activeDuration:7, damage:250, attackSpeed:2, cooldown:24, active:true}
   ,kinglandia: {name:'Кингляндия', icon:'♛', cost:4450, desc:'Пассивно: +650 к урону обычных атак.', color:'#f4d35e', damage:650, active:false}
   ,gur: {name:'Гур', icon:'⬆', cost:1600, desc:'Активный: подбрасывает выбранного врага на 0,8 сек. и даёт герою на 12 сек. +150 урона, +100 скорости передвижения и ускорение атак. КД 28 сек.', color:'#d9f2ff', activeDuration:12, damage:150, attackSpeed:0.8, moveSpeed:100, cooldown:28, active:true}
-  ,dagonEmpire: {name:'Дагонская империя', icon:'⚡', cost:1250, desc:'Активный: наносит выбранному вражескому бойцу 500 магического урона. КД 45 сек.', color:'#ff4f8b', cooldown:45, active:true}
-  ,timurPillow: {name:'Подушка тимура', icon:'☁', cost:350, desc:'Активный расходуемый предмет: лечит 600 HP за 10 секунд. Любой урон врага сразу прерывает лечение.', color:'#9ed8ff', active:true}
+  ,dagonEmpire: {name:'Дагонская империя', icon:'⚡', cost:1100, desc:'Активный: наносит выбранному вражескому бойцу 1200 магического урона. КД 10 сек.', color:'#ff4f8b', cooldown:10, damage:1200, active:true}
+  ,timurPillow: {name:'Подушка тимура', icon:'☁', cost:200, desc:'Активный расходуемый предмет: лечит 600 HP за 10 секунд. Любой урон врага сразу прерывает лечение.', color:'#9ed8ff', active:true}
   ,brainEye: {name:'Оторванный Глаз Мозгов', icon:'◉', cost:1900, desc:'Пассивно: +210 к дальности атаки героя.', color:'#ff8fd8', attackRange:210, active:false}
+  ,brainAss: {name:'Срака мо3гов', icon:'✹', cost:3300, desc:'Активный: на 2 секунды даёт +350 к скорости атаки и +250 к урону. КД 24 секунды.', color:'#ff638d', activeDuration:2, attackSpeed:3.5, damage:250, cooldown:24, active:true}
   ,aghanimScepter: {name:'Аганим Скептер', icon:'✹', cost:2000, desc:'Пассивно: улучшает уникальную механику героя — дополнительные снаряды, заряды, радиус или урон зависят от героя.', color:'#b992ff', active:false}
 };
 const SHOP_ITEM_IDS = [
@@ -529,12 +801,23 @@ const SHOP_ITEM_IDS = [
   'mantledSteel','manaTome','manaHooves','superBoots','aghanimHead',
   'ilyaHair','aghanimShard','enemy302','tornBrainHand','munition',
   'hatchet','satanic','arcadiaScar','kinglandia','gur','dagonEmpire',
-  'timurPillow','brainEye','aghanimScepter'
+  'timurPillow','brainEye','aghanimScepter','brainAss'
 ];
 for(const item of Object.values(SHOP_ITEMS)){
   if(typeof item.cost === 'number') item.cost = Math.round(item.cost * 0.93);
   if(typeof item.totalCost === 'number') item.totalCost = Math.round(item.totalCost * 0.93);
 }
+SHOP_ITEMS.bkb.cost = 1750;
+SHOP_ITEMS.mantledSteel.cost = 2400;
+SHOP_ITEMS.ilyaHair.cost = 1500;
+SHOP_ITEMS.arcadiaScar.cost = 2400;
+SHOP_ITEMS.dagonEmpire.cost = 1100;
+SHOP_ITEMS.dagonEmpire.cooldown = 10;
+SHOP_ITEMS.dagonEmpire.damage = 1200;
+SHOP_ITEMS.timurPillow.cost = 200;
+SHOP_ITEMS.tornBrainHand.cost = 1300;
+SHOP_ITEMS.tornBrainHand.cooldown = 12;
+SHOP_ITEMS.brainAss.cost = 3300;
 /* Новые предметы добавлены ПОСЛЕ множителя 0.93, поэтому цена в магазине ровно такая, как указана. */
 SHOP_ITEMS.dianaPants = {
   name:'Трусы Дианы', icon:'♡', cost:3500, color:'#ff6fb0', active:true,
@@ -546,7 +829,77 @@ SHOP_ITEMS.girfsyutin = {
   desc:'Пассивно: +1800 к максимальному и текущему здоровью.',
   hp:1800
 };
-SHOP_ITEM_IDS.push('dianaPants','girfsyutin');
+SHOP_ITEMS.eggGolly = {
+  name:'Яйцо-голли', icon:'🥚', cost:1800, color:'#8be9fd', active:true,
+  desc:'Активный: на 2 секунды даёт +250 к скорости передвижения. КД 25 секунд.',
+  activeDuration:2, cooldown:25, moveSpeed:250
+};
+SHOP_ITEMS.eggGolly.cost = 1800;
+SHOP_ITEMS.zamist = {
+  name:'Замисть', icon:'⇄', cost:2900, color:'#ed3d4e', active:true,
+  desc:'Активный: на 10 секунд даёт +65% сопротивления урону, +100 к урону и +50 к скорости. КД 30 сек.',
+  activeDuration:10, cooldown:30, damage:100, moveSpeed:50, damageResistance:0.65
+};
+SHOP_ITEM_IDS.push('dianaPants','girfsyutin','eggGolly','zamist');
+
+/* ===== Пять новых предметов: Кая и Санга, Вейкер Ветра, Святой медальон, Нуллификатор, Диспёрсер ===== */
+SHOP_ITEMS.kayaSange = {
+  name:'Кая и Санга', icon:'❖', cost:3400, color:'#7fb8ff', active:false,
+  desc:'Пассивно: +450 к максимальному и текущему здоровью, +350 к максимальной и текущей мане, +18% к урону способностей и 25% сопротивления эффектам — оглушение, замедление и безмолвие на вас длятся на 25% меньше.',
+  hp:450, maxMp:350, spellAmp:0.18, statusResist:0.25
+};
+SHOP_ITEMS.windWaker = {
+  name:'Вейкер Ветра', icon:'≋', cost:3900, color:'#7fe9d4', active:true,
+  desc:'Активный: поднимает в ураган вас или выбранного союзника на 2,5 сек. и снимает с него вредные эффекты. В урагане боец неуязвим и свободно летает над деревьями, но не может атаковать и применять способности. Дальность 700. КД 22 сек.',
+  cooldown:22, duration:2.5, castRange:700
+};
+SHOP_ITEMS.holyLocket = {
+  name:'Святой медальон', icon:'✿', cost:2500, color:'#ffd978', active:true,
+  desc:'Пассивно: +30% ко всему получаемому лечению; каждые 4 сек. накапливает заряд (до 20). Активный: тратит все заряды и мгновенно восстанавливает вам или выбранному союзнику 30 HP и 15 маны за каждый заряд. Дальность 700. КД 4 сек.',
+  healAmp:0.30, maxCharges:20, chargeInterval:4, hpPerCharge:30, mpPerCharge:15, cooldown:4, castRange:700
+};
+SHOP_ITEMS.nullifier = {
+  name:'Нуллификатор', icon:'⊘', cost:3600, color:'#b07cff', active:true,
+  desc:'Активный: на 5 сек. вешает на вражеского бойца печать пустоты — срывает с него все положительные эффекты сразу и продолжает срывать новые каждый кадр. Пока печать действует, у цели не работают БКБ, Замисть, Супер сапог, Мантированная сталь, Подушка Тимура и Вейкер Ветра. Дальность 700. КД 16 сек.',
+  cooldown:16, duration:5, castRange:700
+};
+SHOP_ITEMS.disperser = {
+  name:'Диспёрсер', icon:'✣', cost:3100, color:'#6fe0ff', active:true,
+  desc:'Пассивно: +30 к скорости передвижения. Активный на врага: сжигает 250 маны, наносит магический урон, равный 60% сожжённой маны, и замедляет на 50% на 4 сек. На союзника или себя: снимает оглушение, замедление, безмолвие и вредные эффекты и даёт +180 к скорости на 4 сек. Дальность 650. КД 14 сек.',
+  speed:30, manaBurn:250, burnDamageRatio:0.6, slow:0.5, slowDuration:4, hasteSpeed:180, hasteDuration:4, cooldown:14, castRange:650
+};
+SHOP_ITEM_IDS.push('kayaSange','windWaker','holyLocket','nullifier','disperser');
+
+/* Общие помощники для новых предметов. */
+function heroHasItem(unit, id){ return !!(unit && unit.inventory && unit.inventory.some(i => i && i.id === id)); }
+function healAmpOf(unit){ return heroHasItem(unit,'holyLocket') ? 1 + SHOP_ITEMS.holyLocket.healAmp : 1; }
+function statusResistOf(unit){ return heroHasItem(unit,'kayaSange') ? SHOP_ITEMS.kayaSange.statusResist : 0; }
+const POSITIVE_BUFF_TYPES = new Set(['armor','shardArmor','spd','as','dmg','haste','regen','hpregen','shardShield','shardBlade','shardSpell','juvsyutGuard','dawnShardShield','tribuShield','mageReflect','bladeFury','bloodrage','enchantTotem','ilyaAura','exileRage','reginaUnleash','electricOverload']);
+const NEGATIVE_BUFF_TYPES = new Set(['burning','poison','yosypPoison','yosypDrain','fear','shardMark']);
+const NULLIFY_BLOCKED_ITEMS = new Set(['bkb','zamist','superBoots','mantledSteel','timurPillow','windWaker']);
+/* Срывает положительные эффекты и защитные предметы (Нуллификатор, Ураган). */
+function purgePositiveEffects(unit){
+  if(!unit) return;
+  if(unit.buffs && unit.buffs.some(b => POSITIVE_BUFF_TYPES.has(b.type) && !b.isOrb && !(b.t >= 9000)))
+    unit.buffs = unit.buffs.filter(b => !POSITIVE_BUFF_TYPES.has(b.type) || b.isOrb || b.t >= 9000);
+  unit.bkbActive = 0; unit.windTimer = 0; unit.timurPillow = 0;
+  if(unit.inventory) for(const it of unit.inventory){
+    if(it && NULLIFY_BLOCKED_ITEMS.has(it.id) && it.activeTimer > 0) it.activeTimer = 0;
+  }
+}
+/* Снимает оглушение, замедление, безмолвие и вредные эффекты (Диспёрсер, Вейкер Ветра). */
+function purgeNegativeEffects(unit){
+  if(!unit) return;
+  unit.stunTimer = 0; unit.slowT = 0; unit.slow = 0; unit.silenceTimer = 0; unit.attackSlowT = 0;
+  if(unit.buffs && unit.buffs.some(b => NEGATIVE_BUFF_TYPES.has(b.type))) unit.buffs = unit.buffs.filter(b => !NEGATIVE_BUFF_TYPES.has(b.type));
+}
+/* Цель предмета: союзный герой под курсором или сам владелец. null — если цель слишком далеко. */
+function pickAllyOrSelf(hero, range){
+  const hovered = pickUnitAt(mouse.wx, mouse.wy);
+  const target = (hovered && !hovered.dead && hovered.team === hero.team && hovered.type === 'hero' && !hovered.isIllusion) ? hovered : hero;
+  if(target !== hero && Math.hypot(target.x-hero.x, target.y-hero.y) > range + target.radius){ flashMsg(hero, 'Слишком далеко'); return null; }
+  return target;
+}
 
 const CREATOR_BUILDS = {
   shadow: {
@@ -847,12 +1200,36 @@ function playSynthSfx(kind){
   } catch(err) {}
 }
 
+function playPurchaseChime(){
+  try {
+    abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+    const context=abilityAudioContext;
+    context.resume();
+    const start=context.currentTime;
+    for(const [frequency,delay,duration,volume] of [[1480,0,0.18,0.06],[1976,0.045,0.2,0.045],[2489,0.09,0.24,0.03]]){
+      const oscillator=context.createOscillator(), gain=context.createGain();
+      oscillator.type='sine';
+      oscillator.frequency.setValueAtTime(frequency,start+delay);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency*0.72,start+delay+duration);
+      gain.gain.setValueAtTime(0.0001,start+delay);
+      gain.gain.exponentialRampToValueAtTime(volume,start+delay+0.008);
+      gain.gain.exponentialRampToValueAtTime(0.001,start+delay+duration);
+      oscillator.connect(gain); gain.connect(context.destination);
+      oscillator.start(start+delay); oscillator.stop(start+delay+duration+0.02);
+    }
+  } catch(err) {}
+}
+
 function playAbilitySound(kind){
-  playSynthSfx(kind === 'purchase' ? 'purchase' : kind === 'coin' ? 'coin' : kind === 'level' ? 'level' : 'cast');
+  if(kind==='purchase'){ playPurchaseChime(); return; }
+  playSynthSfx(kind === 'coin' ? 'coin' : kind === 'level' ? 'level' : 'cast');
 }
 
 function playHeroSfx(kind){
   if(kind === 'attack_tribupainer'){ playSynthSfx('shotgun'); return; }
+  if(kind === 'savelyCry'){ playSynthSfx('stun'); return; }
+  if(kind === 'savelyTransform'){ playSynthSfx('level'); return; }
+  if(kind === 'savelyFear'){ playSynthSfx('ultimate'); return; }
   if(kind === 'attack' || kind.startsWith('attack_')){ playSynthSfx('attack'); return; }
   if(kind === 'blink'){ playSynthSfx('blink'); return; }
   if(kind === 'stun'){ playSynthSfx('stun'); return; }
@@ -869,7 +1246,7 @@ function playHeroSfx(kind){
       attack_golly: [180, 390, 'sine'], attack_sasych: [125, 280, 'sawtooth'], attack_ilya: [75, 170, 'square'],
       attack_malit: [100, 205, 'square'], attack_arcady: [260, 720, 'sawtooth'], attack_illusionist: [360, 680, 'sine'],
       attack_shadow: [120, 360, 'sawtooth'], attack_electricGosha: [520, 980, 'triangle'], attack_mo3gi: [150, 410, 'square'],
-      attack_mageHunter: [190, 520, 'sawtooth'], attack_dawnMaiden: [85, 190, 'square'], attack_exileKnight: [110, 260, 'sawtooth'], shotgun: [75, 420, 'sawtooth']
+      attack_mageHunter: [190, 520, 'sawtooth'], attack_dawnMaiden: [85, 190, 'square'], attack_exileKnight: [110, 260, 'sawtooth'], attack_savely: [105, 310, 'square'], shotgun: [75, 420, 'sawtooth']
     };
     const [from, to, type] = presets[kind] || presets.attack;
     const oscillator = context.createOscillator();
@@ -998,6 +1375,40 @@ function updatePrematch(dt){
   }
   if(prematchTime <= 0) prematchTime = 0;
 }
+/* Подготовка к бою: герои (и боты) свободно ходят по своей базе, но без боя,
+   крипов и волн. Игрок двигается правой кнопкой мыши, боты бродят у фонтана.
+   В онлайне позиции других игроков приходят с сервера, а свой герой двигается
+   локально и отправляет позицию как обычно. */
+const PREMATCH_ROAM_RADIUS = BASE_HEAL_RADIUS * 1.5;
+function updatePrematchMovement(dt){
+  for(const h of heroes){
+    if(!h || h.dead || h.isDummy || h.isOnlineRemote) continue;
+    const base = BASES[h.team];
+    if(!base) continue;
+    h.attackTarget = null;
+    if(h !== playerHero){
+      h.prematchWanderT = (h.prematchWanderT || 0) - dt;
+      if(h.prematchWanderT <= 0 || !h.moveTarget){
+        const ang = Math.random() * Math.PI * 2;
+        const dist = Math.sqrt(Math.random()) * PREMATCH_ROAM_RADIUS * 0.8;
+        h.moveTarget = {x: base.x + Math.cos(ang) * dist, y: base.y + Math.sin(ang) * dist};
+        h.prematchWanderT = 1.5 + Math.random() * 3;
+      }
+    } else if(h.moveTarget){
+      const mdx = h.moveTarget.x - base.x, mdy = h.moveTarget.y - base.y;
+      const md = Math.hypot(mdx, mdy);
+      if(md > PREMATCH_ROAM_RADIUS){
+        h.moveTarget = {x: base.x + mdx / md * PREMATCH_ROAM_RADIUS, y: base.y + mdy / md * PREMATCH_ROAM_RADIUS};
+      }
+    }
+    h.updateMove(dt);
+    const dx = h.x - base.x, dy = h.y - base.y, d = Math.hypot(dx, dy);
+    if(d > PREMATCH_ROAM_RADIUS){
+      h.x = base.x + dx / d * PREMATCH_ROAM_RADIUS;
+      h.y = base.y + dy / d * PREMATCH_ROAM_RADIUS;
+    }
+  }
+}
 function drawPrematchOverlay(){
   if(prematchTime <= 0 || gameState !== 'playing') return;
   const sec = Math.ceil(prematchTime);
@@ -1010,7 +1421,7 @@ function drawPrematchOverlay(){
   ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.strokeText(String(sec), VW/2, VH*0.2 + VH*0.17);
   ctx.fillStyle = sec <= 5 ? '#ff4a3a' : '#fff0c7'; ctx.fillText(String(sec), VW/2, VH*0.2 + VH*0.17);
   ctx.font = '13px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('Закупайся в магазине — герои и крипы начнут бой после отсчёта', VW/2, VH*0.2 + VH*0.23);
+  ctx.fillText('Закупайся в магазине и разминайся у базы (ПКМ — идти) — бой начнётся после отсчёта', VW/2, VH*0.2 + VH*0.23);
   ctx.restore();
 }
 function noteStructureAttack(target, source, fromSync){
@@ -1148,8 +1559,8 @@ function botTaunt(hero, event='generic'){
  * Она не использует чужой музыкальный файл и существует только пока
  * gameState === 'menu'. После первого клика браузер разрешает звук.
  */
-const MENU_MUSIC_BASS = [110, 98, 123, 92, 110, 82, 98, 73];
-const MENU_MUSIC_MELODY = [220, 0, 247, 0, 277, 0, 247, 0];
+const MENU_MUSIC_BASS = [55, 73.42, 82.41, 98, 110, 123.47, 146.83, 110];
+const MENU_MUSIC_MELODY = [293.66, 0, 329.63, 0, 392, 0, 349.23, 0];
 
 function playMenuNote(frequency, duration, volume, type='sine'){
   if(!menuAudioContext || !menuMusicGain || !frequency) return;
@@ -1170,10 +1581,10 @@ function playMenuNote(frequency, duration, volume, type='sine'){
 function playMenuMusicStep(){
   if(!musicEnabled || !menuAudioContext || gameState !== 'menu') return;
   const step = menuMusicStep % MENU_MUSIC_BASS.length;
-  playMenuNote(MENU_MUSIC_BASS[step], 1.35, 0.24, 'triangle');
-  playMenuNote(MENU_MUSIC_BASS[step] * 1.5, 1.1, 0.055, 'sine');
+  playMenuNote(MENU_MUSIC_BASS[step], 2.8, 0.15, 'sine');
+  playMenuNote(MENU_MUSIC_BASS[step] * 2, 2.2, 0.04, 'sine');
   if(MENU_MUSIC_MELODY[step]){
-    playMenuNote(MENU_MUSIC_MELODY[step], 0.72, 0.065, 'sine');
+    playMenuNote(MENU_MUSIC_MELODY[step], 1.5, 0.045, 'sine');
   }
   menuMusicStep++;
 }
@@ -1182,8 +1593,8 @@ function playDraftMusicStep(){
   if(!musicEnabled || !menuAudioContext || gameState !== 'menu' || menuStage !== 'draft') return;
   const step = menuMusicStep++ % 8;
   const notes = [146.83,164.81,196,220,196,164.81,130.81,164.81];
-  playMenuNote(notes[step], 0.78, 0.12, 'triangle');
-  playMenuNote(notes[step] * 2, 0.34, 0.035, 'sine');
+  playMenuNote(notes[step], 0.78, 0.16, 'triangle');
+  playMenuNote(notes[step] * 2, 0.34, 0.05, 'sine');
 }
 
 function startDraftMusic(){
@@ -1196,7 +1607,7 @@ function startDraftMusic(){
       menuMusicGain.gain.value = 0.0001;
       menuMusicGain.connect(menuAudioContext.destination);
     }
-    menuMusicGain.gain.setTargetAtTime(0.13, menuAudioContext.currentTime, 0.2);
+    menuMusicGain.gain.setTargetAtTime(0.12, menuAudioContext.currentTime, 0.35);
     if(!draftMusicTimer){
       menuMusicStep = 0;
       playDraftMusicStep();
@@ -1275,6 +1686,21 @@ function unlockStorePhrase(id){
   if(id==='nineteen') storeNineteenOwned=true;
   if(id==='abuuu') storeAbuuuOwned=true;
   if(id==='shovel') storeShovelOwned=true;
+}
+
+function saveReginaSkinState(){
+  try {
+    localStorage.setItem('shadowRampageCosmetics',JSON.stringify({
+      redReginaOwned:redReginaSkinOwned,redReginaEquipped:redReginaSkinEquipped
+    }));
+  } catch(err) {}
+}
+
+function setReginaSkinEquipped(equipped){
+  if(!redReginaSkinOwned) return;
+  redReginaSkinEquipped=equipped;
+  if(playerHero && playerHero.def.id==='regina') playerHero.skinId=equipped?'reginaRed':null;
+  saveReginaSkinState();
 }
 
 function updatePhraseWheelSelection(){
@@ -1366,7 +1792,7 @@ function startMenuMusic(){
       menuMusicGain.connect(menuAudioContext.destination);
     }
     menuMusicGain.gain.cancelScheduledValues(menuAudioContext.currentTime);
-    menuMusicGain.gain.setTargetAtTime(0.17, menuAudioContext.currentTime, 0.35);
+    menuMusicGain.gain.setTargetAtTime(0.12, menuAudioContext.currentTime, 0.5);
     if(!menuMusicTimer){
       menuMusicStep = 0;
       playMenuMusicStep();
@@ -1498,7 +1924,8 @@ const SCEPTER_UPGRADES = {
   exileKnight:'Рывок шире, Гнев бога длится дольше',
   tribupainer:'Поджигающие пули сильнее, ульта получает второй импульс',
   regina:'Dispose бросает дальше, Rebound усиливает удар, Unleash даёт больше зарядов и расширяет финальную волну',
-  earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области'
+  earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области',
+  savely:'Форма Трансформера длится дольше, уворот срабатывает на каждом третьем ударе и Савелий получает +30% сопротивления магии'
 };
 
 function applyDamage(target, amount, source){
@@ -1509,7 +1936,7 @@ function applyDamage(target, amount, source){
   if(target.onlinePlayerId && sourceHero && sourceHero.isOnlineReplicatedCast) return;
   if(target.onlinePlayerId && sourceHero && sourceHero.isPlayer && sourceHero.team === target.team) return;
   if(isBuilding(target) && source && Number.isInteger(source.team) && source.team === target.team) return;
-  if(target.invulnerable) return;
+  if(target.invulnerable || target.windTimer > 0) return;
   /* Blade Fury блокирует заклинания, но не обычные физические атаки. */
   if(target.buffs && target.buffs.some(buff => buff.type === 'bladeFury') &&
      source && !source.attack) return;
@@ -1522,6 +1949,17 @@ function applyDamage(target, amount, source){
   if(isStructure(target) && !(source && source.attack)) return;
   if(isBuilding(target) && !canDamageStructure(target, source)) return;
   const attackResistance = target.inventory && target.inventory.some(i => i && i.id === 'ilyaHair') ? SHOP_ITEMS.ilyaHair.attackResist : 0;
+  if(source && source.attack && target.def && target.def.id === 'savely'){
+    target.savelyPhysicalHits = (target.savelyPhysicalHits || 0) + 1;
+    if(target.savelyPhysicalHits % (hasScepter(target) ? 3 : 4) === 0){
+      addText(target.x,target.y-target.radius-24,'ПРОМАХ • УВОРОТ','#ffe08a',0.8,14);
+      fxRing(target.x,target.y,34,'#ffd36b',0.25);
+      return;
+    }
+  }
+  if(!(source && source.attack) && target.def && target.def.id === 'savely' && hasScepter(target)) amount *= 0.70;
+  const zamist=target.inventory&&target.inventory.find(item=>item&&item.id==='zamist');
+  if(zamist&&zamist.activeTimer>0) amount*=1-SHOP_ITEMS.zamist.damageResistance;
   if(source && source.attack && attackResistance) amount *= 1 - attackResistance;
   const shardShield = target.buffs && target.buffs.some(buff => buff.type === 'shardShield');
   if(source && source.attack && shardShield) amount *= 0.65;
@@ -1529,7 +1967,7 @@ function applyDamage(target, amount, source){
   if(juvsyutGuard && source && source.team !== target.team) amount *= juvsyutGuard.multiplier || 0.72;
   const shardMark = target.buffs && target.buffs.find(buff => buff.type === 'shardMark');
   if(shardMark) amount *= 1 + shardMark.val;
-  if(source && source.def && source.def.id === 'golly' && source.buffs && source.buffs.some(b => b.type === 'gollyRed')) amount *= 3;
+  if(source && source.def && source.def.id === 'golly' && source.buffs && source.buffs.some(b => b.type === 'gollyRed')) amount *= 2;
   if(source && source.attack && target.bkbActive > 0){
     amount *= 0.4;
   }
@@ -1568,34 +2006,57 @@ function applyDamage(target, amount, source){
       for(const nearby of units){
           if(nearby !== target && !nearby.dead && nearby.team !== sourceHero.team && nearby.team !== 2 && !isBuilding(nearby) &&
             Math.hypot(nearby.x-target.x, nearby.y-target.y) < 130)
-            applyDamage(nearby, amount * 0.60, {team:sourceHero.team, source:sourceHero, attack:true});
+            applyDamage(nearby, amount * 0.60, {team:sourceHero.team, source:sourceHero, attack:true, fangsDamageIncluded:true, fangsDamageScale:0.60, dianaDamageIncluded:true, dianaDamageScale:0.60});
       }
       sourceHero.splashing = false;
       fxBeam(sourceHero.x, sourceHero.y, target.x, target.y, '#ff707a', 0.16);
     }
   }
-  if(sourceHero && sourceHero.def && !(source && source.attack)){
-    amount *= sourceHero.def.balanceScale || 1;
+  if(sourceHero && sourceHero.def && !(source && (source.attack || source.skipAbilityScaling))){
+    const bloodrage = sourceHero.buffs && sourceHero.buffs.find(buff => buff.type === 'bloodrage');
+    if(bloodrage) amount *= bloodrage.spellMult;
+    const shardSpell = sourceHero.buffs && sourceHero.buffs.find(buff => buff.type === 'shardSpell');
+    if(shardSpell) amount *= shardSpell.val;
+    if(sourceHero.spellAmp) amount *= 1 + sourceHero.spellAmp;
+    if(heroHasItem(sourceHero,'kayaSange')) amount *= 1 + SHOP_ITEMS.kayaSange.spellAmp;
+    const heroScale = sourceHero.def.id === 'grisha'
+      ? GRISHA_ABILITY_DAMAGE_MULT
+      : (sourceHero.def.abilityDamageScale || 1);
+    const skillLevelScale = sourceHero.castingSkillLevel > 1
+      ? 1 + (sourceHero.castingSkillLevel - 1) * 0.22
+      : 1;
+    const lateSkillScale = sourceHero.def.lateSkillGrowth
+      ? 1 + Math.max(0, sourceHero.level - 10) * sourceHero.def.lateSkillGrowth
+      : 1;
+    amount *= heroScale * skillLevelScale * heroLevelSkillDamageMult(sourceHero.level) * lateSkillScale;
   }
   const reflect = target.buffs && target.buffs.find(buff => buff.type === 'mageReflect');
   if(reflect && sourceHero && sourceHero.team !== target.team && source && !source.attack){
     applyDamage(sourceHero, amount * reflect.val, {team:target.team, source:target, magic:true});
     fxRing(target.x, target.y, 105, '#d58cff', 0.35);
   }
-  if(sourceHero && sourceHero.castingSkillLevel > 1 && !(source && source.attack)){
-    amount *= 1 + (sourceHero.castingSkillLevel - 1) * 0.08;
-  }
-  /* Урон способностей и ультимейтов растёт вместе с уровнем героя,
-     как и урон от обычной атаки. */
-  if(sourceHero && sourceHero.level > 1 && !(source && source.attack)){
-    amount *= 1 + (sourceHero.level - 1) * 0.03;
-  }
   noteStructureAttack(target, source, false);
   const armor = target.getArmor ? target.getArmor() : (target.armor || 0);
   const structureBonus = target.type === 'tower' ? 1.2 : 1;
-  const dmg = source && source.trueDamage
-    ? Math.max(1, amount)
-    : Math.max(1, amount * armorMult(armor) * structureBonus);
+  const fangsBonus = sourceHero && sourceHero.inventory && sourceHero.inventory.some(item => item && item.id === 'fangs')
+    ? SHOP_ITEMS.fangs.damage
+    : 0;
+  const dianaBonus = sourceHero && sourceHero.inventory && sourceHero.inventory.some(item => item && item.id === 'dianaPants')
+    ? SHOP_ITEMS.dianaPants.damage
+    : 0;
+  const fangsInAmount = fangsBonus && source && source.fangsDamageIncluded
+    ? fangsBonus * (source.fangsDamageScale || 1)
+    : 0;
+  const dianaInAmount = dianaBonus && source && source.dianaDamageIncluded
+    ? dianaBonus * (source.dianaDamageScale || 1)
+    : 0;
+  const amountBeforeFlatBonuses = Math.max(0, amount - fangsInAmount - dianaInAmount);
+  const mitigatedDamage = source && source.trueDamage
+    ? Math.max(1, amountBeforeFlatBonuses)
+    : Math.max(1, amountBeforeFlatBonuses * armorMult(armor) * structureBonus);
+  const fangsDamage = fangsBonus * (source && source.attack ? (source.fangsDamageScale || 1) : 1);
+  const dianaDamage = dianaBonus * (source && source.attack ? (source.dianaDamageScale || 1) : 1);
+  const dmg = mitigatedDamage + fangsDamage + dianaDamage;
   if(isStructure(target) && target.isServerAuthoritative && window.__shadowOnlineMatch){
     const onlineSocket = window.__shadowOnlineSocket;
     if(onlineSocket && onlineSocket.connected && sourceHero && sourceHero.isPlayer &&
@@ -1617,12 +2078,38 @@ function applyDamage(target, amount, source){
     sourceHero.hp = Math.min(sourceHero.maxHp, sourceHero.hp + dmg * SHOP_ITEMS.satanic.lifesteal);
   }
   target.hp -= dmg;
+  if(source && source.attack && sourceHero && sourceHero.def && sourceHero.def.id === 'yosyp' && target.buffs){
+    const passive = sourceHero.skills.find(skill => skill.id === 'yosypBlowback');
+    if(passive && passive.level > 0 && target.team !== sourceHero.team && !isBuilding(target)){
+      target.buffs = target.buffs.filter(buff => buff.type !== 'yosypPoison' || buff.source !== sourceHero);
+      target.addBuff({type:'yosypPoison',damage:sourceHero.dmg*(0.12+passive.level*0.04),tick:0,t:3,source:sourceHero});
+      spawnParticles(target.x,target.y,'#9cff62',8,0.45);
+    }
+  }
   target.hitFlash = 0.18;
   if(target.type === 'hero') target.combatTimer = 3.2;
   if(sourceHero && sourceHero.type === 'hero') sourceHero.combatTimer = 3.2;
   addText(target.x + rnd(-12,12), target.y - target.radius - 6,
           Math.round(dmg), target.type==='hero' ? '#ff5555' : '#ffd24a', 0.8, 15);
   if(target.hp <= 0) killUnit(target, source);
+}
+
+function tickYosypEffects(unit, dt){
+  const poison=unit.buffs.find(buff=>buff.type==='yosypPoison');
+  if(poison && poison.source && !unit.dead){
+    poison.tick=(poison.tick||0)+dt;
+    if(poison.tick>=1 || poison.t<=dt+1e-6){ poison.tick=Math.max(0,poison.tick-1); applyDamage(unit,poison.damage,{team:poison.source.team,source:poison.source,magic:true}); }
+  }
+  const drain=unit.buffs.find(buff=>buff.type==='yosypDrain');
+  if(drain && drain.source && !unit.dead){
+    drain.tick=(drain.tick||0)+dt;
+    if(drain.tick>=1 || drain.t<=dt+1e-6){
+      drain.tick=Math.max(0,drain.tick-1);
+      applyDamage(unit,75,{team:drain.source.team,source:drain.source,magic:true,trueDamage:true,skipAbilityScaling:true});
+      if(!drain.source.dead) drain.source.hp=Math.min(drain.source.maxHp,drain.source.hp+75);
+      fxBeam(drain.source.x,drain.source.y,unit.x,unit.y,'#8aff62',0.24);
+    }
+  }
 }
 
 function canBreakBarracks(barracks){
@@ -1632,38 +2119,16 @@ function canBreakBarracks(barracks){
 const GRISHA_ABILITY_DAMAGE_MULT = 0.48;
 function heroLevelSkillDamageMult(level){
   if(!level || level <= 1) return 1;
-  const earlyLevels = Math.min(level, 15) - 1;      // уровни 2-15: небольшой рост
-  const lateLevels = Math.max(0, level - 15);        // уровни 16-30: заметный, но не чрезмерный рост
-  return 1 + earlyLevels * 0.025 + lateLevels * 0.09;
+  const earlyLevels = Math.min(level - 1, 9);
+  const lateLevels = Math.max(0, level - 10);
+  return 1 + earlyLevels * 0.02 + lateLevels * 0.008;
 }
-/* Небольшой прирост урона обычной атаки на 15-30 уровнях
-   (используется в getDamage(), влияет и на криты/хедшоты, которые
-   считаются от базового урона атаки). */
 function attackLevelDamageMult(level){
   if(!level || level <= 15) return 1;
-  return 1 + Math.min(level - 15, 15) * 0.025;
+  return 1 + Math.min(level - 15, 15) * 0.006;
 }
 function abilityDamage(source, amount){
-  const reduced = source && source.def && source.def.id === 'grisha'
-    ? amount * GRISHA_ABILITY_DAMAGE_MULT
-    : amount;
-  const bloodrage = source && source.buffs && source.buffs.find(b => b.type === 'bloodrage');
-  const empowered = bloodrage ? reduced * bloodrage.spellMult : reduced;
-  const shard = source && source.buffs && source.buffs.find(buff => buff.type === 'shardSpell');
-  const shardEmpowered = shard ? empowered * shard.val : empowered;
-  const skillLevelBonus = source && source.castingSkillLevel > 1 ? 1 + (source.castingSkillLevel - 1) * 0.35 : 1;
-  const heroLevelBonus = source && source.level ? heroLevelSkillDamageMult(source.level) : 1;
-  const lateLevelGrowth = source && source.def && source.def.lateSkillGrowth
-    ? 1 + Math.max(0, source.level - 10) * source.def.lateSkillGrowth
-    : 1;
-  const talentEmpowered = (source && source.spellAmp ? shardEmpowered * (1 + source.spellAmp) : shardEmpowered) * skillLevelBonus * heroLevelBonus * lateLevelGrowth;
-  const scepterEmpowered = hasScepterSkillBoost(source) ? talentEmpowered * 1.2 : talentEmpowered;
-  let itemBonus = 0;
-  if(source && source.inventory){
-    if(source.inventory.some(i => i && i.id === 'fangs')) itemBonus += 105;
-    if(source.inventory.some(i => i && i.id === 'dianaPants')) itemBonus += SHOP_ITEMS.dianaPants.damage;
-  }
-  return scepterEmpowered + itemBonus;
+  return amount;
 }
 
 function killUnit(u, source){
@@ -1737,6 +2202,7 @@ function killUnit(u, source){
     if(playerHero) announce(u.team === playerHero.team ? 'Your tower has fallen!' : 'Enemy tower has been destroyed!', {interrupt:true});
   }
   if(u.type === 'tower'){
+    noteBotScenarioTower(1-u.team,u);
     const progress = structureProgress[u.team];
     if(progress && progress.lanes[u.lane]){
       progress.lane = u.lane;
@@ -1762,6 +2228,7 @@ function killUnit(u, source){
     if(Math.hypot(h.x-u.x, h.y-u.y) < 1500) gainXp(h, u.xpValue || 40);
   }
   if(u.type === 'hero'){
+    noteBotScenarioKill(1-u.team,u);
       playSynthSfx('death');
      if(u === playerHero && rewardHero && rewardHero.team === 1)
        botTaunt(rewardHero, 'playerDeath');
@@ -1897,7 +2364,6 @@ function advanceArcMotion(unit, dt){
     const inverse = 1 - eased;
     unit.x = inverse*inverse*motion.startX + 2*inverse*eased*motion.controlX + eased*eased*motion.endX;
     unit.y = inverse*inverse*motion.startY + 2*inverse*eased*motion.controlY + eased*eased*motion.endY;
-  } else {
     unit.x = motion.startX + (motion.endX - motion.startX) * eased;
     unit.y = motion.startY + (motion.endY - motion.startY) * eased;
   }
@@ -2128,8 +2594,9 @@ function omnislashStrike(hero, slash){
   hero.x = clamp(target.x - Math.cos(angle) * 42, 60, WORLD-60);
   hero.y = clamp(target.y - Math.sin(angle) * 42, 60, WORLD-60);
   hero.facing = angle;
-  const damage = hero.getDamage() * (1.18 + slash.level * 0.08);
-  applyDamage(target, damage, {team:hero.team, source:hero, attack:true});
+  const slashDamageScale = 1.18 + slash.level * 0.08;
+  const damage = hero.getDamage() * slashDamageScale;
+  applyDamage(target, damage, {team:hero.team, source:hero, attack:true, fangsDamageIncluded:true, fangsDamageScale:slashDamageScale, dianaDamageIncluded:true, dianaDamageScale:slashDamageScale});
   fxBeam(hero.x, hero.y, target.x, target.y, '#fff2a8', 0.18);
   fxRing(target.x, target.y, 38, '#ffe066', 0.35);
   spawnParticles(target.x, target.y, '#fff7c7', 9, 0.42);
@@ -2144,6 +2611,7 @@ function getInvokeCooldown(hero, key){
 function activateInventoryItem(hero, index){
   const item = hero.inventory[index];
   if(!item) return false;
+  if(hero.nullifyTimer > 0 && NULLIFY_BLOCKED_ITEMS.has(item.id)){ flashMsg(hero, 'Нуллификатор: предмет заблокирован'); return false; }
   if(item.id === 'dianaPants'){
     item.auraOn = !item.auraOn;
     item.auraTimer = 0;
@@ -2161,10 +2629,110 @@ function activateInventoryItem(hero, index){
     fxRing(hero.x, hero.y, 100, '#f0c36a', 0.6);
     return true;
   }
+  if(item.id === 'eggGolly'){
+    if(item.cooldown > 0){ flashMsg(hero, 'Яйцо-голли на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    item.cooldown = SHOP_ITEMS.eggGolly.cooldown;
+    item.activeTimer = SHOP_ITEMS.eggGolly.activeDuration;
+    addText(hero.x, hero.y - 56, 'ЯЙЦО-ГОЛЛИ: +250 СКОРОСТИ', '#8be9fd', 1.1, 16);
+    fxRing(hero.x, hero.y, 96, '#8be9fd', 0.6);
+    return true;
+  }
+  if(item.id === 'zamist'){
+    if(item.cooldown > 0){ flashMsg(hero, 'Замисть на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    item.cooldown=SHOP_ITEMS.zamist.cooldown;
+    item.activeTimer=SHOP_ITEMS.zamist.activeDuration;
+    hero.addBuff({type:'dmg',id:'zamistDamage',val:SHOP_ITEMS.zamist.damage,t:SHOP_ITEMS.zamist.activeDuration});
+    addText(hero.x,hero.y-56,'ЗАМИСТЬ: ЗАЩИТА И НАТИСК','#ed3d4e',1.2,16);
+    fxRing(hero.x,hero.y,100,'#ed3d4e',0.65);
+    return true;
+  }
+  if(item.id === 'windWaker'){
+    const cfg = SHOP_ITEMS.windWaker;
+    if(item.cooldown > 0){ flashMsg(hero, 'Вейкер Ветра на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    const target = pickAllyOrSelf(hero, cfg.castRange);
+    if(!target) return false;
+    purgeNegativeEffects(target);
+    target.windTimer = cfg.duration;
+    target.silenceTimer = Math.max(target.silenceTimer || 0, cfg.duration);
+    target.attackTarget = null;
+    item.cooldown = cfg.cooldown;
+    addText(target.x, target.y - 64, 'УРАГАН!', '#7fe9d4', 1.2, 17);
+    fxRing(target.x, target.y, 110, '#7fe9d4', 0.7);
+    fxRing(target.x, target.y, 70, '#e6fffa', 0.5);
+    spawnParticles(target.x, target.y, '#bff7ec', 18, 1.2);
+    if(target !== hero) fxBeam(hero.x, hero.y, target.x, target.y, '#7fe9d4', 0.3);
+    return true;
+  }
+  if(item.id === 'holyLocket'){
+    const cfg = SHOP_ITEMS.holyLocket;
+    if(item.cooldown > 0){ flashMsg(hero, 'Святой медальон на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    const charges = Math.floor(item.charges || 0);
+    if(charges < 1){ flashMsg(hero, 'В медальоне нет зарядов'); return false; }
+    const target = pickAllyOrSelf(hero, cfg.castRange);
+    if(!target) return false;
+    const amp = healAmpOf(hero);
+    const hpGain = Math.min(target.maxHp - target.hp, charges * cfg.hpPerCharge * amp);
+    const mpGain = target.maxMp ? Math.min(target.maxMp - target.mp, charges * cfg.mpPerCharge * amp) : 0;
+    target.hp += Math.max(0, hpGain);
+    if(mpGain > 0) target.mp += mpGain;
+    item.charges = 0; item.chargeTimer = 0;
+    item.cooldown = cfg.cooldown;
+    addText(target.x, target.y - 64, '+' + Math.round(Math.max(0,hpGain)) + ' HP' + (mpGain > 0 ? '  +' + Math.round(mpGain) + ' МП' : ''), '#ffd978', 1.2, 16);
+    fxRing(target.x, target.y, 84, '#ffd978', 0.6);
+    spawnParticles(target.x, target.y, '#fff0b0', 14, 1);
+    if(target !== hero) fxBeam(hero.x, hero.y, target.x, target.y, '#ffd978', 0.3);
+    return true;
+  }
+  if(item.id === 'nullifier'){
+    const cfg = SHOP_ITEMS.nullifier;
+    if(item.cooldown > 0){ flashMsg(hero, 'Нуллификатор на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    const target = pickUnitAt(mouse.wx, mouse.wy);
+    if(!target || target.team === hero.team || target.dead || isBuilding(target)){ flashMsg(hero, 'Наведите на вражеского бойца'); return false; }
+    if(Math.hypot(target.x-hero.x, target.y-hero.y) > cfg.castRange + target.radius){ flashMsg(hero, 'Слишком далеко'); return false; }
+    purgePositiveEffects(target);
+    target.nullifyTimer = cfg.duration;
+    item.cooldown = cfg.cooldown;
+    addText(target.x, target.y - 64, 'НУЛЛИФИКАТОР', '#b07cff', 1.2, 16);
+    fxBeam(hero.x, hero.y, target.x, target.y, '#b07cff', 0.4);
+    fxRing(target.x, target.y, 90, '#b07cff', 0.6);
+    spawnParticles(target.x, target.y, '#d9bcff', 16, 1);
+    return true;
+  }
+  if(item.id === 'disperser'){
+    const cfg = SHOP_ITEMS.disperser;
+    if(item.cooldown > 0){ flashMsg(hero, 'Диспёрсер на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    const hovered = pickUnitAt(mouse.wx, mouse.wy);
+    let target = hero;
+    if(hovered && !hovered.dead && !isBuilding(hovered)){
+      if(hovered.team !== hero.team || (hovered.type === 'hero' && !hovered.isIllusion)) target = hovered;
+    }
+    if(target !== hero && Math.hypot(target.x-hero.x, target.y-hero.y) > cfg.castRange + target.radius){ flashMsg(hero, 'Слишком далеко'); return false; }
+    if(target.team !== hero.team){
+      const burned = Math.min(target.mp || 0, cfg.manaBurn);
+      if(target.mp) target.mp = Math.max(0, target.mp - burned);
+      if(burned > 0) applyDamage(target, burned * cfg.burnDamageRatio, {team:hero.team, source:hero, magic:true});
+      target.slow = Math.max(target.slowT > 0 ? target.slow : 0, cfg.slow);
+      target.slowT = Math.max(target.slowT || 0, cfg.slowDuration);
+      addText(target.x, target.y - 64, 'ДИСПЁРСЕР: -' + Math.round(burned) + ' МАНЫ', '#6fe0ff', 1.2, 16);
+      fxBeam(hero.x, hero.y, target.x, target.y, '#6fe0ff', 0.4);
+      fxRing(target.x, target.y, 80, '#6fe0ff', 0.55);
+      spawnParticles(target.x, target.y, '#a8f1ff', 14, 1);
+    } else {
+      purgeNegativeEffects(target);
+      target.buffs = target.buffs.filter(b => b.id !== 'disperserHaste');
+      target.addBuff({type:'haste', id:'disperserHaste', t:cfg.hasteDuration});
+      addText(target.x, target.y - 64, 'ДИСПЁРСЕР: ОЧИЩЕНИЕ', '#6fe0ff', 1.2, 16);
+      fxRing(target.x, target.y, 90, '#6fe0ff', 0.6);
+      spawnParticles(target.x, target.y, '#d8fbff', 16, 1.1);
+      if(target !== hero) fxBeam(hero.x, hero.y, target.x, target.y, '#6fe0ff', 0.3);
+    }
+    item.cooldown = cfg.cooldown;
+    return true;
+  }
   if(item.id === 'blink'){
     if(item.cooldown > 0){ flashMsg(hero, 'Блинк на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
     const distance = Math.hypot(mouse.wx-hero.x, mouse.wy-hero.y) || 1;
-    const range = Math.min(500, distance);
+    const range = Math.min(SHOP_ITEMS.blink.range, distance);
     let tx = hero.x + (mouse.wx-hero.x) / distance * range;
     let ty = hero.y + (mouse.wy-hero.y) / distance * range;
     if(!canMoveTo(tx, ty, hero.radius)){
@@ -2233,6 +2801,16 @@ function activateInventoryItem(hero, index){
     fxRing(hero.x, hero.y, 80, '#f5d36b', 0.5);
     return true;
   }
+  if(item.id === 'brainAss'){
+    if(item.cooldown > 0){ flashMsg(hero, 'Срака мо3гов на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    item.cooldown = SHOP_ITEMS.brainAss.cooldown;
+    item.activeTimer = SHOP_ITEMS.brainAss.activeDuration;
+    hero.addBuff({type:'dmg',id:'brainAssDamage',val:SHOP_ITEMS.brainAss.damage,t:SHOP_ITEMS.brainAss.activeDuration});
+    hero.addBuff({type:'as',id:'brainAssAttackSpeed',val:SHOP_ITEMS.brainAss.attackSpeed,t:SHOP_ITEMS.brainAss.activeDuration});
+    addText(hero.x, hero.y - 56, 'СРАКА МО3ГОВ: РАЗГОН', '#ff638d', 1.0, 16);
+    fxRing(hero.x, hero.y, 86, '#ff638d', 0.55);
+    return true;
+  }
   if(item.id === 'arcadiaScar'){
     if(item.cooldown > 0){ flashMsg(hero, 'Шрам-Аркадия на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
     item.cooldown = SHOP_ITEMS.arcadiaScar.cooldown;
@@ -2260,9 +2838,10 @@ function activateInventoryItem(hero, index){
     if(!target || target.team === hero.team || target.dead || isBuilding(target)){
       flashMsg(hero, 'Наведите на вражеского бойца'); return false;
     }
-    applyDamage(target, 500, {team:hero.team, source:hero, magic:true});
+    const damage = SHOP_ITEMS.dagonEmpire.damage || 1200;
+    applyDamage(target, damage, {team:hero.team, source:hero, magic:true});
     item.cooldown = SHOP_ITEMS.dagonEmpire.cooldown;
-    addText(target.x, target.y - 56, 'ДАГОН: -500', '#ff4f8b', 1.0, 16);
+    addText(target.x, target.y - 56, 'ДАГОН: -' + damage, '#ff4f8b', 1.0, 16);
     fxBeam(hero.x, hero.y, target.x, target.y, '#ff4f8b', 0.4);
     return true;
   }
@@ -2310,7 +2889,7 @@ function activateInventoryItem(hero, index){
       if(hero === playerHero) flashMsg(hero, 'Подойдите к дереву');
       return false;
     }
-    hero.hp = Math.min(hero.maxHp, hero.hp + 90);
+    hero.hp = Math.min(hero.maxHp, hero.hp + 90 * healAmpOf(hero));
     trees.splice(trees.indexOf(tree), 1);
     hero.inventory[index] = null;
     addText(hero.x, hero.y - 56, '+90 HP', '#79d46c', 1.0, 16);
@@ -2372,33 +2951,34 @@ function confirmShopPurchase(id){
 function buyBotItem(hero){
   const bootsIndex = hero.inventory.findIndex(i => i && i.id === 'joelBoots');
   const fangsIndex = hero.inventory.findIndex(i => i && i.id === 'fangs');
-  const emptySlot = hero.inventory.findIndex(i => !i);
-  if(bootsIndex >= 0 && fangsIndex >= 0 && hero.coins >= SHOP_ITEMS.pt.cost){
+  const ptOwned = hero.inventory.some(i => i && i.id === 'pt');
+  const starterId = ptOwned ? null : fangsIndex < 0 ? 'fangs' : bootsIndex < 0 ? 'joelBoots' : null;
+  if(starterId){
+    const item = SHOP_ITEMS[starterId];
+    const slot = hero.inventory.findIndex(i => !i);
+    if(slot >= 0 && hero.coins >= item.cost){
+      hero.coins -= item.cost;
+      hero.inventory[slot] = createInventoryItem(starterId);
+      applyItemStats(hero, starterId);
+    }
+    return;
+  }
+  if(!ptOwned && bootsIndex >= 0 && fangsIndex >= 0 && hero.coins >= SHOP_ITEMS.pt.cost){
     hero.coins -= SHOP_ITEMS.pt.cost;
     hero.inventory[bootsIndex] = createInventoryItem('pt');
     hero.inventory[fangsIndex] = null;
     applyItemStats(hero, 'pt');
     return;
   }
-  const lateChoices = ['bkb','blink','evsyutin','mantledSteel','manaHooves','superBoots','aghanimHead','ilyaHair','enemy302','tornBrainHand','munition','hatchet','satanic','arcadiaScar','kinglandia','gur','brainEye','aghanimScepter'];
-  const earlyChoices = ['fangs','joelBoots','manaTome','enemy302'];
-  const choices = gameTime > 90 ? lateChoices : earlyChoices;
-  const availableChoices = choices.filter(id => {
-    if(id === 'blink' && hero.inventory.some(item => item && item.id === 'blink')) return false;
-    return !hero.inventory.some(item => item && item.id === id);
-  });
-  if(!availableChoices.length) return;
-  const id = availableChoices[Math.floor(Math.random()*availableChoices.length)];
-  const item = SHOP_ITEMS[id];
-  if(id === 'aghanimShard'){
-    if(hero.coins < item.cost) return;
-    hero.coins -= item.cost;
-    grantShardSkill(hero);
-    return;
-  }
+  if(!ptOwned) return;
+  const priority = ['munition','mantledSteel','aghanimHead'];
+  const remaining = ['bkb','blink','evsyutin','manaHooves','superBoots','ilyaHair','enemy302','tornBrainHand','hatchet','satanic','arcadiaScar','kinglandia','gur','brainEye','aghanimScepter','brainAss','kayaSange','disperser'];
+  const owned = new Set(hero.inventory.filter(Boolean).map(item => item.id));
+  const id = [...priority,...remaining].find(itemId => !owned.has(itemId) && SHOP_ITEMS[itemId] &&
+    hero.coins >= SHOP_ITEMS[itemId].cost && hero.inventory.some(item => !item));
+  if(!id) return;
   const slot = hero.inventory.findIndex(i => !i);
-  if(!item || slot < 0 || hero.coins < item.cost) return;
-  hero.coins -= item.cost;
+  hero.coins -= SHOP_ITEMS[id].cost;
   hero.inventory[slot] = createInventoryItem(id);
   applyItemStats(hero, id);
 }
@@ -2414,7 +2994,8 @@ function createInventoryItem(id){
     desc:item.desc,
     active:!!item.active,
     cooldown:0,
-    activeTimer:0
+    activeTimer:0,
+    ...(id === 'holyLocket' ? {charges:0, chargeTimer:0} : {})
   };
 }
 
@@ -2434,6 +3015,12 @@ function applyItemStats(hero, id){
   if(id === 'girfsyutin'){
     hero.maxHp += SHOP_ITEMS.girfsyutin.hp;
     hero.hp += SHOP_ITEMS.girfsyutin.hp;
+  }
+  if(id === 'kayaSange'){
+    hero.maxHp += SHOP_ITEMS.kayaSange.hp;
+    hero.hp += SHOP_ITEMS.kayaSange.hp;
+    hero.maxMp += SHOP_ITEMS.kayaSange.maxMp;
+    hero.mp += SHOP_ITEMS.kayaSange.maxMp;
   }
 }
 
@@ -2489,13 +3076,58 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=105; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
   getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
-  getSpeed(){ let s=this.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'joelBoots')) s+=SHOP_ITEMS.joelBoots.speed; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) s+=60; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) s+=SHOP_ITEMS.ilyaHair.speed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) s+=this.skills[2].level*27.5; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) s+=SHOP_ITEMS.gur.moveSpeed; if(this.buffs.some(b=>b.type==='haste')) s+=180; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) s*=1.18; const superBoots=this.inventory && this.inventory.find(i => i && i.id === 'superBoots'); if(superBoots){ s+=SHOP_ITEMS.superBoots.speed; if(superBoots.activeTimer>0) s+=SHOP_ITEMS.superBoots.activeSpeed; } const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) s+=100; for(const b of this.buffs) if(b.type === 'spd') s*=(1+b.val); const thirst=this.def && this.def.id === 'sasych' ? heroes.filter(h => h.team !== this.team && !h.dead && h.type === 'hero').reduce((sum,h) => sum+(1-h.hp/h.maxHp)*0.48,0) : 0; s*=1+thirst; if(this.slowT>0) s*=(1-this.slow); return s; }
+  getSpeed(){
+    let speed=this.speed;
+    if(this.inventory && this.inventory.some(item=>item&&item.id==='joelBoots')) speed+=SHOP_ITEMS.joelBoots.speed;
+    if(this.inventory && this.inventory.some(item=>item&&item.id==='pt')) speed+=60;
+    if(this.inventory && this.inventory.some(item=>item&&item.id==='ilyaHair')) speed+=SHOP_ITEMS.ilyaHair.speed;
+    if(this.def&&this.def.id==='arcady'&&this.skills&&this.skills[2]) speed+=this.skills[2].level*27.5;
+    const gur=this.inventory&&this.inventory.find(item=>item&&item.id==='gur');
+    if(gur&&gur.activeTimer>0) speed+=SHOP_ITEMS.gur.moveSpeed;
+    const eggGolly=this.inventory&&this.inventory.find(item=>item&&item.id==='eggGolly');
+    if(eggGolly&&eggGolly.activeTimer>0) speed+=SHOP_ITEMS.eggGolly.moveSpeed;
+    const zamist=this.inventory&&this.inventory.find(item=>item&&item.id==='zamist');
+    if(zamist&&zamist.activeTimer>0) speed+=SHOP_ITEMS.zamist.moveSpeed;
+    if(heroHasItem(this,'disperser')) speed+=SHOP_ITEMS.disperser.speed;
+    if(this.buffs.some(buff=>buff.type==='haste')) speed+=180;
+    if(this.def&&this.def.id==='malit'&&this.skills&&this.skills[1]&&this.skills[1].level>0) speed*=1.18;
+    const superBoots=this.inventory&&this.inventory.find(item=>item&&item.id==='superBoots');
+    if(superBoots){ speed+=SHOP_ITEMS.superBoots.speed; if(superBoots.activeTimer>0) speed+=SHOP_ITEMS.superBoots.activeSpeed; }
+    const aghanimHead=this.inventory&&this.inventory.find(item=>item&&item.id==='aghanimHead');
+    if(aghanimHead&&aghanimHead.activeTimer>0) speed+=100;
+    for(const buff of this.buffs) if(buff.type==='spd') speed*=(1+buff.val);
+    const thirst=this.def&&this.def.id==='sasych'
+      ? heroes.filter(hero=>hero.team!==this.team&&!hero.dead&&hero.type==='hero').reduce((sum,hero)=>sum+(1-hero.hp/hero.maxHp)*0.48,0)
+      : 0;
+    speed*=1+thirst;
+    if(this.slowT>0) speed*=(1-this.slow);
+    return speed;
+  }
   addBuff(b){ this.buffs.push(b); }
   tickTimers(dt){
     if(this.atkCd>0) this.atkCd-=dt;
     if(this.attackSlowT>0) this.attackSlowT=Math.max(0,this.attackSlowT-dt);
+    if(this.inventory){
+      /* Кая и Санга: сопротивление эффектам ускоряет спад оглушения, замедления и безмолвия. */
+      const statusResist=statusResistOf(this);
+      if(statusResist>0){
+        const extra=dt*statusResist/(1-statusResist);
+        if(this.stunTimer>0) this.stunTimer=Math.max(0,this.stunTimer-extra);
+        if(this.slowT>0) this.slowT=Math.max(0,this.slowT-extra);
+        if(this.silenceTimer>0 && !(this.windTimer>0)) this.silenceTimer=Math.max(0,this.silenceTimer-extra);
+      }
+    }
+    if(this.windTimer>0){
+      this.windTimer=Math.max(0,this.windTimer-dt);
+      this.attackTarget=null;
+      if(this.windTimer<=0){ this.silenceTimer=0; fxRing(this.x,this.y,60,'#7fe9d4',0.35); }
+    }
+    if(this.nullifyTimer>0){
+      this.nullifyTimer=Math.max(0,this.nullifyTimer-dt);
+      purgePositiveEffects(this);
+    }
     if(this.stunTimer>0) this.stunTimer-=dt;
     if(this.stunTimer>0 && !this.stunSoundActive){ playHeroSfx('stun'); this.stunSoundActive=true; }
     if(this.stunTimer<=0) this.stunSoundActive=false;
@@ -2526,10 +3158,15 @@ class Unit {
       return;
     }
     if(this.stunTimer>0){ this.moving=false; return; }
+    const fear=this.buffs.find(buff=>buff.type==='fear');
+    if(fear){
+      const dx=this.x-fear.sourceX,dy=this.y-fear.sourceY,d=Math.hypot(dx,dy)||1;
+      this.moveTarget={x:clamp(this.x+dx/d*260,60,WORLD-60),y:clamp(this.y+dy/d*260,60,WORLD-60)};
+    }
     /* Игрока никогда не должно намертво заклинить в дереве или в узкой щели между
        деревьями (например, после случайного блинка) — если такое случилось,
        аккуратно выталкиваем его наружу прежде, чем считать обычное движение. */
-    if(this.isPlayer === true) resolveTreeOverlap(this, dt);
+    if(this.isPlayer === true && !(this.windTimer > 0)) resolveTreeOverlap(this, dt);
     const preMoveX=this.x, preMoveY=this.y;
     let tx=null,ty=null;
     if(this.attackTarget && this.attackTarget.alive){
@@ -2548,7 +3185,7 @@ class Unit {
       const sp=this.getSpeed();
       const nextX = this.x + dx/d*sp*dt;
       const nextY = this.y + dy/d*sp*dt;
-      if(canMoveTo(nextX, nextY, this.radius, this.isPlayer !== true)){
+      if(canMoveTo(nextX, nextY, this.radius, this.isPlayer !== true || this.windTimer > 0)){
         this.x = nextX; this.y = nextY;
       } else {
         /* Пробуем скользнуть мимо препятствия под несколькими углами (не только
@@ -2590,7 +3227,7 @@ class Unit {
   updateCombat(dt){
     const t=this.attackTarget;
     if(!t||t.dead){ this.attackTarget=null; return; }
-    if(this.stunTimer>0) return;
+    if(this.stunTimer>0 || this.windTimer>0) return;
     if((this.type==='tower' || this.type==='creep') && hasTreeCover(this,t)) return;
     const d=Math.hypot(t.x-this.x, t.y-this.y);
     if(d <= this.getAttackRange() + t.radius){
@@ -2606,7 +3243,7 @@ class Unit {
           const pelletDamage=Math.max(33,this.getDamage()*0.38+Math.max(0,this.level-8)*0.75);
           for(let pellet=0;pellet<bullets;pellet++){
             const spread=(pellet-(bullets-1)/2)*0.075;
-            const projectile=spawnProjectile(this.x,this.y,t,pelletDamage,{team:this.team,source:this,attack:true,incendiary},1100,'#ffb36b',8);
+            const projectile=spawnProjectile(this.x,this.y,t,pelletDamage,{team:this.team,source:this,attack:true,incendiary,fangsDamageIncluded:true,fangsDamageScale:0.38,dianaDamageIncluded:true,dianaDamageScale:0.38},1100,'#ffb36b',8);
             projectile.spread=spread;
             projectile.incendiary=incendiary;
           }
@@ -2615,8 +3252,9 @@ class Unit {
           return;
         }
         if(this.getAttackRange()>220){
-          const shotSource={team:this.team, source:this, attack:true};
+          const shotSource={team:this.team, source:this, attack:true, fangsDamageIncluded:true, dianaDamageIncluded:true};
           let shotDamage=this.getDamage();
+          if(this.def && this.def.id === 'sniper') shotDamage*=0.8;
           if(this.def && this.def.id === 'sniper' && this.skills && this.skills[1] && this.skills[1].level > 0){
             const headshotLevel=this.skills[1].level;
             if(Math.random() < Math.min(0.55, 0.20 + headshotLevel * 0.075)){
@@ -2647,7 +3285,8 @@ class Unit {
             t.slowT = Math.max(t.slowT || 0, 2);
             t.attackSlow = 0.35;
             t.attackSlowT = Math.max(t.attackSlowT || 0, 2);
-            applyDamage(t, this.getDamage() * (unleash.damageMultiplier || 1.15), {team: this.team, source: this, attack: true});
+            const unleashDamageMultiplier = unleash.damageMultiplier || 1.15;
+            applyDamage(t, this.getDamage() * unleashDamageMultiplier, {team: this.team, source: this, attack: true, fangsDamageIncluded:true, fangsDamageScale:unleashDamageMultiplier, dianaDamageIncluded:true, dianaDamageScale:unleashDamageMultiplier});
             if(finisher){
               const pulseRadius = unleash.pulseRadius || 150;
               for(const unit of units){
@@ -2669,12 +3308,14 @@ class Unit {
             }
           } else {
             let attackDamage=this.getDamage();
+            let fangsDamageScale=1;
             if(this.def && this.def.id === 'juggernaut' && this.skills && this.skills[2] &&
                this.skills[2].level > 0){
               const bladeDanceLevel=this.skills[2].level;
                const critChance=[0,0.20,0.30,0.40,0.50][bladeDanceLevel] || 0;
                if(Math.random() < critChance){
-                 attackDamage *= [0,1.7,1.9,2.1,2.3][bladeDanceLevel] || 1.7;
+                 fangsDamageScale=[0,1.7,1.9,2.1,2.3][bladeDanceLevel] || 1.7;
+                 attackDamage *= fangsDamageScale;
                 addText(t.x,t.y-t.radius-18,'КРИТ!','#fff0a8',0.7,14);
                 fxRing(t.x,t.y,30,'#ffe066',0.22);
               }
@@ -2689,7 +3330,7 @@ class Unit {
                 this.buffs = this.buffs.filter(buff => buff !== totemBuff);
               }
             }
-            applyDamage(t, attackDamage, {team: this.team, source: this, attack: true});
+            applyDamage(t, attackDamage, {team: this.team, source: this, attack: true, fangsDamageIncluded:true, fangsDamageScale, dianaDamageIncluded:true, dianaDamageScale:fangsDamageScale});
           }
           if(this.def && this.def.id === 'electricGosha') applyElectricOverload(this, t);
           if(this.owner && this.owner.def && this.owner.def.id === 'illusionist' && this.owner.isPlayer && Math.random() < 0.15) spawnPassiveIllusion(this.owner, t);
@@ -2699,6 +3340,7 @@ class Unit {
     }
   }
   update(dt){
+    tickYosypEffects(this,dt);
     this.tickTimers(dt);
     const burning=this.buffs.find(buff=>buff.type==='burning');
     if(burning){
@@ -3005,7 +3647,7 @@ function explodeMo3giDrone(drone){
   for(const unit of units){
     if(unit.dead || unit.team === drone.team || unit.team === 2) continue;
     if(Math.hypot(unit.x-drone.x, unit.y-drone.y) <= radius + unit.radius)
-      applyDamage(unit, abilityDamage(hero, damage), {team:drone.team, source:hero, attack:true});
+      applyDamage(unit, abilityDamage(hero, damage), {team:drone.team, source:hero});
   }
 }
 
@@ -3140,6 +3782,9 @@ function spawnSteelCopies(hero){
   addText(hero.x, hero.y-80, 'КОПИИ СТАЛИ', '#d9e6f5', 1.4, 18);
 }
 
+const REBALANCE_HERO_POOL = ['Пиро','Шадоу','Голли','Ригина','Малит','Снайпер','Илья','Гриша'];
+const REBALANCE_ITEM_POOL = ['БКБ','ПТ','Дагон','Шрам-Аркадия','Яйцо-голли','Волосы Ильи'];
+
 function spawnIllusion(hero, options={}){
   const angle = options.angle === undefined ? Math.random()*Math.PI*2 : options.angle;
   const life = (options.life || 12) + (hero.illusionLifeBonus || 0);
@@ -3166,10 +3811,11 @@ function spawnPassiveIllusion(hero, target){
 
 class Tower extends Unit {
   constructor(team, x, y, base, lane=null, tier=1){
+    const ancientHp = Math.round(43200 * 1.08);
     super({
       x, y, team,
       radius: base?46:(tier===1?19:22), speed:0,
-      hp: base?14400:2000,
+      hp: base?ancientHp:6000,
       dmg: base?220:82,
       atkRange: base?850:(tier===1?560:680),
       atkTime: base?0.8:1.05,
@@ -3286,6 +3932,175 @@ function createMapTrees(){
       if(!nearBase && canPlaceTree(treeX, treeY, 120)) trees.push({x:treeX,y:treeY,radius:24,kind:['pine','broadleaf','crystal','birch','autumn'][Math.floor(Math.random()*5)]});
     }
   }
+  /* На стороне Сил Тьмы (верхне-правая половина, y < x) растут только мёртвые
+     чёрные деревья с красно-оранжевой листвой. Вариант зависит от координат,
+     поэтому у всех игроков в онлайне лес выглядит одинаково. */
+  for(const tree of trees){
+    if(isDireSide(tree.x, tree.y)){
+      tree.kind = 'dire';
+      tree.v = Math.abs(Math.floor(tree.x*7 + tree.y*13)) % DIRE_TREE_VARIANTS;
+    }
+  }
+}
+
+/* ===== Мёртвые деревья Сил Тьмы: чёрные кривые ветви и пышные красные кроны ===== */
+const DIRE_TREE_VARIANTS = 8;
+const DIRE_SPRITE = {W:260, H:240, OX:130, OY:175, S:2};
+const direTreeSprites = [];
+function isDireSide(x, y){ return y < x; }
+function direRng(seed){
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function getDireTreeSprite(variant){
+  if(!direTreeSprites[variant]) direTreeSprites[variant] = buildDireTreeSprite(variant);
+  return direTreeSprites[variant];
+}
+function buildDireTreeSprite(variant){
+  const {W,H,OX,OY,S} = DIRE_SPRITE;
+  const c = document.createElement('canvas');
+  c.width = W*S; c.height = H*S;
+  const g = c.getContext('2d');
+  g.scale(S,S); g.translate(OX,OY);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  const rnd = direRng(variant*7919 + 101);
+  const tips = [];
+  const BASE_Y = 38;
+
+  /* Один изогнутый отрезок ветви с плавным сужением и красноватой кромкой от лавы. */
+  const limb = (x0,y0,x1,y1,cx,cy,w0,w1) => {
+    const N = 9, pts = [];
+    for(let i=0;i<=N;i++){
+      const t=i/N, u=1-t;
+      pts.push({x:u*u*x0+2*u*t*cx+t*t*x1, y:u*u*y0+2*u*t*cy+t*t*y1, w:w0+(w1-w0)*t});
+    }
+    for(let pass=0; pass<3; pass++){
+      for(let i=1;i<=N;i++){
+        const a=pts[i-1], b=pts[i];
+        if(pass===0){ g.strokeStyle='rgba(0,0,0,0.35)'; g.lineWidth=b.w+1.6; }
+        else if(pass===1){ g.strokeStyle=b.w>5?'#1d1514':'#150f10'; g.lineWidth=b.w; }
+        else {
+          if(b.w<3.2) continue;
+          g.strokeStyle='rgba(150,70,48,0.42)'; g.lineWidth=Math.max(1,b.w*0.28);
+          g.beginPath(); g.moveTo(a.x-b.w*0.22,a.y); g.lineTo(b.x-b.w*0.22,b.y); g.stroke(); continue;
+        }
+        g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.stroke();
+      }
+    }
+  };
+
+  const grow = (x,y,ang,len,w,depth) => {
+    const curve = (rnd()-0.5)*0.95;
+    const ex = x+Math.cos(ang)*len, ey = y+Math.sin(ang)*len;
+    const cx = (x+ex)/2 - Math.sin(ang)*len*curve;
+    const cy = (y+ey)/2 + Math.cos(ang)*len*curve;
+    const w1 = Math.max(1.1, w*0.66);
+    limb(x,y,ex,ey,cx,cy,w,w1);
+    if(depth<=0 || len<8){ tips.push({x:ex,y:ey,w:w1}); return; }
+    /* боковой сучок из середины ветви */
+    if(depth>=2 && rnd()<0.7){
+      const side = rnd()<0.5 ? -1 : 1;
+      const mx = (x+2*cx+ex)/4, my = (y+2*cy+ey)/4;
+      grow(mx,my,ang+side*(0.8+rnd()*0.5),len*0.55,w1*0.7,depth-2);
+    }
+    const kids = (depth>=3 && rnd()<0.45) ? 3 : 2;
+    for(let i=0;i<kids;i++){
+      const spread = (i-(kids-1)/2)*(0.5+rnd()*0.55) + (rnd()-0.5)*0.35;
+      grow(ex,ey,ang+spread,len*(0.64+rnd()*0.2),w1,depth-1);
+    }
+  };
+
+  /* корни и основание */
+  for(let i=-1;i<=1;i+=1){
+    const ra = -Math.PI/2 + i*(1.0+rnd()*0.4);
+    const rx = i*(10+rnd()*8), ry = BASE_Y+2-Math.abs(i)*0;
+    limb(i*3,BASE_Y-8, rx, ry, i*6, BASE_Y-3, 6.5, 1.8);
+  }
+  const lean = (rnd()-0.5)*0.45;
+  grow(0, BASE_Y-4, -Math.PI/2 + lean, 40+rnd()*10, 14+rnd()*2, 4);
+
+  /* кроны: выбираем самые высокие/дальние кончики веток */
+  const sorted = tips.slice().sort((a,b)=> (a.y - Math.abs(a.x)*0.25) - (b.y - Math.abs(b.x)*0.25));
+  const picked = [];
+  const wanted = 2 + Math.floor(rnd()*2);
+  for(const tip of sorted){
+    if(picked.length>=wanted) break;
+    if(tip.y > BASE_Y-45) continue;
+    if(picked.every(p => Math.hypot(p.x-tip.x, p.y-tip.y) > 38)) picked.push(tip);
+  }
+  /* одна крона обычно «сидит» поближе к стволу, как на референсе */
+  if(rnd()<0.6){
+    const low = tips.filter(t => t.y>BASE_Y-70 && t.y<BASE_Y-25 && picked.every(p=>Math.hypot(p.x-t.x,p.y-t.y)>38));
+    if(low.length) picked.push(low[Math.floor(rnd()*low.length)]);
+  }
+  const palette = ['#7d2118','#a22d1c','#c13f23','#d9532b','#ec6e3a'];
+  for(const tip of picked){
+    const R = 17 + rnd()*9;
+    const fx = tip.x + (rnd()-0.5)*4, fy = tip.y - R*0.25;
+    /* тёмная тень под кроной и тёплое свечение */
+    g.fillStyle='rgba(0,0,0,0.30)';
+    g.beginPath(); g.ellipse(fx+2,fy+R*0.55,R*0.95,R*0.55,0,0,Math.PI*2); g.fill();
+    const glow = g.createRadialGradient(fx,fy,R*0.3,fx,fy,R*1.6);
+    glow.addColorStop(0,'rgba(255,90,40,0.16)'); glow.addColorStop(1,'rgba(255,90,40,0)');
+    g.fillStyle=glow; g.beginPath(); g.arc(fx,fy,R*1.6,0,Math.PI*2); g.fill();
+    /* основной объём — тёмный шар */
+    g.fillStyle=palette[0];
+    g.beginPath(); g.arc(fx,fy,R,0,Math.PI*2); g.fill();
+    /* комочки листвы, чем выше — тем светлее */
+    const blobs = Math.round(R*1.6);
+    for(let i=0;i<blobs;i++){
+      const a = rnd()*Math.PI*2, d = Math.sqrt(rnd())*R*0.86;
+      const bx = fx+Math.cos(a)*d, by = fy+Math.sin(a)*d;
+      const light = Math.min(1, Math.max(0, 0.5 - (by-fy)/(R*1.6) - (bx-fx)/(R*3.2) + (rnd()-0.5)*0.35));
+      g.fillStyle = palette[Math.min(palette.length-1, Math.floor(light*palette.length))];
+      g.beginPath(); g.arc(bx,by,R*(0.16+rnd()*0.14),0,Math.PI*2); g.fill();
+    }
+    /* мелкие блики и тёмные просветы */
+    for(let i=0;i<Math.round(R*0.8);i++){
+      const a = rnd()*Math.PI*2, d = Math.sqrt(rnd())*R*0.8;
+      g.fillStyle = rnd()<0.6 ? 'rgba(255,170,100,0.75)' : 'rgba(60,12,10,0.55)';
+      g.beginPath(); g.arc(fx+Math.cos(a)*d, fy+Math.sin(a)*d - R*0.1, 0.9+rnd()*1.3, 0, Math.PI*2); g.fill();
+    }
+    /* тёмный обод снизу для объёма */
+    g.strokeStyle='rgba(40,6,6,0.45)'; g.lineWidth=2.2;
+    g.beginPath(); g.arc(fx,fy,R-1,0.15*Math.PI,0.85*Math.PI); g.stroke();
+  }
+
+  /* упавшие листья у корней */
+  for(let i=0;i<9;i++){
+    g.fillStyle = rnd()<0.5 ? 'rgba(200,70,38,0.8)' : 'rgba(120,32,24,0.8)';
+    g.beginPath(); g.ellipse(-26+rnd()*54, BASE_Y+2+rnd()*8, 2.4, 1.3, rnd()*3, 0, Math.PI*2); g.fill();
+  }
+  return c;
+}
+function drawDireTree(tree){
+  const {W,H,OX,OY} = DIRE_SPRITE;
+  const sprite = getDireTreeSprite(tree.v || 0);
+  /* лёгкое покачивание на ветру вокруг основания */
+  const sway = Math.sin(gameTime*1.1 + tree.x*0.013 + tree.y*0.007) * 0.025;
+  ctx.save();
+  ctx.translate(0,38);
+  ctx.transform(1,0,sway,1,0,0);
+  ctx.drawImage(sprite, -OX, -OY-38, W, H);
+  ctx.restore();
+  /* медленно падающие красные листья */
+  for(let i=0;i<2;i++){
+    const phase = (gameTime*0.22 + i*0.5 + (tree.x*0.0017 + tree.y*0.0011)) % 1;
+    const lx = -34 + i*38 + Math.sin(phase*7 + i*2) * 11 + phase*26;
+    const ly = -48 + phase*84;
+    ctx.save();
+    ctx.globalAlpha = Math.sin(phase*Math.PI) * 0.85;
+    ctx.translate(lx,ly); ctx.rotate(phase*9 + i);
+    ctx.fillStyle = i ? '#e2582c' : '#b8341f';
+    ctx.beginPath(); ctx.ellipse(0,0,3.2,1.7,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
 }
 function campIndexOf(camp){
   const idx = NEUTRAL_CAMPS.indexOf(camp);
@@ -3401,7 +4216,7 @@ const INVOKE_SPELLS = {
     name:'ЭМИ',
     cast(h,x,y,lvl){
       const r = 300 + 30*lvl;
-      spawnAoE(x,y,r,220 + 100*lvl,h,3,'#a0f0ff',120 + 60*lvl);
+      spawnAoE(x,y,r,480 + 240*lvl,h,3,'#a0f0ff',120 + 60*lvl);
       fxMark(x,y,r,'#a0f0ff',3);
     }
   },
@@ -3446,10 +4261,11 @@ const INVOKE_SPELLS = {
   '021': {
     name:'Бодрость',
     cast(h,x,y,lvl){
-      h.addBuff({type:'dmg', val: abilityDamage(h,70 + 40*lvl), t: 9});
-      h.addBuff({type:'as',  val: 0.8 + 0.25*lvl, t: 9});
+      h.buffs = h.buffs.filter(b => b.id !== 'invokeVigor');
+      h.addBuff({type:'spd', id:'invokeVigor', val: 0.9 + 0.2*lvl, t: 6});
       fxRing(h.x,h.y,130,'#ffe066',0.7);
-      addText(h.x, h.y-60, 'БОДРОСТЬ', '#ffe066', 1.2, 18);
+      fxRing(h.x,h.y,80,'#fff2a8',0.5);
+      addText(h.x, h.y-60, 'БОДРОСТЬ: СКОРОСТЬ +' + Math.round((0.9+0.2*lvl)*100) + '%', '#ffe066', 1.2, 18);
     }
   },
   '102': {
@@ -3462,17 +4278,23 @@ const INVOKE_SPELLS = {
   '012': {
     name:'Кузнечный дух',
     cast(h,x,y,lvl){
-      let tgt=null, bd=600;
+      let tgt=null, bd=800;
       for(const u of units){
-        if(u.team===h.team||u.dead) continue;
-        const d = Math.hypot(u.x-x, u.y-y);
+        if(u.team===h.team||u.dead||u.team===2||isStructure(u)) continue;
+        const d = Math.hypot(u.x-h.x, u.y-h.y);
         if(d < bd){ bd = d; tgt = u; }
       }
       if(tgt){
         applyDamage(tgt, abilityDamage(h,280 + 140*lvl), h);
+        fxBeam(h.x,h.y,tgt.x,tgt.y,'#ffcc00',0.35);
         fxHit(tgt.x, tgt.y, '#ffcc00');
+        fxRing(tgt.x, tgt.y, 70, '#ffcc00', 0.4);
       }
-      h.addBuff({type:'dmg', val: abilityDamage(h,40 + 25*lvl), t: 8});
+      h.buffs = h.buffs.filter(b => b.id !== 'invokeForge');
+      h.addBuff({type:'dmg', id:'invokeForge', val: 90 + 45*lvl, t: 8});
+      h.addBuff({type:'armor', id:'invokeForgeArmor', val: 4 + 3*lvl, t: 8});
+      fxRing(h.x,h.y,120,'#ffb347',0.6);
+      addText(h.x, h.y-60, 'КУЗНЕЧНЫЙ ДУХ', '#ffb347', 1.2, 18);
     }
   },
   '111': {
@@ -3846,17 +4668,22 @@ const SKILLS = {
   illusionistSwap: {
     name:'Рокировка', short:'W', type:'point', maxLevel:4,
     cd:[0,20,18,16,14], mana:[0,70,80,90,100], range:900,
-    desc:'Меняет координатами героя и ближайшей к курсору своей иллюзией.',
-    cast(h,x,y){
-      let target=null, best=160;
+    desc:'Меняет местами героя и ближайшую к курсору иллюзию и восстанавливает здоровье (15/20/25/30% от макс. HP). Если клонов нет, умение не тратится.',
+    cast(h,x,y,lvl){
+      let target=null, best=Infinity;
       for(const unit of units){
         if(!unit.isIllusion || unit.owner!==h || unit.dead) continue;
         const distance=Math.hypot(unit.x-x,unit.y-y);
         if(distance<best){best=distance;target=unit;}
       }
-      if(!target){flashMsg(h,'Нет своей иллюзии рядом с курсором');return;}
+      if(!target){flashMsg(h,'Нет клонов');return false;}
       const oldX=h.x, oldY=h.y; h.x=target.x; h.y=target.y; target.x=oldX; target.y=oldY;
       h.attackTarget=null; target.attackTarget=null; fxRing(h.x,h.y,75,'#d8b4ff',0.45);
+      const heal=Math.round(h.maxHp*(0.10+0.05*lvl));
+      h.hp=Math.min(h.maxHp,h.hp+heal);
+      addText(h.x,h.y-70,'+'+heal+' HP','#7dff9a',1.2,18);
+      fxRing(h.x,h.y,95,'#7dff9a',0.5);
+      return true;
     }
   },
   illusionistPhantom: {
@@ -4012,7 +4839,7 @@ const SKILLS = {
       h.shrapnelCharges--;
       const recharge=[0,14,13,12,11][lvl] || 14;
       h.shrapnelRechargeTimers.push(recharge);
-      aoes.push({x,y,radius,dmg:abilityDamage(h,36+18*lvl),manaDmg:0,team:h.team,source:h,
+      aoes.push({x,y,radius,dmg:abilityDamage(h,18+9*lvl),manaDmg:0,team:h.team,source:h,
         delay:0,t:0,color:'#ffd27a',applied:false,life:7.5,dead:false,
         shrapnel:true,slow:0.34+lvl*0.035,tickInterval:0.5,pulseTimer:0});
       fxMark(x,y,radius,'#ffd27a',7.5);
@@ -4159,11 +4986,12 @@ const SKILLS = {
   },
   gollyRed: {
     name:'Красный кристалл', short:'F', type:'self', maxLevel:3,
-    cd:[0,55,45,35], mana:[0,100,120,140],
-    desc:'Красный режим: утроенный урон на 10 секунд',
+    cd:[0,40,40,40], mana:[0,100,120,140],
+    desc:'Красный режим: быстрый бег и двойной урон на 6 секунд',
     cast(h){
-      h.buffs = h.buffs.filter(b => b.type !== 'gollyRed');
-      h.addBuff({type:'gollyRed', val:3, t:10});
+      h.buffs = h.buffs.filter(b => b.type !== 'gollyRed' && b.id !== 'gollyRedSpeed');
+      h.addBuff({type:'gollyRed', val:2, t:6});
+      h.addBuff({type:'spd', id:'gollyRedSpeed', val:0.7, t:6});
       addText(h.x,h.y-65,'КРАСНЫЙ РЕЖИМ', '#ff4f5e', 1.3, 18);
       fxRing(h.x,h.y,100,'#ff4f5e',0.7);
     }
@@ -4367,6 +5195,42 @@ const REGINA_SKILLS = {
     addText(h.x,h.y-75,'UNLEASH • ЯРОСТЬ x'+charges,'#ffb0c5',1.3,20);
   }}
 };
+
+const YOSYP_SKILLS = {
+  yosypBlowback:{name:'Блювака',short:'Q',type:'self',passive:true,maxLevel:4,cd:[0,0,0,0,0],mana:[0,0,0,0,0],desc:'Пассивно отравляет врагов обычными атаками. Яд наносит дополнительный урон от базовой атаки в течение 3 секунд.',cast(){ }},
+  yosypPuddles:{name:'Четыре лужи',short:'W',type:'self',maxLevel:4,cd:[0,18,16,14,12],mana:[0,70,80,90,100],desc:'Бросает 4 лужи вокруг героя: враги в зонах получают небольшой урон и оглушение. Лужи остаются на земле 6 секунд.',cast(h,x,y,lvl){
+    const angles=[-Math.PI/4,Math.PI/4,3*Math.PI/4,5*Math.PI/4];
+    const distances=[145,245,145,245];
+    const radius=104+lvl*7, damage=abilityDamage(h,55+lvl*22), hit=new Set();
+    for(let index=0;index<angles.length;index++){
+      const px=clamp(h.x+Math.cos(angles[index])*distances[index],60,WORLD-60);
+      const py=clamp(h.y+Math.sin(angles[index])*distances[index],60,WORLD-60);
+      aoes.push({x:px,y:py,radius,dmg:0,manaDmg:0,team:h.team,source:h,delay:0,t:0,color:'#91ed62',applied:true,life:6,dead:false,visual:'yosypPuddle'});
+      fxRing(px,py,radius,'#a7ff70',0.75);
+      spawnParticles(px,py,'#a7ff70',18,0.75);
+      for(const unit of units){
+        if(hit.has(unit)||unit.dead||unit.team===h.team||unit.team===2||isBuilding(unit)) continue;
+        if(Math.hypot(unit.x-px,unit.y-py)<=radius+unit.radius){
+          hit.add(unit);
+          applyDamage(unit,damage,h);
+          unit.stunTimer=Math.max(unit.stunTimer,0.85+lvl*0.12);
+        }
+      }
+    }
+    addText(h.x,h.y-72,'ЧЕТЫРЕ ЛУЖИ','#a7ff70',1.0,16);
+  }},
+  yosypDrain:{name:'Зелёный отсос',short:'R',type:'point',maxLevel:3,cd:[0,70,60,50],mana:[0,130,170,210],range:1100,ult:true,desc:'Направляет луч во вражеского героя и высасывает 75 HP в секунду в течение 12 секунд.',cast(h,x,y,lvl){
+    const target=pickUnitAt(x,y);
+    if(!target||target.team===h.team||target.dead||target.type!=='hero') { flashMsg(h,'Наведите ульту на вражеского героя'); return false; }
+    target.buffs=target.buffs.filter(buff=>buff.type!=='yosypDrain');
+    target.addBuff({type:'yosypDrain',tick:0,t:12,source:h});
+    fxBeam(h.x,h.y,target.x,target.y,'#91ed62',0.7);
+    fxRing(target.x,target.y,60,'#a7ff70',0.55);
+    addText(target.x,target.y-64,'ЙОСЫП ВЫСАСЫВАЕТ HP','#baff89',1.2,16);
+    return true;
+  }}
+};
+Object.assign(SKILLS,YOSYP_SKILLS);
 
 const TRIBUPAINER_SKILLS = {
   tribuIncendiary: {name:'Поджигающие пули',short:'Q',type:'self',passive:false,maxLevel:4,cd:[0,14,12,10,8],mana:[0,45,55,65,75],desc:'На 10 секунд дробовик поджигает цель на 5–8 секунд; урон горения растёт с уровнем навыка.',cast(h){ h.tribuIncendiaryTimer=10; addText(h.x,h.y-62,'ПОДЖИГАЮЩИЕ ПУЛИ','#ff8a3d',1.1,16); fxRing(h.x,h.y,78,'#ff5a24',0.45); }},
@@ -4599,16 +5463,17 @@ const SHARD_SKILLS = {
     cast(h){ spawnMo3giDrone(h,Math.max(1,h.skills[0]?.level||1),true); }},
   mageHunter: {name:'Антимагический клинок', short:'G', type:'self', maxLevel:1, cd:[0,28], mana:[0,80], desc:'Следующая атака наносит дополнительный урон и полностью выжигает ману цели.', cast(h){ h.addBuff({type:'shardBlade',t:10}); addText(h.x,h.y-62,'АНТИМАГИЧЕСКИЙ КЛИНОК','#caa5ff',1.1,15); }},
   dawnMaiden: {name:'Рассветный щит', short:'G', type:'self', maxLevel:1, cd:[0,30], mana:[0,90], desc:'Снижает входящий урон и лечит союзников рядом 8 секунд.', cast(h){ h.addBuff({type:'dawnShardShield',val:0.30,t:8}); heroBurst(h,'#fff0a8',105,30); }},
-  exileKnight: {name:'Клеймо изгнанника', short:'G', type:'point', maxLevel:1, cd:[0,26], mana:[0,75], range:700, desc:'Помечает врага и наносит ему мощный удар с оглушением.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } applyDamage(target,h.getDamage()*1.65,{team:h.team,source:h,attack:true}); target.addBuff({type:'shardMark',val:0.20,t:8}); target.stunTimer=Math.max(target.stunTimer,1.1); fxRing(target.x,target.y,78,'#ff7180',0.55); }},
+  exileKnight: {name:'Клеймо изгнанника', short:'G', type:'point', maxLevel:1, cd:[0,26], mana:[0,75], range:700, desc:'Помечает врага и наносит ему мощный удар с оглушением.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } applyDamage(target,h.getDamage()*1.65,{team:h.team,source:h,attack:true,fangsDamageIncluded:true,fangsDamageScale:1.65,dianaDamageIncluded:true,dianaDamageScale:1.65}); target.addBuff({type:'shardMark',val:0.20,t:8}); target.stunTimer=Math.max(target.stunTimer,1.1); fxRing(target.x,target.y,78,'#ff7180',0.55); }},
   pyro: {name:'Огненный щит', short:'G', type:'self', maxLevel:1, cd:[0,28], mana:[0,80], desc:'Щит снижает урон атак на 35% на 8 секунд.', cast(h){ h.addBuff({type:'shardShield',val:0.35,t:8}); fxRing(h.x,h.y,90,'#ff9d5c',0.55); }},
-  warlord: {name:'Бросок клинка', short:'G', type:'point', maxLevel:1, cd:[0,24], mana:[0,70], range:700, desc:'Наносит цели сильный удар и оглушает на 1.2 секунды.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } applyDamage(target,h.getDamage()*1.8,{team:h.team,source:h,attack:true}); target.stunTimer=Math.max(target.stunTimer,1.2); fxRing(target.x,target.y,70,'#8be9fd',0.5); }},
+  warlord: {name:'Бросок клинка', short:'G', type:'point', maxLevel:1, cd:[0,24], mana:[0,70], range:700, desc:'Наносит цели сильный удар и оглушает на 1.2 секунды.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } applyDamage(target,h.getDamage()*1.8,{team:h.team,source:h,attack:true,fangsDamageIncluded:true,fangsDamageScale:1.8,dianaDamageIncluded:true,dianaDamageScale:1.8}); target.stunTimer=Math.max(target.stunTimer,1.2); fxRing(target.x,target.y,70,'#8be9fd',0.5); }},
   grisha: {name:'Усиление стихий', short:'G', type:'self', maxLevel:1, cd:[0,30], mana:[0,90], desc:'Усиливает следующее заклинание Гриши на 50%.', cast(h){ h.addBuff({type:'shardSpell',val:1.5,t:12}); }},
   golly: {name:'Ледяная броня', short:'G', type:'self', maxLevel:1, cd:[0,30], mana:[0,90], desc:'Даёт 12 брони на 10 секунд.', cast(h){ h.addBuff({type:'shardArmor',val:12,t:10}); fxRing(h.x,h.y,100,'#8be9fd',0.55); }},
   sasych: {name:'Кровавая метка', short:'G', type:'point', maxLevel:1, cd:[0,28], mana:[0,70], range:700, desc:'Помечает врага: он получает на 25% больше урона 8 секунд.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } target.addBuff({type:'shardMark',val:0.25,t:8}); }},
   ilya: {name:'Ядовитое поле', short:'G', type:'point', maxLevel:1, cd:[0,32], mana:[0,100], range:650, desc:'Создаёт поле на 8 секунд. Враги внутри получают урон и не могут использовать способности.', cast(h,x,y){ aoes.push({x,y,radius:230,dmg:abilityDamage(h,70),manaDmg:0,team:h.team,source:h,delay:0,t:0,color:'#55e06f',applied:false,life:8,dead:false,silenceDuration:1.2,poisonField:true}); fxMark(x,y,230,'#55e06f',8); }},
   malit: {name:'Тяжёлый удар', short:'G', type:'point', maxLevel:1, cd:[0,28], mana:[0,80], range:650, desc:'Удар Малита наносит 220 урона и оглушает врага на 1 секунду.', cast(h,x,y){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на врага'); return; } applyDamage(target,220,h); target.stunTimer=Math.max(target.stunTimer,1); fxHit(target.x,target.y,'#f2c38b'); }},
   illusionist: {name:'Зеркальный зал', short:'G', type:'self', maxLevel:1, cd:[0,32], mana:[0,100], desc:'Создаёт две сильные иллюзии на 10 секунд.', cast(h){ spawnIllusion(h,{life:10,damageMultiplier:0.8,damageTakenMultiplier:1.5,angle:0}); spawnIllusion(h,{life:10,damageMultiplier:0.8,damageTakenMultiplier:1.5,angle:Math.PI}); fxRing(h.x,h.y,110,'#e8d4ff',0.65); }}
-   ,shadow: {name:'Тёмный залп', short:'G', type:'point', maxLevel:1, cd:[0,28], mana:[0,90], range:700, desc:'Выпускает усиленный ближний койл, наносящий 910 урона.', cast(h,x,y){ castShadowCoil(h,x,y,1,700,910,1300,420); }}
+  ,shadow: {name:'Тёмный залп', short:'G', type:'point', maxLevel:1, cd:[0,28], mana:[0,90], range:700, desc:'Выпускает усиленный ближний койл, наносящий 910 урона.', cast(h,x,y){ castShadowCoil(h,x,y,1,700,910,1300,420); }}
+  ,savely: {name:'Резонанс клича', short:'G', type:'self', maxLevel:1, cd:[0,30], mana:[0,90], desc:'Звонкий клич дополнительно замедляет врагов на 40% и снижает им броню на 5 на 3.5 секунды.', cast(h){ h.shardSkill=true; addText(h.x,h.y-62,'КЛИЧ УСИЛЕН SHARD','#8be9fd',1.1,16); }}
 };
 
 const MALIT_SKILLS = {
@@ -4662,6 +5527,31 @@ const MALIT_SKILLS = {
     }
   }
 };
+
+const SAVELY_SKILLS = {
+  savelyEvade:{name:'Ловкий уворот',short:'Q',type:'self',passive:true,maxLevel:1,cd:[0,0],mana:[0,0],desc:'Пассивно: каждая 4-я входящая физическая атака гарантированно промахивается.'},
+  savelyCry:{name:'Звонкий клич',short:'W',type:'self',maxLevel:4,cd:[0,11,9,7,5],mana:[0,75,90,105,120],damage:[0,130,210,290,370],radius:350,desc:'Громкий крик наносит магический урон врагам вокруг. С шардом замедляет и снижает броню.',cast(h,x,y,lvl){
+    const shard=!!h.shardSkill;
+    for(const unit of units){
+      if(unit.dead||unit.team===h.team||unit.team===2||isBuilding(unit)||Math.hypot(unit.x-h.x,unit.y-h.y)>this.radius+unit.radius) continue;
+      applyDamage(unit,abilityDamage(h,this.damage[lvl]),h);
+      if(shard){unit.slow=Math.max(unit.slow||0,0.4);unit.slowT=Math.max(unit.slowT||0,3.5);unit.addBuff({type:'armor',id:'savelyCryArmor',val:-5,t:3.5});}
+    }
+    fxRing(h.x,h.y,this.radius,'#ffbd54',0.8);spawnParticles(h.x,h.y,'#fff0a8',52,1.45);addText(h.x,h.y-this.radius-20,shard?'ЗВОНКИЙ КЛИЧ • SHARD':'ЗВОНКИЙ КЛИЧ','#ffe09a',1.2,18);playHeroSfx('savelyCry');
+  }},
+  savelyTransformer:{name:'Форма Трансформера',short:'E',type:'self',maxLevel:4,cd:[0,60,53,46,39],mana:[0,90,105,120,135],duration:[0,10,12,14,16],damage:[0,30,50,70,90],attackSpeed:[0,40,65,90,115],speed:[0,0.12,0.16,0.20,0.24],desc:'Савелий нажимает на родинку и превращается в робота: получает урон, скорость атаки и скорость передвижения.',cast(h,x,y,lvl){
+    h.buffs = Array.isArray(h.buffs) ? h.buffs : []; h.buffs=h.buffs.filter(buff=>!['savelyTransformer','savelyTransformerDamage','savelyTransformerAttack','savelyTransformerSpeed'].includes(buff.id)); const safeLevel=clamp(Number(lvl)||1,1,4); const duration=this.duration[safeLevel]; h.addBuff({type:'savelyTransformer',id:'savelyTransformer',t:duration}); h.addBuff({type:'dmg',id:'savelyTransformerDamage',val:this.damage[safeLevel],t:duration}); h.addBuff({type:'as',id:'savelyTransformerAttack',val:this.attackSpeed[safeLevel]/100,t:duration}); h.addBuff({type:'spd',id:'savelyTransformerSpeed',val:this.speed[safeLevel],t:duration}); heroBurst(h,'#ffb347',125,42); addText(h.x,h.y-82,'ФОРМА ТРАНСФОРМЕРА • '+duration+' СЕК','#ffd36b',1.3,18); playHeroSfx('savelyTransform');
+  }},
+  savelyFear:{name:'Яростный рев',short:'R',type:'point',maxLevel:3,ult:true,cd:[0,75,60,45],mana:[0,170,220,270],range:[0,1000,1200,1400],damage:[0,323,468,612],fearDuration:[0,2,2.5,3],desc:'Рёв по прямой линии наносит магический урон и заставляет врагов разбегаться.',cast(h,x,y,lvl){
+    const safeLevel=clamp(Number(lvl)||1,1,3);
+    const targetX=Number.isFinite(x)?x:h.x+Math.cos(h.angle||0)*this.range[safeLevel];
+    const targetY=Number.isFinite(y)?y:h.y+Math.sin(h.angle||0)*this.range[safeLevel];
+    const angle=Math.atan2(targetY-h.y,targetX-h.x),distance=Math.min(this.range[safeLevel],Math.hypot(targetX-h.x,targetY-h.y)||1),width=115;
+    for(const unit of units){const along=(unit.x-h.x)*Math.cos(angle)+(unit.y-h.y)*Math.sin(angle),across=Math.abs((unit.x-h.x)*Math.sin(angle)-(unit.y-h.y)*Math.cos(angle));if(unit.dead||unit.team===h.team||unit.team===2||isBuilding(unit)||along<0||along>distance||across>width+unit.radius)continue;applyDamage(unit,abilityDamage(h,this.damage[safeLevel]),h);unit.buffs=Array.isArray(unit.buffs)?unit.buffs.filter(buff=>buff.type!=='fear'):[];unit.addBuff({type:'fear',id:'savelyFear',t:this.fearDuration[safeLevel],sourceX:h.x,sourceY:h.y});}
+    const ex=h.x+Math.cos(angle)*distance,ey=h.y+Math.sin(angle)*distance;fxBeam(h.x,h.y,ex,ey,'#ffcf68',0.75);fxRing(h.x,h.y,100,'#ff8f45',0.75);spawnParticles(ex,ey,'#fff0ad',45,1.4);addText(h.x+Math.cos(angle)*distance*.55,h.y+Math.sin(angle)*distance*.55-34,'СТРАХ','#fff0a8',1.3,20);playHeroSfx('savelyFear');
+  }}
+};
+Object.assign(SKILLS,SAVELY_SKILLS);
 Object.assign(SKILLS, MALIT_SKILLS);
 
 function triggerAftershockPulse(hero){
@@ -4989,6 +5879,16 @@ const HERO_DEFS = [
       skills:['reginaDispose','reginaRebound','reginaUnleash'], weapon:{type:'dualBlades',color:'#ff9fbd',size:1.05}
     },
   {
+    id:'yosyp', name:'Йосып', title:'Зелёный токсик',
+    color:'#42612d', color2:'#a7ff70',
+    baseHp:930, hpPerLvl:122, baseMp:360, mpPerLvl:44,
+    baseDmg:78, dmgPerLvl:8.4, speed:164,
+    atkRange:175, atkTime:1.02, baseArmor:5, armorPerLvl:0.62,
+    vision:1020, hpRegen:2.5, mpRegen:2.4,
+    lateSkillGrowth:0.016,
+    skills:['yosypBlowback','yosypPuddles','yosypDrain'], weapon:{type:'club',color:'#a7ff70',size:1.12}
+  },
+  {
     id:'dawnMaiden', name:'Рассветная дева', title:'Танк / инициатор',
     balanceScale:0.78, damageScale:1,
     color:'#8a5424', color2:'#fff3b0', baseHp:1160, hpPerLvl:154,
@@ -5000,7 +5900,7 @@ const HERO_DEFS = [
   },
   {
     id:'exileKnight', name:'Рыцарь-изгнанник', title:'Ближний carry',
-    balanceScale:0.84, damageScale:1,
+    balanceScale:0.84, damageScale:0.72,
     color:'#18384f', color2:'#9bdfff', baseHp:980, hpPerLvl:132,
     baseMp:280, mpPerLvl:34, baseDmg:135, dmgPerLvl:11, speed:178,
     atkRange:145, atkTime:0.84, baseArmor:7, armorPerLvl:0.82,
@@ -5027,6 +5927,17 @@ const HERO_DEFS = [
     vision:1080, hpRegen:2.0, mpRegen:2.8,
     skills:['chipCommand','chipCrown','chipCoin','chipThrone'],
     weapon:{type:'scepter',color:'#ffd568',size:1.0}
+  },
+  {
+    id:'savely', name:'Савелий', title:'Жирный футбольный трансформер',
+    color:'#254f68', color2:'#ffcc66',
+    baseHp:1008, hpPerLvl:133.2, baseMp:300, mpPerLvl:34,
+    baseDmg:102, dmgPerLvl:9.5, speed:158,
+    atkRange:155, atkTime:0.96, baseArmor:8, armorPerLvl:0.82,
+    vision:1000, hpRegen:3.4, mpRegen:1.8,
+    lateSkillGrowth:0.018, lateAttackGrowth:0.012,
+    skills:['savelyEvade','savelyCry','savelyTransformer','savelyFear'],
+    weapon:{type:'club',color:'#ffcc66',size:1.35}
   },
   {
     id:'juggernaut', name:'Джаггернаут', title:'Мастер катаны',
@@ -5060,6 +5971,25 @@ const HERO_DEFS = [
   }
 ];
 
+const HERO_STAT_BALANCE = {
+  pyro:[600,78,50,3.5,1], warlord:[920,112,78,4.2,0.94], grisha:[560,72,30,2.4,1.08],
+  golly:[760,106,46,3.4,1], sasych:[610,72,47,2.8,0.92], ilya:[1010,126,78,3.5,0.93],
+  malit:[930,116,68,3.2,0.95], arcady:[620,74,52,3.5,1], illusionist:[680,82,60,3.6,0.94],
+  shadow:[850,97,58,3.2,1], electricGosha:[720,86,54,3.5,1.02], mo3gi:[800,95,64,3.8,0.95],
+  tribupainer:[850,102,32,2.5,0.95], mageHunter:[760,92,52,2.5,0.92], regina:[870,105,60,2.6,0.94],
+  yosyp:[860,102,70,7.8,0.98],
+  dawnMaiden:[1080,137,72,3,0.92], exileKnight:[900,112,90,3.7,0.92], juvsyut:[970,128,68,3.2,0.95],
+  chip:[760,90,58,3.3,1.03], savely:[970,116,80,3.4,0.94], juggernaut:[930,110,78,3,0.94],
+  earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04]
+};
+
+for(const def of HERO_DEFS){
+  [def.baseHp, def.hpPerLvl, def.baseDmg, def.dmgPerLvl, def.abilityDamageScale] = HERO_STAT_BALANCE[def.id];
+  if(def.damageScale === undefined) def.damageScale = 1;
+  if(def.lateSkillGrowth) def.lateSkillGrowth *= 0.25;
+  if(def.lateAttackGrowth) def.lateAttackGrowth *= 0.25;
+}
+
 function offerTalent(hero){
   return;
 }
@@ -5069,8 +5999,8 @@ class Hero extends Unit {
     const balanceScale = def.balanceScale || 1;
     super({
       x:BASES[team].x, y:BASES[team].y, team,
-      radius:24, speed:def.speed * balanceScale,
-      hp:def.baseHp * balanceScale + 500 + 350, dmg:def.baseDmg * (def.damageScale || balanceScale),
+      radius:24, speed:def.speed * balanceScale * 0.9,
+      hp:def.baseHp, dmg:def.baseDmg,
       atkRange:def.atkRange, atkTime:def.atkTime,
       armor:def.baseArmor * balanceScale, vision:def.vision,
       type:'hero', xpValue:420
@@ -5117,8 +6047,8 @@ class Hero extends Unit {
       this.skills[1].free = true;
     }
     if(def.id === 'golly'){
-      this.skills[3].level = 1;
-      this.skills[3].free = true;
+      this.skills[4].level = 1;
+      this.skills[4].free = true;
     }
   }
   /* Уровни 1–6 сохраняют прежнюю стоимость.
@@ -5147,9 +6077,13 @@ class Hero extends Unit {
     this.level++; this.skillPoints++;
     const d = this.def;
     const balanceScale = d.balanceScale || 1;
-    this.maxHp += d.hpPerLvl * balanceScale; this.hp = Math.min(this.maxHp, this.hp + d.hpPerLvl * balanceScale);
+    this.maxHp += d.hpPerLvl; this.hp = Math.min(this.maxHp, this.hp + d.hpPerLvl);
     this.maxMp += d.mpPerLvl * balanceScale; this.mp = Math.min(this.maxMp, this.mp + d.mpPerLvl * balanceScale);
     this.dmg += d.dmgPerLvl * (d.damageScale || balanceScale); this.armor += d.armorPerLvl * balanceScale;
+    if(this.def.id === 'golly' && this.level >= 6 && this.skills[3] && this.skills[3].level < 1){
+      this.skills[3].level = 1; this.skills[3].free = true;
+      addText(this.x, this.y-100, 'ЛЕДЯНЫЕ ГОЛЕМЫ ОТКРЫТЫ', '#8eeaff', 1.4, 18);
+    }
     if(this.level >= 10 && this.level % 5 === 0) offerTalent(this);
     addText(this.x, this.y-70, 'УРОВЕНЬ ' + this.level, '#ffe066', 1.4, 20);
     fxRing(this.x, this.y, 110, '#ffe066', 0.7);
@@ -5247,6 +6181,7 @@ class Hero extends Unit {
       return;
     }
     this.combatTimer = Math.max(0, (this.combatTimer || 0) - dt);
+    tickYosypEffects(this,dt);
     this.tickTimers(dt);
     const bladeFury=this.buffs.find(buff=>buff.type==='bladeFury');
     const omnislash=this.buffs.find(buff=>buff.type==='omnislash');
@@ -5309,6 +6244,16 @@ class Hero extends Unit {
       if(!item) continue;
       if(item.cooldown > 0) item.cooldown = Math.max(0, item.cooldown - dt);
       if(item.activeTimer > 0) item.activeTimer = Math.max(0, item.activeTimer - dt);
+      if(item.id === 'holyLocket' && !this.dead){
+        const lockerCfg = SHOP_ITEMS.holyLocket;
+        if((item.charges || 0) < lockerCfg.maxCharges){
+          item.chargeTimer = (item.chargeTimer || 0) + dt;
+          if(item.chargeTimer >= lockerCfg.chargeInterval){
+            item.chargeTimer -= lockerCfg.chargeInterval;
+            item.charges = Math.min(lockerCfg.maxCharges, (item.charges || 0) + 1);
+          }
+        }
+      }
       if(item.id === 'dianaPants' && item.auraOn && !this.dead){
         item.auraTimer = (item.auraTimer || 0) - dt;
         if(item.auraTimer <= 0){
@@ -5318,7 +6263,7 @@ class Hero extends Unit {
       }
     }
     if(this.timurPillow > 0){
-      const heal = Math.min(this.maxHp - this.hp, 60 * dt);
+      const heal = Math.min(this.maxHp - this.hp, 60 * dt * healAmpOf(this));
       this.hp += heal;
       this.timurPillow = Math.max(0, this.timurPillow - dt);
     }
@@ -5328,7 +6273,7 @@ class Hero extends Unit {
     let regen = this.hpRegen;
     for(const b of this.buffs) if(b.type === 'hpregen') regen += b.val;
     if(this.buffs.some(b=>b.type==='regen')) regen += this.maxHp*0.04;
-    this.hp = Math.min(this.maxHp, this.hp + regen*dt);
+    this.hp = Math.min(this.maxHp, this.hp + regen*dt*healAmpOf(this));
 
     const base = BASES[this.team];
     const nearBase = Math.hypot(this.x-base.x, this.y-base.y) < BASE_HEAL_RADIUS;
@@ -5534,6 +6479,8 @@ function spawnWave(){
   }
 }
 
+function draftSkipRect(){ return {x:VW-24-230,y:78,w:230,h:38}; }
+
 function beginDraft(preselected=-1){
   menuStage='draft';
   draftTime=30;
@@ -5571,9 +6518,9 @@ function startGame(playerIndex, draftPicks=null){
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
-  gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
+  gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
    barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
-  firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
+  structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
   structureProgress=[createStructureProgress(),createStructureProgress()];
    rampageBanner={t:0, owner:null, streak:0};
   shopOpen=false;
@@ -5614,6 +6561,7 @@ function startGame(playerIndex, draftPicks=null){
 
   playerHero = new Hero(HERO_DEFS[playerIndex], 0);
   playerHero.isPlayer = true;
+  if(redReginaSkinEquipped && playerHero.def.id==='regina') playerHero.skinId='reginaRed';
   enemyHero  = new Hero(HERO_DEFS[enemyIndex], 1);
   const allyHero = new Hero(HERO_DEFS[allyIndex], 0);
   const allyHero2 = new Hero(HERO_DEFS[allyIndex2], 0);
@@ -5621,6 +6569,8 @@ function startGame(playerIndex, draftPicks=null){
   const enemyAllyHero2 = new Hero(HERO_DEFS[enemyAllyIndex2], 1);
   const allyMidHero = new Hero(HERO_DEFS[allyMidIndex], 0);
   const enemyMidHero = new Hero(HERO_DEFS[enemyMidIndex], 1);
+  createBotScenario(0,[allyHero,allyHero2,allyMidHero]);
+  createBotScenario(1,[enemyHero,enemyAllyHero,enemyAllyHero2,enemyMidHero]);
   allyMidHero.midPushAssignment = true;
   enemyHero.midPushAssignment = true;
   enemyMidHero.midPushAssignment = true;
@@ -5659,11 +6609,14 @@ function startGame(playerIndex, draftPicks=null){
   cam.x = playerHero.x;
   cam.y = playerHero.y;
   gameState = 'playing';
+  startMatchIntro();
   canvas.focus();
 }
 
+let structuresSwapped = false;
 function orientOnlineMapForTeam(globalTeam){
   if(globalTeam !== 1) return;
+  structuresSwapped = true;
   [BASES[0],BASES[1]] = [BASES[1],BASES[0]];
   for(const lane of LANES) lane.reverse();
   for(const tower of TOWER_SPOTS) tower.team = 1-tower.team;
@@ -5688,7 +6641,7 @@ function startTestMode(playerIndex){
   explored = new Uint8Array(GRID*GRID);
   gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
   barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
-  firstBloodDone=false; resultAnnounced=false; prematchTime=0;
+  structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=0;
   structureProgress=[createStructureProgress(),createStructureProgress()];
   rampageBanner={t:0, owner:null, streak:0};
   shopOpen=false; shopGuideOpen=false; shopScrollRow=0; pendingPurchaseId=null;
@@ -5708,6 +6661,7 @@ function startTestMode(playerIndex){
 
   playerHero = new Hero(HERO_DEFS[playerIndex], 0);
   playerHero.isPlayer = true;
+  if(redReginaSkinEquipped && playerHero.def.id==='regina') playerHero.skinId='reginaRed';
   enemyHero = null;
   playerHero.x = WORLD/2;
   playerHero.y = WORLD/2;
@@ -5802,6 +6756,132 @@ function botLaneObjective(h){
   /* До 5:00 герой держит свою линию, не телепортируясь сразу под чужую базу. */
   const safePoint = h.team === 0 ? path[Math.min(1, path.length - 1)] : path[Math.max(0, path.length - 2)];
   return safePoint || path[0];
+}
+
+function createBotScenario(team, members){
+  const scenarioId = Math.floor(Math.random() * 6) + 1;
+  botTeamScenarios[team] = {id:scenarioId,phase:1,elapsed:0,midKill:false,towers:Object.create(null),members};
+  members.forEach((hero,index) => { hero.botScenarioSlot = index; });
+}
+
+function noteBotScenarioKill(team, victim){
+  const scenario = botTeamScenarios[team];
+  if(scenario && victim && laneDistanceToPoint(victim.x,victim.y,0) < 520) scenario.midKill = true;
+}
+
+function noteBotScenarioTower(team, tower){
+  const scenario = botTeamScenarios[team];
+  if(scenario && tower && tower.type === 'tower' && tower.team !== team){
+    scenario.towers[tower.lane + ':' + tower.tier] = true;
+  }
+}
+
+function scenarioTowerDown(scenario,lane){
+  return !!scenario.towers[lane + ':1'];
+}
+
+function advanceBotScenario(scenario, dt){
+  if(!scenario || scenario.phase >= 6) return;
+  scenario.elapsed += dt;
+  const allies = scenario.members.filter(hero => hero && !hero.dead);
+  const readyLevel = allies.length > 0 && allies.every(hero => hero.level >= 3);
+  const sideTowersDown = scenarioTowerDown(scenario,1) && scenarioTowerDown(scenario,2);
+  let advance = false;
+  switch(scenario.id){
+    case 1:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 8 :
+        scenario.phase === 2 ? scenario.elapsed >= 150 :
+        scenario.phase === 3 ? scenario.elapsed >= 25 :
+        scenario.phase === 4 ? scenarioTowerDown(scenario,0) || scenario.elapsed >= 180 :
+        scenario.phase === 5 ? sideTowersDown || scenario.elapsed >= 120 : false;
+      break;
+    case 2:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 10 :
+        scenario.phase === 2 ? readyLevel || scenario.elapsed >= 100 :
+        scenario.phase === 3 ? scenario.midKill || scenario.elapsed >= 100 :
+        scenario.phase === 4 ? scenarioTowerDown(scenario,0) || scenario.elapsed >= 140 :
+        scenario.phase === 5 ? scenarioTowerDown(scenario,2) || scenario.elapsed >= 120 : false;
+      break;
+    case 3:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 8 :
+        scenario.phase === 2 ? gameTime >= 240 :
+        scenario.phase === 3 ? scenario.elapsed >= 30 :
+        scenario.phase === 4 ? sideTowersDown || scenario.elapsed >= 150 :
+        scenario.phase === 5 ? scenario.elapsed >= 30 : false;
+      break;
+    case 4:
+      advance = scenario.phase === 1 ? gameTime >= 120 :
+        scenario.phase === 2 ? scenario.elapsed >= 25 :
+        scenario.phase === 3 ? scenario.elapsed >= 55 :
+        scenario.phase === 4 ? scenarioTowerDown(scenario,1) || scenario.elapsed >= 120 :
+        scenario.phase === 5 ? scenario.elapsed >= 50 : false;
+      break;
+    case 5:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 8 :
+        scenario.phase === 2 ? scenario.midKill || scenario.elapsed >= 240 :
+        scenario.phase === 3 ? scenario.elapsed >= 10 :
+        scenario.phase === 4 ? scenarioTowerDown(scenario,0) || scenario.elapsed >= 150 :
+        scenario.phase === 5 ? scenario.elapsed >= 60 : false;
+      break;
+    case 6:
+      advance = scenario.phase === 1 ? scenario.elapsed >= 60 :
+        scenario.phase === 2 ? scenario.elapsed >= 90 :
+        scenario.phase === 3 ? scenario.elapsed >= 30 :
+        scenario.phase === 4 ? Object.keys(scenario.towers).length > 0 || scenario.elapsed >= 150 :
+        scenario.phase === 5 ? scenario.elapsed >= 90 : false;
+      break;
+  }
+  if(advance){ scenario.phase++; scenario.elapsed = 0; }
+}
+
+function updateBotScenarios(dt){
+  for(const scenario of botTeamScenarios) advanceBotScenario(scenario,dt);
+}
+
+function botScenarioDirective(hero){
+  const scenario = botTeamScenarios[hero.team];
+  if(!scenario) return null;
+  const slot = hero.botScenarioSlot || 0;
+  const lanes = (values) => values[Math.min(slot,values.length-1)];
+  let lane = 0, jungle = false, passive = false, rune = false;
+  switch(scenario.id){
+    case 1:
+      if(scenario.phase <= 2){ lane=lanes([1,2,2]); jungle=slot===2; passive=scenario.phase===2; }
+      else if(scenario.phase <= 4) lane=0;
+      else if(scenario.phase === 5) lane=lanes([1,1,2]);
+      else jungle=true;
+      break;
+    case 2:
+      if(scenario.phase <= 2){ lane=slot===2?2:1; jungle=slot<2; passive=scenario.phase===2; }
+      else if(scenario.phase <= 4) lane=slot===2?2:0;
+      else lane=2;
+      break;
+    case 3:
+      if(scenario.phase <= 4){ lane=lanes([1,2,0]); passive=scenario.phase===2; }
+      else lane=0;
+      break;
+    case 4:
+      if(scenario.phase===1 || scenario.phase===6) jungle=true;
+      else if(scenario.phase===2) lane=lanes([1,2,0]);
+      else if(scenario.phase===3){ lane=0; rune=true; }
+      else if(scenario.phase===4) lane=slot<2?1:0;
+      else lane=0;
+      break;
+    case 5:
+      if(scenario.phase<=2){ lane=slot===0?1:2; passive=scenario.phase===2; }
+      else if(scenario.phase<=4 || scenario.phase===6) lane=0;
+      else jungle=true;
+      break;
+    case 6:
+      if(scenario.phase<=2) lane=slot===2 ? (Math.floor(scenario.elapsed/18)%3) : (slot===0?1:slot===1?2:0);
+      else if(scenario.phase===3) lane=slot===0?2:slot===1?1:0;
+      else if(scenario.phase===4) lane=units
+        .filter(unit => unit.type==='tower' && unit.team!==hero.team && !unit.dead)
+        .sort((left,right)=>left.hp/left.maxHp-right.hp/right.maxHp)[0]?.lane ?? 0;
+      else lane=0;
+      break;
+  }
+  return {lane,jungle,passive,rune,scenario};
 }
 
 function isUnitOnBotLane(unit, lane){
@@ -5900,8 +6980,20 @@ function updateEnemyAI(h, dt){
   if(steelIndex >= 0 && h.inventory[steelIndex].cooldown <= 0 && h.attackTarget){
     useInventoryItem(h, steelIndex);
   }
+  const botTarget = h.attackTarget && !h.attackTarget.dead && h.attackTarget.team !== h.team ? h.attackTarget : null;
+  const botTargetDistance = botTarget ? Math.hypot(botTarget.x-h.x,botTarget.y-h.y) : Infinity;
+  for(const itemId of ['aghanimHead','munition']){
+    const itemIndex = h.inventory.findIndex(item => item && item.id === itemId);
+    if(itemIndex >= 0 && h.inventory[itemIndex].cooldown <= 0 && botTarget &&
+       botTargetDistance <= h.getAttackRange() + botTarget.radius + 100) useInventoryItem(h,itemIndex);
+  }
   if(h.aiTimer > 0) return;
   h.aiTimer = 0.18;
+  const scenarioDirective = botScenarioDirective(h);
+  if(scenarioDirective){
+    h.assignedLane = scenarioDirective.lane;
+    h.midPushAssignment = scenarioDirective.lane === 0;
+  }
 
   const base = BASES[h.team];
   const hpPct = h.hp / h.maxHp;
@@ -5933,8 +7025,56 @@ function updateEnemyAI(h, dt){
     castSkill(h, 1, h.x, h.y);
   }
 
-  const strategicLane = gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
-  if(gameTime >= MID_PUSH_TIME && h.midPushAssignment) h.assignedLane = 0;
+  const farmPhaseEnemy = gameTime < BOT_FARM_PHASE_TIME
+    ? heroes.filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead &&
+        Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
+      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0]
+    : null;
+  if(!scenarioDirective && gameTime < BOT_FARM_PHASE_TIME && !farmPhaseEnemy){
+    const farmLane = Number.isInteger(h.assignedLane) ? h.assignedLane : 0;
+    const laneCreep = units
+      .filter(unit => unit.type === 'creep' && unit.team !== h.team && !unit.dead &&
+        laneDistanceToPoint(unit.x,unit.y,farmLane) < 190 && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
+      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    if(laneCreep){
+      h.laneState = 'lane';
+      h.attackTarget = laneCreep;
+      h.moveTarget = null;
+      return;
+    }
+    if(updateBotFarm(h)) return;
+    h.attackTarget = null;
+    h.laneState = 'lane';
+    const path = LANES[farmLane] || LANES[0];
+    const farmingWaypoint = path[h.team === 0 ? Math.min(1,path.length-1) : Math.max(0,path.length-2)];
+    h.moveTarget = {x:farmingWaypoint.x+rnd(-70,70),y:farmingWaypoint.y+rnd(-70,70)};
+    return;
+  }
+  if(scenarioDirective && scenarioDirective.passive){
+    const defender = units.filter(unit => unit.type==='hero' && unit.team!==h.team && !unit.dead &&
+      Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
+      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    if(defender){ h.attackTarget=defender; h.moveTarget=null; return; }
+    const creep = units.filter(unit => unit.type==='creep' && unit.team!==h.team && !unit.dead &&
+      laneDistanceToPoint(unit.x,unit.y,scenarioDirective.lane)<220 && Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
+      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    if(creep){ h.laneState='lane'; h.attackTarget=creep; h.moveTarget=null; return; }
+    if(updateBotFarm(h)) return;
+    h.attackTarget=null;
+    const safePath=LANES[scenarioDirective.lane]||LANES[0];
+    const safePoint=safePath[h.team===0?Math.min(1,safePath.length-1):Math.max(0,safePath.length-2)];
+    h.moveTarget={x:safePoint.x,y:safePoint.y};
+    return;
+  }
+  if(scenarioDirective && scenarioDirective.rune && runes.length){
+    const rune=runes.slice().sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    if(Math.hypot(rune.x-h.x,rune.y-h.y)>48){ h.attackTarget=null; h.moveTarget={x:rune.x,y:rune.y}; return; }
+  }
+  if(scenarioDirective && scenarioDirective.jungle && !farmPhaseEnemy && updateBotFarm(h)) return;
+
+  const strategicLane = scenarioDirective ? scenarioDirective.lane :
+    (gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0));
+  if(!scenarioDirective && gameTime >= MID_PUSH_TIME && h.midPushAssignment) h.assignedLane = 0;
   const laneEnemy = units
     .filter(unit => unit.team !== h.team && unit.team !== 2 && !unit.dead &&
       isUnitOnBotLane(unit, strategicLane) && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
@@ -5949,7 +7089,7 @@ function updateEnemyAI(h, dt){
       ally !== h && Math.hypot(ally.x-unit.x,ally.y-unit.y) < 520
     ))
     .sort((left,right) => Math.hypot(left.x-h.x,left.y-h.y) - Math.hypot(right.x-h.x,right.y-h.y))[0] : null;
-  const visibleEnemy = nearbyFight || laneEnemy;
+  const visibleEnemy = farmPhaseEnemy || nearbyFight || laneEnemy;
   if(gameTime < MID_PUSH_TIME && visibleEnemy){
     h.laneState = 'lane';
     h.attackTarget=visibleEnemy;
@@ -5968,9 +7108,9 @@ function updateEnemyAI(h, dt){
   }
 
   const structureTarget = getBotStructureObjective(h, strategicLane);
-  const urgentFight = nearbyFight &&
+  const urgentFight = farmPhaseEnemy || (nearbyFight &&
     Math.hypot(nearbyFight.x-h.x, nearbyFight.y-h.y) <= 760
-      ? nearbyFight : null;
+      ? nearbyFight : null);
   const nearbyCreep = laneEnemy && laneEnemy.type !== 'hero' &&
     Math.hypot(laneEnemy.x-h.x, laneEnemy.y-h.y) <= 260
       ? laneEnemy : null;
@@ -6127,6 +7267,26 @@ function updateEnemyAI(h, dt){
     return;
   }
 
+  if(h.def.id === 'regina' || h.def.id === 'yosyp'){
+    if(target){
+      const d=Math.hypot(target.x-h.x,target.y-h.y);
+      h.attackTarget=target; h.moveTarget=null;
+      if(h.def.id==='regina'){
+        if(h.skills[2] && h.skills[2].level>0 && h.skills[2].cd<=0 && d<420) castSkill(h,2,h.x,h.y);
+        else if(h.skills[1] && h.skills[1].level>0 && h.skills[1].cd<=0 && d<760) castSkill(h,1,target.x,target.y);
+        else if(h.skills[0] && h.skills[0].cd<=0 && d<620) castSkill(h,0,target.x,target.y);
+      } else {
+        if(h.skills[2] && h.skills[2].level>0 && h.skills[2].cd<=0 && target.type==='hero' && d<1050) castSkill(h,2,target.x,target.y);
+        else if(h.skills[1] && h.skills[1].level>0 && h.skills[1].cd<=0 && d<700) castSkill(h,1,h.x,h.y);
+      }
+    } else {
+      h.attackTarget=null;
+      const goal=botLaneObjective(h);
+      h.moveTarget={x:goal.x+rnd(-100,100),y:goal.y+rnd(-100,100)};
+    }
+    return;
+  }
+
   /* === ПИРОМАНТ / ВОЖДЬ === */
   if(target){
     const d = Math.hypot(target.x-h.x, target.y-h.y);
@@ -6151,7 +7311,7 @@ function updateEnemyAI(h, dt){
         castSkill(h, 1, h.x, h.y);
       if(isHero && h.skills[2].level>0 && h.skills[2].cd<=0 && d>200 && d<620)
         castSkill(h, 2, target.x, target.y);
-      if(isHero && h.skills[3].level>0 && h.skills[3].cd<=0 && d<400)
+      if(isHero && h.skills[3] && h.skills[3].level>0 && h.skills[3].cd<=0 && d<400)
         castSkill(h, 3, h.x, h.y);
     }
   } else {
@@ -6163,8 +7323,9 @@ function updateEnemyAI(h, dt){
 
 function update(dt){
   if(gameState !== 'playing') return;
-  if(prematchTime > 0){ updatePrematch(dt); return; }
+  if(prematchTime > 0){ updatePrematch(dt); updatePrematchMovement(dt); return; }
   gameTime += dt;
+  updateBotScenarios(dt);
   updateBotChatReplies();
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
   if(rampageBanner.t > 0) rampageBanner.t = Math.max(0, rampageBanner.t - dt);
@@ -6786,13 +7947,12 @@ canvas.addEventListener('mousedown', e => {
          * Активные предметы применяются только своей забиндованной клавишей.
          * Shift+клик по-прежнему используется для перестановки слотов.
          */
-        if(e.shiftKey){
-          draggedInventoryIndex=i;
-        } else if(item.active){
+        draggedInventoryIndex=i;
+        if(item.active && e.shiftKey){
           addText(playerHero.x, playerHero.y - 58,
             'НАЖМИТЕ ' + inventoryBinds[i].toUpperCase() + ' ДЛЯ ИСПОЛЬЗОВАНИЯ',
             item.color || '#b9c7d8', 0.9, 13);
-        } else {
+        } else if(!item.active){
           addText(playerHero.x, playerHero.y - 58, 'ПАССИВНЫЙ ПРЕДМЕТ', item.color || '#b9c7d8', 0.8, 13);
         }
       }
@@ -6868,6 +8028,11 @@ canvas.addEventListener('mouseup', e => {
 });
 
 window.addEventListener('keydown', e => {
+  if(gameState === 'menu' && menuStage === 'draft' && draftPlayerIndex >= 0 && !settingsOpen && (e.code === 'Enter' || e.code === 'NumpadEnter')){
+    startGame(draftPlayerIndex, draftBotIndices);
+    e.preventDefault();
+    return;
+  }
   if(gameState === 'menu' && settingsOpen && rebindSlot >= 0){
     if(e.code === 'Escape'){ rebindSlot=-1; return; }
     /* Сохраняем канонический латинский символ физической клавиши,
@@ -6944,6 +8109,9 @@ window.addEventListener('keydown', e => {
     const physicalLetter = PHYSICAL_KEY_LETTER[code];
     if(physicalLetter) itemSlot = inventoryBinds.indexOf(physicalLetter);
   }
+  const skillKey = PHYSICAL_KEY_LETTER[code] || key;
+  const skillKeyConflict = ['q','w','e','r','f','g'].includes(skillKey);
+  if(skillKeyConflict) itemSlot = -1;
   if(itemSlot >= 0){
     useInventoryItem(playerHero, itemSlot);
     e.preventDefault();
@@ -7011,12 +8179,13 @@ function drawRoadEdgeFringe(lane,laneIndex){
         const hash=edgeHash(segment*97+index,laneIndex*11+side);
         const x=centerX+nx*side*(78+hash*28);
         const y=centerY+ny*side*(78+hash*28);
+        const darkSide=x>y;
         ctx.globalAlpha=0.28+hash*0.32;
         if(hash>0.48){
-          ctx.fillStyle=hash>0.76?'rgba(90,120,50,0.6)':'rgba(106,132,58,0.54)';
+          ctx.fillStyle=darkSide?(hash>0.76?'rgba(30,48,36,0.7)':'rgba(40,62,46,0.62)'):(hash>0.76?'rgba(90,120,50,0.6)':'rgba(106,132,58,0.54)');
           ctx.beginPath(); ctx.ellipse(x,y,3+hash*5,2+hash*3,Math.atan2(dy,dx),0,Math.PI*2); ctx.fill();
         } else {
-          ctx.fillStyle=pathTexturePattern||'rgba(138,119,79,0.7)';
+          ctx.fillStyle=(darkSide?darkPathTexturePattern:pathTexturePattern)||'rgba(138,119,79,0.7)';
           ctx.beginPath(); ctx.ellipse(x,y,5+hash*8,3+hash*5,Math.atan2(dy,dx),0,Math.PI*2); ctx.fill();
         }
       }
@@ -7032,21 +8201,22 @@ function drawTerrain(){
   terrainGradient.addColorStop(1, '#241d26');
   ctx.fillStyle = terrainGradient;
   ctx.fillRect(0,0,WORLD,WORLD);
-  if(grassTexturePattern){
-    ctx.save();
-    ctx.globalAlpha = 0.92;
-    ctx.fillStyle = grassTexturePattern;
-    ctx.fillRect(0,0,WORLD,WORLD);
-    ctx.restore();
-  }
+  ctx.fillStyle = grassTexturePattern;
+  ctx.fillRect(0,0,WORLD,WORLD);
+  /* Земли Тьмы: чёрная трава с красными цветами и тёмными камнями. */
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(WORLD,0); ctx.lineTo(WORLD,WORLD); ctx.closePath(); ctx.clip();
+  ctx.fillStyle = darkGrassTexturePattern;
+  ctx.fillRect(0,0,WORLD,WORLD);
+  ctx.restore();
 
   // Светлая и тёмная половины карты получают разные оттенки.
   ctx.save();
-  ctx.fillStyle='rgba(0,0,0,0.34)';
+  ctx.fillStyle='rgba(0,0,0,0.08)';
   ctx.beginPath();
   ctx.moveTo(0,0); ctx.lineTo(WORLD,0); ctx.lineTo(WORLD,WORLD); ctx.closePath();
   ctx.fill();
-  ctx.fillStyle='rgba(58,150,92,0.14)';
+  ctx.fillStyle='rgba(58,150,92,0.04)';
   ctx.beginPath();
   ctx.moveTo(0,0); ctx.lineTo(0,WORLD); ctx.lineTo(WORLD,WORLD); ctx.closePath();
   ctx.fill();
@@ -7054,13 +8224,13 @@ function drawTerrain(){
 
   /* Мягкая сетка и крупные пятна рельефа делают пустые поля живее. */
   ctx.save();
-  ctx.strokeStyle='rgba(164,211,157,0.045)';
+  ctx.strokeStyle='rgba(164,211,157,0.02)';
   ctx.lineWidth=2;
   for(let x=0;x<=WORLD;x+=220){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD); ctx.stroke(); }
   for(let y=0;y<=WORLD;y+=220){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD,y); ctx.stroke(); }
   ctx.restore();
 
-  ctx.fillStyle = 'rgba(35,60,25,0.55)';
+  ctx.fillStyle = 'rgba(35,60,25,0.14)';
   for(let x=0; x<WORLD; x+=220){
     for(let y=0; y<WORLD; y+=220){
       const s = ((x*13 + y*7) % 90) + 60;
@@ -7070,19 +8240,13 @@ function drawTerrain(){
     }
   }
 
-  ctx.fillStyle='rgba(92,126,58,0.28)';
-  for(let x=90; x<WORLD; x+=180){
-    for(let y=90; y<WORLD; y+=210){
-      if((x*7+y*11)%5 > 1) continue;
-      ctx.beginPath(); ctx.arc(x+((y*3)%50),y+((x*5)%46),22,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(218,190,74,0.55)';
-      ctx.fillRect(x+((y*3)%50)-2,y+((x*5)%46)-2,4,4);
-      ctx.fillStyle='rgba(92,126,58,0.28)';
-    }
-  }
+  drawTerrainDecor();
 
   ctx.save();
   /* Песчаное дно лежит под полупрозрачной водой, поэтому через неё видно берег. */
+  ctx.strokeStyle = 'rgba(26,34,30,0.34)';
+  ctx.lineWidth = 494; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(90, 90); ctx.lineTo(WORLD-90, WORLD-90); ctx.stroke();
   ctx.strokeStyle = '#b79a61';
   ctx.lineWidth = 470; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(90, 90); ctx.lineTo(WORLD-90, WORLD-90); ctx.stroke();
@@ -7133,7 +8297,7 @@ function drawTerrain(){
     ctx.strokeStyle = pathTexturePattern || '#776543';
     ctx.lineWidth = 132;
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(20,15,8,0.22)';
+    ctx.strokeStyle = 'rgba(20,15,8,0.08)';
     ctx.lineWidth = 132; ctx.stroke();
     ctx.strokeStyle = 'rgba(255,235,190,0.10)';
     ctx.lineWidth = 96; ctx.stroke();
@@ -7142,7 +8306,41 @@ function drawTerrain(){
     ctx.lineWidth = 40; ctx.stroke();
     ctx.restore();
 
+    /* На землях Тьмы дорога из чёрного базальта с тлеющими искрами. */
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(WORLD,0); ctx.lineTo(WORLD,WORLD); ctx.closePath(); ctx.clip();
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(lane[0].x, lane[0].y);
+    for(let i=1;i<lane.length;i++) ctx.lineTo(lane[i].x, lane[i].y);
+    ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=196; ctx.stroke();
+    ctx.strokeStyle='#1b1517'; ctx.lineWidth=158; ctx.stroke();
+    ctx.strokeStyle=darkPathTexturePattern||'#3a3335'; ctx.lineWidth=132; ctx.stroke();
+    ctx.strokeStyle='rgba(255,70,50,0.05)'; ctx.lineWidth=40; ctx.stroke();
+    ctx.restore();
+
     drawRoadEdgeFringe(lane, laneIndex);
+
+    ctx.save();
+    for(let segment=1;segment<lane.length;segment++){
+      const start=lane[segment-1], end=lane[segment];
+      const dx=end.x-start.x, dy=end.y-start.y, length=Math.hypot(dx,dy)||1;
+      const angle=Math.atan2(dy,dx), nx=-dy/length, ny=dx/length;
+      const steps=Math.floor(length/112);
+      for(let step=1;step<steps;step++){
+        const t=step/steps, cx=start.x+dx*t, cy=start.y+dy*t;
+        for(let row=-1;row<=1;row++){
+          const hash=edgeHash(step+segment*71,row+laneIndex*9);
+          const px=cx+nx*row*38, py=cy+ny*row*38;
+          ctx.save(); ctx.translate(px,py); ctx.rotate(angle);
+          ctx.fillStyle=hash>.52?'rgba(190,166,118,0.20)':'rgba(31,27,20,0.19)';
+          ctx.fillRect(-39,-10,78,20);
+          ctx.strokeStyle='rgba(22,19,15,0.24)'; ctx.lineWidth=2;
+          ctx.strokeRect(-39,-10,78,20);
+          ctx.restore();
+        }
+      }
+    }
+    ctx.restore();
 
     const marker = lane[Math.min(1, lane.length-1)];
     ctx.save();
@@ -7271,7 +8469,13 @@ function drawTerrain(){
   for(const tree of trees){
     if(tree.x < cam.x-VW/2-60 || tree.x > cam.x+VW/2+60 || tree.y < cam.y-VH/2-60 || tree.y > cam.y+VH/2+60) continue;
     ctx.save(); ctx.translate(tree.x,tree.y);
-    if(tree.kind==='pine'){
+    ctx.fillStyle='rgba(3,8,7,0.34)';
+    ctx.beginPath(); ctx.ellipse(9,34,29,10,-0.18,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(205,230,166,0.10)';
+    ctx.beginPath(); ctx.ellipse(-8,25,15,4,-0.18,0,Math.PI*2); ctx.fill();
+    if(tree.kind==='dire'){
+      drawDireTree(tree);
+    } else if(tree.kind==='pine'){
       ctx.fillStyle='#4b2c1f'; ctx.fillRect(-5,2,10,38);
       ctx.fillStyle='#1a543e'; ctx.beginPath(); ctx.moveTo(0,-38); ctx.lineTo(-23,10); ctx.lineTo(23,10); ctx.closePath(); ctx.fill();
       ctx.fillStyle='#2d8a5c'; ctx.beginPath(); ctx.moveTo(0,-28); ctx.lineTo(-18,5); ctx.lineTo(18,5); ctx.closePath(); ctx.fill();
@@ -7337,6 +8541,8 @@ function drawTerrain(){
 }
 
 function getWeaponConfig(unit){
+  if(unit.def && unit.def.id==='regina' && unit.skinId==='reginaRed')
+    return {...unit.def.weapon,color:'#ff344f'};
   if(unit.def && unit.def.weapon) return unit.def.weapon;
   if(unit.type === 'creep'){
     return unit.ranged
@@ -7373,6 +8579,7 @@ function drawReferenceTexture(image, accent){
 }
 
 function drawUnitWeapon(unit){
+  if(unit.def && unit.def.id === 'yosyp') return;
   const weapon=getWeaponConfig(unit);
   if(!weapon) return;
   const target=unit.attackTarget && unit.attackTarget.alive ? unit.attackTarget : null;
@@ -7650,6 +8857,198 @@ function drawNeutralCreepBody(u, col){
   ctx.strokeStyle=col; ctx.globalAlpha=0.68; ctx.lineWidth=2;
   ctx.beginPath(); ctx.arc(0,0,u.radius+3,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
 }
+
+/* =========================================================
+   Модели башен и трона в стиле Dota 2:
+   Силы Света — светлый камень с голубым свечением и сакура,
+   Силы Тьмы — чёрный шипастый камень с красными прожилками и огнём.
+   ========================================================= */
+function structurePoly(points, fill, stroke, lw){
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for(let i=1;i<points.length;i++) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.closePath();
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
+
+function drawLightTowerModel(r, t){
+  const s = r / 20;
+  ctx.save();
+  ctx.scale(s, s);
+  const pulse = 0.65 + 0.35 * Math.sin(t * 2.2);
+  /* каменное основание-диск с водой */
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 12, 26, 10, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#b8ab8c'; ctx.strokeStyle = '#6f654f'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(0, 10, 24, 9, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#9fe6f5'; ctx.globalAlpha = 0.55 + 0.25 * pulse;
+  ctx.beginPath(); ctx.ellipse(0, 10, 15, 5.5, 0, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+  /* корпус-обелиск */
+  const body = ctx.createLinearGradient(-14, 0, 14, 0);
+  body.addColorStop(0, '#cfc4a6'); body.addColorStop(0.5, '#efe6cf'); body.addColorStop(1, '#a79b7d');
+  structurePoly([[-12,10],[-14,-8],[-10,-24],[-3,-34],[8,-31],[14,-20],[13,-4],[11,10]], body, '#6f654f', 1.6);
+  /* голова-«птичий клюв» */
+  structurePoly([[-10,-24],[-3,-34],[8,-31],[16,-27],[8,-24],[-1,-22]], '#f6efdc', '#6f654f', 1.4);
+  /* голубое свечение в трещинах */
+  ctx.save();
+  ctx.shadowColor = '#7fe3ff'; ctx.shadowBlur = 8 * pulse;
+  ctx.fillStyle = 'rgba(130,225,255,' + (0.75 + 0.2 * pulse) + ')';
+  structurePoly([[-9,-20],[-1,-24],[3,-21],[-4,-17]], ctx.fillStyle, null);
+  structurePoly([[-10,-9],[2,-13],[8,-9],[-1,-4]], ctx.fillStyle, null);
+  structurePoly([[-8,2],[1,-1],[6,3],[-2,7]], ctx.fillStyle, null);
+  structurePoly([[4,-29],[8,-28],[6,-25]], ctx.fillStyle, null);
+  ctx.restore();
+  /* золотая кромка */
+  ctx.strokeStyle = 'rgba(224,178,70,0.85)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(-13, 8); ctx.lineTo(-14, -8); ctx.stroke();
+  ctx.restore();
+}
+
+function drawDarkTowerModel(r, t){
+  const s = r / 20;
+  ctx.save();
+  ctx.scale(s, s);
+  const pulse = 0.6 + 0.4 * Math.sin(t * 3.1 + 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 12, 27, 10, 0, 0, Math.PI*2); ctx.fill();
+  /* груда камней в основании */
+  structurePoly([[-24,12],[-17,2],[-9,6],[-2,-2],[8,5],[17,0],[25,12],[10,17],[-12,17]], '#2b2e33', '#0d0f12', 1.6);
+  structurePoly([[-17,2],[-9,6],[-12,12],[-22,11]], '#3a3e44', null);
+  /* корпус из чёрных блоков */
+  structurePoly([[-11,6],[-13,-8],[-9,-20],[-12,-26],[-4,-30],[0,-36],[6,-30],[13,-24],[10,-12],[12,6]], '#23262b', '#0d0f12', 1.8);
+  structurePoly([[-13,-8],[-9,-20],[-5,-15],[-8,-3]], '#32363c', null);
+  structurePoly([[3,-27],[10,-14],[8,4],[2,2]], '#181a1e', null);
+  /* «шляпа» башни */
+  structurePoly([[-16,-24],[-6,-30],[-2,-38],[6,-37],[10,-31],[18,-26],[8,-22],[-8,-22]], '#1b1d21', '#0d0f12', 1.6);
+  /* красные прожилки */
+  ctx.save();
+  ctx.shadowColor = '#ff3b2b'; ctx.shadowBlur = 8 * pulse;
+  ctx.strokeStyle = 'rgba(255,70,50,' + (0.7 + 0.3 * pulse) + ')'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(-11,-14); ctx.lineTo(-3,-9); ctx.lineTo(4,-12); ctx.lineTo(11,-6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-9,-2); ctx.lineTo(0,2); ctx.lineTo(8,-1); ctx.stroke();
+  ctx.restore();
+  /* огненное око под шляпой */
+  ctx.save();
+  ctx.shadowColor = '#ff8a3d'; ctx.shadowBlur = 12 * pulse;
+  ctx.fillStyle = 'rgba(255,150,60,' + (0.8 + 0.2 * pulse) + ')';
+  ctx.beginPath(); ctx.ellipse(-3, -23, 4.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff1c0'; ctx.beginPath(); ctx.ellipse(-3, -23, 1.8, 1.2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawLightAncientModel(r, t){
+  const s = r / 46;
+  ctx.save();
+  ctx.scale(s, s);
+  const pulse = 0.65 + 0.35 * Math.sin(t * 1.8);
+  /* каменная площадка */
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 20, 62, 24, 0, 0, Math.PI*2); ctx.fill();
+  const plates = [[-54,18,-34,2,-8,10,-14,22],[8,10,38,0,56,16,34,26],[-30,24,-4,12,26,24,6,34]];
+  structurePoly([[-56,14],[-38,-2],[-6,-8],[30,-4],[56,12],[40,28],[0,34],[-38,30]], '#8d8672', '#4f4a3b', 2);
+  structurePoly([[-44,12],[-24,2],[0,-2],[24,2],[44,12],[22,24],[-20,24]], '#a49d86', null);
+  /* сияющий голубой портал в центре */
+  const portal = ctx.createRadialGradient(0, 6, 2, 0, 6, 34);
+  portal.addColorStop(0, 'rgba(235,252,255,' + (0.95) + ')');
+  portal.addColorStop(0.4, 'rgba(120,220,255,' + (0.7 * pulse + 0.2) + ')');
+  portal.addColorStop(1, 'rgba(60,160,230,0)');
+  ctx.fillStyle = portal; ctx.beginPath(); ctx.ellipse(0, 6, 36, 20, 0, 0, Math.PI*2); ctx.fill();
+  /* световой столб */
+  const beam = ctx.createLinearGradient(0, -90, 0, 6);
+  beam.addColorStop(0, 'rgba(150,225,255,0)'); beam.addColorStop(1, 'rgba(150,225,255,' + (0.35 * pulse + 0.15) + ')');
+  ctx.fillStyle = beam; ctx.fillRect(-14, -90, 28, 96);
+  /* ствол дерева сакуры */
+  structurePoly([[-14,18],[-10,-6],[-18,-22],[-8,-16],[-2,-34],[4,-16],[14,-24],[8,-4],[16,18],[0,12]], '#5a4332', '#2e2118', 2);
+  /* кристаллы */
+  ctx.save(); ctx.shadowColor = '#8be9fd'; ctx.shadowBlur = 10 * pulse;
+  structurePoly([[-46,6],[-42,-30],[-34,-4]], '#bfeeff', '#4aa8c9', 1.4);
+  structurePoly([[-30,-2],[-26,-40],[-20,-8]], '#9fe3ff', '#4aa8c9', 1.4);
+  structurePoly([[34,0],[40,-32],[46,2]], '#bfeeff', '#4aa8c9', 1.4);
+  ctx.restore();
+  /* белые каменные глыбы */
+  structurePoly([[-30,-6],[-18,-26],[-4,-22],[-6,-4]], '#e9dfc8', '#8a7f66', 1.6);
+  structurePoly([[8,-8],[16,-30],[30,-24],[32,-6]], '#e9dfc8', '#8a7f66', 1.6);
+  structurePoly([[-16,12],[-4,-2],[10,2],[12,16]], '#cfc3a6', '#8a7f66', 1.6);
+  /* розовая крона */
+  const blossoms = [[-34,-14,13],[-18,-30,15],[0,-38,16],[18,-30,15],[34,-14,13],[-8,-18,12],[12,-14,12],[-26,0,10],[28,2,10],[0,-24,12]];
+  blossoms.forEach((b, i) => {
+    const sway = Math.sin(t * 1.2 + i) * 1.2;
+    ctx.fillStyle = i % 2 ? '#f27fb3' : '#ff9fc9';
+    ctx.beginPath(); ctx.arc(b[0] + sway, b[1], b[2], 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,225,238,0.55)';
+    ctx.beginPath(); ctx.arc(b[0] + sway - b[2]*0.25, b[1] - b[2]*0.3, b[2]*0.45, 0, Math.PI*2); ctx.fill();
+  });
+  /* лепестки */
+  ctx.fillStyle = 'rgba(255,170,205,0.85)';
+  for(let i=0;i<6;i++){
+    const ph = (t * 0.35 + i / 6) % 1;
+    ctx.beginPath(); ctx.ellipse(-30 + i * 12 + Math.sin(ph * 6 + i) * 6, -20 + ph * 50, 2.4, 1.4, ph * 6, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawDarkAncientModel(r, t){
+  const s = r / 46;
+  ctx.save();
+  ctx.scale(s, s);
+  const pulse = 0.6 + 0.4 * Math.sin(t * 2.6);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(0, 20, 64, 25, 0, 0, Math.PI*2); ctx.fill();
+  /* тёмная каменная плита */
+  structurePoly([[-58,14],[-40,-4],[-6,-10],[32,-6],[58,12],[42,30],[0,36],[-40,32]], '#34373d', '#0d0f12', 2);
+  structurePoly([[-44,14],[-22,2],[2,-2],[26,2],[46,14],[22,26],[-22,26]], '#2a2d32', null);
+  /* раскалённое ядро */
+  const core = ctx.createRadialGradient(0, 8, 2, 0, 8, 38);
+  core.addColorStop(0, 'rgba(255,245,190,1)');
+  core.addColorStop(0.3, 'rgba(255,150,50,' + (0.85 * pulse + 0.15) + ')');
+  core.addColorStop(0.7, 'rgba(210,40,20,' + (0.55 * pulse + 0.15) + ')');
+  core.addColorStop(1, 'rgba(120,10,10,0)');
+  ctx.fillStyle = core; ctx.beginPath(); ctx.ellipse(0, 8, 42, 22, 0, 0, Math.PI*2); ctx.fill();
+  /* языки пламени */
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for(let i=0;i<5;i++){
+    const fx = -18 + i * 9, h = 18 + 10 * Math.sin(t * 5 + i * 1.7);
+    const fg = ctx.createLinearGradient(0, 10, 0, 10 - h);
+    fg.addColorStop(0, 'rgba(255,120,40,0.6)'); fg.addColorStop(1, 'rgba(255,60,20,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.moveTo(fx - 5, 10); ctx.quadraticCurveTo(fx, 10 - h * 0.6, fx + Math.sin(t * 4 + i) * 3, 10 - h); ctx.quadraticCurveTo(fx + 3, 10 - h * 0.4, fx + 5, 10); ctx.fill();
+  }
+  ctx.restore();
+  /* шипастые башни-когти по кругу (сзади → спереди) */
+  const spires = [
+    {x:-34,y:-4,h:62,w:12},{x:34,y:-4,h:62,w:12},
+    {x:-42,y:18,h:48,w:11},{x:42,y:18,h:48,w:11},
+    {x:0,y:-8,h:70,w:12}
+  ];
+  spires.forEach((sp, i) => {
+    const lean = sp.x === 0 ? 0 : (sp.x < 0 ? 5 : -5);
+    structurePoly([[sp.x - sp.w, sp.y + 12],[sp.x - sp.w * 0.6, sp.y - sp.h * 0.45],[sp.x + lean, sp.y - sp.h],[sp.x + sp.w * 0.6, sp.y - sp.h * 0.45],[sp.x + sp.w, sp.y + 12]], '#1c1e22', '#07080a', 1.8);
+    structurePoly([[sp.x - sp.w, sp.y + 12],[sp.x - sp.w * 0.6, sp.y - sp.h * 0.45],[sp.x + lean, sp.y - sp.h],[sp.x - 1, sp.y - sp.h * 0.2]], '#2d3036', null);
+    /* красный отсвет изнутри */
+    ctx.save(); ctx.shadowColor = '#ff3b2b'; ctx.shadowBlur = 8 * pulse;
+    ctx.strokeStyle = 'rgba(255,80,50,' + (0.5 + 0.4 * pulse) + ')'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(sp.x, sp.y + 10); ctx.lineTo(sp.x + (sp.x < 0 ? 3 : -3), sp.y - sp.h * 0.5); ctx.stroke();
+    ctx.restore();
+  });
+  /* искры */
+  ctx.fillStyle = 'rgba(255,190,90,0.9)';
+  for(let i=0;i<7;i++){
+    const ph = (t * 0.6 + i / 7) % 1;
+    ctx.beginPath(); ctx.arc(-20 + i * 7 + Math.sin(ph * 8 + i) * 4, 8 - ph * 60, 1.6 * (1 - ph) + 0.4, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawStructureModel(u, col){
+  const t = gameTime || performance.now() / 1000;
+  const light = (u.team === 0) !== structuresSwapped;
+  /* цветное кольцо у основания — чтобы команду было видно с первого взгляда */
+  ctx.save();
+  ctx.strokeStyle = col; ctx.globalAlpha = 0.55; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(0, u.radius * 0.45, u.radius * (u.isBase ? 1.35 : 1.45), u.radius * (u.isBase ? 0.55 : 0.6), 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+  if(u.isBase){ light ? drawLightAncientModel(u.radius, t) : drawDarkAncientModel(u.radius, t); }
+  else { light ? drawLightTowerModel(u.radius, t) : drawDarkTowerModel(u.radius, t); }
+}
+
 function drawUnit(u){
   if(u.dead) return;
   if(u.invisible) return;
@@ -7659,10 +9058,12 @@ function drawUnit(u){
   const col = TEAM_COL[u.team];
   const arcProgress = u.arcMotion ? clamp(u.arcMotion.t/u.arcMotion.duration,0,1) : 0;
   const arcLift = u.arcMotion ? Math.sin(arcProgress*Math.PI) * u.arcMotion.height : 0;
-  const visualLift = arcLift || (u.liftTimer > 0 ? Math.sin((0.65-u.liftTimer)/0.65*Math.PI)*45 : 0);
+  const windLift = u.windTimer > 0 ? Math.min(1, (SHOP_ITEMS.windWaker.duration - u.windTimer + 0.12) / 0.3) * (38 + Math.sin(gameTime*6)*5) : 0;
+  const visualLift = arcLift || windLift || (u.liftTimer > 0 ? Math.sin((0.65-u.liftTimer)/0.65*Math.PI)*45 : 0);
   const walkableUnit = u.type !== 'tower' && u.type !== 'barracks' && u.type !== 'ancient';
   const strideAmt = walkableUnit ? Math.sin(u.walkPhase*Math.PI*2) : 0;
   const walkBob = walkableUnit ? Math.abs(strideAmt) * Math.min(5, u.radius*0.2) * (u.moving?1:0) : 0;
+  if(u.windTimer > 0 || u.nullifyTimer > 0) drawItemStatusFx(u, visualLift);
   ctx.save();
   ctx.translate(u.x, u.y - visualLift - walkBob);
 
@@ -7709,7 +9110,7 @@ function drawUnit(u){
     ctx.restore();
   }
   if(u.type === 'hero'){
-    const heroAccent = u.def.color2 || col;
+    const heroAccent = u.skinId === 'reginaRed' ? '#ff344f' : (u.def.color2 || col);
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = heroAccent;
@@ -7756,21 +9157,7 @@ function drawUnit(u){
   }
 
   if(u.type === 'tower' || u.type === 'ancient'){
-    const sz = u.radius;
-    ctx.fillStyle = u.isBase ? '#3a3a55' : '#4a4a68';
-    ctx.strokeStyle = col; ctx.lineWidth = 5;
-    ctx.beginPath();
-    if(u.isBase){
-      ctx.moveTo(0,-sz); ctx.lineTo(sz,0); ctx.lineTo(0,sz); ctx.lineTo(-sz,0);
-      ctx.closePath();
-    } else {
-      ctx.rect(-sz*0.75, -sz, sz*1.5, sz*2);
-    }
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(0, u.isBase ? 0 : -sz*1.15, u.isBase ? 18 : 13, 0, Math.PI*2);
-    ctx.fill();
+    drawStructureModel(u, col);
   } else if(u.type === 'barracks'){
     const barracksGradient=ctx.createLinearGradient(-u.radius,-u.radius,u.radius,u.radius);
     barracksGradient.addColorStop(0,u.team===0?'#8fb8c4':'#a65e68');
@@ -7786,7 +9173,7 @@ function drawUnit(u){
     ctx.fillStyle='rgba(255,220,150,0.8)'; ctx.fillRect(-6,5,4,5); ctx.fillRect(2,5,4,5);
   } else if(u.type === 'hero'){
     const isReferenceModel = ['juggernaut','sniper'].includes(u.def.id);
-    const isDetailedModel = ['sasych','ilya','malit','arcady','juvsyut','chip','earthshaker'].includes(u.def.id) || isReferenceModel;
+    const isDetailedModel = ['sasych','ilya','malit','arcady','juvsyut','chip','earthshaker','yosyp'].includes(u.def.id) || isReferenceModel;
     if(!isDetailedModel){
     const pulse = 1 + Math.sin(gameTime*3)*0.06;
     ctx.strokeStyle = col;
@@ -8548,6 +9935,37 @@ function drawUnit(u){
       ctx.beginPath(); ctx.roundRect(-10,18,20,17,4); ctx.fill(); ctx.stroke();
        ctx.fillStyle='#1b83c9'; ctx.fillRect(-5,21,10,4);
        ctx.restore();
+     } else if(u.def.id==='savely'){
+       const s=u.radius/24;
+       ctx.save(); ctx.scale(s,s);
+       const robot=u.buffs&&u.buffs.some(buff=>buff.id==='savelyTransformer');
+       ctx.shadowColor=robot?'#ffb347':'#5ed5ff'; ctx.shadowBlur=robot?22:12;
+       ctx.fillStyle=robot?'rgba(255,150,45,0.22)':'rgba(42,164,210,0.2)';
+       ctx.beginPath(); ctx.ellipse(0,16,42,37,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+       ctx.fillStyle=robot?'#a94f2d':'#d84d35'; ctx.strokeStyle='#421f2b'; ctx.lineWidth=2.5;
+       ctx.beginPath(); ctx.moveTo(-31,-1); ctx.lineTo(-40,34); ctx.quadraticCurveTo(0,51,40,34); ctx.lineTo(31,-1); ctx.closePath(); ctx.fill(); ctx.stroke();
+       ctx.fillStyle=robot?'#e7a33d':'#f1e4cf'; ctx.strokeStyle=robot?'#572b25':'#a43c37';
+       ctx.beginPath(); ctx.moveTo(-24,0); ctx.lineTo(-27,39); ctx.quadraticCurveTo(0,46,27,39); ctx.lineTo(24,0); ctx.closePath(); ctx.fill(); ctx.stroke();
+       ctx.strokeStyle=robot?'#ffcf55':'#d94f46'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,1); ctx.lineTo(0,42); ctx.stroke();
+       ctx.fillStyle='#172b42'; ctx.strokeStyle='#081321'; ctx.lineWidth=2;
+       ctx.beginPath(); ctx.ellipse(-13,42,10,5,0,0,Math.PI*2); ctx.ellipse(13,42,10,5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle=robot?'#798899':'#c98862'; ctx.strokeStyle='#4a2d31';
+       ctx.beginPath(); ctx.ellipse(0,-12,26,28,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle=robot?'#263848':'#3d222b'; ctx.beginPath(); ctx.arc(0,-29,25,Math.PI,Math.PI*2); ctx.fill();
+       ctx.fillStyle=robot?'#ffdc6b':'#fff1d0'; ctx.shadowColor=robot?'#ffb347':'#fff1d0'; ctx.shadowBlur=robot?12:4;
+       ctx.beginPath(); ctx.ellipse(-9,-12,5,3,0,0,Math.PI*2); ctx.ellipse(9,-12,5,3,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+       ctx.strokeStyle='#512934'; ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(0,0,10,0.15,Math.PI-0.15); ctx.stroke();
+       ctx.fillStyle=robot?'#ffb347':'#f5c65c'; ctx.strokeStyle='#744122'; ctx.lineWidth=1.5;
+       ctx.beginPath(); ctx.arc(0,15,7,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle='#fff0c7'; ctx.font='bold 8px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText('S',0,18);
+       ctx.fillStyle=robot?'#536779':'#e1eef4'; ctx.strokeStyle='#182838'; ctx.lineWidth=2;
+       ctx.beginPath(); ctx.ellipse(-30,4,8,12,-0.35,0,Math.PI*2); ctx.ellipse(30,4,8,12,0.35,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle='#f3ead9'; ctx.strokeStyle='#263447'; ctx.lineWidth=2;
+       ctx.beginPath(); ctx.arc(47,25,12,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.strokeStyle='#273849'; ctx.lineWidth=1.4;
+       for(let i=0;i<5;i++){const a=i*Math.PI/2.5;ctx.beginPath();ctx.moveTo(47,25);ctx.lineTo(47+Math.cos(a)*10,25+Math.sin(a)*10);ctx.stroke();}
+      if(robot){ctx.fillStyle='#ffbd42';ctx.beginPath();ctx.arc(0,-43,4+Math.sin(gameTime*8)*1.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ffdc72';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-31,7);ctx.lineTo(-43,25);ctx.moveTo(31,7);ctx.lineTo(43,25);ctx.stroke();}
+       ctx.restore();
      } else if(u.def.id==='juvsyut'){
        /* Джувсют — отдельный силуэт: широкий живот, клетчатая рубаха,
           фартук и огромная деревянная ложка вместо стандартного шара. */
@@ -8611,32 +10029,75 @@ function drawUnit(u){
        ctx.fillStyle='#fff0a8'; ctx.font='bold 9px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText('C',0,21);
        ctx.restore();
      } else if(u.def.id==='regina'){
-       // Ригина повторяет референс: рыжий высокий хвост, синяя форма,
-       // светлая кираса, зелёный плащ и походный рюкзак.
+      // Палитра меняется для выбранного игроком косметического образа.
+      const redSkin=u.skinId==='reginaRed';
        const s = u.radius/24;
        ctx.save();
        ctx.scale(s,s);
-       ctx.fillStyle='rgba(29,54,83,0.34)'; ctx.shadowColor='#ff6f91'; ctx.shadowBlur=18;
+       ctx.fillStyle=redSkin?'rgba(100,12,30,0.38)':'rgba(29,54,83,0.34)'; ctx.shadowColor=redSkin?'#ff263f':'#ff6f91'; ctx.shadowBlur=18;
        ctx.beginPath(); ctx.ellipse(0,15,33,39,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-       ctx.fillStyle='#31557f'; ctx.strokeStyle='#172d49'; ctx.lineWidth=2;
+       ctx.fillStyle=redSkin?'#78172b':'#31557f'; ctx.strokeStyle=redSkin?'#310b18':'#172d49'; ctx.lineWidth=2;
        ctx.beginPath(); ctx.moveTo(-22,-4); ctx.lineTo(-31,31); ctx.lineTo(0,41); ctx.lineTo(31,31); ctx.lineTo(22,-4); ctx.closePath(); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#d9e4ea'; ctx.strokeStyle='#a7bfd0'; ctx.lineWidth=1.5;
+       ctx.fillStyle=redSkin?'#eadce0':'#d9e4ea'; ctx.strokeStyle=redSkin?'#c88995':'#a7bfd0'; ctx.lineWidth=1.5;
        ctx.beginPath(); ctx.moveTo(-15,-2); ctx.lineTo(15,-2); ctx.lineTo(18,28); ctx.quadraticCurveTo(0,36,-18,28); ctx.closePath(); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#3f78b1'; ctx.fillRect(-5,0,4,24); ctx.fillRect(3,0,4,24);
-       ctx.fillStyle='#9a6844'; ctx.strokeStyle='#4b3025'; ctx.lineWidth=2;
+       ctx.fillStyle=redSkin?'#c62842':'#3f78b1'; ctx.fillRect(-5,0,4,24); ctx.fillRect(3,0,4,24);
+       ctx.fillStyle=redSkin?'#692536':'#9a6844'; ctx.strokeStyle=redSkin?'#32101a':'#4b3025'; ctx.lineWidth=2;
        ctx.beginPath(); ctx.roundRect(-29,0,9,28,3); ctx.roundRect(20,0,9,28,3); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#243b3c'; ctx.strokeStyle='#6c8a80';
+       ctx.fillStyle=redSkin?'#4a101f':'#243b3c'; ctx.strokeStyle=redSkin?'#cf5267':'#6c8a80';
        ctx.beginPath(); ctx.moveTo(-28,-4); ctx.lineTo(-38,-18); ctx.lineTo(-30,-30); ctx.lineTo(-18,-12); ctx.closePath(); ctx.fill(); ctx.stroke();
        ctx.beginPath(); ctx.moveTo(28,-4); ctx.lineTo(38,-18); ctx.lineTo(30,-30); ctx.lineTo(18,-12); ctx.closePath(); ctx.fill(); ctx.stroke();
        ctx.fillStyle='#e0a276'; ctx.strokeStyle='#6d4434'; ctx.lineWidth=1.5;
        ctx.beginPath(); ctx.ellipse(0,-13,18,21,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#a84f2d'; ctx.strokeStyle='#5c2e22'; ctx.lineWidth=2;
+       ctx.fillStyle=redSkin?'#52101e':'#a84f2d'; ctx.strokeStyle=redSkin?'#260810':'#5c2e22'; ctx.lineWidth=2;
        ctx.beginPath(); ctx.moveTo(-19,-17); ctx.quadraticCurveTo(-15,-39,4,-37); ctx.quadraticCurveTo(20,-35,22,-18); ctx.lineTo(15,-25); ctx.quadraticCurveTo(2,-33,-10,-24); ctx.closePath(); ctx.fill(); ctx.stroke();
-       ctx.fillStyle='#c96535'; ctx.beginPath(); ctx.arc(25,-34,13,0,Math.PI*2); ctx.fill(); ctx.stroke();
-       ctx.strokeStyle='#e8a06c'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-12,-25); ctx.lineTo(-19,-7); ctx.moveTo(7,-29); ctx.lineTo(16,-12); ctx.stroke();
+       ctx.fillStyle=redSkin?'#b12640':'#c96535'; ctx.beginPath(); ctx.arc(25,-34,13,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.strokeStyle=redSkin?'#e4465d':'#e8a06c'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-12,-25); ctx.lineTo(-19,-7); ctx.moveTo(7,-29); ctx.lineTo(16,-12); ctx.stroke();
        ctx.fillStyle='#6f352b'; ctx.beginPath(); ctx.arc(-7,-12,2.4,0,Math.PI*2); ctx.arc(7,-12,2.4,0,Math.PI*2); ctx.fill();
        ctx.fillStyle='#ffeff2'; ctx.beginPath(); ctx.arc(-7,-13,1,0,Math.PI*2); ctx.arc(7,-13,1,0,Math.PI*2); ctx.fill();
        ctx.strokeStyle='#7e3d3d'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-7,-3); ctx.quadraticCurveTo(0,1,7,-3); ctx.stroke();
+       ctx.restore();
+     } else if(u.def.id==='yosyp'){
+       const s=u.radius/24;
+       ctx.save(); ctx.scale(s,s);
+       const gait=Math.sin(gameTime*10+(u.walkPhase||0));
+       ctx.fillStyle='rgba(20,55,22,0.34)';
+       ctx.beginPath(); ctx.ellipse(0,23,39,18,0,0,Math.PI*2); ctx.fill();
+       for(const side of [-1,1]){
+         for(let leg=0;leg<3;leg++){
+           const anchorY=leg*13+1;
+           const swing=gait*(leg===1?4:-4)*(side===1?1:-1);
+           const kneeX=side*(27+Math.abs(swing)*0.35), kneeY=anchorY+7+swing;
+           const footX=side*(39+Math.abs(swing)), footY=anchorY+17-swing*0.35;
+           ctx.strokeStyle='#294b21'; ctx.lineWidth=5; ctx.lineCap='round'; ctx.lineJoin='round';
+           ctx.beginPath(); ctx.moveTo(side*13,anchorY); ctx.lineTo(kneeX,kneeY); ctx.lineTo(footX,footY); ctx.stroke();
+           ctx.strokeStyle='#88c84d'; ctx.lineWidth=2;
+           ctx.beginPath(); ctx.moveTo(side*14,anchorY-1); ctx.lineTo(kneeX,kneeY-1); ctx.stroke();
+           ctx.fillStyle='#a7e85b'; ctx.beginPath(); ctx.arc(kneeX,kneeY,3,0,Math.PI*2); ctx.fill();
+         }
+       }
+       ctx.shadowColor='#82ff42'; ctx.shadowBlur=18;
+       const shell=ctx.createLinearGradient(-22,-5,22,35);
+       shell.addColorStop(0,'#c0ef67'); shell.addColorStop(0.3,'#72b936'); shell.addColorStop(0.72,'#3f812d'); shell.addColorStop(1,'#234c28');
+       ctx.fillStyle=shell; ctx.strokeStyle='#183d25'; ctx.lineWidth=2.6;
+       ctx.beginPath(); ctx.ellipse(0,14,23,31,0,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+       ctx.strokeStyle='rgba(208,255,129,0.74)'; ctx.lineWidth=1.5;
+       ctx.beginPath(); ctx.moveTo(0,-14); ctx.bezierCurveTo(-2,0,-2,24,0,43); ctx.stroke();
+       for(let plate=0;plate<3;plate++){
+         ctx.strokeStyle='rgba(31,76,34,0.62)'; ctx.lineWidth=1.4;
+         ctx.beginPath(); ctx.ellipse(0,plate*12+4,21-plate*1.5,7,0,0,Math.PI*2); ctx.stroke();
+       }
+       const head=ctx.createRadialGradient(-6,-27,2,0,-22,20);
+       head.addColorStop(0,'#a9e758'); head.addColorStop(0.65,'#579b35'); head.addColorStop(1,'#234d2b');
+       ctx.fillStyle=head; ctx.strokeStyle='#1b3d27'; ctx.lineWidth=2.4;
+       ctx.beginPath(); ctx.ellipse(0,-23,18,16,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+       ctx.fillStyle='#132b22'; ctx.shadowColor='#baff62'; ctx.shadowBlur=9;
+       ctx.beginPath(); ctx.ellipse(-10,-25,5,7,-0.25,0,Math.PI*2); ctx.ellipse(10,-25,5,7,0.25,0,Math.PI*2); ctx.fill();
+       ctx.fillStyle='#d9ff8c'; ctx.beginPath(); ctx.arc(-11,-27,1.8,0,Math.PI*2); ctx.arc(9,-27,1.8,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+       ctx.strokeStyle='#436e31'; ctx.lineWidth=2.5; ctx.lineCap='round';
+       ctx.beginPath(); ctx.moveTo(-7,-34); ctx.quadraticCurveTo(-21,-51,-27,-44); ctx.moveTo(7,-34); ctx.quadraticCurveTo(21,-51,27,-44); ctx.stroke();
+       ctx.fillStyle='#a7e85b'; ctx.beginPath(); ctx.arc(-27,-44,3,0,Math.PI*2); ctx.arc(27,-44,3,0,Math.PI*2); ctx.fill();
+       ctx.strokeStyle='#244a28'; ctx.lineWidth=2;
+       ctx.beginPath(); ctx.moveTo(-7,-13); ctx.lineTo(-12,-6); ctx.lineTo(-3,-9); ctx.moveTo(7,-13); ctx.lineTo(12,-6); ctx.lineTo(3,-9); ctx.stroke();
        ctx.restore();
      } else if(u.def.id==='grisha'){
       /* Гриша — беловолосый арканист в духе референса: длинные волосы,
@@ -9079,6 +10540,21 @@ function drawUnit(u){
     ctx.beginPath(); ctx.arc(0,0,u.radius+8+Math.sin(gameTime*12)*2,0,Math.PI*2); ctx.stroke();
     ctx.shadowBlur = 0;
   }
+  if(u.buffs && u.buffs.some(buff => buff.type === 'yosypPoison')){
+    const pulse=0.5+0.5*Math.sin(gameTime*11);
+    ctx.save();
+    ctx.globalAlpha=0.58+pulse*0.24;
+    ctx.strokeStyle='#a7ff54'; ctx.lineWidth=2.5; ctx.shadowColor='#7dff3f'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(0,0,u.radius+7+pulse*3,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur=8; ctx.fillStyle='#a7ff54'; ctx.strokeStyle='#e2ff9e'; ctx.lineWidth=1;
+    for(let bubble=0;bubble<4;bubble++){
+      const angle=gameTime*2.4+bubble*Math.PI/2;
+      const orbit=u.radius*0.68;
+      const x=Math.cos(angle)*orbit, y=Math.sin(angle)*orbit-5;
+      ctx.beginPath(); ctx.arc(x,y,2.5+(bubble%2),0,Math.PI*2); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
   ctx.restore();
   const dianaAura = u.inventory && u.inventory.find(i => i && i.id === 'dianaPants' && i.auraOn);
   if(dianaAura && !u.dead){
@@ -9154,6 +10630,29 @@ function isWorldPointVisible(x,y,padding=140){
 }
 
 function drawWorldObjects(){
+  for(const puddle of aoes){
+    if(puddle.visual !== 'yosypPuddle' || puddle.dead) continue;
+    const fade=Math.max(0,Math.min(1,puddle.t/0.16,(puddle.life-puddle.t)/0.55));
+    if(fade<=0) continue;
+    const pulse=1+Math.sin(gameTime*4+puddle.x*0.02)*0.045;
+    ctx.save(); ctx.translate(puddle.x,puddle.y); ctx.scale(pulse,1);
+    ctx.globalAlpha=fade*0.82;
+    const slime=ctx.createRadialGradient(-puddle.radius*0.18,-puddle.radius*0.12,2,0,0,puddle.radius);
+    slime.addColorStop(0,'rgba(190,255,104,0.9)');
+    slime.addColorStop(0.44,'rgba(91,190,48,0.82)');
+    slime.addColorStop(0.82,'rgba(32,91,36,0.8)');
+    slime.addColorStop(1,'rgba(18,47,28,0.12)');
+    ctx.fillStyle=slime; ctx.strokeStyle='rgba(187,255,102,0.9)'; ctx.lineWidth=2.5;
+    ctx.shadowColor='#89ff48'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.ellipse(0,0,puddle.radius,puddle.radius*0.68,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.fillStyle='rgba(220,255,137,0.85)';
+    for(let bubble=0;bubble<3;bubble++){
+      const x=Math.sin(gameTime*2+bubble*2.1+puddle.y)*puddle.radius*0.42;
+      const y=Math.cos(gameTime*1.7+bubble*2.5+puddle.x)*puddle.radius*0.22;
+      ctx.beginPath(); ctx.arc(x,y,3+bubble%2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
   for(const gb of grassBends){
     const k = gb.t/gb.life;
     const pressAmt = k < 0.15 ? k/0.15 : Math.max(0, 1 - (k-0.15)/0.85);
@@ -9616,20 +11115,37 @@ const SKILL_BAR = { w: 76, h: 76, gap: 12 };
 function combatHudLayout(){
   const margin = 14;
   const bottom = 14;
+  const mobile = VW < 720;
   const compact = VW < 980;
+  const skillCount = (playerHero && playerHero.skills.length) || 4;
+  if(mobile){
+    const panel = {x:8,y:VH-252,w:VW-16,h:244};
+    const skillGap = 4;
+    const skillSize = Math.min(48,Math.max(36,Math.floor((VW-32-(skillCount-1)*skillGap)/skillCount)));
+    const skillsW = skillCount*skillSize+(skillCount-1)*skillGap;
+    const itemSize = Math.min(32,Math.max(24,Math.floor((VW-36-8)/3)));
+    const itemGap = 4;
+    const itemsW = 3*itemSize+2*itemGap;
+    return {
+      panel,
+      stats:{x:panel.x+56,y:panel.y,w:panel.w-64},
+      skills:{x:(VW-skillsW)/2,y:panel.y+120,w:skillSize,h:skillSize,gap:skillGap},
+      items:{x:(VW-itemsW)/2,y:panel.y+178,w:itemSize,h:itemSize,gap:itemGap,columns:3,rows:2}
+    };
+  }
   const panelH = compact ? 178 : 202;
   const statsW = compact ? 190 : 250;
   const itemSize = compact ? 44 : 50;
   const itemGap = compact ? 5 : 8;
-  const skillSize = compact ? 60 : SKILL_BAR.w;
   const skillGap = compact ? 7 : SKILL_BAR.gap;
-  const skillCount = (playerHero && playerHero.skills.length) || 4;
-  const skillsW = skillCount * skillSize + (skillCount - 1) * skillGap;
   const itemsW = 3 * itemSize + 2 * itemGap;
+  const skillSize = Math.min(compact ? 60 : SKILL_BAR.w,
+    Math.max(46,(VW-margin*2-statsW-itemsW-36-(skillCount-1)*skillGap)/skillCount));
+  const skillsW = skillCount * skillSize + (skillCount - 1) * skillGap;
   const totalW = statsW + skillsW + itemsW + 36;
   const x = Math.max(margin, (VW - totalW) / 2);
   return {
-    panel: {x, y: VH - panelH - bottom, w: Math.min(totalW, VW - margin * 2), h: panelH},
+    panel: {x, y: VH - panelH - 14, w: totalW, h: panelH},
     stats: {x: x + 78, y: VH - panelH - bottom, w: statsW - 78},
     skills: {x: x + statsW + 12, y: VH - 106, w: skillSize, h: skillSize, gap: skillGap},
     items: {x: x + statsW + skillsW + 24, y: VH - (compact ? 112 : 132), w: itemSize, h: itemSize, gap: itemGap, columns:3, rows:2}
@@ -9732,6 +11248,45 @@ function inventorySlotRect(i){
   const items = combatHudLayout().items;
   const column=i%items.columns, row=Math.floor(i/items.columns);
   return {x:items.x+column*(items.w+items.gap), y:items.y+row*(items.h+items.gap), w:items.w, h:items.h};
+}
+function hoveredItemRangePreview(){
+  if(!playerHero) return null;
+  for(let i=0;i<6;i++){
+    const rect=inventorySlotRect(i), item=playerHero.inventory[i];
+    if(item&&mouse.x>=rect.x&&mouse.x<=rect.x+rect.w&&mouse.y>=rect.y&&mouse.y<=rect.y+rect.h)
+      return item.id;
+  }
+  if(shopOpen&&!shopGuideOpen){
+    for(let i=0;i<SHOP_ITEM_IDS.length;i++){
+      const rect=shopItemRect(i);
+      if(mouse.x>=rect.x&&mouse.x<=rect.x+rect.w&&mouse.y>=rect.y&&mouse.y<=rect.y+rect.h)
+        return SHOP_ITEM_IDS[i];
+    }
+  }
+  return null;
+}
+function drawItemRangePreview(){
+  const itemId=hoveredItemRangePreview();
+  const item=SHOP_ITEMS[itemId];
+  if(!item||!playerHero) return;
+  let radius=item.range||item.auraRadius||0;
+  if(item.attackRange){
+    const alreadyOwned=playerHero.inventory.some(entry=>entry&&entry.id==='brainEye');
+    radius=playerHero.getAttackRange()+(alreadyOwned?0:item.attackRange);
+  }
+  if(!radius) return;
+  ctx.save();
+  ctx.fillStyle='rgba(100,210,255,0.055)';
+  ctx.beginPath(); ctx.arc(playerHero.x,playerHero.y,radius,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=item.color||'#8be9fd'; ctx.lineWidth=2.5; ctx.setLineDash([12,8]);
+  ctx.beginPath(); ctx.arc(playerHero.x,playerHero.y,radius,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+  const labelY=Math.max(cam.y-VH/2+22,playerHero.y-radius-14);
+  ctx.font='bold 13px Segoe UI, Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.lineWidth=4; ctx.strokeStyle='rgba(3,7,13,0.9)';
+  ctx.strokeText('РАДИУС '+Math.round(radius),playerHero.x,labelY);
+  ctx.fillStyle=item.color||'#8be9fd'; ctx.fillText('РАДИУС '+Math.round(radius),playerHero.x,labelY);
+  ctx.restore();
 }
 function handleHudClick(mx, my){
   const button = shopButtonRect();
@@ -10060,6 +11615,40 @@ function drawSkillTooltip(hero, skillIndex){
   ctx.restore();
 }
 
+/* Ураган Вейкера Ветра и печать Нуллификатора вокруг бойца. */
+function drawItemStatusFx(u, lift){
+  ctx.save();
+  ctx.translate(u.x, u.y);
+  if(u.windTimer > 0){
+    const r = u.radius + 16;
+    ctx.fillStyle = 'rgba(8,24,22,0.22)';
+    ctx.beginPath(); ctx.ellipse(0, 4, r*0.85, r*0.3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.lineCap = 'round';
+    for(let k=0;k<6;k++){
+      const t = k/5, y = -lift*0.2 + 14 - t*(lift+u.radius*2.6);
+      const w = r*(0.55 + 0.55*t);
+      const a = gameTime*7 + k*1.3;
+      ctx.strokeStyle = 'rgba(' + (190+k*10) + ',255,' + (235-k*6) + ',' + (0.55 - t*0.25) + ')';
+      ctx.lineWidth = 3.4 - t*1.4;
+      ctx.beginPath(); ctx.ellipse(0, y, w, w*0.26, 0, a, a + Math.PI*1.35); ctx.stroke();
+    }
+    if(Math.random() < 0.35) spawnParticles(u.x + (Math.random()-0.5)*u.radius*2, u.y - lift*0.5, '#d9fff6', 1, 0.5);
+  }
+  if(u.nullifyTimer > 0){
+    const pulse = 0.55 + Math.sin(gameTime*8)*0.2;
+    ctx.strokeStyle = 'rgba(176,124,255,' + pulse + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, -lift*0.3, u.radius + 12, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([6,8]); ctx.lineDashOffset = -gameTime*30;
+    ctx.beginPath(); ctx.arc(0, -lift*0.3, u.radius + 20, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(235,220,255,' + (pulse+0.15) + ')'; ctx.lineWidth = 2.5;
+    const s = u.radius*0.55; const cy = -u.radius*2.4 - lift*0.3;
+    ctx.beginPath(); ctx.arc(0, cy, s, 0, Math.PI*2); ctx.moveTo(-s*.7, cy+s*.7); ctx.lineTo(s*.7, cy-s*.7); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawItemIcon(item, x, y, size){
   if(!item) return;
   const radius = size * 0.5;
@@ -10068,29 +11657,73 @@ function drawItemIcon(item, x, y, size){
   ctx.save();
   ctx.translate(x, y);
   ctx.shadowColor = rarity;
-  ctx.shadowBlur = 16;
-  const gradient = ctx.createRadialGradient(-size*.2,-size*.25,2,0,0,size);
-  gradient.addColorStop(0, '#ffffff');
-  gradient.addColorStop(0.18, rarity);
-  gradient.addColorStop(1, 'rgba(4,8,16,0.95)');
-  ctx.fillStyle = gradient;
-  ctx.strokeStyle = rarity;
-  ctx.lineWidth = 2.5;
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
   ctx.beginPath();
-  ctx.roundRect(-radius, -radius, size, size, Math.max(4, size*.18));
+  ctx.ellipse(-size*.24, -size*.28, size*.16, size*.07, -0.35, 0, Math.PI*2);
   ctx.fill();
-  ctx.stroke();
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(255,255,255,0.34)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(-radius+3, -radius+3, size-6, size-6, Math.max(3, size*.12));
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.82)';
-  ctx.beginPath();
-  ctx.ellipse(-size*.22, -size*.24, size*.18, size*.08, -0.35, 0, Math.PI*2);
-  ctx.fill();
-  if(item.id === 'pt'){
+  if(item.id === 'blink'){
+    ctx.save();
+    ctx.rotate(-0.18);
+    ctx.shadowColor='#8feaff'; ctx.shadowBlur=14;
+    const crystal=ctx.createLinearGradient(-size*.24,-size*.45,size*.25,size*.44);
+    crystal.addColorStop(0,'#e8ffff'); crystal.addColorStop(0.28,'#68d9ff'); crystal.addColorStop(0.7,'#2474d0'); crystal.addColorStop(1,'#17265d');
+    ctx.fillStyle=crystal; ctx.strokeStyle='#b8f5ff'; ctx.lineWidth=Math.max(1.5,size*.045);
+    ctx.beginPath(); ctx.moveTo(0,-size*.45); ctx.lineTo(size*.28,-size*.08); ctx.lineTo(size*.16,size*.38); ctx.lineTo(-size*.18,size*.45); ctx.lineTo(-size*.32,-size*.08); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.78)'; ctx.lineWidth=Math.max(1,size*.028);
+    ctx.beginPath(); ctx.moveTo(0,-size*.38); ctx.lineTo(0,size*.36); ctx.moveTo(-size*.25,-size*.05); ctx.lineTo(size*.22,size*.15); ctx.stroke();
+    ctx.restore();
+  } else if(item.id === 'dianaPants'){
+    ctx.save();
+    ctx.shadowColor='#ff76c8'; ctx.shadowBlur=12;
+    const cloth=ctx.createLinearGradient(-size*.35,-size*.2,size*.35,size*.48);
+    cloth.addColorStop(0,'#ffe4fa'); cloth.addColorStop(.35,'#ef77bd'); cloth.addColorStop(1,'#742469');
+    ctx.fillStyle=cloth; ctx.strokeStyle='#ffd0f1'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(-size*.36,-size*.25); ctx.quadraticCurveTo(0,-size*.43,size*.36,-size*.25); ctx.lineTo(size*.27,size*.34); ctx.quadraticCurveTo(0,size*.48,-size*.27,size*.34); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='#fff0a8'; ctx.lineWidth=Math.max(1,size*.035);
+    ctx.beginPath(); ctx.moveTo(-size*.28,-size*.19); ctx.quadraticCurveTo(0,-size*.02,size*.28,-size*.19); ctx.moveTo(-size*.18,size*.02); ctx.lineTo(-size*.08,size*.29); ctx.moveTo(size*.18,size*.02); ctx.lineTo(size*.08,size*.29); ctx.stroke();
+    ctx.fillStyle='#ffe56d'; ctx.beginPath(); ctx.arc(0,-size*.2,size*.055,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  } else if(item.id === 'mango'){
+    ctx.save();
+    ctx.rotate(-0.35);
+    ctx.fillStyle='#f5ad35'; ctx.strokeStyle='#6c321e'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(-size*.25,size*.32); ctx.quadraticCurveTo(-size*.46,-size*.12,-size*.08,-size*.4); ctx.quadraticCurveTo(size*.38,-size*.5,size*.4,-size*.08); ctx.quadraticCurveTo(size*.35,size*.34,0,size*.45); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#68b958'; ctx.beginPath(); ctx.ellipse(-size*.02,-size*.43,size*.2,size*.07,-.3,0,Math.PI*2); ctx.fill(); ctx.restore();
+  } else if(item.id === 'joelBoots' || item.id === 'superBoots'){
+    ctx.save(); ctx.rotate(-0.18);
+    const boot=ctx.createLinearGradient(-size*.35,-size*.42,size*.35,size*.44);
+    boot.addColorStop(0,'#d7a26b'); boot.addColorStop(.45,'#80502f'); boot.addColorStop(1,'#251c28');
+    ctx.fillStyle=boot; ctx.strokeStyle='#e8c27f'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(-size*.2,-size*.4); ctx.lineTo(size*.1,-size*.42); ctx.lineTo(size*.16,size*.05); ctx.quadraticCurveTo(size*.47,size*.08,size*.43,size*.3); ctx.quadraticCurveTo(size*.05,size*.5,-size*.34,size*.3); ctx.lineTo(-size*.4,-size*.04); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle=item.id==='superBoots'?'#ffe36e':'#75e6a7'; ctx.lineWidth=Math.max(1,size*.045);
+    for(let line=-1;line<=1;line++){ctx.beginPath();ctx.moveTo(-size*.16,line*size*.11-size*.2);ctx.lineTo(size*.12,line*size*.11-size*.14);ctx.stroke();}
+    ctx.restore();
+  } else if(item.id === 'tango'){
+    ctx.save();
+    ctx.fillStyle='#4d9a50'; ctx.strokeStyle='#c4ed83'; ctx.lineWidth=Math.max(1.5,size*.045);
+    ctx.beginPath(); ctx.moveTo(-size*.08,size*.42); ctx.quadraticCurveTo(-size*.18,size*.05,-size*.34,-size*.3); ctx.quadraticCurveTo(-size*.04,-size*.12,size*.08,-size*.02); ctx.quadraticCurveTo(size*.16,-size*.34,size*.35,-size*.38); ctx.quadraticCurveTo(size*.22,size*.02,size*.08,size*.43); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='#e4f3a1'; ctx.beginPath(); ctx.moveTo(-size*.08,size*.38);ctx.lineTo(-size*.04,-size*.2);ctx.moveTo(size*.08,size*.28);ctx.lineTo(size*.28,-size*.25);ctx.stroke(); ctx.restore();
+  } else if(item.id === 'bkb'){
+    ctx.save();
+    ctx.fillStyle='#a9363e'; ctx.strokeStyle='#ffcf74'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(-size*.28,-size*.34); ctx.lineTo(size*.28,-size*.34); ctx.lineTo(size*.38,size*.25); ctx.quadraticCurveTo(0,size*.46,-size*.38,size*.25); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#ffd86d'; ctx.beginPath(); ctx.arc(-size*.13,-size*.08,size*.07,0,Math.PI*2); ctx.arc(size*.13,-size*.08,size*.07,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#fff0a6'; ctx.beginPath(); ctx.moveTo(-size*.15,size*.15); ctx.lineTo(0,size*.28); ctx.lineTo(size*.15,size*.15); ctx.stroke(); ctx.restore();
+  } else if(item.id === 'satanic'){
+    ctx.save(); ctx.fillStyle='#b92d46'; ctx.strokeStyle='#ff9a9e'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(0,-size*.46); ctx.lineTo(size*.34,-size*.1); ctx.lineTo(size*.25,size*.36); ctx.lineTo(-size*.25,size*.36); ctx.lineTo(-size*.34,-size*.1); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#ffcf72'; ctx.beginPath(); ctx.arc(0,-size*.05,size*.1,0,Math.PI*2); ctx.fill(); ctx.restore();
+  } else if(item.id === 'aghanimShard'){
+    ctx.save(); ctx.shadowColor='#7be9ff'; ctx.shadowBlur=14; ctx.fillStyle='#49c9ef'; ctx.strokeStyle='#dbffff'; ctx.lineWidth=Math.max(1.5,size*.045);
+    ctx.beginPath(); ctx.moveTo(0,-size*.48); ctx.lineTo(size*.28,-size*.08); ctx.lineTo(size*.12,size*.43); ctx.lineTo(-size*.26,size*.16); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.beginPath();ctx.moveTo(0,-size*.38);ctx.lineTo(-size*.1,size*.1);ctx.lineTo(size*.12,size*.3);ctx.stroke();ctx.restore();
+  } else if(item.id === 'timurPillow'){
+    ctx.save(); const pillow=ctx.createLinearGradient(-size*.35,-size*.3,size*.35,size*.35); pillow.addColorStop(0,'#f5ffff');pillow.addColorStop(.5,'#9ed8ff');pillow.addColorStop(1,'#557db0');
+    ctx.fillStyle=pillow;ctx.strokeStyle='#e9ffff';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.roundRect(-size*.38,-size*.3,size*.76,size*.6,size*.18);ctx.fill();ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=Math.max(1,size*.03);ctx.beginPath();ctx.moveTo(-size*.22,-size*.18);ctx.quadraticCurveTo(0,0,size*.22,-size*.18);ctx.moveTo(-size*.22,size*.18);ctx.quadraticCurveTo(0,0,size*.22,size*.18);ctx.stroke();ctx.restore();
+  } else if(item.id === 'pt'){
     ctx.save();
     ctx.rotate(-0.12);
     const boot=ctx.createLinearGradient(-size*.35,-size*.2,size*.35,size*.45);
@@ -10122,12 +11755,203 @@ function drawItemIcon(item, x, y, size){
     ctx.fillStyle='#e14b42'; ctx.beginPath(); ctx.arc(size*.02,-size*.51,size*.08,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle='#f28b56'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(size*.19,size*.23); ctx.lineTo(size*.35,size*.39); ctx.stroke();
     ctx.restore();
+  } else if(item.id === 'brainAss'){
+    ctx.save();
+    ctx.shadowColor='#ff638d'; ctx.shadowBlur=12;
+    const shape=ctx.createLinearGradient(-size*.35,-size*.35,size*.32,size*.4);
+    shape.addColorStop(0,'#ffc0cf'); shape.addColorStop(.5,'#e94d82'); shape.addColorStop(1,'#76244f');
+    ctx.fillStyle=shape; ctx.strokeStyle='#ffe0a8'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(-size*.31,-size*.25); ctx.quadraticCurveTo(-size*.1,-size*.42,0,-size*.23);
+    ctx.quadraticCurveTo(size*.14,-size*.42,size*.31,-size*.22); ctx.lineTo(size*.25,size*.2);
+    ctx.quadraticCurveTo(0,size*.45,-size*.25,size*.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle='#ffd7e1'; ctx.lineWidth=Math.max(1.2,size*.035);
+    ctx.beginPath(); ctx.moveTo(-size*.13,-size*.12); ctx.bezierCurveTo(-size*.28,-size*.02,-size*.05,size*.02,-size*.18,size*.13);
+    ctx.moveTo(size*.13,-size*.12); ctx.bezierCurveTo(size*.28,-size*.02,size*.05,size*.02,size*.18,size*.13); ctx.stroke();
+    ctx.restore();
+  } else if(item.id === 'eggGolly'){
+    ctx.save();
+    ctx.rotate(-0.12);
+    const egg=ctx.createLinearGradient(-size*.3,-size*.4,size*.3,size*.4);
+    egg.addColorStop(0,'#f4ffff'); egg.addColorStop(0.42,'#8be9fd'); egg.addColorStop(1,'#2876a5');
+    ctx.fillStyle=egg; ctx.strokeStyle='#d9fbff'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,-size*.43);
+    ctx.bezierCurveTo(size*.3,-size*.35,size*.4,size*.12,size*.2,size*.38);
+    ctx.quadraticCurveTo(0,size*.55,-size*.2,size*.38);
+    ctx.bezierCurveTo(-size*.4,size*.12,-size*.3,-size*.35,0,-size*.43);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.beginPath(); ctx.ellipse(-size*.1,-size*.17,size*.07,size*.13,-0.35,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(28,106,144,0.7)';
+    ctx.beginPath(); ctx.arc(size*.12,size*.1,size*.045,0,Math.PI*2); ctx.arc(-size*.08,size*.22,size*.035,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  } else if(item.id === 'evsyutin' || item.id === 'girfsyutin'){
+    ctx.save(); const skin=item.id==='girfsyutin'?'#d88453':'#c88f6f';
+    ctx.fillStyle=skin; ctx.strokeStyle='#552d2b'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.ellipse(0,size*.05,size*.3,size*.38,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#f4c49a'; ctx.beginPath(); ctx.ellipse(-size*.11,-size*.08,size*.06,size*.04,0,0,Math.PI*2);ctx.ellipse(size*.11,-size*.08,size*.06,size*.04,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#7b3a35';ctx.beginPath();ctx.arc(0,size*.08,size*.13,0,Math.PI);ctx.stroke();ctx.restore();
+  } else if(item.id === 'mantledSteel' || item.id === 'manaTome'){
+    ctx.save(); ctx.fillStyle=item.id==='mantledSteel'?'#8798aa':'#5cc8e4'; ctx.strokeStyle='#e3f7ff'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath();ctx.moveTo(-size*.3,-size*.38);ctx.lineTo(size*.3,-size*.28);ctx.lineTo(size*.22,size*.4);ctx.lineTo(-size*.34,size*.28);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.strokeStyle=item.id==='mantledSteel'?'#d9efff':'#f9ffff';ctx.lineWidth=Math.max(1,size*.035);ctx.beginPath();ctx.moveTo(-size*.12,-size*.2);ctx.lineTo(size*.15,size*.24);ctx.moveTo(size*.12,-size*.23);ctx.lineTo(-size*.14,size*.22);ctx.stroke();ctx.restore();
+  } else if(item.id === 'manaHooves' || item.id === 'hatchet'){
+    ctx.save(); ctx.strokeStyle='#d9a56a';ctx.lineWidth=Math.max(2,size*.09);ctx.beginPath();ctx.moveTo(0,-size*.4);ctx.lineTo(0,size*.35);ctx.stroke();
+    ctx.fillStyle=item.id==='hatchet'?'#cbd9e8':'#a97bda';ctx.strokeStyle='#f0d8ff';ctx.lineWidth=Math.max(1.5,size*.045);
+    if(item.id==='hatchet'){ctx.beginPath();ctx.moveTo(0,-size*.32);ctx.quadraticCurveTo(size*.42,-size*.25,size*.38,size*.08);ctx.quadraticCurveTo(size*.18,size*.25,0,size*.22);ctx.closePath();}
+    else {ctx.beginPath();ctx.ellipse(0,-size*.18,size*.28,size*.2,-.35,0,Math.PI*2);}
+    ctx.fill();ctx.stroke();ctx.restore();
+  } else if(item.id === 'aghanimHead' || item.id === 'aghanimScepter'){
+    ctx.save();ctx.rotate(-.12);ctx.fillStyle='#8f5ad8';ctx.strokeStyle='#f5d5ff';ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath();ctx.moveTo(-size*.22,size*.4);ctx.lineTo(-size*.1,-size*.12);ctx.lineTo(-size*.3,-size*.3);ctx.lineTo(0,-size*.46);ctx.lineTo(size*.3,-size*.3);ctx.lineTo(size*.1,-size*.12);ctx.lineTo(size*.22,size*.4);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle='#ffec85';ctx.beginPath();ctx.arc(0,-size*.28,size*.1,0,Math.PI*2);ctx.fill();ctx.restore();
+  } else if(item.id === 'ilyaHair'){
+    ctx.save();ctx.fillStyle='#24222c';ctx.strokeStyle='#b7c7da';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.moveTo(-size*.36,size*.35);ctx.quadraticCurveTo(-size*.46,-size*.2,-size*.2,-size*.4);ctx.quadraticCurveTo(0,-size*.52,size*.2,-size*.4);ctx.quadraticCurveTo(size*.46,-size*.2,size*.36,size*.35);ctx.lineTo(size*.12,size*.16);ctx.lineTo(0,size*.38);ctx.lineTo(-size*.12,size*.16);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+  } else if(item.id === 'enemy302'){
+    ctx.save();ctx.fillStyle='#b5c5d7';ctx.strokeStyle='#493c72';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.roundRect(-size*.32,-size*.34,size*.64,size*.68,size*.12);ctx.fill();ctx.stroke();ctx.fillStyle='#6f4e9c';ctx.fillRect(-size*.2,-size*.22,size*.4,size*.12);ctx.fillRect(-size*.2,size*.04,size*.28,size*.12);ctx.restore();
+  } else if(item.id === 'tornBrainHand'){
+    ctx.save();ctx.strokeStyle='#d7a879';ctx.lineWidth=Math.max(3,size*.13);ctx.beginPath();ctx.moveTo(-size*.3,size*.35);ctx.lineTo(size*.2,-size*.18);ctx.stroke();ctx.fillStyle='#d7a879';ctx.strokeStyle='#744631';ctx.lineWidth=Math.max(1,size*.04);for(let finger=-2;finger<=2;finger++){ctx.beginPath();ctx.ellipse(size*.24+finger*size*.08,-size*.25+Math.abs(finger)*size*.03,size*.05,size*.18,finger*.18,0,Math.PI*2);ctx.fill();ctx.stroke();}ctx.restore();
+  } else if(item.id === 'arcadiaScar' || item.id === 'kinglandia'){
+    ctx.save();ctx.fillStyle=item.id==='kinglandia'?'#e6b64f':'#c44f35';ctx.strokeStyle='#ffe1a0';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.moveTo(-size*.34,size*.28);ctx.lineTo(-size*.1,-size*.3);ctx.lineTo(size*.04,size*.18);ctx.lineTo(size*.2,-size*.4);ctx.lineTo(size*.35,size*.28);ctx.quadraticCurveTo(0,size*.48,-size*.34,size*.28);ctx.fill();ctx.stroke();ctx.restore();
+  } else if(item.id === 'gur'){
+    ctx.save();ctx.fillStyle='#58c7bf';ctx.strokeStyle='#d8fff1';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.ellipse(-size*.16,size*.2,size*.2,size*.2,0,0,Math.PI*2);ctx.ellipse(size*.15,size*.16,size*.24,size*.18,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.strokeStyle='#b9fff1';ctx.beginPath();ctx.moveTo(0,size*.02);ctx.lineTo(0,-size*.4);ctx.stroke();ctx.restore();
+  } else if(item.id === 'dagonEmpire'){
+    ctx.save();ctx.fillStyle='#c53c9c';ctx.strokeStyle='#ffd1ff';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.moveTo(-size*.08,size*.43);ctx.lineTo(size*.08,size*.43);ctx.lineTo(size*.13,-size*.18);ctx.lineTo(size*.3,-size*.36);ctx.lineTo(0,-size*.46);ctx.lineTo(-size*.3,-size*.36);ctx.lineTo(-size*.13,-size*.18);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#fff08c';ctx.beginPath();ctx.arc(0,-size*.29,size*.07,0,Math.PI*2);ctx.fill();ctx.restore();
+  } else if(item.id === 'brainEye'){
+    ctx.save();ctx.fillStyle='#d9b7aa';ctx.strokeStyle='#6e3c4a';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.moveTo(-size*.42,0);ctx.quadraticCurveTo(0,-size*.38,size*.42,0);ctx.quadraticCurveTo(0,size*.38,-size*.42,0);ctx.fill();ctx.stroke();ctx.fillStyle='#d34e66';ctx.beginPath();ctx.arc(0,0,size*.15,0,Math.PI*2);ctx.fill();ctx.fillStyle='#211523';ctx.beginPath();ctx.arc(0,0,size*.06,0,Math.PI*2);ctx.fill();ctx.restore();
+  } else if(item.id === 'kayaSange'){
+    ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+    /* Санга — клинок */
+    ctx.save(); ctx.rotate(0.62);
+    const blade=ctx.createLinearGradient(-size*.06,-size*.46,size*.06,size*.1);
+    blade.addColorStop(0,'#ffffff'); blade.addColorStop(.5,'#cfd9e6'); blade.addColorStop(1,'#7d8aa0');
+    ctx.fillStyle=blade; ctx.strokeStyle='#2c3550'; ctx.lineWidth=Math.max(1,size*.035);
+    ctx.beginPath(); ctx.moveTo(0,-size*.5); ctx.lineTo(size*.075,-size*.34); ctx.lineTo(size*.065,size*.08); ctx.lineTo(-size*.065,size*.08); ctx.lineTo(-size*.075,-size*.34); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#e6b94e'; ctx.fillRect(-size*.19,size*.08,size*.38,size*.07); ctx.strokeRect(-size*.19,size*.08,size*.38,size*.07);
+    ctx.fillStyle='#8a2b3a'; ctx.fillRect(-size*.04,size*.15,size*.08,size*.22);
+    ctx.fillStyle='#e6b94e'; ctx.beginPath(); ctx.arc(0,size*.4,size*.055,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    /* Кая — посох с синим камнем */
+    ctx.save(); ctx.rotate(-0.62);
+    ctx.strokeStyle='#5b3d27'; ctx.lineWidth=Math.max(2,size*.07);
+    ctx.beginPath(); ctx.moveTo(0,size*.46); ctx.lineTo(0,-size*.18); ctx.stroke();
+    ctx.strokeStyle='#e6b94e'; ctx.lineWidth=Math.max(1.5,size*.04);
+    ctx.beginPath(); ctx.arc(0,-size*.26,size*.13,0.2*Math.PI,0.8*Math.PI,true); ctx.stroke();
+    ctx.shadowColor='#6fb2ff'; ctx.shadowBlur=14;
+    const orb=ctx.createRadialGradient(-size*.03,-size*.31,size*.01,0,-size*.27,size*.14);
+    orb.addColorStop(0,'#ffffff'); orb.addColorStop(.35,'#8fd0ff'); orb.addColorStop(1,'#2b5fd0');
+    ctx.fillStyle=orb; ctx.beginPath(); ctx.arc(0,-size*.27,size*.115,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  } else if(item.id === 'windWaker'){
+    ctx.save(); ctx.lineCap='round';
+    ctx.shadowColor='#7fe9d4'; ctx.shadowBlur=12;
+    /* воронка урагана */
+    for(let ring=0; ring<5; ring++){
+      const t=ring/4, y=-size*.36+t*size*.7, w=size*(.36-.27*t);
+      const g=ctx.createLinearGradient(-w,y,w,y);
+      g.addColorStop(0,'rgba(127,233,212,.15)'); g.addColorStop(.5,'rgba(235,255,250,.95)'); g.addColorStop(1,'rgba(60,170,170,.35)');
+      ctx.strokeStyle=g; ctx.lineWidth=Math.max(1.5,size*(.07-.03*t));
+      ctx.beginPath(); ctx.ellipse(0.04*size*Math.sin(ring*1.7),y,w,size*.065,0,0,Math.PI*2); ctx.stroke();
+    }
+    ctx.shadowBlur=0;
+    /* кружащие частицы и маленькая птица-вертушка */
+    ctx.fillStyle='#e9fff9';
+    for(const [px,py,pr] of [[-.34,-.3,.03],[.36,-.12,.025],[-.3,.22,.025],[.28,.34,.03]]){ ctx.beginPath(); ctx.arc(size*px,size*py,size*pr,0,Math.PI*2); ctx.fill(); }
+    ctx.strokeStyle='#bffff0'; ctx.lineWidth=Math.max(1,size*.04);
+    ctx.beginPath(); ctx.moveTo(-size*.42,-size*.1); ctx.quadraticCurveTo(-size*.2,-size*.2,-size*.06,-size*.08); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(size*.42,size*.12); ctx.quadraticCurveTo(size*.2,size*.22,size*.07,size*.1); ctx.stroke();
+    ctx.restore();
+  } else if(item.id === 'holyLocket'){
+    ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+    /* цепочка */
+    ctx.strokeStyle='#d8b45a'; ctx.lineWidth=Math.max(1.5,size*.045); ctx.setLineDash([size*.07,size*.04]);
+    ctx.beginPath(); ctx.moveTo(-size*.3,-size*.46); ctx.quadraticCurveTo(0,-size*.18,size*.3,-size*.46); ctx.stroke(); ctx.setLineDash([]);
+    /* корпус медальона */
+    ctx.shadowColor='#ffd978'; ctx.shadowBlur=14;
+    const gold=ctx.createLinearGradient(-size*.3,-size*.2,size*.3,size*.4);
+    gold.addColorStop(0,'#fff2b8'); gold.addColorStop(.45,'#f0b94a'); gold.addColorStop(1,'#9a6420');
+    ctx.fillStyle=gold; ctx.strokeStyle='#5e3a12'; ctx.lineWidth=Math.max(1.5,size*.045);
+    ctx.beginPath(); ctx.arc(0,size*.12,size*.33,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.fillStyle='#fff7da'; ctx.beginPath(); ctx.arc(0,size*.12,size*.25,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#e0a840'; ctx.lineWidth=Math.max(1,size*.03); ctx.stroke();
+    /* сердце с крестом */
+    ctx.fillStyle='#e0455f';
+    ctx.beginPath(); ctx.moveTo(0,size*.3); ctx.bezierCurveTo(-size*.26,size*.12,-size*.16,-size*.04,0,size*.06); ctx.bezierCurveTo(size*.16,-size*.04,size*.26,size*.12,0,size*.3); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.fillRect(-size*.025,size*.08,size*.05,size*.14); ctx.fillRect(-size*.07,size*.12,size*.14,size*.05);
+    /* камешек и ушко */
+    ctx.fillStyle='#7ee8ff'; ctx.beginPath(); ctx.arc(0,-size*.24,size*.05,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#5e3a12'; ctx.lineWidth=Math.max(1,size*.025); ctx.stroke();
+    ctx.restore();
+  } else if(item.id === 'nullifier'){
+    ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.shadowColor='#a45cff'; ctx.shadowBlur=16;
+    const orbN=ctx.createRadialGradient(-size*.1,-size*.12,size*.03,0,0,size*.42);
+    orbN.addColorStop(0,'#c9a4ff'); orbN.addColorStop(.45,'#6a35c9'); orbN.addColorStop(1,'#1b0b3b');
+    ctx.fillStyle=orbN; ctx.strokeStyle='#e5d2ff'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.arc(0,0,size*.36,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    /* печать пустоты: перечёркнутое кольцо */
+    ctx.strokeStyle='#f3e9ff'; ctx.lineWidth=Math.max(2,size*.07);
+    ctx.beginPath(); ctx.arc(0,0,size*.2,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-size*.14,size*.14); ctx.lineTo(size*.14,-size*.14); ctx.stroke();
+    /* осколки по краям */
+    ctx.fillStyle='#d9bcff';
+    for(const a of [-2.5,-0.6,0.9,2.3]){
+      const bx=Math.cos(a)*size*.4, by=Math.sin(a)*size*.4;
+      ctx.beginPath(); ctx.moveTo(bx+Math.cos(a)*size*.13,by+Math.sin(a)*size*.13); ctx.lineTo(bx+Math.cos(a+1.6)*size*.05,by+Math.sin(a+1.6)*size*.05); ctx.lineTo(bx+Math.cos(a-1.6)*size*.05,by+Math.sin(a-1.6)*size*.05); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  } else if(item.id === 'disperser'){
+    ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+    /* расходящиеся волны */
+    ctx.strokeStyle='rgba(111,224,255,.55)'; ctx.lineWidth=Math.max(1,size*.035);
+    for(const r of [.3,.42]){ ctx.beginPath(); ctx.arc(0,0,size*r,0,Math.PI*2); ctx.stroke(); }
+    /* перо-кристалл */
+    ctx.shadowColor='#6fe0ff'; ctx.shadowBlur=14;
+    const feather=ctx.createLinearGradient(-size*.2,size*.4,size*.2,-size*.4);
+    feather.addColorStop(0,'#1f78c4'); feather.addColorStop(.5,'#6fe0ff'); feather.addColorStop(1,'#f2ffff');
+    ctx.fillStyle=feather; ctx.strokeStyle='#e5ffff'; ctx.lineWidth=Math.max(1.5,size*.04);
+    ctx.beginPath(); ctx.moveTo(-size*.22,size*.4); ctx.quadraticCurveTo(-size*.3,-size*.05,size*.18,-size*.42);
+    ctx.quadraticCurveTo(size*.36,-size*.02,size*.02,size*.2); ctx.quadraticCurveTo(-size*.08,size*.3,-size*.22,size*.4); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=Math.max(1,size*.03);
+    ctx.beginPath(); ctx.moveTo(-size*.2,size*.38); ctx.quadraticCurveTo(-size*.02,size*.0,size*.16,-size*.36); ctx.stroke();
+    /* искры, разлетающиеся в стороны */
+    ctx.fillStyle='#e8ffff';
+    for(const [px,py,pr] of [[.38,.22,.035],[.3,.36,.025],[-.38,-.26,.03],[-.3,-.38,.022],[.4,-.3,.025]]){ ctx.beginPath(); ctx.arc(size*px,size*py,size*pr,0,Math.PI*2); ctx.fill(); }
+    ctx.restore();
+  } else if(item.id === 'zamist'){
+    ctx.save();
+    ctx.strokeStyle='#ff5361'; ctx.fillStyle='#ff5361'; ctx.lineWidth=Math.max(2.5,size*.075); ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.shadowColor='#f02f49'; ctx.shadowBlur=10;
+    for(const direction of [1,-1]){
+      const y=direction*size*.16, startX=-direction*size*.32, endX=direction*size*.32;
+      ctx.beginPath(); ctx.moveTo(startX,y); ctx.lineTo(endX,y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(endX-direction*size*.15,y-size*.13); ctx.lineTo(endX,y); ctx.lineTo(endX-direction*size*.15,y+size*.13); ctx.stroke();
+    }
+    ctx.restore();
   } else {
-    ctx.fillStyle = '#08111d';
-    ctx.font = 'bold ' + Math.max(11, Math.round(size*.44)) + 'px Segoe UI, Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(item.icon || '?', 0, 1);
+    const seed = Array.from(String(item.id || '')).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    ctx.save();
+    ctx.globalAlpha = 0.42;
+    ctx.fillStyle = item.color || '#8be9fd';
+    ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+    ctx.lineWidth = Math.max(1, size * 0.045);
+    ctx.beginPath();
+    for(let point=0; point<7; point++){
+      const angle = point * Math.PI * 2 / 7 - Math.PI / 2;
+      const radius = size * (0.16 + ((seed + point * 17) % 9) / 28);
+      const px = Math.cos(angle) * radius;
+      const py = Math.sin(angle) * radius;
+      if(point === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = 0.72;
+    ctx.beginPath(); ctx.arc((seed % 5 - 2) * size * 0.08, ((seed >> 2) % 5 - 2) * size * 0.08, size * 0.1, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = item.color || '#8be9fd';
+    ctx.globalAlpha = .78;
+    ctx.beginPath(); ctx.arc(0,0,size*.22,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=Math.max(1,size*.04);
+    ctx.beginPath(); ctx.moveTo(-size*.26,size*.22); ctx.lineTo(0,-size*.27); ctx.lineTo(size*.28,size*.22); ctx.stroke();
   }
   ctx.fillStyle = rarity;
   ctx.beginPath();
@@ -10203,7 +12027,7 @@ function drawShop(){
     ctx.restore();
     return;
   }
-  const entries=SHOP_ITEM_IDS.map(id=>SHOP_ITEMS[id]);
+  const entries=SHOP_ITEM_IDS.map(id=>({...SHOP_ITEMS[id], id}));
   let hoveredShopItem = null;
   for(let i=0;i<entries.length;i++){
     const itemRow = Math.floor(i/columns);
@@ -10219,7 +12043,7 @@ function drawShop(){
       ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1; ctx.strokeRect(ir.x+3,ir.y+3,ir.w-6,ir.h-6);
     }
     ctx.fillStyle='rgba(255,231,185,0.08)'; ctx.fillRect(ir.x+4,ir.y+4,ir.w-8,3);
-    drawItemIcon(item,ir.x+25,ir.y+34,34);
+    drawItemIcon(item,ir.x+25,ir.y+34,40);
     ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(item.name,ir.x+46,ir.y+18);
     ctx.fillStyle='rgba(238,226,202,0.68)'; ctx.font='10px Segoe UI, Arial'; ctx.fillText(item.active ? 'АКТИВНЫЙ' : 'ПАССИВНЫЙ',ir.x+46,ir.y+36);
     ctx.fillStyle='#f2ce87'; ctx.font='bold 12px Georgia, serif'; ctx.fillText(item.cost+' монет',ir.x+46,ir.y+58);
@@ -10315,11 +12139,45 @@ function drawInventory(){
   ctx.fillText('ПРЕДМЕТЫ',items.x,items.y-10);
   for(let i=0;i<6;i++){
     const r=inventorySlotRect(i), item=playerHero.inventory[i];
-    ctx.fillStyle='rgba(5,8,14,0.9)'; ctx.fillRect(r.x,r.y,r.w,r.h);
-    ctx.strokeStyle=item ? item.color : 'rgba(255,255,255,0.25)'; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
+    const cooling=!!item&&item.cooldown>0;
+    const tile=ctx.createLinearGradient(r.x,r.y,r.x,r.y+r.h);
+    tile.addColorStop(0,item?(cooling?'rgba(34,38,44,0.96)':'rgba(37,48,62,0.96)'):'rgba(13,19,28,0.94)');
+    tile.addColorStop(1,'rgba(4,8,14,0.98)');
+    ctx.fillStyle=tile; ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle=item ? (cooling?'#68717b':item.color) : 'rgba(255,255,255,0.25)'; ctx.lineWidth=item?2:1.5; ctx.strokeRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=1; ctx.strokeRect(r.x+3,r.y+3,r.w-6,r.h-6);
     ctx.textAlign='center'; ctx.font='bold 20px Segoe UI, Arial'; ctx.fillStyle=item ? item.color : 'rgba(255,255,255,0.25)';
     const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : '▲') : '-';
-    drawItemIcon(item,r.x+r.w/2,r.y+22,Math.min(34,r.w-10));
+    ctx.save();
+    if(cooling) ctx.filter='grayscale(1)';
+    drawItemIcon(item,r.x+r.w/2,r.y+r.h/2,Math.min(42,r.w-10));
+    ctx.restore();
+    if(item && item.id==='holyLocket'){
+      ctx.save(); ctx.textAlign='right'; ctx.textBaseline='alphabetic';
+      ctx.font='bold '+Math.max(10,Math.min(14,r.w*.28))+'px Consolas, monospace';
+      ctx.fillStyle='rgba(0,0,0,.65)'; ctx.fillText(String(Math.floor(item.charges||0)),r.x+r.w-4,r.y+r.h-5);
+      ctx.fillStyle='#ffd978'; ctx.fillText(String(Math.floor(item.charges||0)),r.x+r.w-5,r.y+r.h-6);
+      ctx.restore();
+    }
+    if(cooling){
+      ctx.fillStyle='rgba(3,6,10,0.54)'; ctx.fillRect(r.x+3,r.y+3,r.w-6,r.h-6);
+      ctx.fillStyle='#f1f3f5'; ctx.font='bold '+Math.max(10,Math.min(15,r.w*.32))+'px Consolas, monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=4;
+      ctx.fillText(String(Math.ceil(item.cooldown)),r.x+r.w/2,r.y+r.h/2);
+      ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
+    }
+    if(item && item.activeTimer>0){
+      const configuredDuration=SHOP_ITEMS[item.id]?.activeDuration;
+      const activeDuration=configuredDuration||(item.id==='bkb'||item.id==='aghanimHead'?10:item.activeTimer);
+      const badgeX=r.x+r.w-9, badgeY=r.y+9, radius=8;
+      ctx.fillStyle='rgba(3,8,14,0.96)'; ctx.beginPath(); ctx.arc(badgeX,badgeY,radius+2,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.24)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(badgeX,badgeY,radius,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle=item.color||'#8be9fd'; ctx.lineWidth=2.5; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(badgeX,badgeY,radius,-Math.PI/2,-Math.PI/2+Math.PI*2*clamp(item.activeTimer/activeDuration,0,1)); ctx.stroke();
+      ctx.fillStyle='#fff'; ctx.font='bold 7px Consolas, monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(Math.ceil(item.activeTimer)),badgeX,badgeY+0.5); ctx.textBaseline='alphabetic';
+    }
     if(item && item.auraOn){
       ctx.font='bold 9px Segoe UI, Arial'; ctx.fillStyle='#72e6a5'; ctx.textAlign='left'; ctx.fillText('ВКЛ',r.x+5,r.y+r.h-5); ctx.textAlign='center';
     }
@@ -10469,8 +12327,33 @@ function drawBottomHeroPanel(hero){
   const panel = layout.panel;
   const stats = layout.stats;
   ctx.save();
-  ctx.fillStyle='rgba(5,9,16,0.94)'; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
+  const panelFill=ctx.createLinearGradient(panel.x,panel.y,panel.x,panel.y+panel.h);
+  panelFill.addColorStop(0,'rgba(18,26,38,0.97)'); panelFill.addColorStop(1,'rgba(4,8,15,0.98)');
+  ctx.fillStyle=panelFill; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
   ctx.strokeStyle=hero.def.color2; ctx.lineWidth=2; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
+  ctx.strokeStyle='rgba(255,255,255,0.17)'; ctx.lineWidth=1; ctx.strokeRect(panel.x+4,panel.y+4,panel.w-8,panel.h-8);
+  if(VW<720){
+    drawHeroTexture(hero.def,panel.x+8,panel.y+14,42,66,performance.now()/1000,false);
+    const barX=stats.x+8, barW=panel.x+panel.w-12-barX, barH=10;
+    ctx.textAlign='left'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 12px Segoe UI, Arial';
+    ctx.fillText(hero.def.name+'  •  Ур. '+hero.level,barX,panel.y+18);
+    ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='9px Segoe UI, Arial';
+    ctx.fillText('ЗДОРОВЬЕ',barX,panel.y+37);
+    ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(barX,panel.y+41,barW,barH);
+    ctx.fillStyle='#35c85a'; ctx.fillRect(barX,panel.y+41,barW*clamp(hero.hp/hero.maxHp,0,1),barH);
+    ctx.fillStyle='#fff'; ctx.font='bold 9px Consolas, monospace';
+    ctx.fillText(Math.ceil(hero.hp)+' / '+Math.ceil(hero.maxHp),barX+5,panel.y+50);
+    ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='9px Segoe UI, Arial';
+    ctx.fillText('МАНА',barX,panel.y+66);
+    ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(barX,panel.y+70,barW,barH);
+    ctx.fillStyle='#3988e8'; ctx.fillRect(barX,panel.y+70,barW*clamp(hero.mp/hero.maxMp,0,1),barH);
+    ctx.fillStyle='#fff'; ctx.font='bold 9px Consolas, monospace';
+    ctx.fillText(Math.ceil(hero.mp)+' / '+Math.ceil(hero.maxMp),barX+5,panel.y+79);
+    ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='10px Segoe UI, Arial';
+    ctx.fillText('АТАКА '+Math.round(hero.getDamage())+'  •  БРОНЯ '+Math.round(hero.getArmor()),barX,panel.y+101);
+    ctx.restore();
+    return;
+  }
   drawHeroTexture(hero.def, panel.x + 8, panel.y + 28, 64, 92, performance.now()/1000, false);
   const barX = stats.x + 12, barW = stats.w - 24, barH = 16;
   ctx.textAlign='left'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 15px Segoe UI, Arial';
@@ -10573,7 +12456,7 @@ function drawHUD(){
   ctx.fillText('Монеты: ' + h.coins, VW-24, 108);
   ctx.fillStyle = gameTime < MID_PUSH_TIME ? '#8be9fd' : '#ffd568';
   ctx.font = 'bold 14px Segoe UI, Arial';
-  ctx.fillText(gameTime < MID_PUSH_TIME ? 'Фаза: линии + лес' : 'Фаза: общий пуш мида', VW-24, 178);
+  ctx.fillText(gameTime < BOT_FARM_PHASE_TIME ? 'Фаза: фарм крипов' : (gameTime < MID_PUSH_TIME ? 'Фаза: драки по линиям' : 'Фаза: общий пуш мида'), VW-24, 178);
   if(h.def.id === 'shadow'){
     ctx.fillStyle = '#ff8a3d';
     ctx.font = 'bold 16px Segoe UI, Arial';
@@ -10655,16 +12538,14 @@ function drawHUD(){
     const ready = s.level>0 && activeCd<=0 && h.mp>=manaVal && !(def.mineSkill && h.mineLock);
     const canLevel = h.canLevelSkill(i);
 
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(r.x, r.y, r.w, r.h);
-
-    if(s.level>0){
-      ctx.fillStyle = ready ? 'rgba(70,130,200,0.55)' : 'rgba(60,60,70,0.6)';
-      ctx.fillRect(r.x+3, r.y+3, r.w-6, r.h-6);
-    } else {
-      ctx.fillStyle = 'rgba(35,35,40,0.7)';
-      ctx.fillRect(r.x+3, r.y+3, r.w-6, r.h-6);
-    }
+    const skillGradient=ctx.createLinearGradient(r.x,r.y,r.x+r.w,r.y+r.h);
+    skillGradient.addColorStop(0,s.level>0?(ready?'rgba(39,91,130,0.96)':'rgba(45,51,64,0.96)'):'rgba(19,24,32,0.96)');
+    skillGradient.addColorStop(1,'rgba(5,9,16,0.98)');
+    ctx.fillStyle=skillGradient; ctx.beginPath(); ctx.roundRect(r.x,r.y,r.w,r.h,6); ctx.fill();
+    const skillColor=def.ult?'#e2a84e':(ready?'#79bde8':'rgba(255,255,255,0.34)');
+    ctx.strokeStyle=skillColor; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(r.x,r.y,r.w,r.h,6); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(r.x+4,r.y+4,r.w-8,r.h-8,4); ctx.stroke();
 
     if(h.def.id === 'grisha' && i<3){
       const ocol = i===0 ? '#7feaff' : i===1 ? '#c8b3ff' : '#ff9955';
@@ -10681,7 +12562,9 @@ function drawHUD(){
 
     ctx.font = '11px Segoe UI, Arial';
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText(def.name, r.x + r.w/2, r.y - 6);
+    const skillLabel=def.name==='Форма Трансформера'?'ТРАНСФОРМЕР':def.name;
+    ctx.font='bold 11px Segoe UI, Arial';
+    ctx.fillText(skillLabel, r.x + r.w/2, r.y - 6, r.w + 18);
 
     if(s.level > 0 && manaVal > 0){
       ctx.font = 'bold 12px Segoe UI, Arial';
@@ -10704,10 +12587,6 @@ function drawHUD(){
       ctx.fillStyle = l < s.level ? '#ffe066' : 'rgba(255,255,255,0.2)';
       ctx.fillRect(px, py, 10, 5);
     }
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(r.x, r.y, r.w, r.h);
 
     if(canLevel){
       ctx.fillStyle = '#ffd54f';
@@ -10840,22 +12719,112 @@ function drawPhraseWheel(){
   ctx.restore();
 }
 
+/* Таблица на Tab в стиле Dota 2: две команды стопкой, портреты, уровень, золото, У/С/П и предметы. */
 function drawScoreboard(){
   if(!scoreboardOpen) return;
+  const roster = heroes.filter(h => h && h.type === 'hero' && !h.isIllusion);
+  const teams = [
+    {team:0, title:'СИЛЫ СВЕТА', color:'#72e6a5', dark:'rgba(20,52,34,0.94)', mid:'rgba(14,34,24,0.94)'},
+    {team:1, title:'СИЛЫ ТЬМЫ',  color:'#ff7b7b', dark:'rgba(58,20,22,0.94)', mid:'rgba(36,14,16,0.94)'}
+  ];
+  const showItems = VW >= 700;
+  const rowH = VH < 640 ? 34 : 42, headH = 34, gap = 12;
+  const colItems = showItems ? 6*26 + 8 : 0;
+  const w = Math.min(showItems ? 700 : 460, VW - 16);
+  const rows = teams.map(t => roster.filter(h => h.team === t.team));
+  const totalH = teams.reduce((sum,t,i)=> sum + headH + Math.max(1,rows[i].length)*(rowH+2), 0) + gap;
+  const x = Math.round(VW/2 - w/2), y = Math.max(8, Math.round(VH/2 - totalH/2));
+  const fit = (text, maxW) => {
+    if(ctx.measureText(text).width <= maxW) return text;
+    while(text.length > 1 && ctx.measureText(text + '…').width > maxW) text = text.slice(0,-1);
+    return text + '…';
+  };
+  /* правые колонки: от края к центру */
+  const pad = 10;
+  const itemsX = x + w - pad - colItems;
+  const colA = itemsX - (showItems ? 8 : 0) - 28, colD = colA - 30, colK = colD - 30, colGold = colK - 62, colLvl = colGold - 40;
+  const nameX = x + pad + 4 + rowH + 8;
+  const nameMaxW = Math.max(40, colLvl - 20 - nameX);
+
   ctx.save();
-  const w=620, h=360, x=VW/2-w/2, y=VH/2-h/2;
-  ctx.fillStyle='rgba(5,9,16,0.94)'; ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle='#ffd568'; ctx.lineWidth=3; ctx.strokeRect(x,y,w,h);
-  ctx.textAlign='center'; ctx.fillStyle='#ffd568'; ctx.font='bold 24px Segoe UI, Arial'; ctx.fillText('СЧЁТ',VW/2,y+38);
-  ctx.font='bold 16px Segoe UI, Arial'; ctx.fillStyle='#72e6a5'; ctx.fillText('СОЮЗНИКИ',x+155,y+75); ctx.fillStyle='#ff8585'; ctx.fillText('ВРАГИ',x+465,y+75);
-  const allies=heroes.filter(h=>h.team===0), enemies=heroes.filter(h=>h.team===1);
-  ctx.font='14px Segoe UI, Arial';
-  for(let i=0;i<Math.max(allies.length,enemies.length);i++){
-    const yy=y+112+i*52;
-    const left=allies[i], right=enemies[i];
-    if(left){ ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText(left.def.name+'  ур.'+left.level,x+45,yy); ctx.fillText('У/С/П: '+left.kills+'/'+left.deaths+'/'+left.assists+'  '+Math.floor(left.coins)+' монет',x+45,yy+20); }
-    if(right){ ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.fillText(right.def.name+'  ур.'+right.level,x+355,yy); ctx.fillText('У/С/П: '+right.kills+'/'+right.deaths+'/'+right.assists+'  '+Math.floor(right.coins)+' монет',x+355,yy+20); }
-  }
+  ctx.fillStyle = 'rgba(0,0,0,0.38)';
+  ctx.fillRect(x - 6, y - 6, w + 12, totalH + 12);
+  let cy = y;
+  teams.forEach((t, ti) => {
+    const list = rows[ti];
+    const teamKills = list.reduce((sum,h) => sum + (h.kills || 0), 0);
+    /* шапка команды */
+    const hg = ctx.createLinearGradient(x, cy, x + w, cy);
+    hg.addColorStop(0, t.dark); hg.addColorStop(1, 'rgba(8,12,18,0.96)');
+    ctx.fillStyle = hg; ctx.fillRect(x, cy, w, headH);
+    ctx.fillStyle = t.color; ctx.fillRect(x, cy, 3, headH);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.font = 'bold 20px Georgia, serif'; ctx.fillStyle = '#fff';
+    ctx.fillText(String(teamKills), x + 14, cy + headH/2 + 1);
+    ctx.font = 'bold 14px Georgia, serif'; ctx.fillStyle = t.color;
+    ctx.fillText(t.title, x + 14 + Math.max(24, ctx.measureText(String(teamKills)).width + 10), cy + headH/2 + 1);
+    ctx.font = 'bold 10px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.textAlign = 'center';
+    ctx.fillText('УР', colLvl + 14, cy + headH/2 + 1);
+    ctx.fillText('ЗОЛОТО', colGold + 28, cy + headH/2 + 1);
+    ctx.fillText('У', colK + 12, cy + headH/2 + 1);
+    ctx.fillText('С', colD + 12, cy + headH/2 + 1);
+    ctx.fillText('П', colA + 12, cy + headH/2 + 1);
+    if(showItems){ ctx.textAlign = 'left'; ctx.fillText('ПРЕДМЕТЫ', itemsX, cy + headH/2 + 1); }
+    cy += headH;
+    /* строки героев */
+    list.forEach(hero => {
+      const dead = !!hero.dead, mine = hero === playerHero;
+      const rg = ctx.createLinearGradient(x, cy, x + w, cy);
+      rg.addColorStop(0, t.mid); rg.addColorStop(1, 'rgba(10,14,20,0.94)');
+      ctx.fillStyle = rg; ctx.fillRect(x, cy, w, rowH);
+      if(mine){ ctx.fillStyle = 'rgba(255,213,104,0.10)'; ctx.fillRect(x, cy, w, rowH); }
+      ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(x, cy + rowH - 1, w, 1);
+      /* портрет */
+      const ps = rowH - 8, px = x + pad + 2, py = cy + 4;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(px, py, ps, ps);
+      drawHeroStripIcon(hero.def, px, py, ps, performance.now()/1000, dead);
+      ctx.strokeStyle = mine ? '#ffd568' : (dead ? '#66707c' : t.color); ctx.lineWidth = mine ? 2 : 1.2; ctx.strokeRect(px, py, ps, ps);
+      if(dead){
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(px, py, ps, ps);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Consolas, monospace'; ctx.textAlign = 'center';
+        ctx.fillText(String(Math.ceil(hero.respawnTimer || 0)), px + ps/2, py + ps/2 + 1);
+      }
+      /* имена */
+      const nick = hero === playerHero ? ((account.profile && account.profile.nick) || 'ТЫ') : (hero.onlinePlayerId ? 'Игрок' : 'Бот');
+      ctx.textAlign = 'left'; ctx.font = 'bold 13px Segoe UI, Arial'; ctx.fillStyle = dead ? '#9aa3ad' : '#fff';
+      ctx.fillText(fit(hero.def.name, nameMaxW), nameX, cy + rowH/2 - 7);
+      ctx.font = '10px Segoe UI, Arial'; ctx.fillStyle = mine ? '#ffd568' : 'rgba(255,255,255,0.5)';
+      ctx.fillText(fit(nick, nameMaxW), nameX, cy + rowH/2 + 8);
+      /* уровень, золото, У/С/П */
+      ctx.textAlign = 'center'; ctx.font = 'bold 13px Segoe UI, Arial'; ctx.fillStyle = dead ? '#9aa3ad' : '#e9edf2';
+      ctx.fillText(String(hero.level || 1), colLvl + 14, cy + rowH/2 + 1);
+      ctx.fillStyle = '#f2ce87'; ctx.font = 'bold 13px Consolas, monospace';
+      ctx.fillText(String(Math.floor(hero.coins || 0)), colGold + 28, cy + rowH/2 + 1);
+      ctx.font = 'bold 13px Segoe UI, Arial';
+      ctx.fillStyle = '#e9edf2'; ctx.fillText(String(hero.kills || 0), colK + 12, cy + rowH/2 + 1);
+      ctx.fillStyle = '#ff9a9a'; ctx.fillText(String(hero.deaths || 0), colD + 12, cy + rowH/2 + 1);
+      ctx.fillStyle = '#b9d9ff'; ctx.fillText(String(hero.assists || 0), colA + 12, cy + rowH/2 + 1);
+      /* предметы */
+      if(showItems){
+        for(let slot = 0; slot < 6; slot++){
+          const ix = itemsX + slot*26, iy = cy + (rowH - 22)/2;
+          ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(ix, iy, 24, 22);
+          ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.strokeRect(ix + .5, iy + .5, 23, 21);
+          const item = hero.inventory && hero.inventory[slot];
+          if(item){
+            ctx.save(); ctx.beginPath(); ctx.rect(ix, iy, 24, 22); ctx.clip();
+            if(item.cooldown > 0) ctx.filter = 'grayscale(1)';
+            drawItemIcon(item, ix + 12, iy + 11, 22);
+            ctx.restore();
+          }
+        }
+      }
+      cy += rowH + 2;
+    });
+    if(!list.length) cy += rowH + 2;
+    if(ti === 0) cy += gap;
+  });
+  ctx.textBaseline = 'alphabetic';
   ctx.restore();
 }
 
@@ -10902,15 +12871,49 @@ function menuSettingsLayout(panel){
   };
 }
 function menuStoreRect(){ if(menuWide()) return menuNavRect(2); return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
+function storePanelLayout(){
+  const width=Math.max(0,Math.min(660,VW-24)), height=Math.max(0,Math.min(560,VH-24));
+  const panel={x:(VW-width)/2,y:(VH-height)/2,w:width,h:height};
+  const tabGap=10, tabWidth=(width-48-tabGap)/2;
+  const tabs={
+    shop:{x:panel.x+24,y:panel.y+76,w:tabWidth,h:38},
+    inventory:{x:panel.x+24+tabWidth+tabGap,y:panel.y+76,w:tabWidth,h:38}
+  };
+  const categoryGap=8, categoryWidth=(width-48-categoryGap)/2;
+  const categories={
+    skins:{x:panel.x+24,y:panel.y+124,w:categoryWidth,h:30},
+    phrases:{x:panel.x+24+categoryWidth+categoryGap,y:panel.y+124,w:categoryWidth,h:30}
+  };
+  const phraseGap=8, phraseWidth=(width-48-phraseGap*2)/3;
+  const phraseHeight=Math.min(76,Math.max(40,(height-245)/3));
+  const phraseCards=STORE_PHRASE_CARDS.map((card,index)=>({
+    x:panel.x+24+(index%3)*(phraseWidth+phraseGap),
+    y:panel.y+166+Math.floor(index/3)*(phraseHeight+phraseGap),w:phraseWidth,h:phraseHeight
+  }));
+  return {
+    panel,tabs,categories,phraseCards,
+    skinCard:{x:panel.x+24,y:panel.y+166,w:width-48,h:Math.max(72,height-270)},
+    action:{x:panel.x+24,y:panel.y+height-104,w:width-48,h:42},
+    close:{x:panel.x+24,y:panel.y+height-54,w:width-48,h:40}
+  };
+}
 
 const UPDATE_SPOTLIGHT = [
-  {version:'0.6.1b',title:'ВОСЕМЬ ГЕРОЕВ. ТРИ ЛИНИИ.',description:'В обычной игре стало просторнее для командной драки: на центральной линии теперь встречаются сразу несколько бойцов, а лес проще читать.',compactDescription:'Восемь бойцов в команде, оживлённый мид и заметные лагеря в лесу.'},
-  {version:'0.6.1a',title:'ТЕМП БОЯ ПОД НОВЫМ УГЛОМ',description:'Обновлённые способности и баланс поздней игры помогают дольше оставаться в сражении и точнее выбирать момент для атаки.',compactDescription:'Настройка способностей и поздней игры освежила темп боёв.'},
-  {version:'0.6.0',title:'ИГРАЙ ТАМ, ГДЕ УДОБНО',description:'Интерфейс подстраивается под телефон, а переход к сетевой игре стал отдельным и понятным шагом.',compactDescription:'Удобное управление на телефоне и быстрый вход в онлайн.'}
+  {version:'0.7.6b',title:'ПРЕДМЕТ «ЗАМИСТЬ» И ПРОФИЛИ',description:'Новый активный предмет, звон монет при покупке, профили игроков мирового топа и обязательный аккаунт для онлайна.',compactDescription:'Замисть, профили игроков и аккаунт для онлайна.'},
+  {version:'0.7.6a',title:'КРАСНАЯ РИГИНА И ИНВЕНТАРЬ',description:'Забери первый бесплатный скин в магазине, примени его в инвентаре и используй на Ригине в матче.',compactDescription:'Бесплатный скин Ригины и новый инвентарь.'},
+  {version:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',description:'Победы, поражения, убийства, смерти, любимые бойцы и подробные отчёты последних игр с итогом команд.',compactDescription:'Карьера игрока и отчёты последних матчей.'},
+  {version:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',description:'Смотри десятку игроков с наибольшим числом побед над ботами и игроками. MMR отображается как дополнительная статистика.',compactDescription:'Глобальный топ по победам в матчах.'},
+  {version:'0.7.4b',title:'ПРОГРЕСС АККАУНТА',description:'Личные показатели, любимые герои и недавние результаты остаются с аккаунтом после следующего входа.',compactDescription:'Статистика сохраняется в аккаунте.'},
+  {version:'0.7.4a',title:'ЖИВОЙ СЧЁТЧИК ОНЛАЙНА',description:'Верхняя панель показывает число активных подключений к серверу. Счётчик обновляется сразу при входе и выходе игроков и переживает временную недоступность Render.',compactDescription:'Актуальное число подключённых игроков на сервере.'},
+  {version:'0.7.4a',title:'ТИХАЯ КОСМИЧЕСКАЯ ТЕМА',description:'Главное меню получило новую оригинальную музыку: медленный низкий пад и редкие высокие ноты звучат спокойно и не заглушают игру.',compactDescription:'Новая спокойная космическая музыка меню.'},
+  {version:'0.7.4a',title:'КАРТА: ТЕНИ И КАМЕННЫЕ ДОРОГИ',description:'Добавлены контактные тени деревьев, глубина берегов и каменная разметка линий без изменений маршрутов и игровой физики.',compactDescription:'Тени леса и более читаемые каменные линии.'},
+  {version:'0.7.3b',title:'МАГАЗИН: НОВЫЕ ИЗОБРАЖЕНИЯ',description:'Предметы получили новые объёмные карточки. Та же иконка теперь отображается в магазине и в шести слотах инвентаря.',compactDescription:'Новые изображения предметов в магазине и инвентаре.'},
+  {version:'0.7.3b',title:'САВЕЛИЙ: ТРАНСФОРМАЦИЯ ПОЧИНЕНА',description:'Форма Трансформера и Яростный рев больше не ломают состояние интерфейса и корректно работают с любой целью.',compactDescription:'Стабильные трансформер и ульта Савелия.'},
+  {version:'0.7.3b',title:'ОНЛАЙН: СТАТИСТИКА И РЕЙТИНГ',description:'В онлайн-разделе появились профиль, рейтинг, победы, поражения, матчи и винрейт перед поиском комнаты.',compactDescription:'Профиль, рейтинг и статистика прямо перед матчем.'}
 ];
 
 function drawMenuUpdatePreview(playRect){
-  const sections=UPDATE_SPOTLIGHT;
+  const sections=UPDATE_SPOTLIGHT.slice(0,3);
   const compact=VW<820||VH<820;
   const width=Math.min(780,VW-32);
   const rowHeight=compact?68:76;
@@ -10984,16 +12987,20 @@ function drawMenuButton(rect, label, options={}){
   if(gameState==='menu') menuButtonHitboxes.push({x:rect.x,y:rect.y,w:rect.w,h:rect.h,key:options.hoverKey||`${label}:${Math.round(rect.x)}:${Math.round(rect.y)}`});
   const primary = options.primary === true;
   const active = options.active === true;
+  const redBlack = options.redBlack === true;
   const radius = options.radius || 8;
   ctx.save();
   ctx.shadowColor = hover || active
-    ? (primary ? 'rgba(211,74,43,0.65)' : 'rgba(215,179,106,0.35)')
+    ? (primary || redBlack ? 'rgba(235,44,58,0.58)' : 'rgba(215,179,106,0.35)')
     : 'rgba(0,0,0,0.45)';
   ctx.shadowBlur = hover || active ? 18 : 8;
   const fill = ctx.createLinearGradient(rect.x,rect.y,rect.x,rect.y+rect.h);
   if(primary){
     fill.addColorStop(0, hover ? '#d96847' : '#b94835');
     fill.addColorStop(1, hover ? '#8d2c28' : '#70201f');
+  } else if(redBlack){
+    fill.addColorStop(0,hover||active?'#81212a':'#351116');
+    fill.addColorStop(1,'#09090d');
   } else {
     fill.addColorStop(0, hover || active ? 'rgba(119,42,34,0.95)' : 'rgba(28,24,27,0.96)');
     fill.addColorStop(1, hover || active ? 'rgba(68,27,27,0.98)' : 'rgba(10,11,16,0.96)');
@@ -11001,15 +13008,15 @@ function drawMenuButton(rect, label, options={}){
   ctx.fillStyle = fill;
   ctx.beginPath(); ctx.roundRect(rect.x,rect.y,rect.w,rect.h,radius); ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = primary ? '#f5d99c' : (hover || active ? '#e3bd70' : 'rgba(215,179,106,0.72)');
+  ctx.strokeStyle = primary ? '#f5d99c' : redBlack ? (hover||active?'#ff5662':'#a8323d') : (hover || active ? '#e3bd70' : 'rgba(215,179,106,0.72)');
   ctx.lineWidth = primary ? 2 : 1.5;
   ctx.stroke();
-  ctx.strokeStyle = primary ? 'rgba(255,237,188,0.48)' : 'rgba(185,67,49,0.65)';
+  ctx.strokeStyle = primary ? 'rgba(255,237,188,0.48)' : redBlack ? 'rgba(237,61,78,0.5)' : 'rgba(185,67,49,0.65)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.roundRect(rect.x+4,rect.y+4,rect.w-8,rect.h-8,Math.max(3,radius-3));
   ctx.stroke();
-  ctx.fillStyle = primary ? '#fff0c7' : '#e8c984';
+  ctx.fillStyle = primary ? '#fff0c7' : redBlack ? '#ffe4e4' : '#e8c984';
   ctx.font = options.large ? 'bold '+(options.fontSize||21)+'px Segoe UI, Arial' : 'bold '+(options.fontSize||12)+'px Segoe UI, Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -11053,12 +13060,27 @@ function handleMenuClick(mx, my){
     storeOpen=!storeOpen; changelogOpen=false; settingsOpen=false; return;
   }
   if(storeOpen){
-    const panel={x:VW/2-330,y:VH/2-250,w:660,h:500};
-    const close={x:panel.x+230,y:panel.y+426,w:200,h:44};
-    if(mx>=close.x&&mx<=close.x+close.w&&my>=close.y&&my<=close.y+close.h){storeOpen=false;return;}
-    for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
-      const card={x:panel.x+18+(index%3)*216,y:panel.y+124+Math.floor(index/3)*98,w:194,h:88};
-      if(mx>=card.x&&mx<=card.x+card.w&&my>=card.y&&my<=card.y+card.h){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
+    const layout=storePanelLayout();
+    const inside=(rect)=>mx>=rect.x&&mx<=rect.x+rect.w&&my>=rect.y&&my<=rect.y+rect.h;
+    if(inside(layout.close)){storeOpen=false;return;}
+    if(inside(layout.tabs.shop)){storeTab='shop';return;}
+    if(inside(layout.tabs.inventory)){storeTab='inventory';return;}
+    if(storeTab==='shop'){
+      if(inside(layout.categories.skins)){storeCategory='skins';return;}
+      if(inside(layout.categories.phrases)){storeCategory='phrases';return;}
+      if(storeCategory==='phrases'){
+        for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
+          if(inside(layout.phraseCards[index])){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
+        }
+      } else if(inside(layout.action)){
+        redReginaSkinOwned=true;
+        saveReginaSkinState();
+        storeTab='inventory';
+        return;
+      }
+    } else if(inside(layout.action)){
+      if(redReginaSkinOwned) setReginaSkinEquipped(!redReginaSkinEquipped);
+      else { storeTab='shop'; storeCategory='skins'; }
     }
     return;
   }
@@ -11075,10 +13097,15 @@ function handleMenuClick(mx, my){
     return;
   }
   if(menuStage === 'home'){
+    if(menuProfileRect && mx>=menuProfileRect.x && mx<=menuProfileRect.x+menuProfileRect.w && my>=menuProfileRect.y && my<=menuProfileRect.y+menuProfileRect.h){ openAccountModal(); return; }
     for(const hit of menuHomeHits){
       if(mx>=hit.x && mx<=hit.x+hit.w && my>=hit.y && my<=hit.y+hit.h){
         if(hit.action==='store'){ storeOpen=true; changelogOpen=false; settingsOpen=false; }
         else if(hit.action==='online'){ onlineEntryElement.click(); }
+        else if(hit.action==='account'){ openAccountModal(); }
+        else if(hit.action==='leaderboard') window.openLeaderboard();
+        else if(hit.action==='changelog'){ changelogOpen=true; changelogScroll=0; }
+        else if(hit.action==='fighters'){ menuStage='heroes'; menuHeroPage=0; }
         return;
       }
     }
@@ -11115,6 +13142,8 @@ function handleMenuClick(mx, my){
   if(menuStage === 'draft'){
     const back={x:24,y:78,w:120,h:38};
     if(mx>=back.x && mx<=back.x+back.w && my>=back.y && my<=back.y+back.h){ stopMenuMusic(); announcerStop(); menuStage='home'; return; }
+    const skip=draftSkipRect();
+    if(draftPlayerIndex>=0 && mx>=skip.x && mx<=skip.x+skip.w && my>=skip.y && my<=skip.y+skip.h){ startGame(draftPlayerIndex,draftBotIndices); return; }
     for(let i=0;i<HERO_DEFS.length;i++){
       const r=menuCardRect(i);
       if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h){ draftPlayerIndex=i; selectedHeroIndex=i; return; }
@@ -11305,12 +13334,20 @@ function drawHeroTexture(def, x, y, w, h, now, large=false){
     ctx.fillStyle='#ff4b24'; ctx.shadowColor='#ff4b24'; ctx.shadowBlur=16; ctx.beginPath(); ctx.arc(-12,-104,6,0,Math.PI*2); ctx.arc(12,-104,6,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
     ctx.strokeStyle='#ff7043'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(64,-22); ctx.lineTo(104,-94); ctx.stroke();
   } else if(def.id==='regina'){
-    ctx.fillStyle='#e9b39e'; ctx.strokeStyle='#59243c'; ctx.lineWidth=3;
+    const redSkin=def.skinId==='reginaRed';
+    ctx.fillStyle='#e9b39e'; ctx.strokeStyle=redSkin?'#4b0b18':'#59243c'; ctx.lineWidth=3;
     ctx.beginPath(); ctx.arc(0,-112,34,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#5a2940'; ctx.beginPath(); ctx.arc(0,-130,42,Math.PI,Math.PI*2); ctx.fill();
-    ctx.strokeStyle='#ff9fbd'; ctx.lineWidth=5;
+    ctx.fillStyle=redSkin?'#641126':'#5a2940'; ctx.beginPath(); ctx.arc(0,-130,42,Math.PI,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=redSkin?'#ff4058':'#ff9fbd'; ctx.lineWidth=5;
     ctx.beginPath(); ctx.moveTo(-58,-34); ctx.lineTo(-92,-91); ctx.moveTo(58,-34); ctx.lineTo(92,-91); ctx.stroke();
     ctx.fillStyle='#fff0f5'; ctx.beginPath(); ctx.arc(-12,-112,4,0,Math.PI*2); ctx.arc(12,-112,4,0,Math.PI*2); ctx.fill();
+  } else if(def.id==='yosyp'){
+    ctx.fillStyle='#344623'; ctx.strokeStyle='#b6ff72'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(-44,-118); ctx.lineTo(-28,-156); ctx.lineTo(0,-141); ctx.lineTo(28,-156); ctx.lineTo(44,-118); ctx.lineTo(34,-75); ctx.lineTo(-34,-75); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#b6ff72'; ctx.shadowColor='#8dff55'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(-12,-110,6,0,Math.PI*2); ctx.arc(12,-110,6,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    ctx.strokeStyle='#d9f5a6'; ctx.lineWidth=7; ctx.beginPath(); ctx.moveTo(60,-22); ctx.lineTo(89,-94); ctx.stroke();
+    ctx.fillStyle='#8aa65a'; ctx.beginPath(); ctx.ellipse(89,-98,13,8,-.3,0,Math.PI*2); ctx.fill();
   } else if(def.id==='electricGosha'){
     ctx.fillStyle='#7feaff'; ctx.strokeStyle='#237aa3'; ctx.lineWidth=4;
     ctx.beginPath(); ctx.moveTo(-40,-119); ctx.lineTo(-22,-158); ctx.lineTo(-6,-132); ctx.lineTo(9,-164); ctx.lineTo(24,-132); ctx.lineTo(43,-151); ctx.lineTo(39,-99); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -11326,7 +13363,7 @@ function drawHeroTexture(def, x, y, w, h, now, large=false){
     dead:false, invisible:false, liftTimer:0, buffs:[],
     hitFlash:0, slowT:0, bkbActive:0, hpRegenBoost:false,
     hp:100, maxHp:100, mp:100, maxMp:100, level:1,
-    facing:-Math.PI/2, isPlayer:false, shadowSouls:0,
+    facing:-Math.PI/2, isPlayer:false, shadowSouls:0, skinId:def.skinId||null,
     orbs:['Q','W','E']
   };
   ctx.save();
@@ -11444,24 +13481,65 @@ function drawDraftSkillPanel(now){
 }
 
 function drawStorePanel(){
-  const panel={x:VW/2-330,y:VH/2-250,w:660,h:500};
+  const layout=storePanelLayout(), panel=layout.panel;
   ctx.fillStyle='rgba(0,0,0,0.62)'; ctx.fillRect(0,0,VW,VH);
   ctx.save();
   ctx.fillStyle='rgba(7,12,22,0.98)'; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
-  ctx.strokeStyle='#8be9fd'; ctx.lineWidth=2.5; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
-  ctx.textAlign='center'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 28px Georgia, serif'; ctx.fillText('МАГАЗИН ФРАЗ',VW/2,panel.y+54);
-  ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='13px Segoe UI, Arial'; ctx.fillText('Откройте фразу и используйте её в катке клавишей K',VW/2,panel.y+82);
-  STORE_PHRASE_CARDS.forEach((card,index)=>{
-    const x=panel.x+18+(index%3)*216;
-    const y=panel.y+124+Math.floor(index/3)*98;
-    const owned=isStorePhraseOwned(card.id);
-    ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(x,y,194,88);
-    ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(x,y,194,88);
-    ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(card.title,x+12,y+24);
-    ctx.fillStyle='#fff'; ctx.font='bold '+(card.desc.length>20?'11':'14')+'px Segoe UI, Arial'; ctx.fillText(card.desc,x+12,y+50);
-    ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'ПОЛУЧИТЬ БЕСПЛАТНО',x+12,y+72);
-  });
-  const close={x:panel.x+230,y:panel.y+426,w:200,h:44}; drawMenuButton(close,'ЗАКРЫТЬ',{active:true});
+  ctx.strokeStyle='#e15b55'; ctx.lineWidth=2.5; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
+  ctx.textAlign='center'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 25px Georgia, serif'; ctx.fillText('МАГАЗИН',VW/2,panel.y+40);
+  ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='12px Segoe UI, Arial'; ctx.fillText('Косметика и предметы коллекции',VW/2,panel.y+59);
+  drawMenuButton(layout.tabs.shop,'МАГАЗИН',{active:storeTab==='shop'});
+  drawMenuButton(layout.tabs.inventory,'ИНВЕНТАРЬ',{active:storeTab==='inventory'});
+
+  if(storeTab==='shop'){
+    drawMenuButton(layout.categories.skins,'СКИНЫ',{active:storeCategory==='skins'});
+    drawMenuButton(layout.categories.phrases,'ФРАЗЫ',{active:storeCategory==='phrases'});
+    if(storeCategory==='skins'){
+      const card=layout.skinCard, regina=HERO_DEFS.find(hero=>hero.id==='regina');
+      ctx.fillStyle='rgba(24,16,25,0.96)'; ctx.fillRect(card.x,card.y,card.w,card.h);
+      ctx.strokeStyle='#b52d3c'; ctx.lineWidth=2; ctx.strokeRect(card.x,card.y,card.w,card.h);
+      if(regina) drawHeroTexture({...regina,color:'#5b101e',color2:'#ff4058',skinId:'reginaRed'},card.x+12,card.y+12,Math.min(120,card.w*0.34),card.h-24,performance.now()/1000);
+      const detailsX=card.x+Math.min(150,card.w*0.42), detailsWidth=card.x+card.w-detailsX-10;
+      ctx.textAlign='left'; ctx.fillStyle='#ff5968'; ctx.font='bold '+Math.min(18,Math.max(13,detailsWidth/9))+'px Segoe UI, Arial';
+      ctx.fillText('КРАСНАЯ РИГИНА',detailsX,card.y+42);
+      ctx.fillStyle='rgba(255,240,235,0.76)'; ctx.font='13px Segoe UI, Arial';
+      wrapMenuText('Алый боевой образ Ригины. Не меняет характеристики героя.',detailsWidth,'13px Segoe UI, Arial').slice(0,3)
+        .forEach((line,index)=>ctx.fillText(line,detailsX,card.y+72+index*18));
+      ctx.fillStyle='#78e6a8'; ctx.font='bold 13px Segoe UI, Arial'; ctx.fillText('БЕСПЛАТНО',detailsX,card.y+card.h-22);
+      drawMenuButton(layout.action,redReginaSkinOwned?'ПОЛУЧЕНО • В ИНВЕНТАРЕ':'ЗАБРАТЬ БЕСПЛАТНО',{primary:!redReginaSkinOwned});
+    } else {
+      STORE_PHRASE_CARDS.forEach((card,index)=>{
+        const rect=layout.phraseCards[index], owned=isStorePhraseOwned(card.id);
+        ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(rect.x,rect.y,rect.w,rect.h);
+        ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
+        ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(card.title,rect.x+8,rect.y+20);
+        ctx.fillStyle='#fff'; ctx.font='11px Segoe UI, Arial';
+        wrapMenuText(card.desc,rect.w-16,'11px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,rect.x+8,rect.y+39+lineIndex*13));
+        ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 10px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'БЕСПЛАТНО',rect.x+8,rect.y+rect.h-8);
+      });
+    }
+  } else if(redReginaSkinOwned){
+    const card=layout.skinCard, regina=HERO_DEFS.find(hero=>hero.id==='regina');
+    ctx.fillStyle='rgba(24,16,25,0.96)'; ctx.fillRect(card.x,card.y,card.w,card.h);
+    ctx.strokeStyle=redReginaSkinEquipped?'#72e6a5':'#b52d3c'; ctx.lineWidth=2; ctx.strokeRect(card.x,card.y,card.w,card.h);
+    if(regina) drawHeroTexture({...regina,color:'#5b101e',color2:'#ff4058',skinId:'reginaRed'},card.x+12,card.y+12,Math.min(120,card.w*0.34),card.h-24,performance.now()/1000);
+    const detailsX=card.x+Math.min(150,card.w*0.42), detailsWidth=card.x+card.w-detailsX-10;
+    ctx.textAlign='left'; ctx.fillStyle='#ff5968'; ctx.font='bold '+Math.min(18,Math.max(13,detailsWidth/9))+'px Segoe UI, Arial';
+    ctx.fillText('КРАСНАЯ РИГИНА',detailsX,card.y+42);
+    ctx.fillStyle=redReginaSkinEquipped?'#72e6a5':'rgba(255,240,235,0.7)'; ctx.font='13px Segoe UI, Arial';
+    ctx.fillText(redReginaSkinEquipped?'СКИН ПРИМЕНЁН':'ГОТОВ К ПРИМЕНЕНИЮ',detailsX,card.y+70);
+    ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='12px Segoe UI, Arial';
+    wrapMenuText('Будет виден, когда выбран герой Ригина.',detailsWidth,'12px Segoe UI, Arial').slice(0,2)
+      .forEach((line,index)=>ctx.fillText(line,detailsX,card.y+94+index*16));
+    drawMenuButton(layout.action,redReginaSkinEquipped?'СНЯТЬ СКИН':'ПРИМЕНИТЬ СКИН',{primary:!redReginaSkinEquipped});
+  } else {
+    ctx.textAlign='center'; ctx.fillStyle='#dce5ef'; ctx.font='bold 17px Segoe UI, Arial';
+    ctx.fillText('ИНВЕНТАРЬ ПОКА ПУСТ',VW/2,panel.y+panel.h*0.58);
+    ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='13px Segoe UI, Arial';
+    ctx.fillText('Заберите бесплатный скин в магазине.',VW/2,panel.y+panel.h*0.58+25);
+    drawMenuButton(layout.action,'ОТКРЫТЬ МАГАЗИН',{primary:true});
+  }
+  drawMenuButton(layout.close,'ЗАКРЫТЬ',{active:true});
   ctx.restore();
 }
 
@@ -11502,9 +13580,589 @@ function drawCosmicBackdrop(now){
 }
 
 /* =========================================================
+   АККАУНТ: ник + пароль, уровень растёт с каждой победой
+   ========================================================= */
+const ACCOUNT_TOKEN_KEY = 'dotasense-account-token';
+const ACCOUNT_PROFILE_KEY = 'dotasense-account-profile';
+const account = { token: null, profile: null, lastGain: 0 };
+let accountCareer = {history:[], leaders:[]};
+let accountCareerLoading = false;
+let leaderboardLoading = false;
+let leaderboardError = '';
+let selectedLeaderboardProfile = null;
+const ACCOUNT_RANKS = [[0,'Новобранец'],[3,'Страж'],[6,'Рыцарь'],[10,'Герольд'],[15,'Защитник'],[25,'Легенда'],[40,'Божество'],[60,'Бессмертный']];
+function accountRank(level){
+  let name = ACCOUNT_RANKS[0][1];
+  for(const [min, title] of ACCOUNT_RANKS) if(level >= min) name = title;
+  return name;
+}
+function accountRatingRank(rating){
+  return 'РЕКРУТ ' + (Math.min(5,Math.floor(Math.max(0,rating)/100)+1));
+}
+function refreshOnlineEntryLabel(){
+  if(!onlineEntryElement) return;
+  const profile=account.profile;
+  if(!profile){ onlineEntryElement.textContent='ОНЛАЙН 3 НА 3 · ВОЙДИ ДЛЯ РЕЙТИНГА'; return; }
+  const rating=Number.isFinite(profile.rating)?profile.rating:0;
+  onlineEntryElement.textContent='ОНЛАЙН 3 НА 3 · '+accountRatingRank(rating)+' · '+rating;
+}
+function accountStore(key, value){
+  try { if(value == null) localStorage.removeItem(key); else localStorage.setItem(key, value); }
+  catch(err) {}
+}
+function accountRead(key){
+  try { return localStorage.getItem(key); } catch(err) { return null; }
+}
+function accountSet(token, profile){
+  account.token = token;
+  account.profile = profile;
+  accountStore(ACCOUNT_TOKEN_KEY, token);
+  accountStore(ACCOUNT_PROFILE_KEY, profile ? JSON.stringify(profile) : null);
+  renderAccountModal();
+  if(token) loadAccountCareer();
+  else accountCareer = {history:[], leaders:[]};
+}
+async function accountApi(name, payload){
+  let response;
+  try {
+    response = await fetch('/api/' + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) });
+  } catch(err) {
+    const error = new Error('Сервер недоступен. Попробуй позже.');
+    error.network = true;
+    throw error;
+  }
+  let data = {};
+  try { data = await response.json(); } catch(err) {}
+  if(!response.ok){
+    const error = new Error(data.error || 'Ошибка сервера');
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+function careerHeroName(id){
+  const hero = HERO_DEFS.find(def => def.id === id);
+  return hero ? hero.name : (id || 'Неизвестный боец');
+}
+function careerNode(tag, className, text){
+  const node = document.createElement(tag);
+  if(className) node.className = className;
+  if(text != null) node.textContent = text;
+  return node;
+}
+function renderCareerPanel(){
+  const panel = document.getElementById('career-panel');
+  if(!panel) return;
+  panel.hidden = !account.profile;
+  if(!account.profile) return;
+
+  const profile = account.profile;
+  const summary = document.getElementById('career-summary');
+  const favorites = document.getElementById('career-favorites');
+  const history = document.getElementById('career-history');
+  const xp = document.getElementById('career-xp');
+  summary.replaceChildren(); favorites.replaceChildren(); history.replaceChildren();
+  xp.textContent = (profile.xp || 0) % 500 + ' / 500 XP';
+
+  [
+    ['МАТЧИ',profile.matches || 0],['ПОБЕДЫ',profile.wins || 0],['ПОРАЖЕНИЯ',profile.losses || 0],
+    ['УБИЙСТВА',profile.kills || 0],['СМЕРТИ',profile.deaths || 0],['MMR',profile.rating || 0]
+  ].forEach(([label,value])=>{
+    const cell=careerNode('div','career-stat');
+    cell.append(careerNode('b','',String(value)),careerNode('span','',label));
+    summary.appendChild(cell);
+  });
+
+  const favoritesList = profile.favoriteHeroes || [];
+  if(!favoritesList.length) favorites.appendChild(careerNode('span','career-empty','Сыграй первый матч'));
+  else favoritesList.forEach(hero=>favorites.appendChild(careerNode('span','career-favorite',careerHeroName(hero.heroId)+' · '+hero.games)));
+
+  if(!accountCareer.history.length){
+    history.appendChild(careerNode('div','career-empty','История появится после первой завершённой игры.'));
+  } else accountCareer.history.forEach(match=>{
+    const details=careerNode('details','career-match'+(match.won?'':' loss'));
+    const summaryNode=careerNode('summary');
+    const date=Number.isFinite(match.playedAt) ? new Date(match.playedAt).toLocaleDateString('ru-RU') : '';
+    summaryNode.append(
+      careerNode('span','career-match-title',careerHeroName(match.heroId)+' · '+date),
+      careerNode('span','career-match-score',`${match.kills||0}/${match.deaths||0}/${match.assists||0} · ${(match.netWorth||0).toLocaleString('ru-RU')}`)
+    );
+    details.appendChild(summaryNode);
+    const body=careerNode('div','career-match-body');
+    (match.participants || []).forEach(player=>{
+      const row=careerNode('div','career-participant'+(player.team===match.winnerTeam?' winner':''));
+      row.append(
+        careerNode('span','',`${player.nick || careerHeroName(player.heroId)} · ${careerHeroName(player.heroId)}`),
+        careerNode('span','',`${player.kills||0}/${player.deaths||0}/${player.assists||0}`),
+        careerNode('span','',`${(player.netWorth||0).toLocaleString('ru-RU')} зол.`),
+        careerNode('span','',player.team===match.winnerTeam?'ПОБЕДИТЕЛЬ':'')
+      );
+      body.appendChild(row);
+    });
+    details.appendChild(body);
+    history.appendChild(details);
+  });
+}
+function renderLeaderboardPanel(){
+  const list=document.getElementById('world-leaderboard-list');
+  const status=document.getElementById('leaderboard-status');
+  if(!list||!status) return;
+  list.replaceChildren();
+  status.textContent=leaderboardLoading?'Загрузка мирового рейтинга…':leaderboardError;
+  if(!accountCareer.leaders.length){
+    if(!leaderboardLoading) status.textContent=leaderboardError || 'Таблица пока пуста.';
+    return;
+  }
+  const currentNick=account.profile&&account.profile.nick;
+  accountCareer.leaders.forEach(player=>{
+    const row=careerNode('li',player.nick===currentNick?'me':'');
+    row.appendChild(careerNode('span','leaderboard-place','#'+player.rank));
+    const identity=careerNode('button','leaderboard-player leaderboard-profile-link');
+    identity.type='button';
+    identity.append(careerNode('strong','',player.nick),careerNode('small','',`${player.title||'Новобранец'} · MMR ${player.rating||0}`));
+    identity.addEventListener('click',()=>showLeaderboardProfile(player));
+    row.append(identity,careerNode('span','leaderboard-wins',String(player.wins||0)));
+    list.appendChild(row);
+  });
+}
+function showLeaderboardProfile(profile){
+  selectedLeaderboardProfile=profile;
+  document.getElementById('leaderboard-list-view').hidden=true;
+  document.getElementById('leaderboard-player-profile').hidden=false;
+  document.getElementById('leaderboard-profile-avatar').textContent=(profile.nick||'?').slice(0,1).toUpperCase();
+  document.getElementById('leaderboard-profile-name').textContent=profile.nick||'Игрок';
+  document.getElementById('leaderboard-profile-title').textContent=(profile.title||'Новобранец')+' · '+accountRank(profile.level||0);
+  const stats=document.getElementById('leaderboard-profile-stats');
+  stats.replaceChildren();
+  [['ПОБЕДЫ',profile.wins],['ПОРАЖЕНИЯ',profile.losses],['МАТЧИ',profile.matches],['УБИЙСТВА',profile.kills],['СМЕРТИ',profile.deaths],['РЕЙТИНГ',profile.rating]]
+    .forEach(([label,value])=>{
+      const cell=careerNode('div','leaderboard-profile-stat');
+      cell.append(careerNode('b','',String(value||0)),careerNode('span','',label));
+      stats.appendChild(cell);
+    });
+  const favorites=document.getElementById('leaderboard-profile-favorites');
+  favorites.replaceChildren();
+  const heroes=profile.favoriteHeroes||[];
+  if(heroes.length) heroes.forEach(hero=>favorites.appendChild(careerNode('span','',careerHeroName(hero.heroId)+' · '+hero.games)));
+  else favorites.appendChild(careerNode('span','','Пока нет сыгранных матчей'));
+}
+document.getElementById('leaderboard-profile-back').addEventListener('click',()=>{
+  selectedLeaderboardProfile=null;
+  document.getElementById('leaderboard-player-profile').hidden=true;
+  document.getElementById('leaderboard-list-view').hidden=false;
+});
+async function loadLeaderboard(){
+  if(leaderboardLoading) return;
+  leaderboardLoading=true; leaderboardError=''; renderLeaderboardPanel();
+  try {
+    const response=await fetch('/api/leaderboard');
+    let data;
+    try { data=await response.json(); }
+    catch(err) { throw new Error('Мировой топ сейчас недоступен. Проверь подключение к серверу.'); }
+    if(!response.ok) throw new Error(data.error||'Мировой рейтинг временно недоступен');
+    accountCareer.leaders=data.players||[];
+  } catch(err) {
+    leaderboardError=err.message||'Мировой рейтинг временно недоступен';
+  } finally {
+    leaderboardLoading=false;
+    renderLeaderboardPanel();
+  }
+}
+window.openLeaderboard=function(){
+  selectedLeaderboardProfile=null;
+  document.getElementById('leaderboard-player-profile').hidden=true;
+  document.getElementById('leaderboard-list-view').hidden=false;
+  document.getElementById('leaderboard-modal').hidden=false;
+  loadLeaderboard();
+};
+window.closeLeaderboard=function(){ document.getElementById('leaderboard-modal').hidden=true; };
+async function loadAccountCareer(){
+  if(!account.token || accountCareerLoading) return;
+  const token = account.token;
+  accountCareerLoading = true;
+  try {
+    const careerResponse=await accountApi('career',{token});
+    if(account.token !== token) return;
+    account.profile=careerResponse.profile;
+    accountCareer.history=careerResponse.history || [];
+    accountStore(ACCOUNT_PROFILE_KEY,JSON.stringify(account.profile));
+    renderAccountModal();
+  } catch(err) {
+    if(account.token !== token) return;
+    if(err.status === 401) accountSet(null,null);
+    const note=document.getElementById('career-history');
+    if(note && account.profile) note.textContent='Не удалось загрузить карьеру. Проверь подключение и повтори вход.';
+  } finally {
+    accountCareerLoading = false;
+    if(account.token && account.token !== token) loadAccountCareer();
+  }
+}
+const ACCOUNT_PENDING_KEY = 'dotasense-pending-results';
+function pendingResults(){
+  try { const list = JSON.parse(accountRead(ACCOUNT_PENDING_KEY) || '[]'); return Array.isArray(list) ? list : []; }
+  catch(err) { return []; }
+}
+function savePendingResults(list){
+  accountStore(ACCOUNT_PENDING_KEY, list.length ? JSON.stringify(list.slice(-40)) : null);
+}
+function makeMatchId(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+/* Отправляет результат на сервер. Если сервер недоступен — результат остаётся в очереди
+   и будет досчитан при следующем входе/открытии игры (дубли сервер отбрасывает по matchId). */
+async function accountSendResult(entry){
+  const data = await accountApi('result', {
+    token: account.token, won: !!entry.won, matchId: entry.matchId,
+    ranked: entry.ranked === true, stats: entry.stats || {}
+  });
+  account.profile = data.profile;
+  accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
+  return data;
+}
+function currentMatchCareerStats(){
+  const roster = heroes.filter(hero => hero && hero.type === 'hero' && !hero.isIllusion);
+  const netWorthOf = hero => Math.floor((hero.coins || 0) + (hero.inventory || []).reduce((total, item) =>
+    total + (item ? (SHOP_ITEMS[item.id]?.totalCost || SHOP_ITEMS[item.id]?.cost || 0) : 0), 0));
+  const participants = roster.map(hero => ({
+    nick: hero === playerHero && account.profile ? account.profile.nick : hero.def.name,
+    heroId: hero.def.id,
+    team: hero.team,
+    kills: hero.kills || 0,
+    deaths: hero.deaths || 0,
+    assists: hero.assists || 0,
+    netWorth: netWorthOf(hero)
+  }));
+  return {
+    heroId: playerHero && playerHero.def ? playerHero.def.id : '',
+    kills: playerHero ? playerHero.kills || 0 : 0,
+    deaths: playerHero ? playerHero.deaths || 0 : 0,
+    assists: playerHero ? playerHero.assists || 0 : 0,
+    netWorth: playerHero ? netWorthOf(playerHero) : 0,
+    winnerTeam: winner === 1 ? 1 : 0,
+    participants
+  };
+}
+async function accountFlushPending(){
+  if(!account.token) return;
+  let list = pendingResults();
+  if(!list.length) return;
+  const left = [];
+  for(const entry of list){
+    try { await accountSendResult(entry); }
+    catch(err) {
+      if(err.status === 401){ left.push(entry); break; }
+      if(err.network || err.status >= 500 || err.status === 429) left.push(entry);
+    }
+  }
+  savePendingResults(left);
+  renderAccountModal();
+}
+async function accountRecordResult(won, matchId, ranked, stats){
+  account.lastGain = 0;
+  if(!account.token) return;
+  matchId = matchId || makeMatchId();
+  const entry = { won: !!won, matchId, ranked: !!ranked, stats: stats || {} };
+  const before = account.profile ? account.profile.level : 0;
+  /* Сначала кладём в очередь: если вкладку закроют раньше ответа сервера — результат не потеряется. */
+  savePendingResults(pendingResults().concat(entry));
+  try {
+    const data = await accountSendResult(entry);
+    savePendingResults(pendingResults().filter(item => item.matchId !== matchId));
+    account.lastGain = data.profile.level - before;
+    renderAccountModal();
+    loadAccountCareer();
+    accountFlushPending();
+  } catch(err) {
+    if(err.status === 401) accountSet(null, null);
+    else if(!(err.network || err.status >= 500 || err.status === 429)) savePendingResults(pendingResults().filter(item => item.matchId !== matchId));
+    console.warn('Не удалось сохранить результат матча:', err.message);
+  }
+}
+
+/* =========================================================
+   АВАТАРКИ: 15 героев игры + 5 тематических эмблем
+   ========================================================= */
+const AVATAR_DEFS = [
+  {id:'pyro'},{id:'warlord'},{id:'grisha'},{id:'golly'},{id:'sasych'},
+  {id:'ilya'},{id:'malit'},{id:'arcady'},{id:'illusionist'},{id:'shadow'},
+  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'chip'},{id:'savely'},
+  {id:'shovel', name:'Лопата', c1:'#3a2415', c2:'#d7b36a'},
+  {id:'tower',  name:'Башня',  c1:'#102a4a', c2:'#8be9fd'},
+  {id:'ancient',name:'Древний',c1:'#3c1010', c2:'#ff6b57'},
+  {id:'rune',   name:'Руна',   c1:'#241046', c2:'#c79bff'},
+  {id:'creep',  name:'Крип',   c1:'#12301a', c2:'#7dff9a'}
+];
+const avatarImages = Object.create(null);
+let avatarCacheBuilt = false;
+
+function drawThemeAvatar(def, S){
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0,0,S,S); ctx.clip();
+  const bg = ctx.createLinearGradient(0,0,S,S);
+  bg.addColorStop(0,'#0b0f1a'); bg.addColorStop(0.55,def.c1); bg.addColorStop(1,'#05070d');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,S,S);
+  const glow = ctx.createRadialGradient(S*.5,S*.45,2,S*.5,S*.45,S*.7);
+  glow.addColorStop(0, def.c2 + 'aa'); glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0,0,S,S);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const cx = S/2, cy = S/2;
+  if(def.id === 'shovel'){
+    dsShovelGlyph(cx, cy, S*.8, '#e3e8ee');
+  } else if(def.id === 'tower'){
+    ctx.fillStyle = '#9fb6cf'; ctx.strokeStyle = '#0a1422'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.rect(cx-S*.17, cy-S*.14, S*.34, S*.5); ctx.fill(); ctx.stroke();
+    for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.rect(cx+i*S*.13-S*.05, cy-S*.26, S*.1, S*.12); ctx.fill(); ctx.stroke(); }
+    ctx.fillStyle = def.c2; ctx.shadowColor = def.c2; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(cx, cy+S*.04, S*.07, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0a1422'; ctx.fillRect(cx-S*.05, cy+S*.2, S*.1, S*.16);
+  } else if(def.id === 'ancient'){
+    ctx.fillStyle = def.c2; ctx.strokeStyle = '#ffe2c9'; ctx.lineWidth = 3; ctx.shadowColor = def.c2; ctx.shadowBlur = 16;
+    ctx.beginPath(); ctx.moveTo(cx, cy-S*.34); ctx.lineTo(cx+S*.22, cy); ctx.lineTo(cx, cy+S*.34); ctx.lineTo(cx-S*.22, cy); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, cy-S*.34); ctx.lineTo(cx, cy+S*.34); ctx.moveTo(cx-S*.22, cy); ctx.lineTo(cx+S*.22, cy); ctx.stroke();
+  } else if(def.id === 'rune'){
+    ctx.strokeStyle = def.c2; ctx.lineWidth = 3; ctx.shadowColor = def.c2; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(cx, cy, S*.33, 0, Math.PI*2); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, S*.26, 0, Math.PI*2); ctx.stroke();
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx, cy-S*.2); ctx.lineTo(cx, cy+S*.2);
+    ctx.moveTo(cx, cy-S*.1); ctx.lineTo(cx+S*.14, cy-S*.2);
+    ctx.moveTo(cx, cy+S*.02); ctx.lineTo(cx-S*.14, cy-S*.08);
+    ctx.moveTo(cx, cy+S*.12); ctx.lineTo(cx+S*.14, cy+S*.03); ctx.stroke(); ctx.shadowBlur = 0;
+  } else if(def.id === 'creep'){
+    ctx.fillStyle = '#4fb86a'; ctx.strokeStyle = '#0a1d10'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy+S*.04, S*.27, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e8e4cf';
+    ctx.beginPath(); ctx.moveTo(cx-S*.2, cy-S*.14); ctx.lineTo(cx-S*.3, cy-S*.34); ctx.lineTo(cx-S*.08, cy-S*.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+S*.2, cy-S*.14); ctx.lineTo(cx+S*.3, cy-S*.34); ctx.lineTo(cx+S*.08, cy-S*.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffec6b'; ctx.beginPath(); ctx.arc(cx-S*.1, cy, S*.05, 0, Math.PI*2); ctx.arc(cx+S*.1, cy, S*.05, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#0a1d10'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy+S*.14, S*.1, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = def.c2 + 'aa'; ctx.lineWidth = 2; ctx.strokeRect(1,1,S-2,S-2);
+  ctx.restore();
+}
+
+/* Рисуем в левом верхнем углу основного холста и копируем в скрытые холсты.
+   Вызывается в начале кадра сразу после clearRect, поэтому на экране ничего не мелькает. */
+function buildAvatarCache(){
+  avatarCacheBuilt = true;
+  const S = 96;
+  for(const def of AVATAR_DEFS){
+    try {
+      ctx.save();
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,S,S);
+      const heroDef = HERO_DEFS.find(item => item.id === def.id);
+      if(heroDef) drawHeroTexture(heroDef, 0, 0, S, S, 0, false);
+      else if(def.c1) drawThemeAvatar(def, S);
+      else { ctx.restore(); continue; }
+      ctx.restore();
+      const off = document.createElement('canvas');
+      off.width = S; off.height = S;
+      off.getContext('2d').drawImage(canvas, 0, 0, S, S, 0, 0, S, S);
+      avatarImages[def.id] = { canvas: off, url: off.toDataURL('image/png'), name: heroDef ? heroDef.name : def.name };
+    } catch(err) { try { ctx.restore(); } catch(e) {} console.warn('Аватарка не создана:', def.id, err); }
+  }
+  ctx.clearRect(0,0,S,S);
+  renderAccountModal();
+}
+function drawAvatarImage(id, x, y, size){
+  const item = avatarImages[id];
+  if(!item) return false;
+  ctx.drawImage(item.canvas, x, y, size, size);
+  return true;
+}
+async function accountSetAvatar(id){
+  if(accountBusy || !account.token) return;
+  accountBusy = true;
+  try {
+    const data = await accountApi('avatar', { token: account.token, avatar: id });
+    accountSet(account.token, data.profile);
+    setAccountMessage('Аватарка изменена', true);
+  } catch(err) {
+    if(err.status === 401) accountSet(null, null);
+    setAccountMessage(err.message);
+  }
+  accountBusy = false;
+}
+function renderAvatarPicker(){
+  const box = document.getElementById('acc-avatars');
+  if(!box) return;
+  const current = account.profile ? account.profile.avatar : '';
+  if(box.childElementCount !== AVATAR_DEFS.length || box.dataset.ready !== String(avatarCacheBuilt)){
+    box.innerHTML = '';
+    for(const def of AVATAR_DEFS){
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'acc-avatar-opt'; button.dataset.id = def.id;
+      const item = avatarImages[def.id];
+      if(item){ button.style.backgroundImage = 'url(' + item.url + ')'; button.title = item.name; button.setAttribute('aria-label', item.name); }
+      button.addEventListener('click', () => accountSetAvatar(def.id));
+      button.addEventListener('pointerenter', () => playSynthSfx('hover'));
+      box.appendChild(button);
+    }
+    box.dataset.ready = String(avatarCacheBuilt);
+  }
+  for(const button of box.children) button.classList.toggle('selected', button.dataset.id === current);
+}
+
+const accountUi = {
+  modal: document.getElementById('account-modal'),
+  guest: document.getElementById('acc-guest'),
+  user: document.getElementById('acc-user'),
+  title: document.getElementById('acc-title'),
+  tabLogin: document.getElementById('acc-tab-login'),
+  tabRegister: document.getElementById('acc-tab-register'),
+  nick: document.getElementById('acc-nick'),
+  pass: document.getElementById('acc-pass'),
+  submit: document.getElementById('acc-submit'),
+  error: document.getElementById('acc-error'),
+  avatar: document.getElementById('acc-avatar'),
+  name: document.getElementById('acc-name'),
+  rank: document.getElementById('acc-rank'),
+  stats: document.getElementById('acc-stats'),
+  level: document.getElementById('acc-level'),
+  newNick: document.getElementById('acc-newnick'),
+  rename: document.getElementById('acc-rename'),
+  logout: document.getElementById('acc-logout'),
+  close: document.getElementById('acc-close')
+};
+let accountMode = 'login';
+let accountBusy = false;
+
+function setAccountMessage(text, ok){
+  accountUi.error.textContent = text || '';
+  accountUi.error.classList.toggle('ok', !!ok);
+}
+function setAccountMode(mode){
+  accountMode = mode;
+  accountUi.tabLogin.classList.toggle('active', mode === 'login');
+  accountUi.tabRegister.classList.toggle('active', mode === 'register');
+  accountUi.submit.textContent = mode === 'login' ? 'ВОЙТИ' : 'СОЗДАТЬ АККАУНТ';
+  accountUi.pass.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  setAccountMessage('');
+}
+function renderAccountModal(){
+  const profile = account.profile;
+  window.__shadowAccountProfile = profile;
+  window.dispatchEvent(new CustomEvent('shadow:profile'));
+  refreshOnlineEntryLabel();
+  accountUi.guest.hidden = !!profile;
+  accountUi.user.hidden = !profile;
+  accountUi.title.textContent = profile ? 'Профиль' : 'Аккаунт';
+  renderCareerPanel();
+  if(profile){
+    accountUi.user.dataset.frame = profile.frame || 'iron';
+    const avatarItem = profile.avatar && avatarImages[profile.avatar];
+    accountUi.avatar.textContent = avatarItem ? '' : profile.nick.charAt(0).toUpperCase();
+    accountUi.avatar.style.backgroundImage = avatarItem ? 'url(' + avatarItem.url + ')' : '';
+    accountUi.name.textContent = profile.nick;
+    accountUi.rank.textContent = '✦ ' + (profile.title || accountRank(profile.level)) + ' · ' + accountRank(profile.level);
+    const total = (profile.wins || 0) + (profile.losses || 0);
+    const rate = total ? Math.round((profile.wins || 0) / total * 100) : 0;
+    accountUi.stats.textContent = 'Побед: ' + (profile.wins || 0) + '  •  Поражений: ' + (profile.losses || 0) + '  •  Матчей: ' + total + (total ? '  •  ' + rate + '%' : '');
+    accountUi.level.textContent = String(profile.level);
+    renderAvatarPicker();
+  }
+}
+window.openChangelog = function(){
+  gameState = 'menu';
+  menuStage = 'home';
+  changelogOpen = true;
+  changelogScroll = 0;
+};
+function openAccountModal(){
+  renderAccountModal();
+  setAccountMessage('');
+  accountUi.modal.hidden = false;
+  setTimeout(() => (account.profile ? accountUi.newNick : accountUi.nick).focus(), 30);
+}
+function closeAccountModal(){
+  accountUi.modal.hidden = true;
+  canvas.focus();
+}
+async function submitAccountForm(){
+  if(accountBusy) return;
+  const nick = accountUi.nick.value.trim();
+  const password = accountUi.pass.value;
+  if(!nick || !password){ setAccountMessage('Введи ник и пароль'); return; }
+  accountBusy = true; accountUi.submit.disabled = true;
+  try {
+    const data = await accountApi(accountMode, { nick, password });
+    accountUi.pass.value = '';
+    accountSet(data.token, data.profile);
+    accountFlushPending();
+    setAccountMessage((accountMode === 'register' ? 'Аккаунт создан. Добро пожаловать, ' : 'С возвращением, ') + data.profile.nick + '!', true);
+  } catch(err) {
+    setAccountMessage(err.message);
+  }
+  accountBusy = false; accountUi.submit.disabled = false;
+}
+async function submitRename(){
+  if(accountBusy || !account.token) return;
+  const newNick = accountUi.newNick.value.trim();
+  if(!newNick){ setAccountMessage('Введи новый ник'); return; }
+  accountBusy = true; accountUi.rename.disabled = true;
+  try {
+    const data = await accountApi('nick', { token: account.token, newNick });
+    accountUi.newNick.value = '';
+    accountSet(account.token, data.profile);
+    setAccountMessage('Ник изменён', true);
+  } catch(err) {
+    if(err.status === 401) accountSet(null, null);
+    setAccountMessage(err.message);
+  }
+  accountBusy = false; accountUi.rename.disabled = false;
+}
+async function submitLogout(){
+  const token = account.token;
+  accountSet(null, null);
+  setAccountMode('login');
+  setAccountMessage('Ты вышел из аккаунта', true);
+  if(token) { try { await accountApi('logout', { token }); } catch(err) {} }
+}
+(function bindAccountUi(){
+  const ui = accountUi;
+  /* Клавиши в окне аккаунта не должны попадать в игровые горячие клавиши. */
+  ['keydown','keyup','keypress'].forEach(type => ui.modal.addEventListener(type, event => {
+    event.stopPropagation();
+    if(type === 'keydown' && event.key === 'Escape') closeAccountModal();
+  }));
+  ui.modal.addEventListener('mousedown', event => { if(event.target === ui.modal) closeAccountModal(); });
+  ui.close.addEventListener('click', closeAccountModal);
+  ui.tabLogin.addEventListener('click', () => setAccountMode('login'));
+  ui.tabRegister.addEventListener('click', () => setAccountMode('register'));
+  ui.submit.addEventListener('click', submitAccountForm);
+  ui.rename.addEventListener('click', submitRename);
+  ui.logout.addEventListener('click', submitLogout);
+  [ui.nick, ui.pass].forEach(input => input.addEventListener('keydown', event => { if(event.key === 'Enter') submitAccountForm(); }));
+  ui.newNick.addEventListener('keydown', event => { if(event.key === 'Enter') submitRename(); });
+  [ui.close, ui.tabLogin, ui.tabRegister, ui.submit, ui.rename, ui.logout].forEach(button => button.addEventListener('pointerenter', () => playSynthSfx('hover')));
+
+  /* Восстановление сессии: сразу показываем сохранённый профиль, затем сверяемся с сервером. */
+  const token = accountRead(ACCOUNT_TOKEN_KEY);
+  if(token){
+    account.token = token;
+    try { account.profile = JSON.parse(accountRead(ACCOUNT_PROFILE_KEY) || 'null'); } catch(err) { account.profile = null; }
+    accountApi('me', { token }).then(data => {
+      account.profile = data.profile;
+      accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
+      renderAccountModal();
+      loadAccountCareer();
+      accountFlushPending();
+    }).catch(err => {
+      if(err.status === 401) accountSet(null, null);
+    });
+  }
+  renderAccountModal();
+})();
+
+/* =========================================================
    DOTA SENSE — главное меню в красной теме
    ========================================================= */
 let menuHomeHits = [];
+let menuProfileRect = null;
 
 function dsMetalPanel(x,y,w,h,stroke){
   ctx.save();
@@ -11531,7 +14189,232 @@ function dsShovelGlyph(cx,cy,size,color){
   ctx.restore();
 }
 
-function drawDotaSenseLogo(cx,y,w,h){
+function dsHash(n){ const v=Math.sin(n*12.9898+78.233)*43758.5453; return v-Math.floor(v); }
+
+function dsRuneGlyph(x,y,size,seed){
+  ctx.beginPath();
+  ctx.moveTo(x,y-size); ctx.lineTo(x,y+size);
+  const branches=1+Math.floor(dsHash(seed)*3);
+  for(let b=0;b<branches;b++){
+    const by=y-size+dsHash(seed*3+b+1)*size*1.5;
+    const dir=dsHash(seed*5+b+2)>0.5?1:-1;
+    const len=size*(0.5+dsHash(seed*7+b+3)*0.7);
+    const tilt=(dsHash(seed*11+b+4)-0.5)*size*0.8;
+    ctx.moveTo(x,by); ctx.lineTo(x+dir*len,by+tilt+size*0.45);
+  }
+  ctx.stroke();
+}
+
+/* Большая рунная печать: кольца, руны, гексаграмма, пентаграмма и горящий глаз. */
+function dsDrawSigil(cx,cy,R,now,intensity){
+  intensity=intensity==null?1:intensity;
+  const pulse=0.5+0.5*Math.sin(now*2);
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.globalCompositeOperation='lighter';
+  const disc=ctx.createRadialGradient(0,0,R*0.1,0,0,R*1.18);
+  disc.addColorStop(0,'rgba(255,70,45,'+(0.24*intensity)+')');
+  disc.addColorStop(0.7,'rgba(160,20,20,'+(0.10*intensity)+')');
+  disc.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=disc; ctx.beginPath(); ctx.arc(0,0,R*1.18,0,Math.PI*2); ctx.fill();
+
+  const ringColor='rgba(255,110,85,'+((0.55+0.3*pulse)*intensity)+')';
+  const softColor='rgba(255,100,80,'+(0.45*intensity)+')';
+  const goldColor='rgba(255,205,140,'+(0.8*intensity)+')';
+  ctx.shadowColor='rgba(255,60,40,0.9)'; ctx.shadowBlur=18;
+  ctx.strokeStyle=ringColor; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
+  ctx.lineWidth=1.2; ctx.strokeStyle=softColor;
+  ctx.beginPath(); ctx.arc(0,0,R*1.065,0,Math.PI*2); ctx.stroke();
+  ctx.shadowBlur=0;
+
+  ctx.setLineDash([3,12]); ctx.lineDashOffset=-now*18; ctx.lineWidth=1.6; ctx.strokeStyle=softColor;
+  ctx.beginPath(); ctx.arc(0,0,R*0.93,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.save(); ctx.rotate(now*0.08); ctx.beginPath();
+  for(let i=0;i<72;i++){
+    const a=i*Math.PI*2/72, long=i%6===0, r0=R*0.84, r1=R*(long?0.91:0.875);
+    ctx.moveTo(Math.cos(a)*r0,Math.sin(a)*r0); ctx.lineTo(Math.cos(a)*r1,Math.sin(a)*r1);
+  }
+  ctx.lineWidth=1.4; ctx.strokeStyle=softColor; ctx.stroke(); ctx.restore();
+
+  ctx.save(); ctx.rotate(-now*0.06); ctx.lineWidth=1.8; ctx.strokeStyle=goldColor;
+  for(let i=0;i<24;i++){
+    ctx.save(); ctx.rotate(i*Math.PI*2/24); ctx.translate(0,-R*0.76);
+    dsRuneGlyph(0,0,R*0.042,i+1);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  ctx.lineWidth=1.4; ctx.strokeStyle=softColor;
+  ctx.beginPath(); ctx.arc(0,0,R*0.69,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,R*0.67,0,Math.PI*2); ctx.stroke();
+
+  ctx.save(); ctx.rotate(now*0.14); ctx.lineWidth=1.8; ctx.strokeStyle=ringColor;
+  for(let tri=0;tri<2;tri++){
+    ctx.beginPath();
+    for(let i=0;i<3;i++){
+      const a=i*Math.PI*2/3+tri*Math.PI/3-Math.PI/2;
+      const px=Math.cos(a)*R*0.66, py=Math.sin(a)*R*0.66;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.closePath(); ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save(); ctx.rotate(-now*0.1); ctx.lineWidth=1.6; ctx.strokeStyle=goldColor;
+  ctx.beginPath();
+  for(let i=0;i<=5;i++){
+    const a=((i*2)%5)*Math.PI*2/5-Math.PI/2;
+    const px=Math.cos(a)*R*0.5, py=Math.sin(a)*R*0.5;
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.stroke(); ctx.restore();
+
+  ctx.lineWidth=1.6; ctx.strokeStyle=ringColor;
+  ctx.beginPath(); ctx.arc(0,0,R*0.34,0,Math.PI*2); ctx.stroke();
+  ctx.save(); ctx.rotate(now*0.3); ctx.fillStyle=goldColor;
+  for(let i=0;i<8;i++){
+    ctx.save(); ctx.rotate(i*Math.PI/4); ctx.translate(0,-R*0.34);
+    ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(3,0); ctx.lineTo(0,4); ctx.lineTo(-3,0); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  /* Горящий глаз в центре. */
+  const ew=R*0.27, eh=R*0.1;
+  ctx.globalCompositeOperation='source-over';
+  ctx.beginPath(); ctx.moveTo(-ew,0); ctx.quadraticCurveTo(0,-eh*2,ew,0); ctx.quadraticCurveTo(0,eh*2,-ew,0); ctx.closePath();
+  ctx.fillStyle='rgba(18,0,2,'+(0.92*intensity)+')'; ctx.fill();
+  ctx.save(); ctx.clip();
+  ctx.globalCompositeOperation='lighter';
+  const iris=ctx.createRadialGradient(0,0,0,0,0,R*0.1);
+  iris.addColorStop(0,'rgba(255,240,200,'+intensity+')'); iris.addColorStop(0.35,'rgba(255,120,70,'+intensity+')'); iris.addColorStop(1,'rgba(160,10,10,0)');
+  ctx.fillStyle=iris; ctx.beginPath(); ctx.arc(0,0,R*(0.1+0.012*pulse),0,Math.PI*2); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='rgba(10,0,0,'+(0.95*intensity)+')';
+  ctx.beginPath(); ctx.ellipse(0,0,R*0.014,R*0.07,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.globalCompositeOperation='lighter';
+  ctx.beginPath(); ctx.moveTo(-ew,0); ctx.quadraticCurveTo(0,-eh*2,ew,0); ctx.quadraticCurveTo(0,eh*2,-ew,0); ctx.closePath();
+  ctx.lineWidth=2; ctx.strokeStyle=goldColor; ctx.stroke();
+
+  /* Огненные шары на орбите с хвостами. */
+  for(let k=0;k<3;k++){
+    const base=now*(0.5+k*0.12)+k*2.1;
+    for(let tr=0;tr<12;tr++){
+      const a=base-tr*0.05, rr=R*(1.12+k*0.06);
+      const fade=1-tr/12;
+      ctx.fillStyle='rgba('+(k===1?'255,200,120':'255,100,60')+','+(fade*0.85*intensity)+')';
+      ctx.beginPath(); ctx.arc(Math.cos(a)*rr,Math.sin(a)*rr,(4.2-k*0.5)*fade*(0.6+R/320),0,Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/* Алый вихрь: спиральные рукава, молнии по ободу и обломки на орбите. */
+function dsDrawPortal(px,py,rx,ry,now){
+  ctx.save();
+  ctx.translate(px,py);
+  ctx.globalCompositeOperation='lighter';
+  ctx.save(); ctx.scale(1,ry/rx);
+  const aura=ctx.createRadialGradient(0,0,rx*0.2,0,0,rx*2.3);
+  aura.addColorStop(0,'rgba(255,60,35,0.38)'); aura.addColorStop(0.5,'rgba(150,15,20,0.16)'); aura.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=aura; ctx.beginPath(); ctx.arc(0,0,rx*2.3,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.globalCompositeOperation='source-over';
+  ctx.save(); ctx.scale(rx,ry);
+  const body=ctx.createRadialGradient(0,0,0,0,0,1);
+  body.addColorStop(0,'rgba(5,0,0,1)'); body.addColorStop(0.35,'rgba(30,2,4,0.98)');
+  body.addColorStop(0.75,'rgba(120,12,14,0.9)'); body.addColorStop(1,'rgba(230,50,35,0.85)');
+  ctx.fillStyle=body; ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.globalCompositeOperation='lighter';
+  const ARMS=5, PER=44;
+  for(let a=0;a<ARMS;a++){
+    for(let j=0;j<PER;j++){
+      const t=j/PER;
+      const ang=a*Math.PI*2/ARMS+t*6.5-now*1.1*(1.2-t*0.5);
+      const rr=0.12+t*0.86;
+      const x=Math.cos(ang)*rr*rx, y=Math.sin(ang)*rr*ry;
+      const size=(1-t)*3+1;
+      const alpha=(0.15+0.7*(1-t)*(0.6+0.4*dsHash(a*50+j))).toFixed(3);
+      ctx.fillStyle=t<0.35?'rgba(255,230,190,'+alpha+')':(t<0.7?'rgba(255,120,80,'+alpha+')':'rgba(220,40,30,'+alpha+')');
+      ctx.fillRect(x-size/2,y-size/2,size,size);
+    }
+  }
+  ctx.shadowColor='rgba(255,60,40,1)'; ctx.shadowBlur=14;
+  ctx.lineWidth=2.5; ctx.strokeStyle='rgba(255,170,120,0.85)';
+  ctx.beginPath(); ctx.ellipse(0,0,rx*0.42,ry*0.42,0,0,Math.PI*2); ctx.stroke();
+  ctx.lineWidth=2; ctx.strokeStyle='rgba(255,110,85,0.7)';
+  for(let k=0;k<3;k++){
+    const a0=now*(0.9+k*0.3)*(k%2?-1:1);
+    ctx.beginPath(); ctx.ellipse(0,0,rx*(0.62+k*0.14),ry*(0.62+k*0.14),0,a0,a0+Math.PI*1.2); ctx.stroke();
+  }
+  ctx.lineWidth=4; ctx.strokeStyle='rgba(255,90,60,0.85)';
+  ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2); ctx.stroke();
+  ctx.shadowBlur=0;
+
+  const seed=Math.floor(now*9);
+  ctx.lineWidth=1.6; ctx.strokeStyle='rgba(255,200,170,0.85)';
+  for(let b=0;b<3;b++){
+    const base=dsHash(seed*3+b)*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(Math.cos(base)*rx,Math.sin(base)*ry);
+    for(let seg=1;seg<=6;seg++){
+      const outward=1+seg*0.11;
+      const jitter=(dsHash(seed*17+b*7+seg)-0.5)*0.35;
+      ctx.lineTo(Math.cos(base+jitter)*rx*outward,Math.sin(base+jitter)*ry*outward);
+    }
+    ctx.stroke();
+  }
+
+  ctx.globalCompositeOperation='source-over';
+  for(let i=0;i<12;i++){
+    const a=now*0.25*(i%2?1:-1)+i*0.9, orbit=1.25+0.25*dsHash(i), size=5+dsHash(i+9)*8;
+    ctx.save(); ctx.translate(Math.cos(a)*rx*orbit,Math.sin(a)*ry*orbit*0.92); ctx.rotate(a*2+i);
+    ctx.fillStyle=i%3?'#1a0709':'#2a0c0e'; ctx.strokeStyle='rgba(255,90,60,0.55)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(-size,-size*0.4); ctx.lineTo(size*0.2,-size); ctx.lineTo(size,size*0.3); ctx.lineTo(-size*0.3,size*0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/* Логотип DOTA / SENSE + большая золотая тройка (нарисована вектором, без шрифтов). */
+function dsDrawGoldThree(cx,cy,H,now){
+  const r1=H*0.235, r2=H*0.265, lw=H*0.2;
+  const c1=cy-H/2+r1, c2=cy+H/2-r2, jy=c1+r1;
+  const path=new Path2D();
+  path.arc(cx,c1,r1,Math.PI*1.1,Math.PI*2.5,false);
+  path.moveTo(cx-r1*0.45,jy); path.lineTo(cx,jy);
+  path.moveTo(cx,c2-r2);
+  path.arc(cx,c2,r2,Math.PI*1.5,Math.PI*2.9,false);
+  ctx.save();
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  const pulse=0.5+0.5*Math.sin(now*2.2);
+  ctx.shadowColor='rgba(255,150,50,'+(0.5+0.35*pulse)+')'; ctx.shadowBlur=H*0.3;
+  ctx.strokeStyle='#2a0808'; ctx.lineWidth=lw+H*0.09; ctx.stroke(path);
+  ctx.shadowBlur=0;
+  const gold=ctx.createLinearGradient(0,cy-H/2,0,cy+H/2);
+  gold.addColorStop(0,'#fff6c8'); gold.addColorStop(0.35,'#f6c14a'); gold.addColorStop(0.7,'#c4761c'); gold.addColorStop(1,'#7a3d0e');
+  ctx.strokeStyle=gold; ctx.lineWidth=lw; ctx.stroke(path);
+  ctx.strokeStyle='rgba(120,30,10,0.55)'; ctx.lineWidth=lw*0.12; ctx.stroke(path);
+  ctx.translate(-lw*0.18,-lw*0.2);
+  ctx.strokeStyle='rgba(255,255,240,0.6)'; ctx.lineWidth=lw*0.2; ctx.stroke(path);
+  ctx.restore();
+  /* Мерцающая искра на тройке. */
+  const sx=cx+r1*0.95, sy=cy-H*0.42, size=H*(0.12+0.06*Math.sin(now*3.1));
+  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(255,240,200,0.9)';
+  ctx.beginPath(); ctx.moveTo(sx,sy-size*2); ctx.lineTo(sx+size*0.35,sy-size*0.35); ctx.lineTo(sx+size*2,sy); ctx.lineTo(sx+size*0.35,sy+size*0.35);
+  ctx.lineTo(sx,sy+size*2); ctx.lineTo(sx-size*0.35,sy+size*0.35); ctx.lineTo(sx-size*2,sy); ctx.lineTo(sx-size*0.35,sy-size*0.35); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawDotaSenseLogo(cx,y,w,h,now,noMoon){
+  now=now||performance.now()/1000;
   ctx.save();
   const x=cx-w/2, c=Math.round(h*0.22);
   const plate=ctx.createLinearGradient(x,y,x,y+h);
@@ -11548,11 +14431,19 @@ function drawDotaSenseLogo(cx,y,w,h){
     ctx.fillStyle='#b4231f'; ctx.strokeStyle='#e8c9b0'; ctx.lineWidth=1.5;
     ctx.beginPath(); ctx.moveTo(px,y+h/2-9); ctx.lineTo(px+9,y+h/2); ctx.lineTo(px,y+h/2+9); ctx.lineTo(px-9,y+h/2); ctx.closePath(); ctx.fill(); ctx.stroke();
   }
-  const fontPx=Math.round(h*0.56);
+  /* Замеряем слова при базовом размере и ужимаем всё, чтобы влезло вместе с тройкой. */
+  const baseFont=Math.round(h*0.56);
+  ctx.font='900 '+baseFont+'px Georgia, serif';
+  const dotaW0=ctx.measureText('DOTA').width, senseW0=ctx.measureText('SENSE').width;
+  const emblem0=h*0.6, gap0=h*0.12, threeW0=h*0.5;
+  const total0=dotaW0+gap0+emblem0+gap0+senseW0+gap0*1.8+threeW0;
+  const k=Math.min(1,(w-h*0.95)/total0);
+  const fontPx=Math.max(8,Math.round(baseFont*k));
+  const emblem=emblem0*k, gap=gap0*k, threeW=threeW0*k;
   ctx.font='900 '+fontPx+'px Georgia, serif';
   ctx.textBaseline='middle'; ctx.textAlign='left';
-  const dotaW=ctx.measureText('DOTA').width, senseW=ctx.measureText('SENSE').width, emblem=h*0.6, gap=h*0.12;
-  const total=dotaW+gap+emblem+gap+senseW;
+  const dotaW=ctx.measureText('DOTA').width, senseW=ctx.measureText('SENSE').width;
+  const total=dotaW+gap+emblem+gap+senseW+gap*1.8+threeW;
   let tx=cx-total/2; const ty=y+h/2+2;
   const drawWord=(word,wx)=>{
     ctx.lineWidth=5; ctx.strokeStyle='#120c0e'; ctx.strokeText(word,wx,ty);
@@ -11571,71 +14462,85 @@ function drawDotaSenseLogo(cx,y,w,h){
   ctx.beginPath(); ctx.moveTo(-emblem*0.38,emblem*0.42); ctx.lineTo(-emblem*0.14,emblem*0.42); ctx.lineTo(emblem*0.38,-emblem*0.42); ctx.lineTo(emblem*0.14,-emblem*0.42); ctx.closePath(); ctx.fill();
   ctx.restore();
   tx+=emblem+gap;
-  drawWord('SENSE',tx);
+  drawWord('SENSE',tx); tx+=senseW+gap*1.8;
+  dsDrawGoldThree(tx+threeW/2,y+h/2+h*0.02,h*0.66*k+h*0.08*(1-k),now);
   ctx.textBaseline='alphabetic';
   ctx.restore();
-  /* кровавая луна справа от логотипа */
-  if(VW>=900){
-    const mr=Math.round(h*0.34), mx=x+w+mr*2.4, my=y+h*0.55;
-    ctx.save();
-    const moon=ctx.createRadialGradient(mx-mr*0.3,my-mr*0.3,mr*0.1,mx,my,mr);
-    moon.addColorStop(0,'#ff6a5a'); moon.addColorStop(0.6,'#c01f1f'); moon.addColorStop(1,'#6b0c10');
-    ctx.shadowColor='rgba(255,50,40,0.85)'; ctx.shadowBlur=36;
-    ctx.fillStyle=moon; ctx.beginPath(); ctx.arc(mx,my,mr,0,Math.PI*2); ctx.fill();
-    ctx.restore();
+  /* кровавая луна слева от логотипа (справа теперь профиль игрока) */
+  if(!noMoon && VW>=900){
+    const mr=Math.round(h*0.34), mx=x-mr*2.4, my=y+h*0.55;
+    if(mx>mr*1.6){
+      ctx.save();
+      const moon=ctx.createRadialGradient(mx-mr*0.3,my-mr*0.3,mr*0.1,mx,my,mr);
+      moon.addColorStop(0,'#ff6a5a'); moon.addColorStop(0.6,'#c01f1f'); moon.addColorStop(1,'#6b0c10');
+      ctx.shadowColor='rgba(255,50,40,0.85)'; ctx.shadowBlur=36;
+      ctx.fillStyle=moon; ctx.beginPath(); ctx.arc(mx,my,mr,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
   }
 }
 
 function drawDotaSenseBackdrop(now){
   ctx.save();
-  const tint=ctx.createLinearGradient(0,0,0,VH);
-  tint.addColorStop(0,'rgba(70,8,10,0.80)'); tint.addColorStop(0.55,'rgba(96,14,14,0.55)'); tint.addColorStop(1,'rgba(22,3,6,0.90)');
-  ctx.fillStyle=tint; ctx.fillRect(0,0,VW,VH);
+  const base=ctx.createLinearGradient(0,0,0,VH);
+  base.addColorStop(0,'#1c0508'); base.addColorStop(0.5,'#3a0a0e'); base.addColorStop(1,'#0d0204');
+  ctx.fillStyle=base; ctx.fillRect(0,0,VW,VH);
+  const glow=ctx.createRadialGradient(VW*0.5,VH*0.46,0,VW*0.5,VH*0.46,Math.max(VW,VH)*0.62);
+  glow.addColorStop(0,'rgba(190,40,30,0.38)'); glow.addColorStop(0.5,'rgba(110,18,20,0.18)'); glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=glow; ctx.fillRect(0,0,VW,VH);
 
-  const cx=VW*0.44, cy=VH*0.40, r=Math.min(VW,VH)*0.13;
-  /* столб света над рунной звездой */
-  const beam=ctx.createLinearGradient(0,0,0,cy);
-  beam.addColorStop(0,'rgba(255,60,40,0)'); beam.addColorStop(1,'rgba(255,60,40,'+(0.20+0.06*Math.sin(now*1.6))+')');
-  ctx.fillStyle=beam; ctx.fillRect(cx-r*0.28,0,r*0.56,cy);
-  /* руническая звезда */
-  ctx.translate(cx,cy);
-  ctx.shadowColor='#ff3b2a'; ctx.shadowBlur=26;
-  ctx.strokeStyle='rgba(255,90,70,'+(0.55+0.2*Math.sin(now*2))+')'; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
-  ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,r*1.18,0,Math.PI*2); ctx.stroke();
-  ctx.rotate(now*0.12);
-  for(let tri=0;tri<2;tri++){
-    ctx.beginPath();
-    for(let i=0;i<3;i++){
-      const a=i*Math.PI*2/3+tri*Math.PI/3-Math.PI/2;
-      const px=Math.cos(a)*r*0.92, py=Math.sin(a)*r*0.92;
-      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  /* тусклые звёзды */
+  for(let i=0;i<90;i++){
+    const x=((i*0.61803398875)%1)*VW, y=((i*0.75487766625)%1)*VH*0.72;
+    const tw=0.5+0.5*Math.sin(now*(0.7+i%5*0.2)+i*1.9);
+    ctx.globalAlpha=0.15+0.5*tw*(i%7===0?1:0.55);
+    ctx.fillStyle=i%9===0?'#ffd9b0':'#ffc4bb';
+    ctx.fillRect(x,y,i%13===0?2:1,i%13===0?2:1);
+  }
+  ctx.globalAlpha=1;
+
+  /* медленный туман */
+  for(let i=0;i<5;i++){
+    const fx=VW*(0.1+i*0.2)+Math.sin(now*0.07+i*2)*90, fy=VH*(0.55+(i%2)*0.2)+Math.cos(now*0.05+i)*30;
+    const fr=Math.min(VW,VH)*0.5;
+    const fog=ctx.createRadialGradient(fx,fy,0,fx,fy,fr);
+    fog.addColorStop(0,'rgba(130,24,28,0.16)'); fog.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=fog; ctx.fillRect(fx-fr,fy-fr,fr*2,fr*2);
+  }
+
+  const R=Math.min(VW*0.2,VH*0.3), sx=VW*0.37, sy=VH*0.5;
+  const prx=Math.min(VW*0.085,VH*0.15), pry=prx*1.9, ppx=VW*0.66, ppy=VH*0.5;
+
+  /* столб света над печатью */
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  const beam=ctx.createLinearGradient(0,0,0,sy);
+  beam.addColorStop(0,'rgba(255,60,40,0)'); beam.addColorStop(1,'rgba(255,60,40,'+(0.2+0.06*Math.sin(now*1.6))+')');
+  ctx.fillStyle=beam; ctx.fillRect(sx-R*0.22,0,R*0.44,sy);
+  ctx.restore();
+
+  dsDrawSigil(sx,sy,R,now);
+
+  /* поток энергии от печати к вихрю */
+  if(VW>=700){
+    const x0=sx+R*0.98, y0=sy-R*0.1, x2=ppx-prx*1.1, y2=ppy-pry*0.2, x1=(x0+x2)/2, y1=sy-R*1.1;
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    ctx.strokeStyle='rgba(255,90,60,0.12)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.quadraticCurveTo(x1,y1,x2,y2); ctx.stroke();
+    for(let i=0;i<36;i++){
+      const t=(now*0.12+i/36)%1, u=1-t;
+      const bx=u*u*x0+2*u*t*x1+t*t*x2, by=u*u*y0+2*u*t*y1+t*t*y2;
+      const pulse=Math.sin(Math.PI*t);
+      ctx.fillStyle='rgba(255,'+(140+Math.round(80*pulse))+',90,'+(0.85*pulse)+')';
+      ctx.beginPath(); ctx.arc(bx,by,1.2+2*pulse,0,Math.PI*2); ctx.fill();
     }
-    ctx.closePath(); ctx.stroke();
+    ctx.restore();
   }
-  ctx.rotate(-now*0.12);
-  ctx.fillStyle='rgba(255,70,50,0.9)'; ctx.beginPath(); ctx.arc(0,0,r*0.1,0,Math.PI*2); ctx.fill();
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.restore();
 
-  /* алый портал */
-  ctx.save();
-  const px=VW*0.62, py=VH*0.47, rx=Math.min(VW,VH)*0.07, ry=rx*1.45;
-  ctx.translate(px,py);
-  ctx.shadowColor='#ff2a1a'; ctx.shadowBlur=34;
-  const portal=ctx.createRadialGradient(0,0,2,0,0,ry);
-  portal.addColorStop(0,'rgba(15,0,0,0.95)'); portal.addColorStop(0.7,'rgba(120,10,10,0.8)'); portal.addColorStop(1,'rgba(255,60,40,0.75)');
-  ctx.fillStyle=portal; ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2); ctx.fill();
-  ctx.lineWidth=3; ctx.strokeStyle='rgba(255,110,90,0.8)';
-  for(let k=0;k<3;k++){
-    ctx.beginPath(); ctx.ellipse(0,0,rx*(0.35+k*0.28),ry*(0.35+k*0.28),now*0.6*(k%2?-1:1),0,Math.PI*1.5); ctx.stroke();
-  }
-  ctx.restore();
+  dsDrawPortal(ppx,ppy,prx,pry,now);
 
   /* скалы по низу */
-  ctx.save();
   for(let layer=0;layer<2;layer++){
-    ctx.fillStyle=layer?'rgba(18,5,8,0.95)':'rgba(40,10,12,0.8)';
+    ctx.fillStyle=layer?'rgba(14,3,6,0.97)':'rgba(48,10,14,0.85)';
     ctx.beginPath(); ctx.moveTo(0,VH);
     const peaks=14;
     for(let i=0;i<=peaks;i++){
@@ -11645,17 +14550,22 @@ function drawDotaSenseBackdrop(now){
     }
     ctx.lineTo(VW,VH); ctx.closePath(); ctx.fill();
   }
+
+  /* поднимающиеся искры и пепел, ветер дует вправо */
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<90;i++){
+    const phase=(now*0.045*(0.6+(i%5)*0.2)+i/90)%1;
+    const ex=((i*137.5)%VW)+phase*60+Math.sin(now*0.6+i)*16, ey=VH*(1-phase);
+    ctx.globalAlpha=0.75*Math.sin(phase*Math.PI);
+    ctx.fillStyle=i%4===0?'#ffd27a':'#ff6a3d';
+    const size=i%6===0?2.4:(i%3===0?1.6:1.1);
+    ctx.fillRect(ex,ey,size,size);
+  }
   ctx.restore();
 
-  /* искры */
-  ctx.save();
-  for(let i=0;i<60;i++){
-    const phase=(now*0.045*(0.6+(i%5)*0.2)+i/60)%1;
-    const ex=((i*137.5)%VW)+Math.sin(now*0.6+i)*16, ey=VH*(1-phase);
-    ctx.globalAlpha=0.7*Math.sin(phase*Math.PI);
-    ctx.fillStyle=i%4===0?'#ffd27a':'#ff6a3d';
-    ctx.beginPath(); ctx.arc(ex,ey,i%6===0?2.2:1.2,0,Math.PI*2); ctx.fill();
-  }
+  const vig=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*0.3,VW/2,VH/2,Math.max(VW,VH)*0.75);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.6)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,VW,VH);
   ctx.restore();
 }
 
@@ -11681,15 +14591,16 @@ function drawDotaSenseHome(){
   /* --- левая колонка: новинки магазина --- */
   const colX=play.x, colW=play.w;
   const aY=tab.y+tab.h+Math.round(18*s);
-  const rowH=Math.round(72*s), aH=Math.round(40*s)+2*rowH+Math.round(10*s);
+  const rowH=Math.round(66*s), aH=Math.round(40*s)+3*rowH+Math.round(20*s);
   dsMetalPanel(colX,aY,colW,aH);
   ctx.save();
   ctx.textAlign='left'; ctx.textBaseline='middle';
   ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(14*s)+'px Georgia, serif';
   ctx.fillText('НОВИНКИ МАГАЗИНА',colX+Math.round(16*s),aY+Math.round(22*s));
   const showcase=[
-    {id:'dianaPants',line:'Аура вкл/выкл без КД • +60 урона'},
-    {id:'girfsyutin',line:'+1800 к здоровью'}
+    {id:'brainAss',line:'+350 скорости атаки и +250 урона'},
+    {id:'aghanimHead',line:'Активация усиливает героя на 10 секунд'},
+    {id:'munition',line:'Боты теперь включают активный залп'}
   ];
   showcase.forEach((entry,index)=>{
     const def=SHOP_ITEMS[entry.id];
@@ -11721,27 +14632,40 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#fff0c7'; ctx.font='bold '+Math.round(19*s)+'px Georgia, serif';
   ctx.fillText('ЛОПАТА ЧЕЛЛЕНДЖ',challenge.x+Math.round(92*s),challenge.y+Math.round(46*s));
   ctx.fillStyle='rgba(235,225,215,0.65)'; ctx.font=Math.round(11*s)+'px Segoe UI, Arial';
-  ctx.fillText(isStorePhraseOwned('shovel')?'Получено • жми K в бою':'Забери бесплатно в магазине фраз',challenge.x+Math.round(92*s),challenge.y+Math.round(69*s));
+  ctx.fillText(isStorePhraseOwned('shovel')?'Получено • жми K в бою':'Забери бесплатно во вкладке «Фразы»',challenge.x+Math.round(92*s),challenge.y+Math.round(69*s));
   ctx.restore();
 
-  /* --- профиль --- */
+  /* --- профиль (клик открывает окно аккаунта) --- */
   const gear=menuSettingsRect();
   const profW=Math.round(260*s), profH=gear.h;
   const prof={x:gear.x-Math.round(12*s)-profW,y:gear.y,w:profW,h:profH};
-  dsMetalPanel(prof.x,prof.y,prof.w,prof.h,'#6b2a2a');
+  menuProfileRect=prof;
+  const profHover=hit(prof);
+  const pf=account.profile;
+  const frameColor=pf&&pf.frame==='legend'?'#ffd568':pf&&pf.frame==='dominion'?'#d797ff':pf&&pf.frame==='veteran'?'#67c9df':'#6b2a2a';
+  menuButtonHitboxes.push({x:prof.x,y:prof.y,w:prof.w,h:prof.h,key:'profile'});
+  dsMetalPanel(prof.x,prof.y,prof.w,prof.h,profHover?'#e65a46':frameColor);
+  const pNick=pf?pf.nick:'Гость', pLevel=pf?pf.level:0;
   ctx.save();
   const av=profH-Math.round(12*s);
-  ctx.fillStyle='#14090c'; ctx.strokeStyle='#8f6a62'; ctx.lineWidth=2;
+  ctx.fillStyle='#14090c'; ctx.strokeStyle=pf?frameColor:'#8f6a62'; ctx.lineWidth=2;
   ctx.fillRect(prof.x+6,prof.y+6,av,av); ctx.strokeRect(prof.x+6,prof.y+6,av,av);
   ctx.fillStyle='#d9d0bf'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('S',prof.x+6+av/2,prof.y+6+av/2+1);
-  ctx.fillStyle='#b4231f'; ctx.fillRect(prof.x+6+av/2-Math.round(14*s),prof.y+profH-Math.round(9*s),Math.round(28*s),Math.round(13*s));
-  ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(10*s)+'px Consolas, monospace'; ctx.fillText('55',prof.x+6+av/2,prof.y+profH-Math.round(2.5*s));
+  if(!(pf && pf.avatar && drawAvatarImage(pf.avatar,prof.x+6,prof.y+6,av))) ctx.fillText(pf?pNick.charAt(0).toUpperCase():'?',prof.x+6+av/2,prof.y+6+av/2+1);
+  const badgeW=Math.max(Math.round(28*s),Math.round((String(pLevel).length*8+12)*s));
+  ctx.fillStyle='#b4231f'; ctx.fillRect(prof.x+6+av/2-badgeW/2,prof.y+profH-Math.round(9*s),badgeW,Math.round(13*s));
+  ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(10*s)+'px Consolas, monospace'; ctx.fillText(String(pLevel),prof.x+6+av/2,prof.y+profH-Math.round(2.5*s));
   ctx.textAlign='left';
-  const tx0=prof.x+av+Math.round(18*s);
-  ctx.fillStyle='#e8c984'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial'; ctx.fillText('ShadowHunter',tx0,prof.y+Math.round(15*s));
-  ctx.fillStyle='#8fb8e8'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial'; ctx.fillText('✦ Divine V',tx0,prof.y+Math.round(31*s));
-  ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(12*s)+'px Consolas, monospace'; ctx.fillText('◆ 15,200',tx0,prof.y+Math.round(46*s));
+  const tx0=prof.x+av+Math.round(18*s), maxTextW=prof.x+prof.w-tx0-Math.round(26*s);
+  ctx.fillStyle='#e8c984'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial';
+  let shownNick=pNick; while(shownNick.length>3 && ctx.measureText(shownNick).width>maxTextW) shownNick=shownNick.slice(0,-1);
+  ctx.fillText(shownNick+(shownNick!==pNick?'…':''),tx0,prof.y+Math.round(15*s));
+  ctx.fillStyle=pf?frameColor:'rgba(255,200,170,0.75)'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial';
+  ctx.fillText(pf?'✦ '+(pf.title||accountRank(pLevel)):'Нажми, чтобы войти',tx0,prof.y+Math.round(31*s));
+  ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(12*s)+'px Consolas, monospace';
+  ctx.fillText(pf?'◆ Побед: '+pf.wins+'  Поражений: '+pf.losses:'Создай аккаунт',tx0,prof.y+Math.round(46*s));
+  ctx.textAlign='right'; ctx.fillStyle=profHover?'#ffd568':'rgba(255,240,199,0.45)'; ctx.font=Math.round(14*s)+'px Segoe UI, Arial';
+  ctx.fillText('✎',prof.x+prof.w-Math.round(10*s),prof.y+Math.round(16*s));
   ctx.restore();
 
   /* --- NEWS & EVENTS --- */
@@ -11752,11 +14676,15 @@ function drawDotaSenseHome(){
   ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(17*s)+'px Georgia, serif';
   ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
   ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
+  const rebalanceHero = REBALANCE_HERO_POOL[Math.floor(Math.random()*REBALANCE_HERO_POOL.length)];
+  const rebalanceItem = REBALANCE_ITEM_POOL[Math.floor(Math.random()*REBALANCE_ITEM_POOL.length)];
   const news=[
-    {tag:'ПАТЧ',title:'ТРУСЫ ДИАНЫ: НОВЫЙ ПРЕДМЕТ',art:'heart'},
-    {tag:'ПАТЧ',title:'ЖИРФСЮТИН: +1800 HP',art:'hp'},
-    {tag:'ФРАЗА',title:'ЛОПАТА ЧЕЛЛЕНДЖ',art:'shovel',action:'store'},
-    {tag:'ОНЛАЙН',title:'ТУРНИР 3x3 — ИЩИ ИГРОКОВ',art:'3v3',action:'online'}
+    {tag:'0.7.5c',title:'ЙОСЫП: НОВЫЙ БОЕЦ',art:'unit', hero:'Йосып', action:'fighters'},
+    {tag:'0.7.5c',title:'СРАКА МО3ГОВ: НОВЫЙ АКТИВ',art:'item', item:'Срака мо3гов', itemId:'brainAss', action:'store'},
+    {tag:'0.7.5c',title:'БОТЫ: ПРИОРИТЕТНЫЙ ЗАКУП',art:'bot', action:'fighters'},
+    {tag:'0.7.5b',title:'ИСПРАВЛЕНИЕ РИГИНЫ',art:'hero', hero:'Ригина', action:'fighters'},
+    {tag:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',art:'heart',action:'account'},
+    {tag:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',art:'3v3',action:'leaderboard'}
   ];
   const cGap=Math.round(10*s), cTop=nY+Math.round(52*s);
   const cH=Math.floor((nH-Math.round(52*s)-Math.round(12*s)-cGap*(news.length-1))/news.length);
@@ -11766,12 +14694,38 @@ function drawDotaSenseHome(){
     ctx.save();
     ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
     const art=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
-    art.addColorStop(0,'#3a0d12'); art.addColorStop(1,'#120508');
+    const artTone = entry.art === 'unit' ? ['#284020','#071b18'] : entry.art === 'item' ? ['#42142c','#140d24'] : entry.art === 'bot' ? ['#16383c','#101426'] : ['#3a0d12','#120508'];
+    art.addColorStop(0,artTone[0]); art.addColorStop(1,artTone[1]);
     ctx.fillStyle=art; ctx.fillRect(card.x,card.y,card.w,card.h);
     const gx=card.x+card.w*0.62, gy=card.y+card.h*0.42;
     ctx.globalAlpha=0.9;
-    if(entry.art==='shovel') dsShovelGlyph(gx,gy,card.h*0.62);
-    else {
+    if(entry.art==='unit' || entry.art==='hero'){
+      const heroDef=HERO_DEFS.find(def=>def.name===entry.hero) || HERO_DEFS[0];
+      drawHeroTexture(heroDef,card.x+card.w*.42,card.y-2,card.w*.59,card.h-24,performance.now()/1000);
+      ctx.globalAlpha=1;
+      ctx.fillStyle='rgba(0,0,0,.3)'; ctx.fillRect(card.x+card.w*.42,card.y,card.w*.59,card.h-24);
+      ctx.strokeStyle=heroDef.color2; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(gx,gy,card.h*.37,0,Math.PI*2); ctx.stroke();
+    } else if(entry.art==='item'){
+      for(let ray=0;ray<12;ray++){
+        const angle=ray*Math.PI/6+performance.now()/6000;
+        ctx.strokeStyle=ray%2?'rgba(255,192,207,.18)':'rgba(255,224,168,.3)';
+        ctx.lineWidth=ray%3===0?2:1;
+        ctx.beginPath(); ctx.moveTo(gx+Math.cos(angle)*card.h*.15,gy+Math.sin(angle)*card.h*.15);
+        ctx.lineTo(gx+Math.cos(angle)*card.h*.48,gy+Math.sin(angle)*card.h*.48); ctx.stroke();
+      }
+      const featuredItem=SHOP_ITEMS[entry.itemId] || Object.values(SHOP_ITEMS).find(item=>item.name===entry.item);
+      drawItemIcon({id:entry.itemId||'brainAss',color:featuredItem&&featuredItem.color},gx,gy,card.h*.75);
+    } else if(entry.art==='bot'){
+      const colors=['#a7ff70','#ffd568','#ff638d'];
+      for(let mark=0;mark<3;mark++){
+        const px=gx+(mark-1)*card.h*.38;
+        ctx.fillStyle='rgba(8,12,18,.8)'; ctx.strokeStyle=colors[mark]; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(px,gy,card.h*.22,0,Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle=colors[mark]; ctx.beginPath(); ctx.arc(px,gy-card.h*.03,card.h*.07,0,Math.PI*2); ctx.fill();
+        ctx.fillRect(px-card.h*.12,gy+card.h*.07,card.h*.24,card.h*.1);
+      }
+    } else {
       ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.shadowColor='#ff3b2a'; ctx.shadowBlur=18;
       if(entry.art==='3v3'){ ctx.fillStyle='#f0b040'; ctx.font='bold '+Math.round(card.h*0.5)+'px Georgia, serif'; ctx.fillText('3v3',gx,gy); }
       else { ctx.fillStyle=entry.art==='heart'?'#ff6fb0':'#ff9a5c'; ctx.font='bold '+Math.round(card.h*0.55)+'px Segoe UI, Arial'; ctx.fillText(entry.art==='heart'?'♡':'♥',gx,gy); }
@@ -11795,9 +14749,9 @@ function drawDotaSenseHome(){
   ctx.restore();
 
   /* --- нижняя панель навигации --- */
-  drawMenuButton(menuFightersRect(),'⚔  БОЙЦЫ',{active:true,radius:8,large:true,fontSize:Math.round(16*s)});
-  drawMenuButton(menuChangelogRect(),'▣  ЧЕНДЖЛОГ',{radius:8,large:true,fontSize:Math.round(16*s)});
-  drawMenuButton(menuStoreRect(),'♫  МАГАЗИН ФРАЗ',{radius:8,large:true,fontSize:Math.round(16*s)});
+  drawMenuButton(menuFightersRect(),'⚔  БОЙЦЫ',{active:true,redBlack:true,radius:8,large:true,fontSize:Math.round(16*s)});
+  drawMenuButton(menuChangelogRect(),'▣  ЧЕНДЖЛОГ',{redBlack:true,radius:8,large:true,fontSize:Math.round(16*s)});
+  drawMenuButton(menuStoreRect(),'▣  МАГАЗИН',{redBlack:true,radius:8,large:true,fontSize:Math.round(16*s)});
 
   /* --- статус и версия --- */
   ctx.save();
@@ -11813,20 +14767,7 @@ function drawDotaSenseHome(){
   ctx.restore();
 }
 
-function drawMenu(){
-  menuButtonHitboxes=[];
-  prematchTime=0; resultAnnounced=false; firstBloodDone=false;
-  const onlineEntry=onlineEntryElement;
-  const showOnlineEntry=menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
-  const hideOnlineEntry=!showOnlineEntry;
-  if(onlineEntry.hidden!==hideOnlineEntry){
-    onlineEntry.hidden=hideOnlineEntry;
-    onlineEntry.style.display=hideOnlineEntry?'none':'flex';
-  }
-  const wantOnlineTop=(menuWide() && menuStage==='home') ? (VH-80)+'px' : '';
-  if(onlineEntry.style.top!==wantOnlineTop) onlineEntry.style.top=wantOnlineTop;
-  menuHomeHits=[];
-  const now = performance.now()/1000;
+function drawMenuGenericBackdrop(now){
   const g = ctx.createLinearGradient(0,0,VW,VH);
   g.addColorStop(0, '#07141a');
   g.addColorStop(0.42, '#15121a');
@@ -11954,11 +14895,29 @@ function drawMenu(){
   ctx.fillStyle = vignette;
   ctx.fillRect(0,0,VW,VH);
 
+}
+
+function drawMenu(){
+  menuButtonHitboxes=[];
+  prematchTime=0; resultAnnounced=false; firstBloodDone=false;
+  const onlineEntry=onlineEntryElement;
+  const showOnlineEntry=menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
+  const hideOnlineEntry=!showOnlineEntry;
+  if(onlineEntry.hidden!==hideOnlineEntry){
+    onlineEntry.hidden=hideOnlineEntry;
+    onlineEntry.style.display=hideOnlineEntry?'none':'flex';
+  }
+  const wantOnlineTop=(menuWide() && menuStage==='home') ? (VH-80)+'px' : '';
+  if(onlineEntry.style.top!==wantOnlineTop) onlineEntry.style.top=wantOnlineTop;
+  menuHomeHits=[];
+  const now = performance.now()/1000;
+  if(menuStage!=='home') drawMenuGenericBackdrop(now);
+
   if(menuStage === 'home'){
     drawDotaSenseBackdrop(now);
     const logoScale=menuScale();
-    const logoW=Math.min(Math.round(560*logoScale),VW-24), logoH=Math.round(logoW*0.2);
-    drawDotaSenseLogo(VW/2, menuWide()?Math.round(18*logoScale):70, logoW, logoH);
+    const logoW=Math.min(Math.round(660*logoScale),VW-24), logoH=Math.round(Math.min(logoW*0.17,112*logoScale));
+    drawDotaSenseLogo(VW/2, menuWide()?Math.round(18*logoScale):70, logoW, logoH, now);
   } else {
     ctx.textAlign = 'center';
     ctx.font = 'bold 14px Segoe UI, Arial';
@@ -12102,11 +15061,11 @@ function drawMenu(){
     ctx.fillText('Сражение героев, предметов и древних сил',VW/2,play.y-10);
     drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,radius:10});
     const fightersButton = menuFightersRect();
-    drawMenuButton(fightersButton,'⚔  БОЙЦЫ',{active:true,radius:8});
+    drawMenuButton(fightersButton,'⚔  БОЙЦЫ',{active:true,redBlack:true,radius:8});
     const changelog = menuChangelogRect();
-    drawMenuButton(changelog,'▣  CHANGELOG',{radius:8});
+    drawMenuButton(changelog,'▣  CHANGELOG',{redBlack:true,radius:8});
     const storeButton=menuStoreRect();
-    drawMenuButton(storeButton,'♫  МАГАЗИН ФРАЗ',{radius:8});
+    drawMenuButton(storeButton,'▣  МАГАЗИН',{redBlack:true,radius:8});
     ctx.font = '14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
     if(VW>=820 && VH>=820) ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
     return;
@@ -12122,12 +15081,15 @@ function drawMenu(){
     ctx.textAlign='center'; ctx.fillStyle='#f6e6be'; ctx.font='bold 27px Georgia, serif';
     ctx.fillText('ВЫБОР БОЙЦОВ  •  4 НА 4',VW/2,72);
     ctx.fillStyle=remaining<=10?'#ff7568':'#d7b36a'; ctx.font='bold 30px Consolas, monospace'; ctx.fillText(remaining+' СЕК',VW/2,108);
-    ctx.font='13px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.68)'; ctx.fillText(draftPlayerIndex<0?'Выберите бойца для своей команды':'Боец выбран. Боты уже определились.',VW/2,132);
+    ctx.font='13px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.68)'; ctx.fillText(draftPlayerIndex<0?'Выберите бойца для своей команды':'Боец выбран. Нажми «ПРОПУСТИТЬ» или Enter, чтобы начать сразу.',VW/2,132);
     const slots=[{label:'ВЫ',index:draftPlayerIndex,team:'#72e6a5'},...draftBotIndices.map((index,i)=>({label:'БОТ '+(i+1),index,team:i<3?'#72e6a5':'#ff8585'}))];
     const slotWidth=(VW-36)/slots.length;
     slots.forEach((slot,index)=>{ const x=18+index*slotWidth, w=slotWidth-3; ctx.fillStyle='rgba(5,9,16,.82)'; ctx.fillRect(x,138,w,106); ctx.strokeStyle=slot.team; ctx.lineWidth=2; ctx.strokeRect(x,138,w,106); ctx.fillStyle=slot.team; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(slot.label,x+w/2,156); if(slot.index>=0) drawHeroTexture(HERO_DEFS[slot.index],x+4,164,w-8,68,now); else { ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font='12px Segoe UI, Arial'; ctx.fillText('ОЖИДАНИЕ',x+w/2,202); } });
     drawDraftSkillPanel(now);
     const back={x:24,y:78,w:120,h:38}; drawMenuButton(back,'‹  НАЗАД',{radius:7});
+    const skipRect=draftSkipRect(), canSkip=draftPlayerIndex>=0;
+    drawMenuButton(skipRect,canSkip?'⏭  ПРОПУСТИТЬ':'ПРОПУСК: ВЫБЕРИ БОЙЦА',{radius:7,primary:canSkip,active:canSkip,fontSize:canSkip?15:12});
+    if(!canSkip){ ctx.save(); ctx.fillStyle='rgba(0,0,0,.5)'; ctx.beginPath(); ctx.roundRect(skipRect.x,skipRect.y,skipRect.w,skipRect.h,7); ctx.fill(); ctx.restore(); }
     for(let i=0;i<HERO_DEFS.length;i++){ const r=menuCardRect(i), selected=i===draftPlayerIndex; drawHeroTexture(HERO_DEFS[i],r.x,r.y,r.w,r.h,now); if(selected){ ctx.strokeStyle='#ffd568'; ctx.lineWidth=4; ctx.strokeRect(r.x-2,r.y-2,r.w+4,r.h+4); } ctx.fillStyle='rgba(4,7,12,.76)'; ctx.fillRect(r.x,r.y+r.h-24,r.w,24); ctx.fillStyle='#fff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(HERO_DEFS[i].name,r.x+r.w/2,r.y+r.h-8); }
     return;
   }
@@ -12204,12 +15166,155 @@ function drawMenu(){
                VW/2, VH - 16);
 }
 
+/* =========================================================
+   Вступительная заставка матча (5 секунд, в стиле Dota)
+   ========================================================= */
+const MATCH_INTRO_SECONDS = 5;
+let matchIntroStart = -1, matchIntroFlags = {};
+function startMatchIntro(){ matchIntroStart = performance.now(); matchIntroFlags = {}; }
+
+function drawMatchIntro(){
+  if(matchIntroStart < 0) return;
+  const t = (performance.now() - matchIntroStart) / 1000;
+  if(t >= MATCH_INTRO_SECONDS || gameState !== 'playing'){ matchIntroStart = -1; return; }
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const easeOut = v => 1 - Math.pow(1 - clamp01(v), 3);
+  const easeInOut = v => { v = clamp01(v); return v < 0.5 ? 4*v*v*v : 1 - Math.pow(-2*v + 2, 3) / 2; };
+  const now = performance.now() / 1000;
+  const fade = 1 - clamp01((t - 4.1) / 0.9);
+  const veil = t < 3.2 ? 0.96 : 0.96 * (1 - easeInOut((t - 3.2) / 1.8));
+  if(!matchIntroFlags.start && t > 0.05){ matchIntroFlags.start = true; playSynthSfx('ultimate'); }
+  if(!matchIntroFlags.slam && t >= 1.0){ matchIntroFlags.slam = true; playSynthSfx('stun'); }
+  if(!matchIntroFlags.teams && t >= 2.3){ matchIntroFlags.teams = true; playSynthSfx('level'); }
+
+  const cx = VW / 2, cy = VH * 0.46;
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(10,2,5,' + veil.toFixed(3) + ')';
+  ctx.fillRect(0, 0, VW, VH);
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(VW, VH) * 0.6);
+  glow.addColorStop(0, 'rgba(130,18,20,' + (0.55 * veil / 0.96).toFixed(3) + ')');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, VW, VH);
+
+  /* рунная печать */
+  const sigilR = Math.min(VW, VH) * 0.34 * (0.75 + 0.25 * easeOut(t / 1.4));
+  const sigilAlpha = fade * easeOut((t - 0.1) / 0.8);
+  if(sigilAlpha > 0.01){ ctx.globalAlpha = sigilAlpha; dsDrawSigil(cx, cy, sigilR, now, 1); ctx.globalAlpha = 1; }
+
+  /* ударные волны и вспышка в момент появления логотипа */
+  for(let k = 0; k < 2; k++){
+    const u = (t - 1.0 - k * 0.18) / 0.9;
+    if(u > 0 && u < 1){
+      ctx.strokeStyle = 'rgba(255,120,90,' + ((1 - u) * 0.8 * fade).toFixed(3) + ')';
+      ctx.lineWidth = 6 * (1 - u) + 1;
+      ctx.beginPath(); ctx.arc(cx, cy, easeOut(u) * Math.max(VW, VH) * 0.7, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  const flash = (t - 1.0) / 0.3;
+  if(flash > 0 && flash < 1){ ctx.fillStyle = 'rgba(255,200,170,' + (0.35 * (1 - flash)).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); }
+
+  /* логотип DOTA SENSE 3 */
+  const logoW = Math.min(Math.round(VW * 0.62), 780), logoH = Math.round(logoW * 0.17);
+  if(t >= 1.0){
+    const slam = easeOut((t - 1.0) / 0.35);
+    const shake = t < 1.5 ? (1 - (t - 1.0) / 0.5) * 6 : 0;
+    ctx.save();
+    ctx.globalAlpha = clamp01((t - 1.0) / 0.25) * fade;
+    ctx.translate(Math.sin(t * 90) * shake, Math.cos(t * 77) * shake);
+    ctx.translate(cx, cy); ctx.scale(1 + 0.55 * (1 - slam), 1 + 0.55 * (1 - slam)); ctx.translate(-cx, -cy);
+    drawDotaSenseLogo(cx, cy - logoH / 2, logoW, logoH, now, true);
+    ctx.restore();
+  }
+
+  /* подзаголовок */
+  if(t >= 1.9){
+    const a = clamp01((t - 1.9) / 0.5) * fade;
+    ctx.save();
+    ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if('letterSpacing' in ctx) ctx.letterSpacing = '8px';
+    ctx.font = 'bold ' + Math.round(Math.max(13, Math.min(20, VW / 70))) + 'px Georgia, serif';
+    ctx.fillStyle = '#e8c984';
+    const subY = cy + logoH / 2 + 34;
+    ctx.fillText('АРЕНА ТРЁХ СИЛ', cx, subY);
+    const lineW = 160 * easeOut((t - 1.9) / 0.6);
+    ctx.fillStyle = 'rgba(230,90,70,0.7)';
+    ctx.fillRect(cx - 190 - lineW, subY - 1, lineW, 2); ctx.fillRect(cx + 190, subY - 1, lineW, 2);
+    ctx.restore();
+  }
+
+  /* команды: портреты героев выезжают с двух сторон */
+  if(t >= 2.2 && playerHero){
+    const list = heroes.filter(h => h && h.def && h.type === 'hero' && !h.isIllusion);
+    const myTeam = playerHero.team;
+    const mine = list.filter(h => h.team === myTeam).sort((a, b) => (b === playerHero) - (a === playerHero)).slice(0, 4);
+    const foes = list.filter(h => h.team !== myTeam).slice(0, 4);
+    const bw = Math.round(Math.min(118, VW / 10)), bh = Math.round(bw * 0.78), gap = 10, rowY = Math.round(VH * 0.64);
+    const place = (arr, side) => arr.forEach((h, i) => {
+      const p = easeOut((t - 2.3 - i * 0.12) / 0.6);
+      if(p <= 0) return;
+      const total = arr.length * (bw + gap) - gap;
+      const x = (side < 0 ? cx - 70 - total : cx + 70) + i * (bw + gap) + side * (1 - p) * VW * 0.35;
+      const isMe = h === playerHero;
+      ctx.save();
+      ctx.globalAlpha = p * fade;
+      ctx.fillStyle = 'rgba(8,3,5,0.88)'; ctx.fillRect(x - 3, rowY - 3, bw + 6, bh + 30);
+      drawHeroTexture(h.def, x, rowY, bw, bh, now);
+      ctx.strokeStyle = isMe ? '#ffd568' : (side < 0 ? '#72e6a5' : '#ff8585'); ctx.lineWidth = isMe ? 3 : 2;
+      ctx.strokeRect(x - 3, rowY - 3, bw + 6, bh + 30);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Segoe UI, Arial'; ctx.textAlign = 'center';
+      ctx.fillText(isMe ? 'ТЫ • ' + h.def.name : h.def.name, x + bw / 2, rowY + bh + 17);
+      ctx.restore();
+    });
+    place(mine, -1); place(foes, 1);
+    const labelA = clamp01((t - 2.3) / 0.5) * fade;
+    ctx.save();
+    ctx.globalAlpha = labelA; ctx.textAlign = 'center'; ctx.font = 'bold 15px Georgia, serif';
+    if('letterSpacing' in ctx) ctx.letterSpacing = '4px';
+    ctx.fillStyle = '#72e6a5'; ctx.fillText(myTeam === 0 ? 'СВЕТ' : 'ТЬМА', cx - 70 - (mine.length * (bw + gap) - gap) / 2, rowY - 14);
+    ctx.fillStyle = '#ff8585'; ctx.fillText(myTeam === 0 ? 'ТЬМА' : 'СВЕТ', cx + 70 + (foes.length * (bw + gap) - gap) / 2, rowY - 14);
+    ctx.restore();
+    const vp = easeOut((t - 2.6) / 0.4);
+    if(vp > 0){
+      ctx.save();
+      ctx.globalAlpha = vp * fade; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '900 ' + Math.round(bh * 0.62) + 'px Georgia, serif';
+      ctx.lineWidth = 6; ctx.strokeStyle = '#2a0808'; ctx.strokeText('VS', cx, rowY + bh / 2 + 8);
+      const vg = ctx.createLinearGradient(0, rowY, 0, rowY + bh);
+      vg.addColorStop(0, '#fff1b8'); vg.addColorStop(1, '#c4761c');
+      ctx.fillStyle = vg; ctx.shadowColor = 'rgba(255,120,50,0.8)'; ctx.shadowBlur = 18;
+      ctx.fillText('VS', cx, rowY + bh / 2 + 8);
+      ctx.restore();
+    }
+  }
+
+  /* девиз */
+  if(t >= 3.0){
+    ctx.save();
+    ctx.globalAlpha = clamp01((t - 3.0) / 0.5) * fade; ctx.textAlign = 'center';
+    if('letterSpacing' in ctx) ctx.letterSpacing = '3px';
+    ctx.font = 'bold 14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,240,199,0.8)';
+    ctx.fillText('ЗАЩИТИ СВОЙ ДРЕВНИЙ  •  УНИЧТОЖЬ ВРАЖЕСКИЙ', cx, VH * 0.9);
+    ctx.restore();
+  }
+
+  /* кинематографичные чёрные полосы */
+  const bar = easeOut(t / 0.5) * (1 - easeInOut((t - 4.3) / 0.7));
+  const barH = VH * 0.11 * bar;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, barH); ctx.fillRect(0, VH - barH, VW, barH);
+  ctx.fillStyle = 'rgba(230,90,70,0.75)'; ctx.fillRect(0, barH - 1, VW, 1.5); ctx.fillRect(0, VH - barH - 0.5, VW, 1.5);
+  ctx.restore();
+}
+
 function drawOver(){
-  const won = winner === 0;
+  const myTeam = playerHero ? playerHero.team : 0;
+  const won = winner === myTeam;
   if(!resultAnnounced){
     resultAnnounced = true;
-    const myTeam = playerHero ? playerHero.team : 0;
     announce(winner === myTeam ? 'Victory!' : 'Defeat!', {interrupt:true, rate:0.8});
+    if(!testMode) accountRecordResult(won, makeMatchId(), rankedOnlineMatch, currentMatchCareerStats());
+    rankedOnlineMatch=false;
   }
   const accent = won ? '#69f08a' : '#ff6672';
   const now = performance.now() / 1000;
@@ -12240,6 +15345,8 @@ function drawOver(){
   ctx.fillText(won ? 'ПОБЕДА' : 'ПОРАЖЕНИЕ',VW/2,panel.y+128); ctx.shadowBlur=0;
   ctx.font='bold 17px Segoe UI, Arial'; ctx.fillStyle='#e7f0ff';
   ctx.fillText(won ? 'Древний врага пал. Поле боя твоё.' : 'Твой древний пал. В следующий бой.',VW/2,panel.y+165);
+  ctx.font='bold 14px Segoe UI, Arial'; ctx.fillStyle='#e8c984';
+  ctx.fillText(account.profile ? '✦ '+account.profile.nick+'  •  Уровень '+account.profile.level+(won && account.lastGain>0 ? '  (+'+account.lastGain+' за победу)' : '') : 'Войди в аккаунт в главном меню, чтобы копить уровень',VW/2,panel.y+192);
 
   if(playerHero){
     const statsY=panel.y+220;
@@ -12270,6 +15377,7 @@ function loop(now){
     ctx.globalCompositeOperation = 'source-over';
     ctx.filter = 'none';
     ctx.clearRect(0,0,VW,VH);
+    if(!avatarCacheBuilt){ buildAvatarCache(); ctx.clearRect(0,0,VW,VH); }
 
     if(gameState === 'menu'){
       if(domMatchState){ document.body.classList.remove('in-match'); domMatchState=false; }
@@ -12304,6 +15412,7 @@ function loop(now){
         ctx.drawImage(terrainFrameCanvas,0,0);
         ctx.restore();
       }
+      drawItemRangePreview();
       drawWorldObjects();
       ctx.restore();
       drawFog();
@@ -12314,6 +15423,7 @@ function loop(now){
       drawKillStreakBanner();
       drawPrematchOverlay();
       drawScoreboard();
+      drawMatchIntro();
       if(gameState === 'over') drawOver();
     }
   } catch(err) {
@@ -12447,11 +15557,15 @@ requestAnimationFrame(loop);
     const heroIndexOf = member => HERO_DEFS.findIndex(hero => hero.id === heroIdOf(member));
     const ownOthers = own.filter(member => member.id !== local.id);
     const fallback = heroIndex;
+    /* startGame требует 7 выборов: [враг1, союзник1, союзник2, враг2, враг3, союзник-мид, враг-мид].
+       Раньше передавалось 5, из-за чего startGame игнорировал их и ставил СЛУЧАЙНЫХ бойцов. */
     const picks = [enemy[0] ? heroIndexOf(enemy[0]) : fallback,
       ownOthers[0] ? heroIndexOf(ownOthers[0]) : fallback,
       ownOthers[1] ? heroIndexOf(ownOthers[1]) : fallback,
       enemy[1] ? heroIndexOf(enemy[1]) : fallback,
-      enemy[2] ? heroIndexOf(enemy[2]) : fallback];
+      enemy[2] ? heroIndexOf(enemy[2]) : fallback,
+      fallback,
+      fallback];
     if(heroIndex < 0 || picks.some(index => index < 0)){
       showMatchStartError('Сервер прислал неизвестного героя.');
       return;
@@ -12459,6 +15573,7 @@ requestAnimationFrame(loop);
     try {
       onlineId = payload.id;
       onlineRoster = payload.roster;
+      rankedOnlineMatch = true;
       rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
       orientOnlineMapForTeam(local.team);
@@ -12498,6 +15613,7 @@ requestAnimationFrame(loop);
       onlineId = null;
       onlineRoster = null;
       authoritativeMode = false;
+      rankedOnlineMatch = false;
       gameState = 'menu';
       menuStage = 'home';
       console.error('Не удалось запустить матч:', error);
@@ -12524,10 +15640,12 @@ requestAnimationFrame(loop);
       {member:local,hero:playerHero},
       {member:ownOthers[0],hero:heroes[1]},
       {member:ownOthers[1],hero:heroes[2]},
-      {member:enemy[0],hero:heroes[3]},
-      {member:enemy[1],hero:heroes[4]},
-      {member:enemy[2],hero:heroes[5]}
-    ].filter(slot => slot.member && slot.hero);
+      /* heroes[3] — мид-союзник (в онлайне не используется); враги идут с индекса 4 */
+      {member:enemy[0],hero:heroes[4]},
+      {member:enemy[1],hero:heroes[5]},
+      {member:enemy[2],hero:heroes[6]}
+    ].map(slot => slot.member ? {member:slot.member,hero:remoteHeroes.get(slot.member.id) || slot.hero} : slot)
+     .filter(slot => slot.member && slot.hero);
     const currentIds = new Set(slots.map(slot => slot.member.id));
     for(const [id,hero] of remoteHeroes){
       if(currentIds.has(id)) continue;
@@ -12861,6 +15979,10 @@ requestAnimationFrame(loop);
         speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
     }
     const entry = onlineEntryElement;
-    if(entry) entry.style.display = gameState === 'menu' && menuStage === 'home' ? 'block' : 'none';
+    if(entry){
+      const visible=gameState==='menu'&&menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
+      entry.hidden=!visible;
+      entry.style.display=visible?'block':'none';
+    }
   }, 50);
 })();
