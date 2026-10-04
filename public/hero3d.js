@@ -15,6 +15,7 @@ const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
 const len=a=>Math.hypot(a[0],a[1],a[2]);
 const norm=a=>{const l=len(a)||1;return [a[0]/l,a[1]/l,a[2]/l];};
 const lerp=(a,b,k)=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+let CUR_WALK=null;
 const colCache={};
 function rgb(c){
   if(colCache[c]) return colCache[c];
@@ -165,17 +166,22 @@ function man(S,o){
   const b=o.bulk||1, sk=o.skin||'#e8b894', cl=o.cloth||'#555', lg=o.legs||cl, bt=o.boots||'#2a2a30';
   const gap=(o.gap||.2)*b, hipY=o.hipY||.95, shY=o.shY||1.58, hy=o.headY||2.0, hw=o.headW||1;
   const trim=o.trim||'#d7b36a';
+  const WK=o.walk!=null?o.walk:CUR_WALK;
   for(const s of [-1,1]){
-    S.tube([s*gap,.2,0],[s*gap,hipY*.55,.01],.115*b,.14*b,lg);
-    S.tube([s*gap,hipY*.55,.01],[s*gap,hipY,0],.14*b,.15*b,lg);
-    S.ell([s*gap,hipY*.55,.02],[.145*b,.1,.145*b],lg,{rings:6,seg:10});
-    if(o.knee) S.ell([s*gap,hipY*.55,.12*b],[.12*b,.14,.07],o.knee,{rings:5,seg:8,shine:.5});
-    S.tube([s*gap,.36,0],[s*gap,.2,0],.125*b,.15*b,bt,{seg:12});
-    S.tube([s*gap,.2,0],[s*gap,.16,0],.15*b,.15*b,bt,{seg:12});
-    S.tube([s*gap,.4,0],[s*gap,.35,0],.14*b,.14*b,o.cuff||trim,{seg:12,shine:.5});
-    S.ell([s*gap,.1,.1],[.16*b,.1,.27],bt,{shine:.4});
-    S.ell([s*gap,.095,.3],[.13*b,.075,.1],o.toe||bt,{rings:5,seg:8,shine:.5});
-    S.box([s*gap,.025,.1],[.3*b,.05,.52],'#14141a');
+    let sw=0, lift=0;
+    if(WK!=null){ const ph=WK+(s>0?0:Math.PI); sw=Math.sin(ph)*.34; lift=Math.max(0,Math.cos(ph))*.17; }
+    const D=[0,lift,sw], kz=.01+sw*.55+lift*.9, ky=hipY*.55+lift*.55, ay=.2+lift*.9;
+    S.tube([s*gap,ay,sw],[s*gap,ky,kz],.115*b,.14*b,lg);
+    S.tube([s*gap,ky,kz],[s*gap,hipY,0],.14*b,.15*b,lg);
+    S.ell([s*gap,ky,kz+.01],[.145*b,.1,.145*b],lg,{rings:6,seg:10});
+    if(o.knee) S.ell([s*gap,ky,kz+.11*b],[.12*b,.14,.07],o.knee,{rings:5,seg:8,shine:.5});
+    S.tube(add([s*gap,.36,0],D),add([s*gap,.2,0],D),.125*b,.15*b,bt,{seg:12});
+    S.tube(add([s*gap,.2,0],D),add([s*gap,.16,0],D),.15*b,.15*b,bt,{seg:12});
+    S.tube(add([s*gap,.4,0],D),add([s*gap,.35,0],D),.14*b,.14*b,o.cuff||trim,{seg:12,shine:.5});
+    const tilt=WK!=null?-Math.cos(WK+(s>0?0:Math.PI))*.35:0;
+    S.ell(add([s*gap,.1,.1],D),[.16*b,.1,.27],bt,{shine:.4,rot:[tilt,0,0]});
+    S.ell(add([s*gap,.095,.3],D),[.13*b,.075,.1],o.toe||bt,{rings:5,seg:8,shine:.5});
+    S.box(add([s*gap,.025,.1],D),[.3*b,.05,.52],'#14141a',{rot:[tilt,0,0]});
   }
   S.ell([0,hipY+.02,0],[.45*b,.17,.3*b],lg);
   S.tube([0,hipY,0],[0,1.35,0],.34*b,.4*b,cl,{seg:16});
@@ -229,7 +235,8 @@ function man(S,o){
   return {};
 }
 function robe(S,rb,rt,h,col,trim,gl){
-  S.tube([0,.04,0],[0,h*.55,0],rb,rb*.78+rt*.22,col,{seg:22});
+  const rw=CUR_WALK==null?0:Math.sin(CUR_WALK)*.07, rx=CUR_WALK==null?0:Math.sin(CUR_WALK*2)*.025;
+  S.tube([rx,.04,rw],[0,h*.55,0],rb,rb*.78+rt*.22,col,{seg:22});
   S.tube([0,h*.55,0],[0,h,0],rb*.78+rt*.22,rt,col,{seg:22});
   if(trim){ S.tube([0,.02,0],[0,.14,0],rb+.02,rb+.015,trim,{seg:22,shine:.5,glow:gl});
     S.tube([0,h*.62,0],[0,h*.66,0],rb*.74+rt*.26+.01,rb*.74+rt*.26+.01,trim,{seg:22,shine:.5});
@@ -791,13 +798,13 @@ const CH_KEYS={
     K(.82,[.45,1.12,.62],[0,1,0],[.2,1.42,.65]),
     K(1,CH_IH,CH_ID,CH_IL)]
 };
-const CH_SHOW=[['idle',2],['twirl',1.9],['attack',.55],['attack',.55],['idle',1],['cast',1,0],['idle',.7],['cast',1,2],['idle',.7],['cast',1.2,1],['idle',.8],['cast',1.5,3],['idle',1.2]];
+const CH_SHOW=[['idle',2],['walk',2.4],['twirl',1.9],['attack',.55],['attack',.55],['idle',1],['cast',1,0],['idle',.7],['cast',1,2],['idle',.7],['cast',1.2,1],['idle',.8],['cast',1.5,3],['idle',1.2]];
 const CH_SHOW_T=CH_SHOW.reduce((a,x)=>a+x[1],0);
 function chipResolve(pose,t){
   if(!pose||pose.kind==='idle') return {kind:'idle',p:0};
   if(pose.kind!=='show') return pose;
   let tm=((t%CH_SHOW_T)+CH_SHOW_T)%CH_SHOW_T;
-  for(const [k,du,sl] of CH_SHOW){ if(tm<du) return {kind:k,slot:sl,p:tm/du}; tm-=du; }
+  for(const [k,du,sl] of CH_SHOW){ if(tm<du) return {kind:k,slot:sl,p:k==='walk'?tm*1.25:tm/du}; tm-=du; }
   return {kind:'idle',p:0};
 }
 function chipCore(kind,slot,p,t){
@@ -809,6 +816,7 @@ function chipCore(kind,slot,p,t){
     return {h:lerp(CH_IH,hc,w), d:norm(lerp(CH_ID,dd,w)), l:lerp(CH_IL,[-.55,1.62+.1*Math.sin(th*.5),.78],w)};
   }
   const key=kind==='attack'?'attack':(kind==='cast'?'c'+slot:null);
+  if(kind==='walk'){ const ph=p*Math.PI*2; return {h:[.8,1.3+.03*Math.abs(Math.sin(ph)),.45-.1*Math.sin(ph)], d:norm([.025*Math.sin(ph),1,.035]), l:[-.65,1.35,.55+.2*Math.sin(ph)]}; }
   if(!key){
     return {h:[.8+.012*Math.sin(t*1.6),1.3+.018*Math.sin(t*1.6),.45], d:norm([.025*Math.sin(t*1.3),1,.035*Math.cos(t*1.1)]),
             l:[-.65,1.35+.02*Math.sin(t*1.6+1),.55]};
@@ -824,6 +832,7 @@ function chipCore(kind,slot,p,t){
 function chipState(rp,t){
   const kind=rp.kind, slot=rp.slot, p=rp.p||0;
   const c=chipCore(kind,slot,p,t);
+  if(kind==='walk') CUR_WALK=p*Math.PI*2;
   const st={h:c.h,d:c.d,l:c.l,fx:0,orbit:1,spin:0,burst:0,coin:null,rings:[],spikes:0,trail:[],beam:0};
   const head=(q)=>{ const k=chipCore(kind,slot,q,t); return add(k.h,mul(k.d,1.15)); };
   const addTrail=(q0,q1,n,step)=>{ for(let k=1;k<=n;k++){ const q=p-k*step; if(q<q0||q>q1) break; st.trail.push(head(q)); } };
@@ -940,12 +949,12 @@ function gaReg(id,cfg){
     return [e(0)].concat(list.map(([p,R,L,ez])=>({p,R:R||cfg.idle.R,L:L||cfg.idle.L,e:ez||E_io})),[e(1)]); };
   cfg.keys={attack:mk(cfg.att)}; cfg.casts.forEach((c,i)=>{ cfg.keys['c'+i]=mk(c); });
   cfg.hit=cfg.hit||.5; GA[id]=cfg;
-  ANIM[id]=[{kind:'attack',p:.3},{kind:'attack',p:.5}];
+  ANIM[id]=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'walk',p:.25},{kind:'walk',p:.75}];
   cfg.casts.forEach((_,i)=>{ ANIM[id].push({kind:'cast',slot:i,p:.3},{kind:'cast',slot:i,p:.55}); });
 }
 function gaShow(cfg){
   if(cfg._show) return cfg._show;
-  const n=cfg.casts.length, L=[['idle',1.5],['attack',.8],['attack',.8],['idle',.8]];
+  const n=cfg.casts.length, L=[['idle',1.2],['walk',2.4],['attack',.8],['attack',.8],['idle',.8]];
   for(let i=0;i<n;i++){ L.push(['cast',i===n-1?1.5:1.15,i]); L.push(['idle',.7]); }
   cfg._show=L; cfg._showT=L.reduce((a,x)=>a+x[1],0); return L;
 }
@@ -953,13 +962,15 @@ function gaResolve(cfg,pose,t){
   if(!pose||!pose.kind||pose.kind==='idle') return {kind:'idle',p:0};
   if(pose.kind!=='show') return pose;
   const L=gaShow(cfg), T=cfg._showT; let tm=((t%T)+T)%T;
-  for(const [k,du,sl] of L){ if(tm<du) return {kind:k,slot:sl,p:tm/du}; tm-=du; }
+  for(const [k,du,sl] of L){ if(tm<du) return {kind:k,slot:sl,p:k==='walk'?tm*1.25:tm/du}; tm-=du; }
   return {kind:'idle',p:0};
 }
 function gaCore(cfg,kind,slot,p,t){
   let key=null;
   if(kind==='attack') key='attack';
   else if(kind==='cast'){ const n=cfg.casts.length; key='c'+((((slot|0)%n)+n)%n); }
+  if(kind==='walk'){ const ph=p*Math.PI*2, am=cfg.walkArm==null?.18:cfg.walkArm;
+    return {R:add(cfg.idle.R,[0,.03*Math.abs(Math.sin(ph)),-Math.sin(ph)*am]),L:add(cfg.idle.L,[0,.03*Math.abs(Math.sin(ph)),Math.sin(ph)*am])}; }
   if(!key||!cfg.keys[key]) return {R:add(cfg.idle.R,[.012*Math.sin(t*1.6),.016*Math.sin(t*1.6),0]),L:add(cfg.idle.L,[0,.016*Math.sin(t*1.6+1),0])};
   const KS=cfg.keys[key];
   for(let i=1;i<KS.length;i++) if(p<=KS[i].p){ const a=KS[i-1], b=KS[i], u=b.e(cl01((p-a.p)/(b.p-a.p))); return {R:lerp(a.R,b.R,u),L:lerp(a.L,b.L,u)}; }
@@ -968,6 +979,7 @@ function gaCore(cfg,kind,slot,p,t){
 function gaState(id,pose,t,col){
   const cfg=GA[id], rp=gaResolve(cfg,pose,t), kind=rp.kind, slot=rp.slot, p=rp.p||0;
   const c=gaCore(cfg,kind,slot,p,t);
+  if(kind==='walk') CUR_WALK=p*Math.PI*2;
   const st={cfg,kind,slot,p,t,col:col||cfg.col,R:c.R,L:c.L,fx:0,burst:0,trail:[],shot:null,rings:[]};
   if(kind==='attack'){
     const h=cfg.hit; st.fx=.2+.8*bell(p,h,.13); st.burst=bell(p,h+.05,.12);
@@ -1157,7 +1169,10 @@ function render(def,o){
   const D=9, f=o.f, cx=o.cx, cy=o.cy;
   const S=new Scene();
   if(o.pedestal) drawPedestal(S,def,t);
+  CUR_WALK=(o.pose&&o.pose.kind==='walk')?(o.pose.p||0)*Math.PI*2:null;
   (MODELS[def.id]||fallback)(S,def,t,o.pose);
+  const walkBob=(CUR_WALK==null)?0:Math.abs(Math.sin(CUR_WALK))*.035;
+  CUR_WALK=null;
   const all=S.pre.concat(S.faces);
   const preCount=S.pre.length;
   const B=getBuf(W*H);
@@ -1165,7 +1180,7 @@ function render(def,o){
   const Bw=B.w, Bid=B.id, Bl1=B.l1, Bl2=B.l2;
   const cyw=Math.cos(yaw), syw=Math.sin(yaw), cp=Math.cos(pitch), sp=Math.sin(pitch);
   const T=[0,1.3,0];
-  const bob=Math.sin(t*1.6)*.025;
+  const bob=Math.sin(t*1.6)*.025*(walkBob?0:1)+walkBob;
   const BW=.00012;                       // допуск по глубине: декали (глаза, узоры) выигрывают у основы
   const nF=all.length;
   if(!SCR.IWF||SCR.cap<nF){ SCR.cap=Math.ceil(nF*1.3)+64; SCR.IWF=new Float32Array(SCR.cap*64); SCR.NF=new Float32Array(SCR.cap*3); }
@@ -1377,9 +1392,9 @@ function draw(ctx,def,x,y,w,h,o){
 const SPR={}, SPR_META={};
 let sprT0=0, sprMade=0, sprCount=0;
 const nowMs=()=>(typeof performance!=='undefined'?performance.now():Date.now());
-const ANG=16, ANG_A=8, FR=3, FR_DT=.23, BATTLE_PITCH=.5, SPR_CAP=1200;
+const ANG=16, ANG_A=8, FR=3, FR_DT=.23, BATTLE_PITCH=.5, SPR_CAP=2000;
 /* какие бойцы умеют позы (удар / каст) и какие позы покрывает спрайт */
-const ANIM={ chip:[{kind:'attack',p:.28},{kind:'attack',p:.5},{kind:'cast',slot:0,p:.3},{kind:'cast',slot:0,p:.55},{kind:'cast',slot:1,p:.32},{kind:'cast',slot:1,p:.7},
+const ANIM={ chip:[{kind:'walk',p:.25},{kind:'walk',p:.75},{kind:'attack',p:.28},{kind:'attack',p:.5},{kind:'cast',slot:0,p:.3},{kind:'cast',slot:0,p:.55},{kind:'cast',slot:1,p:.32},{kind:'cast',slot:1,p:.7},
   {kind:'cast',slot:2,p:.3},{kind:'cast',slot:2,p:.6},{kind:'cast',slot:3,p:.38},{kind:'cast',slot:3,p:.62}] };
 const ANIM_Q=7;
 function extents(def,pose,ext){
@@ -1414,8 +1429,9 @@ function battleSprite(def,radius,facing,time,anim){
   const a=((Math.round((facing||0)/(Math.PI*2)*NA)%NA)+NA)%NA;
   let fr=0, pose, pk='i';
   if(animated){
-    const q=Math.min(ANIM_Q,Math.max(0,Math.round(anim.p*ANIM_Q)));
-    pose={kind:anim.kind,slot:anim.slot,p:q/ANIM_Q}; pk=anim.kind[0]+(anim.slot==null?'':anim.slot)+'_'+q;
+    if(anim.kind==='walk'){ const wq=(Math.floor((((anim.p%1)+1)%1)*8))%8; pose={kind:'walk',p:wq/8}; pk='w_'+wq; }
+    else { const q=Math.min(ANIM_Q,Math.max(0,Math.round(anim.p*ANIM_Q)));
+    pose={kind:anim.kind,slot:anim.slot,p:q/ANIM_Q}; pk=anim.kind[0]+(anim.slot==null?'':anim.slot)+'_'+q; }
   } else { fr=Math.floor((time||0)/FR_DT)%FR; pose={kind:'idle'}; }
   const base=def.id+'|'+(def.skinId||'')+'|'+radius+'|';
   const key=base+NA+'|'+a+'|'+pk+'|'+fr;
@@ -1427,7 +1443,7 @@ function battleSprite(def,radius,facing,time,anim){
       const aa=((a+sg*d)%NA+NA)%NA, q=SPR[base+NA+'|'+aa+'|'+pk+'|'+fr]; if(q) return q;
     }
     if(animated){
-      const q0=Math.round(anim.p*ANIM_Q), kd=anim.kind[0]+(anim.slot==null?'':anim.slot)+'_';
+      const q0=anim.kind==='walk'?Math.floor((((anim.p%1)+1)%1)*8)%8:Math.round(anim.p*ANIM_Q), kd=anim.kind[0]+(anim.slot==null?'':anim.slot)+'_';
       for(let dq=1;dq<=ANIM_Q;dq++) for(const sg of [-1,1]){
         const qq=q0+sg*dq; if(qq<0||qq>ANIM_Q) continue;
         for(let d=0;d<=NA/2;d++) for(const s2 of [1,-1]){ const q=SPR[base+NA+'|'+(((a+s2*d)%NA+NA)%NA)+'|'+kd+qq+'|0']; if(q) return q; }
@@ -1461,14 +1477,14 @@ function resetBudget(){ sprT0=nowMs(); sprMade=0; }
 function has(id){ return !!MODELS[id]; }
 
 /* ---------- Настройки анимаций бойцов: idle-руки, стиль атаки, стили 4 способностей ---------- */
-gaReg('shadow',{idle:{R:[.85,1.1,.5],L:[-.85,1.1,.5]},att:'dual',ranged:1,shotBoth:1,hit:.5,casts:['raise','raise','raise','fan'],rings:[0,1,2,3],ringR:1.3,col:['#ff5a1f','#fff0a8']});
-gaReg('mageHunter',{idle:{R:[.8,1.2,.55],L:[-.8,1.2,.55]},att:'cross',hit:.5,casts:['punch','cross','guard','raise'],rings:[3],hands:'none',trailOff:[0,.55,.25],col:['#d58cff','#ffffff']});
-gaReg('tribupainer',{idle:{R:[.45,1.2,.6],L:[-.15,1.3,1.1]},att:'recoil',hit:.4,casts:['bigrecoil','lup','lwave','gunup'],rings:[3],hands:'none',trail:'none',col:['#ffb36b','#fff3b0']});
-gaReg('mo3gi',{idle:{R:[.4,1.25,.75],L:[.05,1.3,1.0]},att:'recoil',hit:.4,casts:['lpoint','lup','ldown','raise'],rings:[2,3],hands:'none',trail:'none',col:['#7dffb0','#e8fff0']});
-gaReg('regina',{idle:{R:[.8,1.3,.6],L:[-.8,1.3,.6]},att:'slashR',hit:.5,casts:['throw','cross','raise'],rings:[0,2],hands:'none',trailOff:[0,.5,.2],col:['#ff9fbd','#fff0f4']});
-gaReg('pyro',{idle:{R:[.78,1.4,.38],L:[-.62,1.55,.55]},att:'throw',ranged:1,hit:.52,casts:['dual','clap','fan','raise'],rings:[1,3],col:['#ff762f','#fff3b0']});
-gaReg('grisha',{idle:{R:[.7,1.9,.3],L:[-.7,1.9,.3]},att:'conj',ranged:1,shotBoth:1,hit:.56,casts:['conj','clap','fan','raise'],rings:[1,3],multi:['#75d8ff','#e58bff','#ff8a3a'],col:['#e0c8ff','#ffffff']});
-gaReg('electricGosha',{idle:{R:[.5,1.5,.8],L:[-.5,1.5,.8]},att:'dual',hit:.5,casts:['throw','clap','fan','raise'],rings:[1,2,3],col:['#7feaff','#e8ffff']});
+gaReg('shadow',{walkArm:0.2,idle:{R:[.85,1.1,.5],L:[-.85,1.1,.5]},att:'dual',ranged:1,shotBoth:1,hit:.5,casts:['raise','raise','raise','fan'],rings:[0,1,2,3],ringR:1.3,col:['#ff5a1f','#fff0a8']});
+gaReg('mageHunter',{walkArm:0.15,idle:{R:[.8,1.2,.55],L:[-.8,1.2,.55]},att:'cross',hit:.5,casts:['punch','cross','guard','raise'],rings:[3],hands:'none',trailOff:[0,.55,.25],col:['#d58cff','#ffffff']});
+gaReg('tribupainer',{walkArm:0.05,idle:{R:[.45,1.2,.6],L:[-.15,1.3,1.1]},att:'recoil',hit:.4,casts:['bigrecoil','lup','lwave','gunup'],rings:[3],hands:'none',trail:'none',col:['#ffb36b','#fff3b0']});
+gaReg('mo3gi',{walkArm:0.05,idle:{R:[.4,1.25,.75],L:[.05,1.3,1.0]},att:'recoil',hit:.4,casts:['lpoint','lup','ldown','raise'],rings:[2,3],hands:'none',trail:'none',col:['#7dffb0','#e8fff0']});
+gaReg('regina',{walkArm:0.16,idle:{R:[.8,1.3,.6],L:[-.8,1.3,.6]},att:'slashR',hit:.5,casts:['throw','cross','raise'],rings:[0,2],hands:'none',trailOff:[0,.5,.2],col:['#ff9fbd','#fff0f4']});
+gaReg('pyro',{walkArm:0.12,idle:{R:[.78,1.4,.38],L:[-.62,1.55,.55]},att:'throw',ranged:1,hit:.52,casts:['dual','clap','fan','raise'],rings:[1,3],col:['#ff762f','#fff3b0']});
+gaReg('grisha',{walkArm:0.12,idle:{R:[.7,1.9,.3],L:[-.7,1.9,.3]},att:'conj',ranged:1,shotBoth:1,hit:.56,casts:['conj','clap','fan','raise'],rings:[1,3],multi:['#75d8ff','#e58bff','#ff8a3a'],col:['#e0c8ff','#ffffff']});
+gaReg('electricGosha',{walkArm:0.14,idle:{R:[.5,1.5,.8],L:[-.5,1.5,.8]},att:'dual',hit:.5,casts:['throw','clap','fan','raise'],rings:[1,2,3],col:['#7feaff','#e8ffff']});
 
 const API={draw,models:MODELS,render,battleSprite,resetBudget,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
 (typeof window!=='undefined'?window:globalThis).Hero3D=API;

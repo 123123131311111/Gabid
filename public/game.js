@@ -1500,7 +1500,28 @@ function noteStructureAttack(target, source, fromSync){
   else if(fromSync || (source && source.team === playerHero.team)) announce('Enemy tower is under attack!', {key:'towerAttackEnemy', cooldown:25});
 }
 
-function playRampageVoice(){
+/* Свои звуки диктора: Rampage и Monster Kill слышат ВСЕ игроки, когда кто-то делает такое убийство */
+const KILL_SFX_SRC = {rampage:'./sounds/rampage.mp3', monster:'./sounds/monster-kill.mp3'};
+const KILL_SFX_LEN = {rampage:2.1, monster:1.9};
+const killSfxCache = {};
+let killSfxFreeAt = 0;
+function playKillSfx(kind){
+  if(!ANNOUNCER.enabled) return;
+  const nowMs = performance.now();
+  const delay = Math.max(0, killSfxFreeAt - nowMs);      // второй звук ждёт, пока доиграет первый
+  killSfxFreeAt = nowMs + delay + (KILL_SFX_LEN[kind] || 2) * 1000;
+  const go = () => {
+    try {
+      const a = (killSfxCache[kind] ||= new Audio(KILL_SFX_SRC[kind])).cloneNode(true);
+      a.volume = 1;
+      const pr = a.play();
+      if(pr && pr.catch) pr.catch(() => { if(kind === 'rampage') playRampageSynth(); });
+    } catch(err) { if(kind === 'rampage') playRampageSynth(); }
+  };
+  if(delay > 30) setTimeout(go, delay); else go();
+}
+function playRampageVoice(){ playKillSfx('rampage'); }
+function playRampageSynth(){
   try {
     abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
     const context = abilityAudioContext;
@@ -2261,20 +2282,19 @@ function killUnit(u, source){
     const spree = spreeLine(rewardHero.spreeKills);
     let streak = multi >= 4 ? 'RAMPAGE' : (multi === 3 ? 'ТРОЙНОЕ УБИЙСТВО' :
       (multi === 2 ? 'ДВОЙНОЕ УБИЙСТВО' : (isFirstBlood ? 'ПЕРВАЯ КРОВЬ' : (spree ? spree[1] : 'УБИЙСТВО'))));
-    if(multi === 4){
-      rampageBanner = {t:4.2, owner:rewardHero, streak:multi};
-      playRampageVoice();
-    }
+    if(multi === 4) rampageBanner = {t:4.2, owner:rewardHero, streak:multi};
+    if(multi >= 4) playKillSfx('rampage');                                   // слышат все
+    if(spree && rewardHero.spreeKills === 8) playKillSfx('monster');         // слышат все
     if(rewardHero === playerHero){
       /* Приоритет: Rampage > мульти-килл > первая кровь; серия без смертей идёт следом. */
       if(multi >= 4){
-        announce('Rampage!', {interrupt:true, rate:0.8, pitch:0.4});
-        if(spree) announce(spree[0]);
+        announcerStop();
+        if(spree && rewardHero.spreeKills !== 8) announce(spree[0]);
       } else {
         if(multi === 3) announce('Triple Kill!', {interrupt:true});
         else if(multi === 2) announce('Double Kill!', {interrupt:true});
         else if(isFirstBlood) announce('First Blood!', {interrupt:true});
-        if(spree) announce(spree[0], {interrupt: multi < 2 && !isFirstBlood});
+        if(spree && rewardHero.spreeKills !== 8) announce(spree[0], {interrupt: multi < 2 && !isFirstBlood});
       }
     }
     if(rewardHero === playerHero){
@@ -9507,6 +9527,7 @@ function drawUnit(u){
         else u.castAnim = null;
       }
       if(!anim3d && u.isAttacking) anim3d = {kind:'attack', p:Math.min(1,u.attackAnimProgress)};
+      if(!anim3d && u.moving && !u.isAttacking) anim3d = {kind:'walk', p:(u.walkPhase||0)%1};
     }
     hero3dSpr = Hero3D.battleSprite(u.def, u.radius, fa, gameTime, anim3d);
     if(hero3dSpr){
