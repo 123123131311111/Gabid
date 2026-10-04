@@ -1440,53 +1440,51 @@ function updatePrematch(dt){
   }
   if(prematchTime <= 0) prematchTime = 0;
 }
-/* Подготовка к бою: герои (и боты) свободно ходят по своей базе, но без боя,
-   крипов и волн. Игрок двигается правой кнопкой мыши, боты бродят у фонтана.
-   В онлайне позиции других игроков приходят с сервера, а свой герой двигается
-   локально и отправляет позицию как обычно. */
-const PREMATCH_ROAM_RADIUS = 720;
-function updatePrematchMovement(dt){
-  for(const h of heroes){
-    if(!h || h.dead || h.isDummy || h.isOnlineRemote) continue;
-    const base = prematchRoamCenter(h.team);
-    if(!base) continue;
+/* Подготовка к бою: игроки и боты свободно ходят по всей карте. Боты сначала
+   закупаются, потом расходятся по позициям своих линий. Если рядом оказывается
+   враг — включается обычный боевой ИИ, так что заварушка возможна уже сейчас. */
+function updatePrematchBotAI(h, dt){
+  if(h.dead || h.isDummy) return;
+  const range = Math.min(h.vision || 900, 950);
+  let enemy = null, best = range;
+  for(const u of heroes){
+    if(!u || u.dead || u.team === h.team) continue;
+    const d = Math.hypot(u.x - h.x, u.y - h.y);
+    if(d < best){ best = d; enemy = u; }
+  }
+  if(enemy || (h.combatTimer || 0) > 0){ updateEnemyAI(h, dt); return; }
+
+  h.prematchShopT = (h.prematchShopT || 0) - dt;
+  if(h.prematchShopT <= 0){
+    h.prematchShopT = 0.6;
+    if(h.coins >= 70) buyBotItem(h);
+  }
+  if(h.attackTarget && (h.attackTarget.dead || h.attackTarget.team === h.team)) h.attackTarget = null;
+  h.prematchWanderT = (h.prematchWanderT || 0) - dt;
+  const arrived = h.moveTarget && Math.hypot(h.moveTarget.x - h.x, h.moveTarget.y - h.y) < 70;
+  if(h.prematchWanderT <= 0 || arrived || !h.moveTarget){
+    h.prematchWanderT = 2.5 + Math.random() * 3.5;
+    const spot = h.hp < h.maxHp * 0.65 ? spawnRoomCenter(h.team) : botLaneObjective(h);
     h.attackTarget = null;
-    if(h !== playerHero){
-      h.prematchWanderT = (h.prematchWanderT || 0) - dt;
-      if(h.prematchWanderT <= 0 || !h.moveTarget){
-        const ang = Math.random() * Math.PI * 2;
-        const dist = Math.sqrt(Math.random()) * PREMATCH_ROAM_RADIUS * 0.8;
-        h.moveTarget = {x: base.x + Math.cos(ang) * dist, y: base.y + Math.sin(ang) * dist};
-        h.prematchWanderT = 1.5 + Math.random() * 3;
-      }
-    } else if(h.moveTarget){
-      const mdx = h.moveTarget.x - base.x, mdy = h.moveTarget.y - base.y;
-      const md = Math.hypot(mdx, mdy);
-      if(md > PREMATCH_ROAM_RADIUS){
-        h.moveTarget = {x: base.x + mdx / md * PREMATCH_ROAM_RADIUS, y: base.y + mdy / md * PREMATCH_ROAM_RADIUS};
-      }
-    }
-    h.updateMove(dt);
-    const dx = h.x - base.x, dy = h.y - base.y, d = Math.hypot(dx, dy);
-    if(d > PREMATCH_ROAM_RADIUS){
-      h.x = base.x + dx / d * PREMATCH_ROAM_RADIUS;
-      h.y = base.y + dy / d * PREMATCH_ROAM_RADIUS;
-    }
+    h.moveTarget = {x: clamp(spot.x + rnd(-170, 170), 60, WORLD - 60), y: clamp(spot.y + rnd(-170, 170), 60, WORLD - 60)};
   }
 }
 function drawPrematchOverlay(){
   if(prematchTime <= 0 || gameState !== 'playing') return;
   const sec = Math.ceil(prematchTime);
+  const y = VW < 760 ? 74 : 92;
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(0, VH*0.2, VW, VH*0.26);
-  ctx.font = 'bold 18px Georgia, serif'; ctx.fillStyle = '#e8c984';
-  ctx.fillText('ДО НАЧАЛА БИТВЫ', VW/2, VH*0.2 + 36);
-  ctx.font = '900 ' + Math.round(Math.min(120, VH*0.16)) + 'px Georgia, serif';
-  ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.strokeText(String(sec), VW/2, VH*0.2 + VH*0.17);
-  ctx.fillStyle = sec <= 5 ? '#ff4a3a' : '#fff0c7'; ctx.fillText(String(sec), VW/2, VH*0.2 + VH*0.17);
-  ctx.font = '13px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('Закупайся в магазине и разминайся у базы (ПКМ — идти) — бой начнётся после отсчёта', VW/2, VH*0.2 + VH*0.23);
+  ctx.font = 'bold 13px Georgia, serif'; ctx.fillStyle = '#e8c984';
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.strokeText('ДО НАЧАЛА БИТВЫ', VW/2, y); ctx.fillText('ДО НАЧАЛА БИТВЫ', VW/2, y);
+  ctx.font = '900 44px Georgia, serif';
+  ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.strokeText(String(sec), VW/2, y + 44);
+  ctx.fillStyle = sec <= 5 ? '#ff4a3a' : '#fff0c7'; ctx.fillText(String(sec), VW/2, y + 44);
+  ctx.font = '12px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3;
+  const hint = 'Закупайся и занимай позицию — ПКМ: идти. Драться можно уже сейчас';
+  ctx.strokeText(hint, VW/2, y + 66); ctx.fillText(hint, VW/2, y + 66);
   ctx.restore();
 }
 function noteStructureAttack(target, source, fromSync){
@@ -3044,7 +3042,9 @@ function buyShopItem(id){
 }
 
 function confirmShopPurchase(id){
-  pendingPurchaseId = id;
+  /* Покупка сразу по клику, без окна подтверждения. */
+  pendingPurchaseId = null;
+  buyShopItem(id);
 }
 
 function buyBotItem(hero){
@@ -7565,23 +7565,28 @@ function updateEnemyAI(h, dt){
 
 function update(dt){
   if(gameState !== 'playing') return;
-  if(prematchTime > 0){ updatePrematch(dt); updatePrematchMovement(dt); return; }
-  gameTime += dt;
-  updateBotScenarios(dt);
+  /* Подготовка к бою: мир живёт полностью (герои ходят по всей карте, бои возможны),
+     но игровое время, волны крипов, доход и сценарии ботов ждут конца отсчёта. */
+  const pre = prematchTime > 0;
+  if(pre) updatePrematch(dt);
+  else gameTime += dt;
+  if(!pre) updateBotScenarios(dt);
   updateBotChatReplies();
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
   if(rampageBanner.t > 0) rampageBanner.t = Math.max(0, rampageBanner.t - dt);
   if(gameTime > 0 && Math.floor(gameTime/120) !== Math.floor((gameTime-dt)/120)) spawnRunes();
   updateRunes(dt);
 
-  for(const hero of heroes){
+  if(!pre) for(const hero of heroes){
     hero.coinTimer += dt;
     while(hero.coinTimer >= 1){ hero.coinTimer -= 1; hero.coins += gameModeCfg().coinsPerSec; }
   }
   if(testMode && playerHero){ playerHero.coins = 99999; playerHero.coinTimer = 0; }
 
-  waveTimer -= dt;
-  if(waveTimer <= 0){ waveTimer = WAVE_INTERVAL; if(!testMode) spawnWave(); }
+  if(!pre){
+    waveTimer -= dt;
+    if(waveTimer <= 0){ waveTimer = WAVE_INTERVAL; if(!testMode) spawnWave(); }
+  }
 
   if(touchControlsEnabled && touchJoystick.id!==null && playerHero && !playerHero.dead){
     const length=Math.hypot(touchJoystick.dx,touchJoystick.dy);
@@ -7596,7 +7601,9 @@ function update(dt){
 
   for(const h of heroes){
     if(h.dead){ h.update(dt); continue; }
-    if(h !== playerHero && !h.isDummy && (!h.isOnlineRemote || h.isOnlineBot)) updateEnemyAI(h, dt);
+    if(h !== playerHero && !h.isDummy && (!h.isOnlineRemote || h.isOnlineBot)){
+      if(pre) updatePrematchBotAI(h, dt); else updateEnemyAI(h, dt);
+    }
     h.update(dt);
   }
   updateBaseRooms(dt);
@@ -11385,16 +11392,19 @@ function drawWorldObjects(){
   }
 }
 
+function minimapSize(){ return VW < 980 ? 160 : (VH < 760 ? 190 : 230); }
 function drawMinimap(){
-  const S = Math.round(190 * 1.12), pad = 14;
-  const x0 = VW-S-pad, y0 = VH-S-pad;
+  const S = minimapSize(), pad = 8;
+  const x0 = pad, y0 = VH-S-pad;
   const k = S/WORLD;
   ctx.save();
-  ctx.globalAlpha = 0.9;
-  ctx.fillStyle = '#0a1206';
+  ctx.fillStyle = 'rgba(6,8,10,0.96)';
+  ctx.fillRect(x0-5, y0-5, S+10, S+10);
+  ctx.strokeStyle = 'rgba(150,125,80,0.75)'; ctx.lineWidth = 2;
+  ctx.strokeRect(x0-5, y0-5, S+10, S+10);
+  ctx.beginPath(); ctx.rect(x0, y0, S, S); ctx.clip();
+  ctx.fillStyle = '#0d1a0b';
   ctx.fillRect(x0, y0, S, S);
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = 2; ctx.strokeRect(x0, y0, S, S);
   ctx.strokeStyle = 'rgba(160,140,90,0.45)';
   ctx.lineWidth = 4;
   for(const lane of LANES){
@@ -11451,22 +11461,33 @@ function combatHudLayout(){
       items:{x:(VW-itemsW)/2,y:panel.y+178,w:itemSize,h:itemSize,gap:itemGap,columns:3,rows:2}
     };
   }
-  const panelH = compact ? 178 : 202;
-  const statsW = compact ? 190 : 250;
-  const itemSize = compact ? 44 : 50;
-  const itemGap = compact ? 5 : 8;
-  const skillGap = compact ? 7 : SKILL_BAR.gap;
-  const itemsW = 3 * itemSize + 2 * itemGap;
-  const skillSize = Math.min(compact ? 60 : SKILL_BAR.w,
-    Math.max(46,(VW-margin*2-statsW-itemsW-36-(skillCount-1)*skillGap)/skillCount));
+  const panelH = compact ? 128 : 144;
+  const itemSize = compact ? 42 : 50;
+  const itemGap = 4;
+  const skillGap = 4;
+  const skillSize = compact ? 52 : 62;
+  const portraitW = compact ? 92 : 112;
   const skillsW = skillCount * skillSize + (skillCount - 1) * skillGap;
-  const totalW = statsW + skillsW + itemsW + 36;
-  const x = Math.max(margin, (VW - totalW) / 2);
+  const infoW = Math.max(skillsW, compact ? 200 : 240);
+  const itemsW = 3 * itemSize + 2 * itemGap;
+  const pad = 10, sep = 10;
+  const totalW = pad + portraitW + sep + infoW + sep + itemsW + pad;
+  const mmRight = minimapSize() + 18;
+  let x = (VW - totalW) / 2;
+  if(x < mmRight) x = Math.min(mmRight, Math.max(4, VW - totalW - 4));
+  const panelY = VH - panelH;
+  const infoX = x + pad + portraitW + sep;
+  const skillsY = panelY + 12;
+  const hpY = skillsY + skillSize + 9;
+  const itemsH = 2 * itemSize + itemGap;
   return {
-    panel: {x, y: VH - panelH - 14, w: totalW, h: panelH},
-    stats: {x: x + 78, y: VH - panelH - bottom, w: statsW - 78},
-    skills: {x: x + statsW + 12, y: VH - 106, w: skillSize, h: skillSize, gap: skillGap},
-    items: {x: x + statsW + skillsW + 24, y: VH - (compact ? 112 : 132), w: itemSize, h: itemSize, gap: itemGap, columns:3, rows:2}
+    panel: {x, y: panelY, w: totalW, h: panelH},
+    portrait: {x: x + pad, y: panelY + 12, w: portraitW, h: panelH - 24},
+    stats: {x: infoX, y: panelY, w: infoW},
+    skills: {x: infoX, y: skillsY, w: skillSize, h: skillSize, gap: skillGap},
+    hp: {x: infoX, y: hpY, w: infoW, h: compact ? 18 : 22},
+    mp: {x: infoX, y: hpY + (compact ? 20 : 24), w: infoW, h: compact ? 14 : 16},
+    items: {x: x + pad + portraitW + sep + infoW + sep, y: panelY + (panelH - itemsH) / 2, w: itemSize, h: itemSize, gap: itemGap, columns: 3, rows: 2}
   };
 }
 
@@ -11497,9 +11518,15 @@ function handleSkillBarClick(mx, my){
 
 function shopRect(){ return {x:VW-274, y:116, w:250, h:154}; }
 function shopButtonRect(){
-  const w = Math.round(218 * 1.12);
-  const h = Math.round(42 * 1.12);
-  return {x:VW-14-w, y:VH-286, w, h};
+  const w = VW < 720 ? 132 : 170, h = VW < 720 ? 38 : 46;
+  const rect = {x:VW-8-w, y:VH-8-h, w, h};
+  if(VW >= 720){
+    const panel = combatHudLayout().panel;
+    if(rect.x < panel.x + panel.w + 6) rect.y = panel.y - h - 6;
+  } else {
+    rect.y = combatHudLayout().panel.y - h - 6;
+  }
+  return rect;
 }
 function shopGuideButtonRect(){
   const {r} = shopLayout();
@@ -12298,19 +12325,20 @@ function drawShop(){
   if(!h) return;
   const button = shopButtonRect();
   ctx.save();
-  const buttonGradient=ctx.createLinearGradient(button.x,button.y,button.x+button.w,button.y+button.h);
-  buttonGradient.addColorStop(0,shopOpen?'#8b7045':'#34404c'); buttonGradient.addColorStop(0.48,shopOpen?'#3b3030':'#19232d'); buttonGradient.addColorStop(1,'#090e14');
+  const buttonGradient=ctx.createLinearGradient(button.x,button.y,button.x,button.y+button.h);
+  buttonGradient.addColorStop(0,shopOpen?'rgba(70,56,32,0.96)':'rgba(24,28,34,0.96)'); buttonGradient.addColorStop(1,'rgba(8,10,14,0.98)');
   ctx.fillStyle=buttonGradient; ctx.fillRect(button.x,button.y,button.w,button.h);
-  ctx.strokeStyle='#d3bd87'; ctx.lineWidth=2; ctx.strokeRect(button.x,button.y,button.w,button.h);
-  ctx.strokeStyle='rgba(255,230,177,0.36)'; ctx.lineWidth=1; ctx.strokeRect(button.x+4,button.y+4,button.w-8,button.h-8);
-  ctx.fillStyle='#f1dda9'; ctx.font='bold 14px Georgia, serif'; ctx.textAlign='left';
-  ctx.fillText(shopOpen ? 'ЗАКРЫТЬ' : 'МАГАЗИН',button.x+16,button.y+25);
-  ctx.fillStyle='#ffd568'; ctx.shadowColor='#e2a844'; ctx.shadowBlur=8;
-  for(let coin=0;coin<3;coin++){
-    ctx.beginPath(); ctx.arc(button.x+button.w-78+coin*13,button.y+17+(coin%2)*5,5,0,Math.PI*2); ctx.fill();
-  }
-  ctx.shadowBlur=0; ctx.fillStyle='#fff0c7'; ctx.font='bold 12px Consolas, monospace'; ctx.textAlign='right';
-  ctx.fillText(String(Math.floor(h.coins)),button.x+button.w-14,button.y+26);
+  ctx.strokeStyle=shopOpen?'#e2c07a':'rgba(150,125,80,0.8)'; ctx.lineWidth=2; ctx.strokeRect(button.x,button.y,button.w,button.h);
+  const cx=button.x+20, cy=button.y+button.h/2;
+  ctx.fillStyle='#e8b93c'; ctx.beginPath(); ctx.arc(cx,cy,9,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#8a6414'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#fff1b8'; ctx.font='bold 11px Consolas, monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('$',cx,cy+0.5);
+  ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#ffd568'; ctx.font='bold '+(VW<720?15:19)+'px Segoe UI, Arial'; ctx.textAlign='left';
+  ctx.fillText(String(Math.floor(h.coins)),button.x+36,button.y+button.h/2+7);
+  ctx.fillStyle='rgba(255,255,255,0.78)'; ctx.font='bold 11px Segoe UI, Arial'; ctx.textAlign='right';
+  ctx.fillText(shopOpen?'ЗАКРЫТЬ':'МАГАЗИН',button.x+button.w-10,button.y+button.h/2+4);
   if(!shopOpen){ ctx.restore(); return; }
   const {r, detailsW, columns, visibleRows, totalRows} = shopLayout();
   const shopGradient=ctx.createLinearGradient(r.x,r.y,r.x+r.w,r.y+r.h);
@@ -12450,8 +12478,6 @@ function drawInventory(){
   if(!playerHero) return;
   const items = combatHudLayout().items;
   ctx.save();
-  ctx.textAlign='left'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,0.7)';
-  ctx.fillText('ПРЕДМЕТЫ',items.x,items.y-10);
   for(let i=0;i<6;i++){
     const r=inventorySlotRect(i), item=playerHero.inventory[i];
     const cooling=!!item&&item.cooldown>0;
@@ -12619,7 +12645,7 @@ function drawTalentPanel(){
 
 function drawChat(){
   if(!chatMessages.length && !chatInputOpen) return;
-  const x=18, y=VH-292, w=Math.min(390,VW*0.34), h=chatMessages.length*22+48;
+  const x=8, w=Math.min(390,VW*0.34), h=chatMessages.length*22+48, y=VH-minimapSize()-24-h;
   ctx.save();
   const panel=ctx.createLinearGradient(x,y,x+w,y+h);
   panel.addColorStop(0,'rgba(19,40,57,0.94)'); panel.addColorStop(1,'rgba(8,12,24,0.96)');
@@ -12642,19 +12668,11 @@ function drawBottomHeroPanel(hero){
   const panel = layout.panel;
   const stats = layout.stats;
   ctx.save();
-  const panelFill=ctx.createLinearGradient(panel.x,panel.y,panel.x,panel.y+panel.h);
-  panelFill.addColorStop(0,'rgba(18,26,38,0.97)'); panelFill.addColorStop(1,'rgba(4,8,15,0.98)');
-  ctx.beginPath(); ctx.roundRect(panel.x,panel.y,panel.w,panel.h,8); ctx.fillStyle=panelFill; ctx.fill();
-  ctx.strokeStyle=hero.def.color2; ctx.lineWidth=2; ctx.stroke();
-  ctx.beginPath(); ctx.roundRect(panel.x+4,panel.y+4,panel.w-8,panel.h-8,5);
-  ctx.strokeStyle='rgba(255,255,255,0.17)'; ctx.lineWidth=1; ctx.stroke();
-  if(VW>=720){
-    const skillsRight=layout.skills.x+hero.skills.length*layout.skills.w+(hero.skills.length-1)*layout.skills.gap;
-    ctx.strokeStyle='rgba(139,233,253,0.28)'; ctx.lineWidth=1;
-    for(const dividerX of [(stats.x+stats.w+layout.skills.x)/2,(skillsRight+layout.items.x)/2]){
-      ctx.beginPath(); ctx.moveTo(dividerX,panel.y+14); ctx.lineTo(dividerX,panel.y+panel.h-14); ctx.stroke();
-    }
-  }
+  if(VW<720){
+    const panelFill=ctx.createLinearGradient(panel.x,panel.y,panel.x,panel.y+panel.h);
+    panelFill.addColorStop(0,'rgba(18,22,28,0.96)'); panelFill.addColorStop(1,'rgba(5,7,10,0.98)');
+    ctx.beginPath(); ctx.roundRect(panel.x,panel.y,panel.w,panel.h,6); ctx.fillStyle=panelFill; ctx.fill();
+    ctx.strokeStyle='rgba(150,125,80,0.7)'; ctx.lineWidth=2; ctx.stroke();
   if(VW<720){
     drawHeroTexture(hero.def,panel.x+8,panel.y+14,42,66,performance.now()/1000,false);
     const barX=stats.x+8, barW=panel.x+panel.w-12-barX, barH=10;
@@ -12677,55 +12695,145 @@ function drawBottomHeroPanel(hero){
     ctx.restore();
     return;
   }
-  drawHeroTexture(hero.def, panel.x + 8, panel.y + 28, 64, 92, performance.now()/1000, false);
-  const barX = stats.x + 12, barW = stats.w - 24, barH = 16;
-  ctx.textAlign='left'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 15px Segoe UI, Arial';
-  ctx.fillText(hero.def.name + '  •  Ур. ' + hero.level, barX, panel.y + 26);
-  ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='11px Segoe UI, Arial';
-  ctx.fillText('ЗДОРОВЬЕ', barX, panel.y + 47);
-  ctx.fillText('МАНА', barX, panel.y + 82);
-  ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(barX, panel.y + 53, barW, barH);
-  ctx.fillStyle='#35c85a'; ctx.fillRect(barX, panel.y + 53, barW * clamp(hero.hp / hero.maxHp, 0, 1), barH);
-  ctx.fillStyle='#fff'; ctx.font='bold 11px Consolas, monospace';
-  ctx.fillText(Math.ceil(hero.hp) + ' / ' + Math.ceil(hero.maxHp), barX + 8, panel.y + 65);
-  ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(barX, panel.y + 88, barW, barH);
-  ctx.fillStyle='#3988e8'; ctx.fillRect(barX, panel.y + 88, barW * clamp(hero.mp / hero.maxMp, 0, 1), barH);
-  ctx.fillStyle='#fff'; ctx.fillText(Math.ceil(hero.mp) + ' / ' + Math.ceil(hero.maxMp), barX + 8, panel.y + 100);
-  ctx.fillStyle='rgba(255,255,255,0.52)'; ctx.font='11px Segoe UI, Arial';
-  ctx.fillText('АТАКА ' + Math.round(hero.getDamage()) + '  •  БРОНЯ ' + Math.round(hero.getArmor()), barX, panel.y + 121);
+  }
+  /* === Нижняя панель в стиле Dota 2: портрет | способности + HP/MP | предметы === */
+  const panelFill=ctx.createLinearGradient(panel.x,panel.y,panel.x,panel.y+panel.h);
+  panelFill.addColorStop(0,'rgba(24,26,30,0.97)'); panelFill.addColorStop(1,'rgba(6,7,9,0.99)');
+  ctx.beginPath(); ctx.roundRect(panel.x,panel.y,panel.w,panel.h,[8,8,0,0]); ctx.fillStyle=panelFill; ctx.fill();
+  ctx.strokeStyle='rgba(150,125,80,0.8)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(panel.x,panel.y+panel.h); ctx.lineTo(panel.x,panel.y+8); ctx.quadraticCurveTo(panel.x,panel.y,panel.x+8,panel.y);
+  ctx.lineTo(panel.x+panel.w-8,panel.y); ctx.quadraticCurveTo(panel.x+panel.w,panel.y,panel.x+panel.w,panel.y+8); ctx.lineTo(panel.x+panel.w,panel.y+panel.h); ctx.stroke();
+
+  /* портрет */
+  const pt=layout.portrait;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(pt.x,pt.y,pt.w,pt.h); ctx.clip();
+  ctx.fillStyle='#07090c'; ctx.fillRect(pt.x,pt.y,pt.w,pt.h);
+  drawHeroTexture(hero.def, pt.x+(pt.w-64)/2, pt.y+6, 64, pt.h-34, performance.now()/1000, false);
+  const shade=ctx.createLinearGradient(0,pt.y+pt.h-30,0,pt.y+pt.h);
+  shade.addColorStop(0,'rgba(0,0,0,0)'); shade.addColorStop(1,'rgba(0,0,0,0.85)');
+  ctx.fillStyle=shade; ctx.fillRect(pt.x,pt.y+pt.h-30,pt.w,30);
+  ctx.restore();
+  ctx.strokeStyle=hero.def.color2||'#8b7a55'; ctx.lineWidth=2; ctx.strokeRect(pt.x,pt.y,pt.w,pt.h);
+  ctx.textAlign='left'; ctx.font='bold 11px Consolas, monospace';
+  ctx.fillStyle='#e8d9b0';
+  ctx.fillText('⚔ '+Math.round(hero.getDamage()),pt.x+5,pt.y+pt.h-7);
+  ctx.textAlign='right';
+  ctx.fillText('🛡 '+Math.round(hero.getArmor()),pt.x+pt.w-5,pt.y+pt.h-7);
+  /* имя над портретом и уровень */
+  ctx.textAlign='left'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillStyle='#f2e2bd';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+  const nm=String(hero.def.name||'').toUpperCase();
+  ctx.strokeText(nm,pt.x+22,panel.y-6); ctx.fillText(nm,pt.x+22,panel.y-6);
+  ctx.beginPath(); ctx.arc(panel.x+pt.x-panel.x+10,panel.y-11,11,0,Math.PI*2);
+  ctx.fillStyle='#141820'; ctx.fill(); ctx.strokeStyle='#c7a96b'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#fff0c7'; ctx.font='bold 12px Segoe UI, Arial'; ctx.textAlign='center';
+  ctx.fillText(String(hero.level),pt.x+10,panel.y-7);
+
+  /* полосы HP / MP */
+  const drawBar=(r,frac,c1,c2,txt)=>{
+    ctx.fillStyle='rgba(0,0,0,0.85)'; ctx.fillRect(r.x,r.y,r.w,r.h);
+    const g=ctx.createLinearGradient(0,r.y,0,r.y+r.h); g.addColorStop(0,c1); g.addColorStop(1,c2);
+    ctx.fillStyle=g; ctx.fillRect(r.x+1,r.y+1,(r.w-2)*clamp(frac,0,1),r.h-2);
+    ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1; ctx.strokeRect(r.x+0.5,r.y+0.5,r.w-1,r.h-1);
+    ctx.fillStyle='#fff'; ctx.font='bold '+Math.max(10,r.h-6)+'px Segoe UI, Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=3;
+    ctx.fillText(txt,r.x+r.w/2,r.y+r.h/2+0.5);
+    ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
+  };
+  drawBar(layout.hp,hero.hp/hero.maxHp,'#58d86a','#1f7d33',Math.ceil(hero.hp)+' / '+Math.ceil(hero.maxHp));
+  drawBar(layout.mp,hero.mp/hero.maxMp,'#4d97f0','#1c4f9a',Math.ceil(hero.mp)+' / '+Math.ceil(hero.maxMp));
+
+  /* разделитель между блоками */
+  ctx.strokeStyle='rgba(150,125,80,0.3)'; ctx.lineWidth=1;
+  const sepX=layout.items.x-6;
+  ctx.beginPath(); ctx.moveTo(sepX,panel.y+14); ctx.lineTo(sepX,panel.y+panel.h-14); ctx.stroke();
   ctx.restore();
 }
 
+function formatClock(t){
+  const neg = t < 0; t = Math.abs(Math.floor(t));
+  return (neg ? '-' : '') + Math.floor(t/60) + ':' + String(t%60).padStart(2,'0');
+}
+function teamKills(team){
+  let k = 0;
+  for(const hero of heroes) if(hero && hero.type==='hero' && hero.team===team) k += hero.kills || 0;
+  return k;
+}
 function drawMatchHeroStrip(){
   if(!heroes.length) return;
-  const roster=heroes.filter(hero=>hero && hero.type==='hero' && hero.def).slice().sort((left,right)=>left.team-right.team);
+  const roster=heroes.filter(hero=>hero && hero.type==='hero' && hero.def);
+  const left=roster.filter(hero=>hero.team===0), right=roster.filter(hero=>hero.team!==0);
   if(!roster.length) return;
   const compact=VW<760;
-  const size=compact?34:46, gap=compact?4:6;
-  const total=roster.length*size+(roster.length-1)*gap;
-  const x=Math.max(8,(VW-total)/2), y=compact?8:10;
+  const size=compact?30:44, gap=compact?3:4;
+  const centerW=compact?118:176;
+  const sideW=n=>n*size+Math.max(0,n-1)*gap;
+  const cx=VW/2, top=0;
+  const barH=size+8;
   const now=performance.now()/1000;
   ctx.save();
-  ctx.fillStyle='rgba(4,8,15,0.82)';
-  ctx.beginPath(); ctx.roundRect(x-9,y-5,total+18,size+17,7); ctx.fill();
-  ctx.strokeStyle='rgba(215,179,106,0.5)'; ctx.lineWidth=1; ctx.stroke();
-  roster.forEach((hero,index)=>{
-    const px=x+index*(size+gap), teamColor=hero.team===0?'#72e6a5':'#ff8585';
-    const dead=!!hero.dead;
-    ctx.save();
-    ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(px,y,size,size);
-    drawHeroStripIcon(hero.def,px,y,size,now,dead);
-    ctx.strokeStyle=dead?'#66707c':teamColor; ctx.lineWidth=dead?1.5:2; ctx.strokeRect(px,y,size,size);
-    if(dead){
-      ctx.fillStyle='rgba(8,10,14,0.42)'; ctx.fillRect(px,y,size,size);
-      ctx.strokeStyle='rgba(210,216,224,0.8)'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(px+8,y+8); ctx.lineTo(px+size-8,y+size-8); ctx.moveTo(px+size-8,y+8); ctx.lineTo(px+8,y+size-8); ctx.stroke();
-    }
-    ctx.restore();
-    ctx.fillStyle=dead?'#87919c':teamColor; ctx.fillRect(px,y+size+3,size,3);
-    if(index===roster.filter(other=>other.team===0).length-1 && roster.some(other=>other.team===1)){
-      ctx.fillStyle='rgba(255,255,255,0.48)'; ctx.fillRect(px+size+gap/2,y+3,1,size+3);
-    }
+  /* общая тёмная плашка */
+  const lw=sideW(left.length), rw=sideW(right.length);
+  const x0=cx-centerW/2-lw-12, x1=cx+centerW/2+rw+12;
+  ctx.fillStyle='rgba(6,8,11,0.86)';
+  ctx.beginPath(); ctx.roundRect(x0,top-6,x1-x0,barH+6,[0,0,10,10]); ctx.fill();
+  ctx.strokeStyle='rgba(150,125,80,0.6)'; ctx.lineWidth=1.5; ctx.stroke();
+  const drawSide=(list,startX)=>{
+    list.forEach((hero,i)=>{
+      const px=startX+i*(size+gap), y=4, dead=!!hero.dead;
+      ctx.save();
+      ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(px,y,size,size);
+      drawHeroStripIcon(hero.def,px,y,size,now,dead);
+      ctx.restore();
+      if(dead){
+        ctx.fillStyle='rgba(8,10,14,0.55)'; ctx.fillRect(px,y,size,size);
+        const cd=Math.ceil(hero.respawnTimer||0);
+        if(cd>0){
+          ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(size*.42)+'px Segoe UI, Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+          ctx.fillText(String(cd),px+size/2,y+size/2); ctx.textBaseline='alphabetic';
+        }
+      }
+      const frac=dead?0:clamp(hero.hp/hero.maxHp,0,1);
+      ctx.fillStyle='rgba(0,0,0,0.85)'; ctx.fillRect(px,y+size+1,size,3);
+      ctx.fillStyle=hero.team===0?'#4cc96c':'#d95a4a'; ctx.fillRect(px,y+size+1,size*frac,3);
+      if(hero.isPlayer || hero===playerHero){
+        ctx.strokeStyle='#ffe066'; ctx.lineWidth=1.5; ctx.strokeRect(px-0.5,y-0.5,size+1,size+1);
+      }
+    });
+  };
+  drawSide(left,cx-centerW/2-lw-4);
+  drawSide(right,cx+centerW/2+4);
+  /* центр: счёт и часы */
+  const pre = prematchTime > 0;
+  ctx.textAlign='center';
+  const scoreFont='bold '+(compact?20:28)+'px Segoe UI, Arial';
+  ctx.font=scoreFont;
+  ctx.fillStyle='#7be08f'; ctx.fillText(String(teamKills(0)),cx-centerW/2+(compact?22:30),compact?26:34);
+  ctx.fillStyle='#ff8d7d'; ctx.fillText(String(teamKills(1)),cx+centerW/2-(compact?22:30),compact?26:34);
+  ctx.fillStyle='#fff'; ctx.font='bold '+(compact?14:17)+'px Segoe UI, Arial';
+  ctx.fillText(pre?formatClock(-Math.ceil(prematchTime)):formatClock(gameTime),cx,compact?19:25);
+  ctx.fillStyle=pre?'#ffd568':'rgba(255,255,255,0.45)'; ctx.font=(compact?9:10)+'px Segoe UI, Arial';
+  if(pre) ctx.fillText('ДО БИТВЫ',cx,compact?33:41);
+  ctx.restore();
+}
+
+function drawTopLeftStats(h){
+  if(testMode || !h) return;
+  const x=8, y=8, w=VW<760?150:176, rowH=VW<760?17:20;
+  const rows=[
+    ['У / С / П', (h.kills||0)+' / '+(h.deaths||0)+' / '+(h.assists||0)],
+    ['Монеты', String(Math.floor(h.coins))]
+  ];
+  ctx.save();
+  ctx.fillStyle='rgba(6,8,11,0.62)';
+  ctx.beginPath(); ctx.roundRect(x,y,w,rows.length*rowH+10,6); ctx.fill();
+  ctx.font='12px Segoe UI, Arial';
+  rows.forEach((row,i)=>{
+    const ry=y+19+i*rowH;
+    ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.fillText(row[0],x+10,ry);
+    ctx.textAlign='right'; ctx.fillStyle=i===1?'#ffd568':'#fff'; ctx.font='bold 13px Consolas, monospace';
+    ctx.fillText(row[1],x+w-10,ry); ctx.font='12px Segoe UI, Arial';
   });
   ctx.restore();
 }
@@ -12759,52 +12867,19 @@ function drawHUD(){
   const h = playerHero;
 
   drawMatchHeroStrip();
+  drawTopLeftStats(h);
 
-  ctx.textAlign = 'right';
-  ctx.font = 'bold 15px Segoe UI, Arial';
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillText('Убийств: ' + h.kills + '   Смертей: ' + h.deaths + '   Помощь: ' + h.assists, VW-24, 34);
-
-  const mins = Math.floor(gameTime/60), secs = Math.floor(gameTime%60);
-  ctx.font = 'bold 20px Segoe UI, Arial';
-  ctx.fillStyle = '#fff';
-  ctx.fillText(mins + ':' + (secs<10?'0':'') + secs, VW-24, 62);
-
-  ctx.font = 'bold 13px Segoe UI, Arial';
-  ctx.fillStyle = 'rgba(200,220,255,0.85)';
-  ctx.fillText('Волна через: ' + Math.ceil(waveTimer) + 'с', VW-24, 84);
-
-  ctx.fillStyle = '#ffd568';
-  ctx.font = 'bold 16px Segoe UI, Arial';
-  ctx.fillText('Монеты: ' + h.coins, VW-24, 108);
-  ctx.fillStyle = gameTime < MID_PUSH_TIME ? '#8be9fd' : '#ffd568';
-  ctx.font = 'bold 14px Segoe UI, Arial';
-  ctx.fillText(gameTime < BOT_FARM_PHASE_TIME ? 'Фаза: фарм крипов' : (gameTime < MID_PUSH_TIME ? 'Фаза: драки по линиям' : 'Фаза: общий пуш мида'), VW-24, 178);
   if(h.def.id === 'shadow'){
+    const lay = combatHudLayout();
+    ctx.textAlign = 'left';
     ctx.fillStyle = '#ff8a3d';
-    ctx.font = 'bold 16px Segoe UI, Arial';
-    ctx.fillText('Души: ' + (h.shadowSouls || 0) + ' / 30', VW-24, 132);
-    ctx.fillStyle = 'rgba(255,180,91,0.9)';
-    ctx.font = '12px Segoe UI, Arial';
-    ctx.fillText('Q ближний  •  W средний  •  E дальний  •  авто-цель', VW-24, 151);
-  }
-
-  if(lastPressedKey){
-    ctx.font = 'bold 12px Consolas, monospace';
-    ctx.fillStyle = 'rgba(120,200,255,0.7)';
-    ctx.fillText('клавиша: ' + lastPressedKey, VW-24, 104);
-  }
-
-  if(inSpawnRoom(h.x, h.y, h.team, 20)){
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 16px Segoe UI, Arial';
-    ctx.fillStyle = '#7dff7d';
-    ctx.fillText('♥ Восстановление у базы', VW/2, 100);
+    ctx.font = 'bold 14px Segoe UI, Arial';
+    ctx.fillText('Души: ' + (h.shadowSouls || 0) + ' / 30', lay.panel.x + 4, lay.panel.y - 30);
   }
 
   /* === ПАНЕЛЬ ОРБОВ ДЛЯ ГРИШИ === */
   if(h.def.id === 'grisha' && h.orbs){
-    const orbY = VH - SKILL_BAR.h - 90;
+    const orbY = combatHudLayout().panel.y - 62;
     const cx0 = VW/2 - 100;
     ctx.textAlign = 'center';
     ctx.font = 'bold 14px Segoe UI, Arial';
@@ -12882,11 +12957,6 @@ function drawHUD(){
     ctx.textAlign = 'center';
     ctx.fillText(def.short, r.x + r.w/2, r.y + r.h/2 + 10);
 
-    ctx.font = '11px Segoe UI, Arial';
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    const skillLabel=def.name==='Форма Трансформера'?'ТРАНСФОРМЕР':def.name;
-    ctx.font='bold 11px Segoe UI, Arial';
-    ctx.fillText(skillLabel, r.x + r.w/2, r.y - 6, r.w + 18);
 
     if(s.level > 0 && manaVal > 0){
       ctx.font = 'bold 12px Segoe UI, Arial';
@@ -12924,13 +12994,6 @@ function drawHUD(){
 
   drawSkillTooltip(h, hoveredSkill);
 
-  if(h.skillPoints > 0){
-    const hudLayout = combatHudLayout();
-    ctx.textAlign = 'left';
-    ctx.font = 'bold ' + (VW < 980 ? '11px' : '14px') + ' Segoe UI, Arial';
-    ctx.fillStyle = '#ffd54f';
-    ctx.fillText('Очки навыков: ' + h.skillPoints, hudLayout.stats.x, hudLayout.panel.y + hudLayout.panel.h - 12);
-  }
   drawInventory();
   drawShop();
   drawInspectPanel();
