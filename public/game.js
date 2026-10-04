@@ -8085,6 +8085,7 @@ canvas.addEventListener('mousemove', e => {
   const r = canvas.getBoundingClientRect();
   mouse.x = e.clientX - r.left;
   mouse.y = e.clientY - r.top;
+  if(heroView.drag) heroViewPointerMove(mouse.x);
   if(cameraDrag.active){
     cam.x -= mouse.x - cameraDrag.lastX;
     cam.y -= mouse.y - cameraDrag.lastY;
@@ -8102,6 +8103,7 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('wheel', e => {
+  if(heroViewWheel(e)){ e.preventDefault(); return; }
   if(gameState === 'menu' && changelogOpen){
     const panel={x:Math.max(18,VW/2-360),y:Math.max(22,VH/2-280),w:Math.min(720,VW-36),h:Math.min(560,VH-44)};
     if(e.clientX>=panel.x && e.clientX<=panel.x+panel.w && e.clientY>=panel.y+68 && e.clientY<=panel.y+panel.h-54){
@@ -8119,6 +8121,7 @@ canvas.addEventListener('wheel', e => {
   e.preventDefault();
 }, {passive:false});
 
+window.addEventListener('mouseup', heroViewPointerUp);
 function mo3giControlRect(){ return {x:VW-292,y:24,w:268,h:82}; }
 function handleMo3giControlClick(mx,my){
   const drone=playerHero&&mo3giDroneOf(playerHero);
@@ -8143,6 +8146,7 @@ canvas.addEventListener('mousedown', e => {
     return;
   }
 
+  if(gameState === 'menu' && e.button === 0 && heroViewPointerDown(mx, my)){ e.preventDefault(); return; }
   if(gameState === 'menu'){ handleMenuClick(mx, my); return; }
   if(gameState === 'over'){
     gameState = 'menu';
@@ -8261,6 +8265,7 @@ canvas.addEventListener('mousedown', e => {
   }
 });
 canvas.addEventListener('mouseup', e => {
+  heroViewPointerUp();
   if(e.button === 1){ cameraDrag.active = false; return; }
   if(draggedInventoryIndex < 0) return;
   const r=canvas.getBoundingClientRect();
@@ -13863,6 +13868,99 @@ function drawHeroTexture(def, x, y, w, h, now, large=false){
   ctx.restore();
 }
 
+/* ===== Осмотр бойца: крутить мышью/пальцем, масштаб колесом, двойной клик — сброс ===== */
+const heroView = {id:null, yaw:0, vel:0, zoom:1, drag:false, lastX:0, lastT:0, idle:0, lastClick:0, buf:null, bctx:null};
+function heroDetailPortraitRect(){
+  const compact=VW<920;
+  return {x:compact?28:64, y:150, w:VW*.34, h:Math.min(430,VH-258)};
+}
+function heroViewReset(){ heroView.yaw=0; heroView.vel=0; heroView.zoom=1; heroView.idle=0; }
+function heroViewPointerDown(mx,my){
+  if(gameState!=='menu' || menuStage!=='heroDetail') return false;
+  const r=heroDetailPortraitRect();
+  if(mx<r.x||mx>r.x+r.w||my<r.y||my>r.y+r.h) return false;
+  const t=performance.now();
+  if(t-heroView.lastClick<350){ heroViewReset(); heroView.lastClick=0; return true; }
+  heroView.lastClick=t;
+  heroView.drag=true; heroView.lastX=mx; heroView.vel=0; heroView.idle=0;
+  return true;
+}
+function heroViewPointerMove(mx){
+  if(!heroView.drag) return;
+  const dx=mx-heroView.lastX; heroView.lastX=mx;
+  const d=dx*0.012;
+  heroView.yaw+=d; heroView.vel=d*60; heroView.idle=0;
+}
+function heroViewPointerUp(){ heroView.drag=false; }
+function heroViewWheel(e){
+  if(gameState!=='menu' || menuStage!=='heroDetail') return false;
+  const r=heroDetailPortraitRect();
+  if(e.clientX<r.x||e.clientX>r.x+r.w||e.clientY<r.y||e.clientY>r.y+r.h) return false;
+  heroView.zoom=clamp(heroView.zoom*(e.deltaY>0?0.92:1.08),0.7,1.7);
+  heroView.idle=0;
+  return true;
+}
+function drawHeroViewer(def,x,y,w,h,now){
+  if(heroView.id!==def.id){ heroView.id=def.id; heroViewReset(); }
+  const dt=1/60;
+  if(!heroView.drag){
+    heroView.idle+=dt;
+    if(Math.abs(heroView.vel)>0.02){ heroView.yaw+=heroView.vel*dt; heroView.vel*=0.94; }
+    else if(heroView.idle>2.5) heroView.yaw+=0.35*dt;
+  }
+  const W=Math.max(2,Math.round(w)), H=Math.max(2,Math.round(h));
+  if(!heroView.buf){ heroView.buf=document.createElement('canvas'); heroView.bctx=heroView.buf.getContext('2d'); }
+  if(heroView.buf.width!==W||heroView.buf.height!==H){ heroView.buf.width=W; heroView.buf.height=H; }
+  const bctx=heroView.bctx;
+  bctx.clearRect(0,0,W,H);
+  const mainCtx=ctx; ctx=bctx;
+  try{ drawHeroTexture(def,0,0,W,H,now,true); } finally { ctx=mainCtx; }
+
+  /* сцена: тёмная сцена и круг-постамент */
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(x,y,w,h,18); ctx.clip();
+  const bg=ctx.createRadialGradient(x+w/2,y+h*.45,10,x+w/2,y+h*.5,Math.max(w,h)*.8);
+  bg.addColorStop(0,'#1a2233'); bg.addColorStop(1,'#05070c');
+  ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
+  const cx=x+w/2, cy=y+h/2;
+  const zoom=heroView.zoom, sw=w*.74*zoom, sh=h*.8*zoom;
+  const baseY=cy+sh/2;
+  ctx.fillStyle='rgba(0,0,0,.55)';
+  ctx.beginPath(); ctx.ellipse(cx,baseY+4,sw*.5,sh*.05,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=def.color2; ctx.globalAlpha=.55; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.ellipse(cx,baseY+4,sw*.56,sh*.07,0,0,Math.PI*2); ctx.stroke();
+  ctx.globalAlpha=1;
+
+  /* поворот вокруг вертикальной оси с перспективой: рисуем полосами */
+  const cs=Math.cos(heroView.yaw), sn=Math.sin(heroView.yaw);
+  const strip=2, persp=0.09;
+  const back=cs<0;
+  for(let sx=0;sx<W;sx+=strip){
+    const u=((sx+strip/2)/W-.5);            // -0.5..0.5
+    const xr=u*cs;                           // горизонтальное положение после поворота
+    const z=u*sn;                            // глубина
+    const k=1/(1-z*persp*2);                 // ближе — выше
+    const dh=sh*k;
+    const dx=cx+xr*sw*k;
+    ctx.drawImage(heroView.buf,sx,0,strip,H,dx-strip*(sw/W)*k*Math.abs(cs)/2-0.5,cy-dh/2,Math.max(1,strip*(sw/W)*k*Math.abs(cs))+1,dh);
+  }
+  /* затемнение «тыльной» стороны и бока */
+  const edge=1-Math.abs(cs);
+  if(edge>0.01 || back){
+    ctx.fillStyle='rgba(0,0,0,'+(Math.min(.55,edge*.4+(back?.18:0)))+')';
+    ctx.fillRect(x,y,w,h);
+  }
+  ctx.restore();
+
+  ctx.strokeStyle='rgba(215,179,106,.55)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(x,y,w,h,18); ctx.stroke();
+  const deg=Math.round(((heroView.yaw*180/Math.PI)%360+360)%360);
+  ctx.textAlign='left'; ctx.font='bold 11px Consolas, monospace'; ctx.fillStyle='rgba(255,255,255,.6)';
+  ctx.fillText('↻ '+deg+'°   ×'+zoom.toFixed(2),x+12,y+h-12);
+  ctx.textAlign='right'; ctx.font='11px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.5)';
+  ctx.fillText('тяни — крутить  •  колесо — масштаб  •  2×клик — сброс',x+w-12,y+h-12);
+}
+
 function drawHeroDetail(def){
   const now=performance.now()/1000;
   const background=ctx.createLinearGradient(0,0,VW,VH);
@@ -13873,7 +13971,7 @@ function drawHeroDetail(def){
 
   const compact=VW<920;
   const leftX=compact?28:64, top=150, portraitW=compact?VW*.34:VW*.34, portraitH=Math.min(430,VH-258);
-  drawHeroTexture(def,leftX,top,portraitW,portraitH,now,true);
+  drawHeroViewer(def,leftX,top,portraitW,portraitH,now);
   ctx.textAlign='left';
   ctx.fillStyle='#d7b36a'; ctx.font='bold 12px Consolas, monospace';
   ctx.fillText('ПРОФИЛЬ БОЙЦА  /  ' + String(def.id).toUpperCase(),leftX,top-18);
@@ -13925,7 +14023,7 @@ function drawHeroDetail(def){
   drawMenuButton(menuDetailTestRect(),'⚙  ТЕСТ-РЕЖИМ',{radius:8});
   drawMenuButton(menuDetailStartRect(),'✓  ВЫБРАТЬ И ИГРАТЬ',{primary:true,large:true,radius:8});
   ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,.46)'; ctx.font='12px Segoe UI, Arial';
-  ctx.fillText('Нажми на способность, чтобы изучить героя перед боем',VW/2,VH-18);
+  ctx.fillText('Тяни бойца мышью, чтобы покрутить и осмотреть его со всех сторон',VW/2,VH-18);
 }
 
 function drawDraftSkillPanel(now){
