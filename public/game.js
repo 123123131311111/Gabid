@@ -589,7 +589,7 @@ let phraseWheelOpen = false;
 let phraseWheelSelection = -1;
 let storeAudio = null;
 const EMBEDDED_STORE_AUDIO = '';
-const STORE_AUDIO_FALLBACK = 'C:/Users/elski/Downloads/korolia-ne-ubit.mp3';
+const STORE_AUDIO_FALLBACK = './sounds/korolia-ne-ubit.mp3';
 let portraitRenderMode = false;
 let winner = null;
 let rankedOnlineMatch = false;
@@ -1788,7 +1788,25 @@ function choosePhraseFromWheel(){
   phraseWheelSelection = -1;
 }
 
+/* «Короля не убить!» — настоящая озвучка из public/sounds, одинаковая у всех игроков;
+   если файл не загрузился, срабатывает старый синтезатор речи. */
+function playLegacyKingAudio(onFail){
+  try {
+    if('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if(storeAudio){ try { storeAudio.pause(); } catch(err) {} }
+    storeAudio = new Audio(STORE_AUDIO_FALLBACK);
+    storeAudio.volume = 1;
+    storeAudio.addEventListener('error', onFail, {once:true});
+    const pr = storeAudio.play();
+    if(pr && pr.catch) pr.catch(onFail);
+  } catch(err) { onFail(); }
+}
+
 function speakStorePhrase(variant='chip'){
+  if(variant === 'legacy' && !speakStorePhrase._legacyFailed){
+    playLegacyKingAudio(() => { speakStorePhrase._legacyFailed = true; speakStorePhrase('legacy'); });
+    return;
+  }
   const isPesik = variant === 'pesik';
   const isLegacy = variant === 'legacy';
   const isKisi = variant === 'kisi';
