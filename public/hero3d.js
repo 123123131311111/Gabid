@@ -258,8 +258,9 @@ function embers(S,t,R,col,n,hgt){ n=n||6; hgt=hgt||2.4;
 /* ---------- Модели героев ---------- */
 const MODELS={};
 
-MODELS.pyro=(S,d,t)=>{
-  man(S,{nobelt:true,face:true,cloth:'#8a1f10',arm:'#a52d18',bracer:'#ffcf63',armR:[.78,1.4,.38],armL:[-.62,1.55,.55],glove:'#e8b894',skin:'#e8b894',fo:{eye:'#ff9a2a',glow:1,angry:.3,mouth:'grin'},collar:'#ffcf63',beard:'#6b2410'});
+MODELS.pyro=(S,d,t,pose)=>{
+  const ga=gaState(d.id,pose,t), O=sub(ga.R,[.78,1.4,.38]), Q=(x,y,z)=>add([x,y,z],O);
+  man(S,{nobelt:true,face:true,cloth:'#8a1f10',arm:'#a52d18',bracer:'#ffcf63',armR:ga.R,armL:ga.L,glove:'#e8b894',skin:'#e8b894',fo:{eye:'#ff9a2a',glow:1,angry:.3,mouth:'grin'},collar:'#ffcf63',beard:'#6b2410'});
   robe(S,.64,.4,1.5,'#a52d18','#ffcf63',1);
   S.tube([0,1.5,0],[0,1.62,0],.42,.3,'#ffcf63');
   for(const s of [-1,1]){ S.tube([s*.5,1.3,.04],[s*.64,.7,.1],.14,.2,'#7a1608',{seg:10}); S.tube([s*.64,.7,.1],[s*.66,.62,.1],.21,.21,'#ffcf63',{seg:10,glow:1}); }
@@ -270,16 +271,18 @@ MODELS.pyro=(S,d,t)=>{
   S.tube([0,2.25,0],[0,2.33,0],.5,.46,'#ffcf63',{seg:14,shine:.6});
   S.cone([0,2.24,0],[0,3.0,-.08],.42,'#7a1608',{seg:12});
   for(let i=0;i<3;i++) G(S,[Math.sin(i*2.1)*.3,2.55+i*.12,Math.cos(i*2.1)*.3+.05],.05,'#ffcf63');
-  S.tube([.78,0,.38],[.78,2.35,.38],.05,.05,'#5b3a1e');
-  for(let i=0;i<4;i++) S.tube([.78,.5+i*.5,.38],[.78,.56+i*.5,.38],.075,.075,'#ffcf63',{shine:.6});
-  const f=flick(t,1)*.04;
-  for(let i=0;i<4;i++){ const a=i*1.57; S.cone([.78+Math.cos(a)*.1,2.35,.38+Math.sin(a)*.1],[.78+Math.cos(a)*.27,2.78,.38+Math.sin(a)*.27],.04,'#ffcf63',{seg:5}); }
-  S.ell([.78,2.55,.38],[.2,.24+f,.2],'#ffcf63',{glow:1});
-  S.cone([.78,2.6,.38],[.78,3.15+f*2,.38],.14,'#ff762f',{glow:1});
-  S.cone([.78,2.6,.38],[.78,2.95+f*2,.38],.09,'#fff3b0',{glow:1});
-  S.ell([-.62,1.9+flick(t,3)*.03,.6],[.22,.22,.22],'#ff9a3c',{glow:1});
-  S.cone([-.62,1.95,.6],[-.62,2.35+flick(t,5)*.05,.6],.12,'#ff762f',{glow:1});
+  S.tube(Q(.78,0,.38),Q(.78,2.35,.38),.05,.05,'#5b3a1e');
+  for(let i=0;i<4;i++) S.tube(Q(.78,.5+i*.5,.38),Q(.78,.56+i*.5,.38),.075,.075,'#ffcf63',{shine:.6});
+  const f=flick(t,1)*.04+ga.fx*.07;
+  for(let i=0;i<4;i++){ const a=i*1.57; S.cone(Q(.78+Math.cos(a)*.1,2.35,.38+Math.sin(a)*.1),Q(.78+Math.cos(a)*.27,2.78,.38+Math.sin(a)*.27),.04,'#ffcf63',{seg:5}); }
+  S.ell(Q(.78,2.55,.38),[.2,.24+f,.2],'#ffcf63',{glow:1});
+  S.cone(Q(.78,2.6,.38),Q(.78,3.15+f*2,.38),.14,'#ff762f',{glow:1});
+  S.cone(Q(.78,2.6,.38),Q(.78,2.95+f*2,.38),.09,'#fff3b0',{glow:1});
+  { const lb=add(ga.L,[0,.35+flick(t,3)*.03,.05]), lr=.22*(1+ga.fx*.5);
+    S.ell(lb,[lr,lr,lr],'#ff9a3c',{glow:1});
+    S.cone(add(lb,[0,.05,0]),add(lb,[0,.4+flick(t,5)*.05+ga.fx*.2,0]),.12,'#ff762f',{glow:1}); }
   embers(S,t,1.0,'#ff9a3c',7,2.6);
+  gaFx(S,ga);
 };
 
 MODELS.warlord=(S,d,t)=>{
@@ -306,8 +309,9 @@ MODELS.warlord=(S,d,t)=>{
   G(S,[-.78,1.15,.34],.12,'#d7b36a',{glow:0,shine:.8}); G(S,[-.78,1.15,.34],.06,'#c0392b');
 };
 
-MODELS.grisha=(S,d,t)=>{
-  man(S,{nobelt:true,face:true,cloth:'#4a2a8a',bracer:'#e0c8ff',armR:[.7,1.9,.3],armL:[-.7,1.9,.3],glove:'#e8b894',beard:'#d8d2e8',fo:{eye:'#7ad8ff',glow:1,angry:-.05,brow:'#d8d2e8'},collar:'#e0c8ff'});
+MODELS.grisha=(S,d,t,pose)=>{
+  const ga=gaState(d.id,pose,t);
+  man(S,{nobelt:true,face:true,cloth:'#4a2a8a',bracer:'#e0c8ff',armR:ga.R,armL:ga.L,glove:'#e8b894',beard:'#d8d2e8',fo:{eye:'#7ad8ff',glow:1,angry:-.05,brow:'#d8d2e8'},collar:'#e0c8ff'});
   robe(S,.62,.42,1.55,'#4a2a8a','#e0c8ff',1);
   for(let i=0;i<5;i++){ S.box([Math.sin(i*1.25-2.5)*.5,.5+((i*3)%4)*.22,Math.cos(i*1.25-2.5)*.6],[.07,.07,.02],'#9be8ff',{glow:1,rot:[0,i,.7]}); }
   S.tube([0,1.35,0],[0,1.42,0],.44,.44,'#e0c8ff',{seg:16,shine:.6});
@@ -319,14 +323,15 @@ MODELS.grisha=(S,d,t)=>{
   S.cone([0,2.9,-.2],[0,3.25,-.45],.1,'#27184e',{seg:8});
   for(let i=0;i<4;i++) S.box([Math.sin(i*1.6)*.18,2.55+i*.1,.25-i*.05+Math.cos(i*1.6)*.1],[.07,.07,.02],'#ffcf65',{glow:1,rot:[0,0,i]});
   const cs=['#75d8ff','#e58bff','#ffcf65'];
-  cs.forEach((c,i)=>{const a=t*1.8+i*2.094; const p=[Math.cos(a)*.95,1.65+Math.sin(t*2+i)*.12,Math.sin(a)*.95];
+  cs.forEach((c,i)=>{const a=t*1.8+i*2.094+ga.fx*Math.sin(ga.p*3.14)*5; const p=[Math.cos(a)*.95,1.65+Math.sin(t*2+i)*.12,Math.sin(a)*.95];
     S.ell(p,[.17,.17,.17],c,{glow:1});
     if(i===0) for(let k=0;k<5;k++){const q=k*1.256+t*2; S.cone(add(p,[0,.1,0]),add(p,[Math.cos(q)*.24,.28,Math.sin(q)*.24]),.05,'#ff8a3a',{glow:1,seg:5});}
     if(i===1) for(let k=0;k<6;k++){const q=k*1.047; S.cone(add(p,[Math.cos(q)*.13,0,Math.sin(q)*.13]),add(p,[Math.cos(q)*.33,0,Math.sin(q)*.33]),.04,'#d9f7ff',{glow:1,seg:5});}
     if(i===2) S.tube(add(p,[-.15,.15,0]),add(p,[.15,-.15,.05]),.025,.025,'#fff3b0',{glow:1,seg:5});
   });
   S.ring([0,1.0,0],.95,.02,'#e0c8ff',{glow:1,n:26,phase:t*.5});
-  for(const s of [-1,1]) G(S,[s*.7,2.05+Math.sin(t*3+s)*.05,.35],.1,s>0?'#75d8ff':'#e58bff');
+  for(const s of [-1,1]) G(S,add(s>0?ga.R:ga.L,[0,.16+Math.sin(t*3+s)*.05,.05]),.1*(1+ga.fx*.5),s>0?'#75d8ff':'#e58bff');
+  gaFx(S,ga);
 };
 
 MODELS.golly=(S,d,t)=>{
@@ -487,49 +492,79 @@ MODELS.illusionist=(S,d,t)=>{
   S.ell([.65,1.56,.45],[.06,.06,.06],'#79e4e4',{glow:1,rings:4,seg:8});
 };
 
-MODELS.shadow=(S,d,t)=>{
-  man(S,{bulk:1.1,face:false,cloth:'#110507',skin:'#2a0a10',arm:'#1a0709',glove:'#2a0a10',armR:[.85,1.1,.5],armL:[-.85,1.1,.5],legs:'#08030b',belt:'#ff4b24',trim:'#ff4b24',headW:1.1,knee:'#2a0a10',bracer:'#2a0a10'});
-  S.ell([0,1.5,.28],[.28,.3,.12],'#08030b',{shine:.6});
-  for(let i=0;i<4;i++) S.box([0,1.64-i*.1,.36],[.4-i*.04,.03,.03],'#ff4b24',{glow:1});
-  S.ell([0,1.4,.34],[.07,.07,.03],'#ff4b24',{glow:1,rings:4,seg:8});
+MODELS.shadow=(S,d,t,pose)=>{
+  const ga=gaState(d.id,pose,t);
+  const ch='#140808', ch2='#2a1210', rock='#1c0b0b', lava='#ff5a1f', hot='#ffb347', core='#fff0a8';
+  man(S,{bulk:1.12,nobelt:true,face:false,cloth:ch,skin:ch2,arm:rock,forearm:ch2,glove:ch2,armR:ga.R,armL:ga.L,legs:'#0d0505',boots:'#0d0505',
+    headW:1.05,knee:ch2,bracer:'#ff5a1f',pad:rock,padTrim:lava,toe:ch2,cuff:lava,trim:lava});
+  // грудь: раскалённые трещины
+  S.ell([0,1.5,.28],[.3,.32,.12],ch,{shine:.5});
+  for(let i=0;i<5;i++) S.box([0,1.68-i*.1,.37],[.4-.04*i,.028,.03],lava,{glow:1});
+  S.box([0,1.45,.38],[.03,.56,.03],hot,{glow:1});
   for(const s of [-1,1]){
-    S.cone([s*.12,2.2,.0],[s*.4,3.0,-.15],.09,'#08030b');
-    S.cone([s*.2,2.2,.0],[s*.6,2.6,-.1],.06,'#1a0709');
-    S.ell([s*.1,2.04,.24],[.07,.05,.03],'#ff4b24',{glow:1,rings:4,seg:6});
-    S.box([s*.1,2.1,.26],[.12,.02,.02],'#08030b',{rot:[0,0,s*.4]});
-    for(let k=0;k<3;k++) S.cone([s*(.85+k*.03),1.1-.04*k,.5+k*.04],[s*(.95+k*.07),.9-.16*k,.75+k*.06],.035,'#ff4b24',{glow:1,seg:5});
-    S.cone([s*.5,1.7,-.05],[s*.78,2.3,-.15],.12,'#08030b');
-    S.cone([s*.62,1.75,0],[s*.9,2.1,-.1],.1,'#1a0709');
-    S.box([s*.5,1.55,-.5],[.07,1.5,.9],'#08030b',{rot:[0.2,s*.5,s*.3]});
-    S.box([s*.78,1.4,-.6],[.05,1.1,.7],'#1a0709',{rot:[0.2,s*.7,s*.4]});
+    S.box([s*.15,1.5,.375],[.025,.42,.025],lava,{glow:1,rot:[0,0,s*.55]});
+    S.box([s*.3,1.3,.34],[.022,.34,.022],lava,{glow:1,rot:[0,0,s*-.35]});
   }
-  for(let i=0;i<5;i++) S.box([0,2.0-.03*i,.255],[.1+.02*i,.012,.015],'#ff4b24',{glow:1});
-  S.tube([0,2.3,-.02],[0,2.4,-.02],.3,.28,'#ff4b24',{glow:1,seg:12});
-  for(let i=0;i<7;i++){const a=i*.9, f=flick(t,i); S.cone([Math.sin(a)*.4,1.7,-.2+Math.cos(a)*.2],[Math.sin(a)*.5,2.3+.2*f+(i%3)*.12,-.2+Math.cos(a)*.3],.07,'#ff4b24',{glow:1,seg:6});}
-  for(let i=0;i<5;i++){const a=t*1.5+i*1.257; S.ell([Math.cos(a)*1.05,1.3+Math.sin(t*2+i)*.2,Math.sin(a)*1.05],[.09,.09,.09],'#ff7043',{glow:1,rings:5,seg:8});
-    S.cone([Math.cos(a)*1.05,1.3+Math.sin(t*2+i)*.2,Math.sin(a)*1.05],[Math.cos(a-.5)*1.1,1.1+Math.sin(t*2+i)*.2,Math.sin(a-.5)*1.1],.06,'#ff7043',{glow:1,seg:5});}
-  S.ring([0,.04,0],.9,.03,'#ff4b24',{glow:1,n:24,phase:t});
+  S.ell([0,1.4,.37],[.085,.085,.035],core,{glow:1,rings:4,seg:8});
+  // плечи: изогнутые шипы
+  for(const s of [-1,1]){
+    S.cone([s*.52,1.78,-.02],[s*.78,2.6,-.28],.15,ch,{seg:6});
+    S.cone([s*.66,1.78,-.04],[s*1.12,2.3,-.3],.11,ch2,{seg:6});
+    S.cone([s*.78,2.5,-.26],[s*.82,2.75,-.3],.05,lava,{glow:1,seg:5});
+    S.cone([s*.74,1.72,.04],[s*1.0,1.98,.2],.08,ch,{seg:5});
+    // трещины на руках
+    const h=s>0?ga.R:ga.L, sh=[s*.5,1.58,0];
+    for(let k=1;k<=3;k++){ const q=lerp(sh,h,k*.24); G(S,add(q,[0,.055,.06]),.026,k%2?lava:hot,{rings:3,seg:5}); }
+    // горящая ладонь
+    for(let k=0;k<3;k++){ const fl=flick(t,k+(s>0?0:5)); S.cone(add(h,[(k-1)*.05,.04,.02]),add(h,[(k-1)*.07,.3+.1*fl+.2*ga.fx,.03]),.065-k*.008,k===1?hot:lava,{glow:1,seg:5}); }
+  }
+  // спина
+  for(let i=0;i<4;i++) S.cone([0,1.85-i*.22,-.3],[0,2.15-i*.22,-.66+i*.05],.08,ch2,{seg:5});
+  // голова
+  for(const s of [-1,1]){
+    S.ell([s*.105,2.04,.255],[.065,.04,.03],core,{glow:1,rings:4,seg:6});
+    S.box([s*.105,2.115,.262],[.15,.026,.03],ch,{rot:[0,0,s*.38]});
+    S.cone([s*.16,2.22,.02],[s*.42,2.95,-.2],.09,ch,{seg:6});
+    S.cone([s*.2,2.2,.0],[s*.58,2.55,-.12],.06,ch2,{seg:5});
+  }
+  S.box([0,1.87,.27],[.18,.045,.025],lava,{glow:1});
+  for(let i=0;i<5;i++) S.cone([-.075+i*.0375,1.89,.275],[-.075+i*.0375,1.835,.28],.014,core,{glow:1,seg:4});
+  // огненная грива
+  for(let i=0;i<9;i++){ const a=(i-4)*.2, fl=flick(t,i);
+    S.cone([Math.sin(a)*.2,2.22,-.02+Math.cos(a)*.04],[Math.sin(a)*.34,2.55+.12*(i%3)+.14*fl+.14*ga.fx,-.1],.1,i%2?lava:hot,{glow:1,seg:6}); }
+  S.cone([0,2.25,-.04],[0,3.15+.18*flick(t,9)+.35*ga.fx,-.1],.2,lava,{glow:1,seg:7});
+  S.cone([0,2.28,-.02],[0,2.85+.12*flick(t,11)+.25*ga.fx,-.08],.12,hot,{glow:1,seg:6});
+  // огонь у ног
+  for(let i=0;i<7;i++){ const a=i/7*Math.PI*2+t*.4, fl=flick(t,i*1.3);
+    S.cone([Math.cos(a)*.55,.04,Math.sin(a)*.55],[Math.cos(a)*.55,.3+.12*fl+.08*(i%2),Math.sin(a)*.55],.07,i%2?lava:hot,{glow:1,seg:5}); }
+  // души-искры
+  for(let i=0;i<4;i++){ const a=t*1.5+i*1.57; G(S,[Math.cos(a)*1.0,1.3+Math.sin(t*2+i)*.2,Math.sin(a)*1.0],.075,'#ff7043'); }
+  S.ring([0,.04,0],.9,.03,lava,{glow:1,n:24,phase:t});
+  gaFx(S,ga);
 };
 
-MODELS.electricGosha=(S,d,t)=>{
-  man(S,{face:true,cloth:'#237aa3',arm:'#237aa3',glove:'#7feaff',armR:[.5,1.5,.8],armL:[-.5,1.5,.8],legs:'#174e68',belt:'#7feaff',trim:'#7feaff',knee:'#7feaff',bracer:'#7feaff',chest:'#174e68',chestTrim:'#7feaff',pad:'#174e68',padTrim:'#7feaff',fo:{eye:'#7feaff',glow:1,angry:.25,mouth:'grin'},collar:'#7feaff'});
+MODELS.electricGosha=(S,d,t,pose)=>{
+  const ga=gaState(d.id,pose,t);
+  man(S,{face:true,cloth:'#237aa3',arm:'#237aa3',glove:'#7feaff',armR:ga.R,armL:ga.L,legs:'#174e68',belt:'#7feaff',trim:'#7feaff',knee:'#7feaff',bracer:'#7feaff',chest:'#174e68',chestTrim:'#7feaff',pad:'#174e68',padTrim:'#7feaff',fo:{eye:'#7feaff',glow:1,angry:.25,mouth:'grin'},collar:'#7feaff'});
   S.ell([0,1.5,.34],[.13,.13,.05],'#e8ffff',{glow:1,rings:6,seg:10});
   S.ring([0,1.5,.36],.17,.02,'#7feaff',{glow:1,axis:'z',n:12,phase:t*2});
   for(let i=0;i<10;i++){const a=-1.3+i*.29, hgt=.35+(i%3)*.12; S.cone([Math.sin(a)*.22,2.2+Math.cos(a)*.05,-.02],[Math.sin(a)*.5,2.2+hgt+.2,-.02-(i%2)*.1],.07,'#7feaff',{glow:1,seg:5});}
   S.tube([-.3,2.12,.15],[.3,2.12,.15],.04,.04,'#174e68',{seg:6});
   for(const s of [-1,1]){ S.tube([s*.12,2.1,.25],[s*.12,2.1,.3],.1,.1,'#174e68',{seg:10}); S.ell([s*.1,2.03,.25],[.05,.04,.03],'#e8ffff',{glow:1,rings:4,seg:6});
     S.tube([s*.55,1.75,0],[s*.55,2.1,0],.04,.04,'#8a8a8a',{seg:6}); S.ell([s*.55,2.15,0],[.08,.08,.08],'#7feaff',{glow:1,rings:4,seg:8});
-    const p0=[s*.5,1.55,0], p1=[s*.75,1.9,.2], p2=[s*.55,1.6,.45], p3=[s*.5,1.5,.8];
+    const hh=s>0?ga.R:ga.L, p0=[s*.5,1.55,0], p3=hh, p1=add(lerp(p0,p3,.33),[s*.22,.32,.05]), p2=add(lerp(p0,p3,.66),[s*.08,.1,.05]);
     S.tube(p0,p1,.035,.035,'#b9f8ff',{glow:1,seg:5}); S.tube(p1,p2,.035,.035,'#b9f8ff',{glow:1,seg:5}); S.tube(p2,p3,.035,.035,'#b9f8ff',{glow:1,seg:5}); }
-  const c=[0,1.55,1.0]; S.ell(c,[.26,.26,.26],'#b9f8ff',{glow:1,rings:6,seg:10});
-  S.ring(c,.36,.02,'#7feaff',{glow:1,axis:'x',n:14,phase:t*3});
+  const c=add(lerp(ga.R,ga.L,.5),[0,.05,.2]), bs=1+.55*ga.fx; S.ell(c,[.26*bs,.26*bs,.26*bs],'#b9f8ff',{glow:1,rings:6,seg:10});
+  S.ring(c,.36*bs,.02,'#7feaff',{glow:1,axis:'x',n:14,phase:t*3});
   for(let i=0;i<7;i++){const a=t*3+i*.9, b=t*2+i; const dir=norm([Math.cos(a),Math.sin(b),Math.sin(a)]); const e=add(c,mul(dir,.55+.1*flick(t,i))); S.cone(add(c,mul(dir,.2)),e,.05,'#7feaff',{glow:1,seg:5});
     S.cone(e,add(e,mul([Math.sin(b),Math.cos(a),Math.sin(i)],.18)),.035,'#e8ffff',{glow:1,seg:4}); }
   S.ring([0,.04,0],.8,.03,'#7feaff',{glow:1,n:22,phase:-t*2});
+  gaFx(S,ga);
 };
 
-MODELS.mo3gi=(S,d,t)=>{
-  man(S,{face:true,bulk:1.1,cloth:'#294638',arm:'#294638',glove:'#1e3328',legs:'#223a2d',boots:'#161c18',belt:'#3a4a3c',armR:[.4,1.25,.75],armL:[-.3,1.3,.95],knee:'#1e3328',bracer:'#3a4a3c',trim:'#7dffb0',skin:'#d9a07e',fo:{eye:'#3a2a1c',angry:.28,mouth:'stern',brow:'#1a1a14'}});
+MODELS.mo3gi=(S,d,t,pose)=>{
+  const ga=gaState(d.id,pose,t), O=sub(ga.R,[.4,1.25,.75]), P=(x,y,z)=>add([x,y,z],O);
+  man(S,{face:true,bulk:1.1,cloth:'#294638',arm:'#294638',glove:'#1e3328',legs:'#223a2d',boots:'#161c18',belt:'#3a4a3c',armR:ga.R,armL:ga.L,knee:'#1e3328',bracer:'#3a4a3c',trim:'#7dffb0',skin:'#d9a07e',fo:{eye:'#3a2a1c',angry:.28,mouth:'stern',brow:'#1a1a14'}});
   S.box([0,1.4,.12],[.8,.7,.42],'#3a4a3c'); S.box([-.15,1.3,.35],[.2,.25,.06],'#1e3328'); S.box([.15,1.3,.35],[.2,.25,.06],'#1e3328');
   for(const s of [-1,1]){ S.box([s*.15,1.3,.39],[.16,.03,.02],'#7dffb0'); S.tube([s*.3,1.6,.3],[s*.3,1.45,.3],.03,.03,'#c0392b',{seg:6}); }
   for(let i=0;i<3;i++) S.ell([-.28+i*.12,1.6,.36],[.05,.07,.04],'#556b2f',{rings:4,seg:6});
@@ -544,18 +579,22 @@ MODELS.mo3gi=(S,d,t)=>{
   for(let i=0;i<3;i++) S.box([0,1.2+i*.28,-.31],[.6,.04,.04],'#3a4a3c');
   S.tube([.2,1.95,-.45],[.2,2.5,-.45],.03,.03,'#7dffb0',{glow:1,seg:5});
   S.ell([.2,2.52,-.45],[.05,.05,.05],'#7dffb0',{glow:1,rings:4,seg:6});
-  S.box([.25,1.25,.2],[.12,.22,.7],'#222'); S.tube([.25,1.3,.5],[.25,1.35,1.5],.05,.05,'#222'); S.box([.25,1.42,.8],[.07,.1,.3],'#444');
-  S.tube([.25,1.35,1.2],[.25,1.35,1.5],.08,.08,'#555',{seg:8,shine:.7});
-  S.box([.25,1.1,.5],[.08,.28,.14],'#3a3a3a');
+  S.box(P(.25,1.25,.2),[.12,.22,.7],'#222'); S.tube(P(.25,1.3,.5),P(.25,1.35,1.5),.05,.05,'#222'); S.box(P(.25,1.42,.8),[.07,.1,.3],'#444');
+  S.tube(P(.25,1.35,1.2),P(.25,1.35,1.5),.08,.08,'#555',{seg:8,shine:.7});
+  S.box(P(.25,1.1,.5),[.08,.28,.14],'#3a3a3a');
+  if(ga.kind==='attack'&&ga.burst>.05){ const mz=P(.25,1.35,1.55), bb=ga.burst; G(S,mz,.08+.16*bb,'#fff3b0');
+    for(let i=0;i<5;i++){ const a=i/5*Math.PI*2+.3; S.cone(mz,add(mz,[Math.cos(a)*.2*bb,Math.sin(a)*.2*bb,.22+.3*bb]),.03,'#ffd36b',{glow:1,seg:4}); } }
   const by=2.45+Math.sin(t*2)*.08, c=[1.05,by,.25];
   S.box(c,[.3,.1,.3],'#7dffb0',{glow:1});
   S.ell([c[0],c[1]-.1,c[2]],[.08,.06,.08],'#17202b',{rings:4,seg:8});
   S.ell([c[0],c[1]-.14,c[2]+.05],[.03,.03,.03],'#ff4b24',{glow:1,rings:3,seg:5});
   for(const [dx,dz] of [[1,1],[-1,1],[1,-1],[-1,-1]]){ const p=[c[0]+dx*.22,c[1]+.04,c[2]+dz*.22]; S.tube(c,p,.015,.015,'#444',{seg:4}); S.tube(add(p,[0,.01,0]),add(p,[Math.cos(t*30)*.16,.01,Math.sin(t*30)*.16]),.012,.012,'#9aa',{seg:4}); }
+  gaFx(S,ga);
 };
 
-MODELS.tribupainer=(S,d,t)=>{
-  man(S,{nobelt:true,face:true,bulk:1.1,cloth:'#4a3028',arm:'#4a3028',glove:'#2c1b15',legs:'#2c1b15',armR:[.45,1.2,.6],armL:[-.15,1.3,1.1],beard:'#2c1b15',skin:'#d9a07e',fo:{eye:'#7a5a2c',angry:.3,mouth:'stern',brow:'#2c1b15'},bracer:'#6b4423',collar:'#ffb36b'});
+MODELS.tribupainer=(S,d,t,pose)=>{
+  const ga=gaState(d.id,pose,t), O=sub(ga.R,[.45,1.2,.6]), P=(x,y,z)=>add([x,y,z],O);
+  man(S,{nobelt:true,face:true,bulk:1.1,cloth:'#4a3028',arm:'#4a3028',glove:'#2c1b15',legs:'#2c1b15',armR:ga.R,armL:ga.L,beard:'#2c1b15',skin:'#d9a07e',fo:{eye:'#7a5a2c',angry:.3,mouth:'stern',brow:'#2c1b15'},bracer:'#6b4423',collar:'#ffb36b'});
   robe(S,.58,.5,1.4,'#4a3028','#ffb36b');
   for(let i=0;i<8;i++){ S.tube([-.35+i*.1,1.75-i*.06,.38],[-.35+i*.1,1.6-i*.06,.38],.03,.03,i%2?'#c0392b':'#ffd08a',{seg:6}); }
   S.tube([-.4,1.8,.32],[.4,1.1,.4],.045,.045,'#6b4423',{seg:6});
@@ -564,18 +603,22 @@ MODELS.tribupainer=(S,d,t)=>{
   S.tube([0,2.25,0],[0,2.64,0],.3,.28,'#2c1b15',{seg:12});
   S.tube([0,2.3,0],[0,2.4,0],.31,.31,'#ffb36b',{seg:12,shine:.6});
   S.ell([0,2.45,.27],[.06,.06,.02],'#ffd08a',{glow:1,rings:4,seg:6});
-  for(const s of [-1,1]){ S.tube([.45+s*.06,1.3,.1],[.45+s*.06,1.34,2.2],.06,.06,'#8a8a8a',{shine:.7});
-    S.tube([.45+s*.06,1.32,1.9],[.45+s*.06,1.34,2.22],.075,.075,'#555',{shine:.7});
-    S.ell([.45+s*.06,1.34,2.22],[.07,.07,.05],'#ffb36b',{glow:1,rings:4,seg:8}); }
-  S.cone([.45,1.34,2.3],[.45,1.36,2.65+flick(t,1)*.06],.08,'#ff9a3c',{glow:1,seg:6});
-  S.box([.45,1.28,1.1],[.22,.16,.8],'#6b4423',{shine:.4});
-  S.box([.45,1.2,-.15],[.18,.3,.7],'#6b4423',{rot:[-.2,0,0]});
-  for(let i=0;i<4;i++) S.box([.45,1.15+i*.0,.0+i*.28],[.26,.03,.03],'#ffb36b',{shine:.6});
-  S.tube([.45,1.4,.2],[.45,1.7,.1],.05,.05,'#8a8a8a',{seg:6});
+  for(const s of [-1,1]){ S.tube(P(.45+s*.06,1.3,.1),P(.45+s*.06,1.34,2.2),.06,.06,'#8a8a8a',{shine:.7});
+    S.tube(P(.45+s*.06,1.32,1.9),P(.45+s*.06,1.34,2.22),.075,.075,'#555',{shine:.7});
+    S.ell(P(.45+s*.06,1.34,2.22),[.07,.07,.05],'#ffb36b',{glow:1,rings:4,seg:8}); }
+  S.cone(P(.45,1.34,2.3),P(.45,1.36,2.65+flick(t,1)*.06+ga.burst*.7),.08+ga.burst*.1,'#ff9a3c',{glow:1,seg:6});
+  if(ga.burst>.05){ const mz=P(.45,1.35,2.35), bb=ga.burst; G(S,mz,.1+.2*bb,'#fff3b0');
+    for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; S.cone(mz,add(mz,[Math.cos(a)*.3*bb,Math.sin(a)*.3*bb,.25+.4*bb]),.035,'#ffd36b',{glow:1,seg:4}); } }
+  S.box(P(.45,1.28,1.1),[.22,.16,.8],'#6b4423',{shine:.4});
+  S.box(P(.45,1.2,-.15),[.18,.3,.7],'#6b4423',{rot:[-.2,0,0]});
+  for(let i=0;i<4;i++) S.box(P(.45,1.15+i*.0,.0+i*.28),[.26,.03,.03],'#ffb36b',{shine:.6});
+  S.tube(P(.45,1.4,.2),P(.45,1.7,.1),.05,.05,'#8a8a8a',{seg:6});
+  gaFx(S,ga);
 };
 
-MODELS.mageHunter=(S,d,t)=>{
-  man(S,{nobelt:true,face:false,cloth:'#24184d',arm:'#24184d',glove:'#a980ff',armR:[.8,1.2,.55],armL:[-.8,1.2,.55],legs:'#160f33',bracer:'#a980ff',knee:'#a980ff',collar:'#a980ff',chest:'#160f33',chestTrim:'#a980ff'});
+MODELS.mageHunter=(S,d,t,pose)=>{
+  const ga=gaState(d.id,pose,t);
+  man(S,{nobelt:true,face:false,cloth:'#24184d',arm:'#24184d',glove:'#a980ff',armR:ga.R,armL:ga.L,legs:'#160f33',bracer:'#a980ff',knee:'#a980ff',collar:'#a980ff',chest:'#160f33',chestTrim:'#a980ff'});
   robe(S,.52,.4,1.35,'#24184d','#a980ff',1);
   cape(S,'#160f33','#a980ff',.95,2.0,.5,-.4,5);
   S.ell([0,1.42,.3],[.1,.12,.04],'#d58cff',{glow:1,rings:5,seg:8});
@@ -590,16 +633,19 @@ MODELS.mageHunter=(S,d,t)=>{
   for(const s of [-1,1]){
     S.ell([s*.6,1.75,0],[.28,.18,.28],'#2a1a50',{shine:.5});
     for(let k=0;k<3;k++) S.cone([s*(.52+k*.1),1.9,0],[s*(.6+k*.12),2.2+k*.05,-.05],.05,'#a980ff',{seg:5,shine:.6});
-    S.obox([s*.8,1.2,.55],[s*1.05,1.8,.9],.1,.03,'#d58cff',{glow:1});
-    S.obox([s*.8,1.2,.55],[s*.95,1.5,.7],.18,.06,'#a980ff',{shine:.7});
-    S.obox([s*.8,1.2,.55],[s*.72,.95,.48],.04,.04,'#a980ff',{shine:.7}); }
+    { const h=s>0?ga.R:ga.L, bd=norm(add(norm(sub(h,[s*.5,1.58,0])),[s*.15,.55,.25]));
+      S.obox(h,add(h,mul(bd,.85+.25*ga.fx)),.1,.03,'#d58cff',{glow:1});
+      S.obox(h,add(h,mul(bd,.4)),.18,.06,'#a980ff',{shine:.7});
+      S.obox(h,sub(h,mul(bd,.28)),.04,.04,'#a980ff',{shine:.7}); } }
   for(let i=0;i<3;i++){ const a=t*1.3+i*2.09; S.box([Math.cos(a)*1.1,1.2+Math.sin(t*2+i)*.2,Math.sin(a)*1.1],[.12,.12,.02],'#d58cff',{glow:1,rot:[0,-a,.785]}); }
+  gaFx(S,ga);
 };
 
-MODELS.regina=(S,d,t)=>{
+MODELS.regina=(S,d,t,pose)=>{
   const red=d.skinId==='reginaRed';
   const hair=red?'#641126':'#3a1a2a', cloth=red?'#5b101e':'#6e3048', acc=red?'#ff4058':'#ff9fbd';
-  man(S,{nobelt:true,bulk:.9,face:true,cloth:cloth,arm:cloth,glove:'#e9b39e',skin:'#e9b39e',armR:[.8,1.3,.6],armL:[-.8,1.3,.6],legs:'#2a1520',belt:acc,trim:acc,bracer:acc,knee:acc,chest:'#2a1520',chestTrim:acc,pad:'#2a1520',padTrim:acc,fo:{eye:red?'#ff4058':'#ff9fbd',glow:1,angry:.22,mouth:'smile',lip:red?'#8a1426':'#c0506a',brow:hair,cheeks:'#f09a90'},collar:acc});
+  const ga=gaState(d.id,pose,t,[acc,'#fff0f4']);
+  man(S,{nobelt:true,bulk:.9,face:true,cloth:cloth,arm:cloth,glove:'#e9b39e',skin:'#e9b39e',armR:ga.R,armL:ga.L,legs:'#2a1520',belt:acc,trim:acc,bracer:acc,knee:acc,chest:'#2a1520',chestTrim:acc,pad:'#2a1520',padTrim:acc,fo:{eye:red?'#ff4058':'#ff9fbd',glow:1,angry:.22,mouth:'smile',lip:red?'#8a1426':'#c0506a',brow:hair,cheeks:'#f09a90'},collar:acc});
   S.tube([0,.7,0],[0,1.05,0],.55,.3,cloth,{seg:12});
   for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; S.box([Math.sin(a)*.5,.78,Math.cos(a)*.5],[.2,.4,.04],'#2a1520',{rot:[Math.cos(a)*-.25,a,Math.sin(a)*.25],shine:.4}); S.box([Math.sin(a)*.52,.6,Math.cos(a)*.52],[.2,.03,.05],acc,{rot:[0,a,0],glow:0,shine:.6}); }
   S.tube([0,.92,0],[0,1.04,0],.4,.4,acc,{seg:16,shine:.5});
@@ -610,10 +656,11 @@ MODELS.regina=(S,d,t)=>{
   G(S,[0,2.3,.3],.05,acc);
   S.tube([0,2.1,-.28],[0,1.5,-.45],.09,.05,hair,{seg:8}); S.tube([0,1.5,-.45],[0,.8,-.4],.06,.02,hair,{seg:8});
   S.ell([0,2.12,-.3],[.09,.09,.09],acc,{rings:5,seg:8,shine:.6});
-  for(const s of [-1,1]){ S.ell([s*.35,1.7,-.1],[.1,.4,.1],hair); S.cone([s*.36,1.35,-.1],[s*.34,.95,-.1],.08,hair,{seg:6}); S.obox([s*.8,1.3,.6],[s*1.0,1.95,.95],.1,.03,acc,{glow:1}); S.obox([s*.8,1.3,.6],[s*.9,.95,.5],.07,.03,'#2a1520',{shine:.5}); S.box([s*.8,1.28,.6],[.14,.06,.14],acc,{shine:.7});
+  for(const s of [-1,1]){ S.ell([s*.35,1.7,-.1],[.1,.4,.1],hair); S.cone([s*.36,1.35,-.1],[s*.34,.95,-.1],.08,hair,{seg:6}); { const h=s>0?ga.R:ga.L, bd=norm(add(norm(sub(h,[s*.5,1.58,0])),[s*.15,.55,.25])); S.obox(h,add(h,mul(bd,.75+.2*ga.fx)),.1,.03,acc,{glow:1}); S.obox(h,sub(h,mul(bd,.4)),.07,.03,'#2a1520',{shine:.5}); S.box(h,[.14,.06,.14],acc,{shine:.7}); }
     S.box([s*.12,2.14,.22],[.06,.02,.02],hair,{rot:[0,0,s*.4]}); }
   S.cone([-.15,1.62,.35],[-.4,1.35,.28],.04,acc,{seg:4,glow:1}); S.cone([.15,1.62,.35],[.4,1.35,.28],.04,acc,{seg:4,glow:1});
   embers(S,t,.9,acc,4,2.0);
+  gaFx(S,ga);
 };
 
 MODELS.yosyp=(S,d,t)=>{
@@ -863,6 +910,94 @@ MODELS.chip=(S,d,t,pose)=>{
     S.sc=kk; S.target=tg;
   }
 };
+
+/* ---------- Общая система поз бойцов (атака / касты / витринный цикл) ----------
+   Руки ведутся по ключевым кадрам, поверх — свечение, шлейфы, вспышки и снаряды. */
+const GA={};
+const E_lin=x=>x;
+const GA_ST={
+  punch:I=>[[.28,[.75,1.75,-.1],[-.55,1.45,.45],E_out],[.5,[.4,1.5,1.05],[-.5,1.45,.5],E_in],[.74,[.5,1.5,.8],[-.5,1.45,.5],E_out]],
+  throw:I=>[[.3,[.8,2.15,-.2],[-.4,1.6,.7],E_out],[.52,[.45,1.45,1.0],[-.4,1.5,.5],E_in],[.76,[.5,1.4,.8],[-.45,1.5,.5],E_out]],
+  dual:I=>[[.28,[.35,1.45,.25],[-.35,1.45,.25],E_out],[.5,[.3,1.55,1.05],[-.3,1.55,1.05],E_in],[.76,[.35,1.5,.9],[-.35,1.5,.9],E_out]],
+  raise:I=>[[.36,[.5,2.35,.15],[-.5,2.35,.15],E_out],[.56,[.35,1.15,.95],[-.35,1.15,.95],E_in],[.8,[.4,1.2,.9],[-.4,1.2,.9],E_out]],
+  clap:I=>[[.3,[1.05,1.5,.1],[-1.05,1.5,.1],E_out],[.55,[.1,1.5,1.0],[-.1,1.5,1.0],E_in],[.8,[.3,1.5,.85],[-.3,1.5,.85],E_out]],
+  fan:I=>[[.36,[1.05,2.0,.2],[-1.05,2.0,.2],E_out],[.58,[1.0,1.95,.5],[-1.0,1.95,.5],E_lin],[.82,[1.0,1.95,.5],[-1.0,1.95,.5],E_lin]],
+  slashR:I=>[[.3,[.85,2.1,-.25],[-.5,1.4,.5],E_out],[.5,[.35,1.15,.9],[-.5,1.4,.5],E_in],[.74,[.5,1.3,.8],[-.5,1.4,.5],E_out]],
+  cross:I=>[[.3,[.95,2.0,-.1],[-.95,2.0,-.1],E_out],[.5,[-.25,1.3,.95],[.25,1.3,.95],E_in],[.76,[.2,1.35,.85],[-.2,1.35,.85],E_out]],
+  conj:I=>[[.2,[.9,1.6,.2],[-.9,1.6,.2],E_out],[.4,[.5,2.3,.1],[-.5,2.3,.1],E_out],[.56,[.3,1.6,1.0],[-.3,1.6,1.0],E_in],[.8,[.4,1.55,.9],[-.4,1.55,.9],E_out]],
+  guard:I=>[[.3,[.2,1.5,.8],[-.2,1.5,.8],E_out],[.7,[.2,1.5,.8],[-.2,1.5,.8],E_lin]],
+  lup:I=>[[.35,null,[-.5,2.2,.4],E_out],[.6,null,[-.45,2.1,.5],E_lin],[.8,null,[-.45,2.1,.5],E_lin]],
+  lpoint:I=>[[.3,null,[-.6,1.7,.5],E_out],[.5,null,[-.5,1.6,1.1],E_in],[.8,null,[-.5,1.6,1.05],E_lin]],
+  ldown:I=>[[.4,null,[-.5,.9,.7],E_out],[.7,null,[-.5,.9,.7],E_lin]],
+  lwave:I=>[[.25,null,[-.8,1.9,.2],E_out],[.5,null,[-.4,2.0,.2],E_io],[.75,null,[-.8,1.9,.2],E_io]],
+  recoil:I=>[[.18,I.R,I.L,E_out],[.4,add(I.R,[0,.14,-.3]),add(I.L,[0,.1,-.3]),E_out],[.75,I.R,I.L,E_out]],
+  bigrecoil:I=>[[.2,add(I.R,[0,.05,.1]),add(I.L,[0,.05,.1]),E_out],[.42,add(I.R,[0,.3,-.45]),add(I.L,[0,.25,-.45]),E_out],[.8,I.R,I.L,E_out]],
+  gunup:I=>[[.35,add(I.R,[0,.9,-.1]),add(I.L,[.1,.9,-.2]),E_out],[.56,add(I.R,[0,.12,.45]),add(I.L,[0,.1,.4]),E_in],[.8,add(I.R,[0,.05,.3]),add(I.L,[0,.05,.3]),E_out]]
+};
+function gaReg(id,cfg){
+  const mk=st=>{ const list=(typeof st==='function'?st:GA_ST[st])(cfg.idle);
+    const e=(p)=>({p,R:cfg.idle.R,L:cfg.idle.L,e:E_io});
+    return [e(0)].concat(list.map(([p,R,L,ez])=>({p,R:R||cfg.idle.R,L:L||cfg.idle.L,e:ez||E_io})),[e(1)]); };
+  cfg.keys={attack:mk(cfg.att)}; cfg.casts.forEach((c,i)=>{ cfg.keys['c'+i]=mk(c); });
+  cfg.hit=cfg.hit||.5; GA[id]=cfg;
+  ANIM[id]=[{kind:'attack',p:.3},{kind:'attack',p:.5}];
+  cfg.casts.forEach((_,i)=>{ ANIM[id].push({kind:'cast',slot:i,p:.3},{kind:'cast',slot:i,p:.55}); });
+}
+function gaShow(cfg){
+  if(cfg._show) return cfg._show;
+  const n=cfg.casts.length, L=[['idle',1.5],['attack',.8],['attack',.8],['idle',.8]];
+  for(let i=0;i<n;i++){ L.push(['cast',i===n-1?1.5:1.15,i]); L.push(['idle',.7]); }
+  cfg._show=L; cfg._showT=L.reduce((a,x)=>a+x[1],0); return L;
+}
+function gaResolve(cfg,pose,t){
+  if(!pose||!pose.kind||pose.kind==='idle') return {kind:'idle',p:0};
+  if(pose.kind!=='show') return pose;
+  const L=gaShow(cfg), T=cfg._showT; let tm=((t%T)+T)%T;
+  for(const [k,du,sl] of L){ if(tm<du) return {kind:k,slot:sl,p:tm/du}; tm-=du; }
+  return {kind:'idle',p:0};
+}
+function gaCore(cfg,kind,slot,p,t){
+  let key=null;
+  if(kind==='attack') key='attack';
+  else if(kind==='cast'){ const n=cfg.casts.length; key='c'+((((slot|0)%n)+n)%n); }
+  if(!key||!cfg.keys[key]) return {R:add(cfg.idle.R,[.012*Math.sin(t*1.6),.016*Math.sin(t*1.6),0]),L:add(cfg.idle.L,[0,.016*Math.sin(t*1.6+1),0])};
+  const KS=cfg.keys[key];
+  for(let i=1;i<KS.length;i++) if(p<=KS[i].p){ const a=KS[i-1], b=KS[i], u=b.e(cl01((p-a.p)/(b.p-a.p))); return {R:lerp(a.R,b.R,u),L:lerp(a.L,b.L,u)}; }
+  const e=KS[KS.length-1]; return {R:e.R,L:e.L};
+}
+function gaState(id,pose,t,col){
+  const cfg=GA[id], rp=gaResolve(cfg,pose,t), kind=rp.kind, slot=rp.slot, p=rp.p||0;
+  const c=gaCore(cfg,kind,slot,p,t);
+  const st={cfg,kind,slot,p,t,col:col||cfg.col,R:c.R,L:c.L,fx:0,burst:0,trail:[],shot:null,rings:[]};
+  if(kind==='attack'){
+    const h=cfg.hit; st.fx=.2+.8*bell(p,h,.13); st.burst=bell(p,h+.05,.12);
+    if(cfg.ranged){ const u=(p-h)/.3; if(u>0&&u<1) st.shot={u}; }
+  } else if(kind==='cast'){
+    st.fx=.3+.7*bell(p,.54,.2); st.burst=bell(p,.54,.09);
+    const n=cfg.casts.length, sl=(((slot|0)%n)+n)%n;
+    if(cfg.rings&&cfg.rings.includes(sl)) for(const j of [0,.08]){ const k=(p-.52-j)/.4; if(k>0&&k<1) st.rings.push({r:.2+(cfg.ringR||.95)*E_out(k),w:.05*(1-k)+.02}); }
+  }
+  if(kind!=='idle'&&st.fx>.25){ for(let k=1;k<=6;k++){ const q=p-k*.035; if(q<.08) break; const cc=gaCore(cfg,kind,slot,q,t); st.trail.push(cc); } }
+  return st;
+}
+function gaFx(S,st){
+  if(st.kind==='idle') return;
+  const cfg=st.cfg, c=st.col, none=cfg.hands==='none';
+  const hs=none?[]:(cfg.hands==='R'?[st.R]:[st.R,st.L]);
+  for(const h of hs){ G(S,h,.06+.11*st.fx,c[0]); G(S,h,.035+.06*st.fx,c[1]); }
+  const off=cfg.trailOff||[0,0,0];
+  st.trail.forEach((tp,i)=>{ const th=cfg.trail==='none'?[]:(cfg.hands==='R'?[tp.R]:[tp.R,tp.L]); for(const h of th) G(S,add(h,off),Math.max(.025,.1-i*.014),i%2?c[0]:c[1]); });
+  if(st.burst>.05&&!none){ const b=st.burst;
+    for(const h of hs){ for(let i=0;i<6;i++){ const a=i/6*Math.PI*2+.4, v=[Math.cos(a),Math.sin(a),.5]; S.cone(add(h,mul(v,.1)),add(h,mul(v,.18+.4*b)),.032,c[0],{glow:1,seg:5}); } G(S,h,.08+.12*b,c[1]); } }
+  if(st.shot){ const u=st.shot.u, ph=cfg.shotBoth?[st.R,st.L]:[st.R];
+    for(const h of ph){ const pos=add(h,[0,-.05*u,.15+1.7*u]), r=1-.3*u;
+      if(cfg.multi){ cfg.multi.forEach((mc,i)=>{ const a=st.t*9+i*2.094; G(S,add(pos,[Math.cos(a)*.1,Math.sin(a)*.1,0]),.085*r,mc); }); G(S,pos,.06*r,c[1]); }
+      else { G(S,pos,.13*r,c[0]); G(S,pos,.07*r,c[1]); }
+      for(let k=1;k<=3;k++) G(S,add(pos,[0,0,-k*.2]),.1*(1-k*.2),c[0]); } }
+  if(st.rings.length){ const kk=S.sc, tg=S.target; S.target=S.pre; S.sc=1;
+    for(const r of st.rings) S.ring([0,.012,0],r.r,r.w,c[1],{glow:1,n:36});
+    S.sc=kk; S.target=tg; }
+}
 
 MODELS.savely=(S,d,t)=>{
   const sk='#e8b894';
@@ -1324,6 +1459,16 @@ function battleSprite(def,radius,facing,time,anim){
 }
 function resetBudget(){ sprT0=nowMs(); sprMade=0; }
 function has(id){ return !!MODELS[id]; }
+
+/* ---------- Настройки анимаций бойцов: idle-руки, стиль атаки, стили 4 способностей ---------- */
+gaReg('shadow',{idle:{R:[.85,1.1,.5],L:[-.85,1.1,.5]},att:'dual',ranged:1,shotBoth:1,hit:.5,casts:['raise','raise','raise','fan'],rings:[0,1,2,3],ringR:1.3,col:['#ff5a1f','#fff0a8']});
+gaReg('mageHunter',{idle:{R:[.8,1.2,.55],L:[-.8,1.2,.55]},att:'cross',hit:.5,casts:['punch','cross','guard','raise'],rings:[3],hands:'none',trailOff:[0,.55,.25],col:['#d58cff','#ffffff']});
+gaReg('tribupainer',{idle:{R:[.45,1.2,.6],L:[-.15,1.3,1.1]},att:'recoil',hit:.4,casts:['bigrecoil','lup','lwave','gunup'],rings:[3],hands:'none',trail:'none',col:['#ffb36b','#fff3b0']});
+gaReg('mo3gi',{idle:{R:[.4,1.25,.75],L:[.05,1.3,1.0]},att:'recoil',hit:.4,casts:['lpoint','lup','ldown','raise'],rings:[2,3],hands:'none',trail:'none',col:['#7dffb0','#e8fff0']});
+gaReg('regina',{idle:{R:[.8,1.3,.6],L:[-.8,1.3,.6]},att:'slashR',hit:.5,casts:['throw','cross','raise'],rings:[0,2],hands:'none',trailOff:[0,.5,.2],col:['#ff9fbd','#fff0f4']});
+gaReg('pyro',{idle:{R:[.78,1.4,.38],L:[-.62,1.55,.55]},att:'throw',ranged:1,hit:.52,casts:['dual','clap','fan','raise'],rings:[1,3],col:['#ff762f','#fff3b0']});
+gaReg('grisha',{idle:{R:[.7,1.9,.3],L:[-.7,1.9,.3]},att:'conj',ranged:1,shotBoth:1,hit:.56,casts:['conj','clap','fan','raise'],rings:[1,3],multi:['#75d8ff','#e58bff','#ff8a3a'],col:['#e0c8ff','#ffffff']});
+gaReg('electricGosha',{idle:{R:[.5,1.5,.8],L:[-.5,1.5,.8]},att:'dual',hit:.5,casts:['throw','clap','fan','raise'],rings:[1,2,3],col:['#7feaff','#e8ffff']});
 
 const API={draw,models:MODELS,render,battleSprite,resetBudget,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
 (typeof window!=='undefined'?window:globalThis).Hero3D=API;

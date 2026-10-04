@@ -3389,9 +3389,10 @@ class Unit {
           }
           const shotColor = this.def && this.def.id === 'arcady' ? '#ff6b35' :
             (this.def && this.def.id === 'sniper' ? '#ffe0a0' :
-            (this.team===0 ? '#a8ffb0' : '#ffb0a8'));
+            (this.def && this.def.id === 'shadow' ? '#ff5a1f' :
+            (this.team===0 ? '#a8ffb0' : '#ffb0a8')));
           const projectile=spawnProjectile(this.x, this.y, t, shotDamage, shotSource, 1100,
-            shotColor, this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : 7));
+            shotColor, this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : (this.def && this.def.id === 'shadow' ? 10 : 7)));
           projectile.headshot=!!shotSource.headshot;
           projectile.headshotSlow=shotSource.headshotSlow || 0;
           projectile.headshotAttackSlow=shotSource.headshotAttackSlow || 0;
@@ -6671,7 +6672,7 @@ function castSkill(hero, slot, tx, ty){
     if(castSucceeded){
       if(def.costType === 'hp') hero.hp = Math.max(1,hero.hp-hpCost);
       else hero.mp -= mana;
-      if(hero.def && hero.def.id==='chip') startChipCastAnim(hero, slot, def, tx, ty);
+      if(hero.def && window.Hero3D && Hero3D.hasAnim && Hero3D.hasAnim(hero.def.id)) startChipCastAnim(hero, slot, def, tx, ty);
       if(def.ult) playHeroSfx('ultimate');
       else playAbilitySound('cast');
       if(invokeSpellKey) hero.spellCooldowns[invokeSpellKey] = (INVOKE_COOLDOWNS[invokeSpellKey] || 0) * cooldownMultiplier;
