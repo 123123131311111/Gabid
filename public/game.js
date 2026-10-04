@@ -622,7 +622,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.8.0';
+const GAME_VERSION = '0.8.2';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -709,7 +709,12 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.8.1', title:'АНИМАЦИИ БОЙЦОВ', changes:[
+  const sections = [{version:'0.8.2', title:'НОВЫЕ ИКОНКИ БОЙЦОВ', changes:[
+    'Старые 2D-иконки героев заменены на новые 3D-модельки: в меню бойцов, на стадии выбора, в лобби и во время матча.',
+    'Над каждым героем в бою теперь написано его имя — над подписью линии и уровнем.',
+    'Кнопка «Играть»: надпись 3x3 заменена на 4x4, добавлено мягкое свечение и блик.',
+    'Новая музыка меню: аккорды, пэд, бас, арпеджио, мягкий бит и эхо.'
+  ]},{version:'0.8.1', title:'АНИМАЦИИ БОЙЦОВ', changes:[
     'Все бойцы теперь анимированы: ходьба, автоатака и все способности, включая ультимейт. Раньше позы были только у Чипа, Шадоу, Пироманта, Гриши, Электрического Гоши, Мо3ги, Трибупейнера, Охотника на магов и Ригины.',
     'Анимацию получили Вождь, Голли, Сасыч, Илья, Малит, Аркадий, Иллюзионист, Йосып, Рассветная дева, Рыцарь-изгнанник, Джувсют, Савелий, Джаггернаут, Шмедик и Снайпер.',
     'Оружие в руках (мечи, посохи, молоты, катана, тотем, винтовка, щиты) движется вместе с рукой: замах, удар, выпад и вращение выглядят по-разному у каждого героя.',
@@ -1668,15 +1673,75 @@ function playMenuNote(frequency, duration, volume, type='sine'){
   oscillator.stop(now + duration + 0.04);
 }
 
+/* 0.8.2: полноценная тема меню — аккорды Am-F-C-G, пэд, бас, арпеджио, мягкий бит и эхо */
+const MENU_CHORDS=[
+  {bass:55.00, notes:[220.00,261.63,329.63,440.00]},   // Am
+  {bass:43.65, notes:[174.61,220.00,261.63,349.23]},   // F
+  {bass:65.41, notes:[196.00,261.63,329.63,392.00]},   // C
+  {bass:49.00, notes:[196.00,246.94,293.66,392.00]}    // G
+];
+const MENU_ARP=[0,2,1,3,2,1,3,2];
+let menuDelayNode=null;
+function menuFx(){
+  if(menuDelayNode || !menuAudioContext || !menuMusicGain) return;
+  const ac=menuAudioContext;
+  const d=ac.createDelay(1.0); d.delayTime.value=0.42;
+  const fb=ac.createGain(); fb.gain.value=0.34;
+  const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1800;
+  d.connect(lp); lp.connect(fb); fb.connect(d);
+  const wet=ac.createGain(); wet.gain.value=0.55;
+  lp.connect(wet); wet.connect(menuMusicGain);
+  menuDelayNode=d;
+}
+function menuTone(freq,dur,vol,type,cutoff,attack,send){
+  if(!menuAudioContext || !menuMusicGain || !freq) return;
+  const ac=menuAudioContext, t=ac.currentTime;
+  const o=ac.createOscillator(), g=ac.createGain(), f=ac.createBiquadFilter();
+  o.type=type; o.frequency.setValueAtTime(freq,t);
+  f.type='lowpass'; f.frequency.setValueAtTime(cutoff,t); f.Q.value=0.8;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+(attack||0.03));
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(f); f.connect(g); g.connect(menuMusicGain);
+  if(send && menuDelayNode){ const sg=ac.createGain(); sg.gain.value=send; g.connect(sg); sg.connect(menuDelayNode); }
+  o.start(t); o.stop(t+dur+0.05);
+}
+function menuKick(vol){
+  if(!menuAudioContext || !menuMusicGain) return;
+  const ac=menuAudioContext, t=ac.currentTime;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(120,t); o.frequency.exponentialRampToValueAtTime(42,t+0.18);
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+  o.connect(g); g.connect(menuMusicGain); o.start(t); o.stop(t+0.3);
+}
+function menuHat(vol){
+  if(!menuAudioContext || !menuMusicGain) return;
+  const ac=menuAudioContext, t=ac.currentTime;
+  const len=Math.floor(ac.sampleRate*0.05), buf=ac.createBuffer(1,len,ac.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+  const src=ac.createBufferSource(); src.buffer=buf;
+  const f=ac.createBiquadFilter(); f.type='highpass'; f.frequency.value=7000;
+  const g=ac.createGain(); g.gain.value=vol;
+  src.connect(f); f.connect(g); g.connect(menuMusicGain); src.start(t);
+}
 function playMenuMusicStep(){
   if(!musicEnabled || !menuAudioContext || gameState !== 'menu') return;
-  const step = menuMusicStep % MENU_MUSIC_BASS.length;
-  playMenuNote(MENU_MUSIC_BASS[step], 2.8, 0.15, 'sine');
-  playMenuNote(MENU_MUSIC_BASS[step] * 2, 2.2, 0.04, 'sine');
-  if(MENU_MUSIC_MELODY[step]){
-    playMenuNote(MENU_MUSIC_MELODY[step], 1.5, 0.045, 'sine');
+  menuFx();
+  const n=menuMusicStep++;
+  const step=n%8, bar=Math.floor(n/8)%MENU_CHORDS.length;
+  const ch=MENU_CHORDS[bar];
+  if(step===0){
+    menuTone(ch.bass,4.2,0.20,'sawtooth',260,0.05);
+    menuTone(ch.bass*2,4.0,0.07,'sine',900,0.1);
+    ch.notes.slice(0,3).forEach((fr,i)=>{
+      menuTone(fr*(1+0.003*(i-1)),4.4,0.028,'sawtooth',1100,1.0,0.25);
+      menuTone(fr*(1-0.004),4.4,0.028,'sawtooth',1100,1.0);
+    });
   }
-  menuMusicStep++;
+  menuTone(ch.notes[MENU_ARP[step]]*(bar%2?1:2),0.9,0.07,'triangle',2600,0.015,0.5);
+  if(step===0||step===4) menuKick(0.34);
+  if(step%2===1) menuHat(0.035);
+  if(step===6 && bar%2===1) menuTone(ch.notes[3]*2,1.6,0.045,'sine',3000,0.05,0.6);
 }
 
 function playDraftMusicStep(){
@@ -1904,7 +1969,7 @@ function startMenuMusic(){
     if(!menuMusicTimer){
       menuMusicStep = 0;
       playMenuMusicStep();
-      menuMusicTimer = window.setInterval(playMenuMusicStep, 1100);
+      menuMusicTimer = window.setInterval(playMenuMusicStep, 520);
     }
   } catch(err) {}
 }
@@ -11043,6 +11108,13 @@ function drawUnit(u){
     const roleLabel = gameTime >= MID_PUSH_TIME && u.midPushAssignment ? 'МИД • PUSH' : LANE_NAMES[u.assignedLane || 0];
     ctx.strokeText(roleLabel, u.x, u.y - u.radius - 50);
     ctx.fillText(roleLabel, u.x, u.y - u.radius - 50);
+    // 0.8.2: имя бойца над всеми героями (над подписью линии)
+    ctx.font='bold 13px Georgia, serif';
+    ctx.fillStyle=u.team===0 ? '#e6ffe9' : '#ffe3df';
+    ctx.lineWidth=3.5;
+    const nameLabel=(u.def && u.def.name) || '';
+    ctx.strokeText(nameLabel, u.x, u.y - u.radius - 63);
+    ctx.fillText(nameLabel, u.x, u.y - u.radius - 63);
     ctx.restore();
   }
   if(u.type === 'hero' && u.def.id === 'juvsyut' && !portraitRenderMode) drawJuvsyutDevourBadge(u);
@@ -13520,6 +13592,7 @@ function storePanelLayout(){
 }
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',description:'Иконки героев заменены на новые 3D-модельки везде: меню, выбор бойцов, матч. Над героями в бою показывается имя, у кнопки «Играть» теперь 4x4, а музыка меню стала богаче.',compactDescription:'3D-иконки, имена над героями, 4x4, новая музыка.'},
   {version:'0.8.1',title:'АНИМАЦИИ БОЙЦОВ',description:'Все герои теперь ходят, бьют и колдуют: у каждого своя анимация автоатаки, способностей и ультимейта, а оружие движется вместе с руками.',compactDescription:'Анимации ходьбы, атак и ультов у всех героев.'},
   {version:'0.8.0',title:'ALL PICK И ОНЛАЙН-ЛОББИ',description:'Новый режим All Pick с медленной экономикой и долгой лайн-фазой, а в онлайне — лобби как в Dota 2 с режимами 1v1–4v4 и ботами.',compactDescription:'All Pick и лобби 1v1–4v4 с ботами.'},
   {version:'0.7.8',title:'СЧЁТЧИК ДЖУВСЮТА И 3D',description:'Над Джувсютом виден счётчик съеденных крипов, а бойцы и постройки получили объём и косые тени.',compactDescription:'Счётчик еды и объёмная графика.'},
@@ -13868,6 +13941,7 @@ function wrapMenuText(text, maxWidth, font){
   return lines;
 }
 
+const HERO_PORTRAIT_CACHE={};
 function drawHeroTexture(def, x, y, w, h, now, large=false){
   ctx.save();
   ctx.beginPath(); ctx.roundRect(x,y,w,h,large ? 18 : 12); ctx.clip();
@@ -13997,6 +14071,32 @@ function drawHeroTexture(def, x, y, w, h, now, large=false){
     ctx.beginPath(); ctx.moveTo(-72,-36); ctx.lineTo(-39,-61); ctx.lineTo(-53,-80); ctx.moveTo(72,-36); ctx.lineTo(39,-61); ctx.lineTo(53,-80); ctx.stroke(); ctx.shadowBlur=0;
   }
   ctx.restore();
+  }
+  // 0.8.2: новые 3D-модели бойцов вместо старых иконок (кэшируются, чтобы не жрать FPS)
+  if(window.Hero3D && Hero3D.has && Hero3D.has(def.id)){
+    const pw=Math.max(8,Math.round(w)), ph=Math.max(8,Math.round(h));
+    const key=def.id+'|'+(def.skinId||'')+'|'+def.color+'|'+def.color2+'|'+pw+'x'+ph+(large?'L':'');
+    let cv=HERO_PORTRAIT_CACHE[key];
+    if(!cv){
+      try{
+        cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
+        const c2=cv.getContext('2d');
+        Hero3D.draw(c2,def,0,0,pw,ph,{yaw:-0.5,pitch:0.22,zoom:1.12,t:0.3,ss:1.5});
+      }catch(err){ cv=null; }
+      if(cv) HERO_PORTRAIT_CACHE[key]=cv;
+    }
+    if(cv){
+      const phase3=def.id.length*0.73;
+      const bob3=Math.sin(now*1.65+phase3)*Math.min(3,h*.025);
+      ctx.globalAlpha=1;
+      ctx.drawImage(cv,x,y+bob3,w,h);
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle='rgba(255,225,168,.55)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.roundRect(x,y,w,h,large ? 18 : 12); ctx.stroke();
+      ctx.restore();
+      return;
+    }
   }
   // Используем ту же модель, что и на карте боя: портреты в меню
   // теперь совпадают с реальными силуэтами героев в игре.
@@ -15285,9 +15385,18 @@ function drawDotaSenseHome(){
   const s=menuScale(), m=Math.round(44*s);
   const hit=(r)=>mouse.x>=r.x&&mouse.x<=r.x+r.w&&mouse.y>=r.y&&mouse.y<=r.y+r.h;
 
-  /* --- ИГРАТЬ 3x3 --- */
+  /* --- ИГРАТЬ 4x4 --- */
   const play=menuPlayRect();
+  { const tt=performance.now()/1000, pul=0.5+0.5*Math.sin(tt*2.2);
+    ctx.save(); ctx.shadowColor='rgba(255,90,60,'+(0.35+pul*0.35)+')'; ctx.shadowBlur=18+pul*20;
+    ctx.strokeStyle='rgba(255,140,100,'+(0.25+pul*0.3)+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(play.x-3,play.y-3,play.w+6,play.h+6,13); ctx.stroke(); ctx.restore(); }
   drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,fontSize:Math.round(34*s),radius:10});
+  { const tt=performance.now()/1000, sx=play.x+((tt*0.35)%1.6-0.3)*play.w;
+    ctx.save(); ctx.beginPath(); ctx.roundRect(play.x,play.y,play.w,play.h,10); ctx.clip();
+    const sg=ctx.createLinearGradient(sx-40,0,sx+40,0);
+    sg.addColorStop(0,'rgba(255,255,255,0)'); sg.addColorStop(.5,'rgba(255,230,200,0.22)'); sg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=sg; ctx.fillRect(play.x,play.y,play.w,play.h); ctx.restore(); }
   ctx.save();
   ctx.fillStyle='rgba(255,236,200,0.9)'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif';
   ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -15297,7 +15406,7 @@ function drawDotaSenseHome(){
   const tab={x:play.x+play.w/2-Math.round(62*s),y:play.y+play.h-2,w:Math.round(124*s),h:Math.round(38*s)};
   ctx.fillStyle='#2a1a1d'; ctx.strokeStyle='#8f3b34'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.moveTo(tab.x,tab.y); ctx.lineTo(tab.x+tab.w,tab.y); ctx.lineTo(tab.x+tab.w-10,tab.y+tab.h); ctx.lineTo(tab.x+10,tab.y+tab.h); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(20*s)+'px Georgia, serif'; ctx.fillText('3x3',tab.x+tab.w/2,tab.y+tab.h/2+2);
+  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(20*s)+'px Georgia, serif'; ctx.fillText('4x4',tab.x+tab.w/2,tab.y+tab.h/2+2);
   ctx.restore();
 
   /* --- левая колонка: новинки магазина --- */
@@ -15389,6 +15498,7 @@ function drawDotaSenseHome(){
   ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
   ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
   const news=[
+    {tag:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',art:'map',action:'changelog'},
     {tag:'0.8.1',title:'АНИМАЦИИ ВСЕХ БОЙЦОВ',art:'map',action:'changelog'},
     {tag:'0.8.0',title:'ALL PICK: НОВЫЙ РЕЖИМ',art:'allpick',action:'changelog'},
     {tag:'0.7.7',title:'ЗАМИСТЬ: НОВЫЙ АКТИВ',art:'item',item:'Замисть',itemId:'zamist',action:'store'},

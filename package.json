@@ -1,6 +1,6 @@
 {
   "name": "shadow-rampage-3v3",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "description": "Standalone Shadow Rampage 3v3 HTML5 game",
   "main": "server.js",
