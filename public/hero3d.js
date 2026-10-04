@@ -708,8 +708,124 @@ MODELS.juvsyut=(S,d,t)=>{
   S.cone([1.15,2.15,.4],[1.15,2.45,.4],.07,'#8a8a8a',{seg:5,shine:.8});
 };
 
-MODELS.chip=(S,d,t)=>{
-  man(S,{nobelt:true,face:true,bulk:1.0,cloth:'#49376d',arm:'#49376d',glove:'#ffd568',armR:[.8,1.3,.45],armL:[-.65,1.35,.55],legs:'#2c2145',belt:'#ffd568',trim:'#ffd568',bracer:'#ffd568',beard:'#f5f0e8',knee:'#ffd568',collar:'#f5f0e8',pad:'#ffd568',padTrim:'#fff3b0',fo:{eye:'#4a7aff',angry:.0,mouth:'smile',brow:'#f5f0e8',lip:'#a0505a'}});
+/* ---------- ЧИП: скелетная анимация посоха ----------
+   pose = {kind:'idle'|'attack'|'cast'|'twirl'|'show', slot, p(0..1)}
+   'show' — витринный цикл для окна просмотра (вертит посох, бьёт, кастует все 4 способности). */
+const E_io=x=>x*x*(3-2*x), E_out=x=>1-Math.pow(1-x,3), E_in=x=>x*x*x*.5+x*x*.5;
+const cl01=x=>Math.max(0,Math.min(1,x));
+const bell=(x,c,w)=>Math.exp(-((x-c)/w)*((x-c)/w));
+const CH_IH=[.8,1.3,.45], CH_ID=[0,1,0], CH_IL=[-.65,1.35,.55];
+const gripL=(h,d)=>add(sub(h,mul(d,.5)),[-.14,0,0]);
+function K(p,h,d,l,e){ d=norm(d); return {p,h,d,l:l||gripL(h,d),e:e||E_io}; }
+const CH_KEYS={
+  attack:[K(0,CH_IH,CH_ID,CH_IL),
+    K(.28,[.72,2.0,-.1],[.12,.55,-.85],null,E_out),          // замах за плечо
+    K(.5,[.5,1.42,.82],[0,-.5,.87],null,E_in),                // быстрый удар вперёд-вниз
+    K(.72,[.6,1.38,.62],[0,.2,1],null,E_out),                 // отдача
+    K(1,CH_IH,CH_ID,CH_IL)],
+  c0:[K(0,CH_IH,CH_ID,CH_IL),                                 // Королевский приказ: указывает посохом
+    K(.3,[.7,1.75,.35],[.1,.8,.5],[-.5,1.9,.5],E_out),
+    K(.5,[.55,1.5,.85],[0,.05,1],[-.35,1.75,.95],E_in),
+    K(.78,[.58,1.5,.8],[0,.12,1],[-.35,1.75,.95]),
+    K(1,CH_IH,CH_ID,CH_IL)],
+  c1:[K(0,CH_IH,CH_ID,CH_IL),                                 // Корона власти: посох вверх и в землю перед собой
+    K(.32,[.55,2.15,.35],[0,1,.1],null,E_out),
+    K(.5,[.5,1.12,.68],[0,1,0],[.28,1.42,.7],E_in),
+    K(.74,[.5,1.12,.68],[0,1,0],[.28,1.42,.7]),
+    K(1,CH_IH,CH_ID,CH_IL)],
+  c2:[K(0,CH_IH,CH_ID,CH_IL),                                 // Монета судьбы: подбрасывает и щёлкает посохом
+    K(.28,[.7,.95,.1],[.25,.7,-.6],[-.4,1.55,.85],E_out),
+    K(.5,[.6,1.35,.7],[0,.45,1],[-.5,1.3,.7],E_in),
+    K(.75,[.62,1.4,.65],[0,.4,1],[-.55,1.3,.65]),
+    K(1,CH_IH,CH_ID,CH_IL)],
+  c3:[K(0,CH_IH,CH_ID,CH_IL),                                 // Тронный переворот: над головой и ударом в пол
+    K(.38,[.35,2.3,.3],[0,1,.12],[-.05,2.0,.32],E_out),
+    K(.5,[.45,1.12,.62],[0,1,0],[.2,1.42,.65],E_in),
+    K(.82,[.45,1.12,.62],[0,1,0],[.2,1.42,.65]),
+    K(1,CH_IH,CH_ID,CH_IL)]
+};
+const CH_SHOW=[['idle',2],['twirl',1.9],['attack',.55],['attack',.55],['idle',1],['cast',1,0],['idle',.7],['cast',1,2],['idle',.7],['cast',1.2,1],['idle',.8],['cast',1.5,3],['idle',1.2]];
+const CH_SHOW_T=CH_SHOW.reduce((a,x)=>a+x[1],0);
+function chipResolve(pose,t){
+  if(!pose||pose.kind==='idle') return {kind:'idle',p:0};
+  if(pose.kind!=='show') return pose;
+  let tm=((t%CH_SHOW_T)+CH_SHOW_T)%CH_SHOW_T;
+  for(const [k,du,sl] of CH_SHOW){ if(tm<du) return {kind:k,slot:sl,p:tm/du}; tm-=du; }
+  return {kind:'idle',p:0};
+}
+function chipCore(kind,slot,p,t){
+  if(kind==='twirl'){
+    const w=E_io(cl01(Math.min(p/.14,(1-p)/.14)));
+    const th=4*Math.PI*E_io(cl01((p-.1)/.8));
+    const hc=[.42+.12*Math.cos(th*.5),1.38+.1*Math.sin(th),.78];
+    const dd=norm([Math.sin(th)*.95,Math.cos(th),.22]);
+    return {h:lerp(CH_IH,hc,w), d:norm(lerp(CH_ID,dd,w)), l:lerp(CH_IL,[-.55,1.62+.1*Math.sin(th*.5),.78],w)};
+  }
+  const key=kind==='attack'?'attack':(kind==='cast'?'c'+slot:null);
+  if(!key){
+    return {h:[.8+.012*Math.sin(t*1.6),1.3+.018*Math.sin(t*1.6),.45], d:norm([.025*Math.sin(t*1.3),1,.035*Math.cos(t*1.1)]),
+            l:[-.65,1.35+.02*Math.sin(t*1.6+1),.55]};
+  }
+  const KS=CH_KEYS[key];
+  if(p<=0) return {h:KS[0].h,d:KS[0].d,l:KS[0].l};
+  for(let i=1;i<KS.length;i++) if(p<=KS[i].p){
+    const a=KS[i-1], b=KS[i], u=b.e((p-a.p)/(b.p-a.p));
+    return {h:lerp(a.h,b.h,u), d:norm(lerp(a.d,b.d,u)), l:lerp(a.l,b.l,u)};
+  }
+  const e=KS[KS.length-1]; return {h:e.h,d:e.d,l:e.l};
+}
+function chipState(rp,t){
+  const kind=rp.kind, slot=rp.slot, p=rp.p||0;
+  const c=chipCore(kind,slot,p,t);
+  const st={h:c.h,d:c.d,l:c.l,fx:0,orbit:1,spin:0,burst:0,coin:null,rings:[],spikes:0,trail:[],beam:0};
+  const head=(q)=>{ const k=chipCore(kind,slot,q,t); return add(k.h,mul(k.d,1.15)); };
+  const addTrail=(q0,q1,n,step)=>{ for(let k=1;k<=n;k++){ const q=p-k*step; if(q<q0||q>q1) break; st.trail.push(head(q)); } };
+  if(kind==='attack'){
+    st.fx=.25+.75*bell(p,.52,.12); st.burst=bell(p,.6,.13);
+    addTrail(.2,.7,6,.03);
+  } else if(kind==='twirl'){
+    st.fx=.35+.3*Math.sin(p*Math.PI); addTrail(.1,.92,7,.018);
+  } else if(kind==='cast'){
+    if(slot===0){ st.fx=.3+.7*bell(p,.55,.16); st.beam=bell(p,.62,.17); st.burst=bell(p,.55,.1); }
+    else if(slot===1){
+      st.fx=.3+.7*bell(p,.55,.22);
+      st.orbit=1+3*E_io(cl01((p-.4)/.2))*(1-E_io(cl01((p-.85)/.15)));
+      st.spin=8*E_io(cl01((p-.35)/.5));
+      for(const j of [0,.1]){ const k=(p-.5-j)/.4; if(k>0&&k<1) st.rings.push({r:.2+.95*E_out(k),w:.05*(1-k)+.02}); }
+      st.burst=bell(p,.52,.08);
+    } else if(slot===2){
+      st.fx=.3+.5*bell(p,.5,.12); st.burst=bell(p,.5,.07); addTrail(.3,.62,5,.03);
+      if(p>.18){
+        const u=cl01((p-.5)/.35);
+        const pos=p<.5?[-.4,1.55+.05*Math.sin(p*40),.85]:[-.4*(1-u),1.55+Math.sin(u*Math.PI)*.9+.2*u,.85+.3*u];
+        st.coin={pos,size:p<.5?1:1-E_io(cl01((u-.75)/.25)),spin:p*34};
+      }
+    } else {
+      st.fx=.2+.8*E_io(cl01(p/.4))*(1-.4*E_io(cl01((p-.7)/.3)));
+      st.orbit=1+3*E_io(cl01((p-.15)/.35))*(1-E_io(cl01((p-.85)/.15)));
+      st.spin=10*E_io(cl01((p-.1)/.6));
+      for(const j of [0,.09,.18]){ const k=(p-.5-j)/.38; if(k>0&&k<1) st.rings.push({r:.2+.95*E_out(k),w:.06*(1-k)+.02}); }
+      st.spikes=bell(p,.64,.16); st.burst=bell(p,.52,.08);
+    }
+  } else { st.fx=0; }
+  return st;
+}
+function chipStaff(S,h,d,t,fx){
+  const [bx,by,bz]=basisY(d,[1,0,0]);
+  const at=s=>add(h,mul(d,s));
+  S.tube(at(-1.1),at(1.0),.045,.045,'#ffd568');
+  for(let i=0;i<3;i++) S.tube(at(-.55+i*.5),at(-.49+i*.5),.07,.07,'#fff3b0',{shine:.7});
+  const hd=at(1.15), rr=.16+.05*fx;
+  S.ell(hd,[rr,rr,rr],'#c0392b',{glow:1});
+  for(let i=0;i<4;i++){ const a=i*1.57; const v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
+    S.cone(add(at(1.0),mul(v,.1)),add(at(1.25),mul(v,.22)),.035,'#ffd568',{seg:5,shine:.7}); }
+  if(fx>.3) for(let i=0;i<5;i++){ const a=t*3+i*1.2566; const v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
+    G(S,add(add(hd,mul(v,.25+.05*fx)),mul(by,Math.sin(a*1.7)*.1)),.025+.02*fx,'#fff3b0'); }
+  return hd;
+}
+MODELS.chip=(S,d,t,pose)=>{
+  const rp=chipResolve(pose,t), st=chipState(rp,t);
+  man(S,{nobelt:true,face:true,bulk:1.0,cloth:'#49376d',arm:'#49376d',glove:'#ffd568',armR:st.h,armL:st.l,legs:'#2c2145',belt:'#ffd568',trim:'#ffd568',bracer:'#ffd568',beard:'#f5f0e8',knee:'#ffd568',collar:'#f5f0e8',pad:'#ffd568',padTrim:'#fff3b0',fo:{eye:'#4a7aff',angry:.0,mouth:'smile',brow:'#f5f0e8',lip:'#a0505a'}});
   robe(S,.6,.45,1.5,'#49376d','#f5f0e8');
   cape(S,'#8f1d3a','#f5f0e8',1.05,2.0,.45,-.4,5);
   for(let i=0;i<9;i++){ S.ell([(i-4)*.12,1.72,.0+Math.abs(i-4)*-.02],[.1,.08,.1],'#f5f0e8',{rings:4,seg:6}); }
@@ -721,11 +837,31 @@ MODELS.chip=(S,d,t)=>{
   S.tube([0,2.25,0],[0,2.33,0],.31,.31,'#c0392b',{seg:10,shine:.5});
   for(let i=0;i<5;i++){const a=i/5*Math.PI*2; S.cone([Math.cos(a)*.31,2.55,Math.sin(a)*.31],[Math.cos(a)*.33,2.9,Math.sin(a)*.33],.06,'#ffd568',{glow:1,seg:5}); G(S,[Math.cos(a)*.33,2.93,Math.sin(a)*.33],.04,i%2?'#4a7aff':'#c0392b'); }
   G(S,[0,2.4,.33],.05,'#4a7aff');
-  S.tube([.8,.2,.45],[.8,2.3,.45],.045,.045,'#ffd568'); 
-  for(let i=0;i<3;i++) S.tube([.8,.8+i*.5,.45],[.8,.86+i*.5,.45],.07,.07,'#fff3b0',{shine:.7});
-  S.ell([.8,2.45,.45],[.16,.16,.16],'#c0392b',{glow:1});
-  for(let i=0;i<4;i++){const a=i*1.57; S.cone([.8+Math.cos(a)*.1,2.3,.45+Math.sin(a)*.1],[.8+Math.cos(a)*.22,2.55,.45+Math.sin(a)*.22],.035,'#ffd568',{seg:5,shine:.7});}
-  for(let i=0;i<6;i++){const a=t*1.4+i*1.047; S.ell([Math.cos(a)*1.15,1.2+Math.sin(t*2+i)*.2,Math.sin(a)*1.15],[.13,.03,.13],'#ffd568',{glow:1,rings:4,seg:8,rot:[.5,a,0]});}
+  // посох
+  const hd=chipStaff(S,st.h,st.d,t,st.fx);
+  // шлейф за головой посоха
+  st.trail.forEach((tp,i)=>G(S,tp,Math.max(.03,.12-i*.014),i%2?'#ffd568':'#fff3b0'));
+  // вспышка удара / каста
+  if(st.burst>.04){
+    const [bx,,bz]=basisY(st.d,[1,0,0]), b=st.burst;
+    G(S,hd,.07+.12*b,'#fff3b0');
+    for(let i=0;i<6;i++){ const a=i/6*Math.PI*2+.4; const v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
+      S.cone(add(hd,mul(v,.12)),add(hd,mul(v,.2+.42*b)),.035,'#ffd568',{glow:1,seg:5}); }
+  }
+  // луч приказа
+  if(st.beam>.05) for(let i=1;i<=6;i++){ const q=add(hd,mul(st.d,.15+i*.28*st.beam+.1)); if(Math.hypot(q[0],q[2])>2.15) break; G(S,q,.05+.05*st.beam*(1-i/8),'#fff0a8'); }
+  // монета
+  if(st.coin){ const c=st.coin; if(c.size>.05) S.ell(c.pos,[.2*c.size,.05*c.size,.2*c.size],'#ffd568',{glow:1,rings:5,seg:10,rot:[c.spin,0,.3]}); }
+  // золотые монеты вокруг (ускоряются при W/R)
+  for(let i=0;i<6;i++){ const a=t*1.4+i*1.047+st.spin; S.ell([Math.cos(a)*1.15,1.2+Math.sin(t*2+i)*.2+.15*(st.orbit-1)/3,Math.sin(a)*1.15],[.13*(1+.4*(st.orbit-1)/3),.03,.13*(1+.4*(st.orbit-1)/3)],'#ffd568',{glow:1,rings:4,seg:8,rot:[.5,a,0]}); }
+  // эффекты на полу (рисуются под моделью)
+  if(st.rings.length||st.spikes>.02){
+    const kk=S.sc, tg=S.target; S.target=S.pre; S.sc=1;
+    for(const r of st.rings) S.ring([0,.012,0],r.r,r.w,'#ffd568',{glow:1,n:36});
+    if(st.spikes>.02) for(let i=0;i<10;i++){ const a=i/10*Math.PI*2+.3, hh=.15+.85*st.spikes*(.7+.3*Math.sin(i*2.3));
+      S.cone([Math.cos(a)*.95,0,Math.sin(a)*.95],[Math.cos(a)*.95,hh,Math.sin(a)*.95],.07,'#fff0a8',{glow:1,seg:5}); }
+    S.sc=kk; S.target=tg;
+  }
 };
 
 MODELS.savely=(S,d,t)=>{
@@ -886,7 +1022,7 @@ function render(def,o){
   const D=9, f=o.f, cx=o.cx, cy=o.cy;
   const S=new Scene();
   if(o.pedestal) drawPedestal(S,def,t);
-  (MODELS[def.id]||fallback)(S,def,t);
+  (MODELS[def.id]||fallback)(S,def,t,o.pose);
   const all=S.pre.concat(S.faces);
   const preCount=S.pre.length;
   const B=getBuf(W*H);
@@ -1086,7 +1222,7 @@ function draw(ctx,def,x,y,w,h,o){
   const fpx=Math.min(h*.86/3.5, w*.86/3.5)*D*zoom*ss;
   const cx=W/2, cy=H*.6;
   const sp=Math.sin(pitch);
-  const res=render(def,{W,H,yaw,pitch,t,f:fpx,cx,cy,pedestal:true});
+  const res=render(def,{W,H,yaw,pitch,t,f:fpx,cx,cy,pedestal:true,pose:{kind:'show'}});
   const img=toCanvas(res,'view');
   ctx.save();
   // мягкая тень/подсветка под бойцом
@@ -1104,62 +1240,92 @@ function draw(ctx,def,x,y,w,h,o){
    Модель рендерится в спрайты (16 углов × 3 кадра анимации), кэшируется
    и рисуется поверх карты. Угол поворота = направление взгляда бойца. */
 const SPR={}, SPR_META={};
-let sprBudget=4, sprCount=0;
-const ANG=16, FR=3, FR_DT=.23, BATTLE_PITCH=.5;
+let sprT0=0, sprMade=0, sprCount=0;
+const nowMs=()=>(typeof performance!=='undefined'?performance.now():Date.now());
+const ANG=16, ANG_A=8, FR=3, FR_DT=.23, BATTLE_PITCH=.5, SPR_CAP=1200;
+/* какие бойцы умеют позы (удар / каст) и какие позы покрывает спрайт */
+const ANIM={ chip:[{kind:'attack',p:.28},{kind:'attack',p:.5},{kind:'cast',slot:0,p:.3},{kind:'cast',slot:0,p:.55},{kind:'cast',slot:1,p:.32},{kind:'cast',slot:1,p:.7},
+  {kind:'cast',slot:2,p:.3},{kind:'cast',slot:2,p:.6},{kind:'cast',slot:3,p:.38},{kind:'cast',slot:3,p:.62}] };
+const ANIM_Q=7;
+function extents(def,pose,ext){
+  const S=new Scene(); (MODELS[def.id]||fallback)(S,def,.2,pose);
+  for(const arr of [S.faces,S.pre]) for(const fc of arr) for(const p of fc.p){
+    if(p[1]>ext.y) ext.y=p[1]; const r=Math.hypot(p[0],p[2]); if(r>ext.r) ext.r=r;
+  }
+}
 function meta(def,radius){
   const key=def.id+'|'+(def.skinId||'')+'|'+radius;
   if(SPR_META[key]) return SPR_META[key];
-  // габариты модели: высота и радиус по горизонтали
-  const S=new Scene(); (MODELS[def.id]||fallback)(S,def,0);
-  let maxY=1, maxR=.6;
-  for(const fc of S.faces) for(const p of fc.p){ if(p[1]>maxY) maxY=p[1]; const r=Math.hypot(p[0],p[2]); if(r>maxR) maxR=r; }
-  maxY=Math.min(maxY,3.6); maxR=Math.min(maxR,1.8);
+  // базовые габариты (поза покоя) определяют масштаб, чтобы боец не уменьшался из-за замаха
+  const e0={y:1,r:.6}; extents(def,{kind:'idle'},e0);
+  const maxY=Math.min(e0.y,3.6), maxR=Math.min(e0.r,1.8);
+  // габариты холста — по всем позам (замах над головой, кольца на земле и т.п.)
+  const eA={y:e0.y,r:e0.r}; for(const ps of (ANIM[def.id]||[])) extents(def,ps,eA);
+  const aY=Math.min(Math.max(eA.y,maxY),5), aR=Math.min(Math.max(eA.r,maxR),2.6);
   const ppu=Math.min(radius*3.5/maxY, radius*2.3/maxR);       // пикселей на единицу модели
   const ss=2;
-  const W=Math.ceil((2*maxR*ppu*1.25+10)), Hc=Math.ceil(maxY*ppu*Math.cos(BATTLE_PITCH)+maxR*ppu*Math.sin(BATTLE_PITCH)*1.3+maxR*ppu*.6+16);
+  const W=Math.ceil((2*aR*ppu*1.18+10)), Hc=Math.ceil(aY*ppu*Math.cos(BATTLE_PITCH)+aR*ppu*Math.sin(BATTLE_PITCH)*1.3+aR*ppu*.6+16);
   const D=9, dd0=D+1.3*Math.sin(BATTLE_PITCH);
-  const m={ppu,W,H:Hc,ss,maxY,maxR,D,dd0,ax:W/2,ay:Hc-Math.ceil(maxR*ppu*Math.sin(BATTLE_PITCH)*.9)-10};
+  const m={ppu,W,H:Hc,ss,maxY,maxR,D,dd0,ax:W/2,ay:Hc-Math.ceil(aR*ppu*Math.sin(BATTLE_PITCH)*.9)-10};
   return SPR_META[key]=m;
 }
-function battleSprite(def,radius,facing,time){
+/* anim = {kind:'attack'|'cast', slot, p:0..1} — только для бойцов из ANIM */
+function battleSprite(def,radius,facing,time,anim){
   if(typeof document==='undefined'||!def) return null;
   radius=Math.round(radius||24);
   const m=meta(def,radius);
-  const a=((Math.round((facing||0)/(Math.PI*2)*ANG)%ANG)+ANG)%ANG;
-  const fr=Math.floor((time||0)/FR_DT)%FR;
-  const key=def.id+'|'+(def.skinId||'')+'|'+radius+'|'+a+'|'+fr;
+  const animated=!!(anim&&ANIM[def.id]);
+  const NA=animated?ANG_A:ANG;
+  const a=((Math.round((facing||0)/(Math.PI*2)*NA)%NA)+NA)%NA;
+  let fr=0, pose, pk='i';
+  if(animated){
+    const q=Math.min(ANIM_Q,Math.max(0,Math.round(anim.p*ANIM_Q)));
+    pose={kind:anim.kind,slot:anim.slot,p:q/ANIM_Q}; pk=anim.kind[0]+(anim.slot==null?'':anim.slot)+'_'+q;
+  } else { fr=Math.floor((time||0)/FR_DT)%FR; pose={kind:'idle'}; }
+  const base=def.id+'|'+(def.skinId||'')+'|'+radius+'|';
+  const key=base+NA+'|'+a+'|'+pk+'|'+fr;
   let s=SPR[key];
   if(s) return s;
-  if(sprBudget<=0){
-    // нет бюджета — берём любой уже готовый кадр этого бойца под ближайшим углом
+  if(sprMade>=1 && nowMs()-sprT0>8){
+    // нет бюджета — берём ближайший готовый кадр (сначала тот же, потом покоя)
+    for(let d=0;d<=NA/2;d++) for(const sg of [1,-1]){
+      const aa=((a+sg*d)%NA+NA)%NA, q=SPR[base+NA+'|'+aa+'|'+pk+'|'+fr]; if(q) return q;
+    }
+    if(animated){
+      const q0=Math.round(anim.p*ANIM_Q), kd=anim.kind[0]+(anim.slot==null?'':anim.slot)+'_';
+      for(let dq=1;dq<=ANIM_Q;dq++) for(const sg of [-1,1]){
+        const qq=q0+sg*dq; if(qq<0||qq>ANIM_Q) continue;
+        for(let d=0;d<=NA/2;d++) for(const s2 of [1,-1]){ const q=SPR[base+NA+'|'+(((a+s2*d)%NA+NA)%NA)+'|'+kd+qq+'|0']; if(q) return q; }
+      }
+    }
     for(let d=0;d<=ANG/2;d++) for(const sg of [1,-1]){
-      const aa=((a+sg*d)%ANG+ANG)%ANG;
-      for(let k=0;k<FR;k++){ const q=SPR[def.id+'|'+(def.skinId||'')+'|'+radius+'|'+aa+'|'+k]; if(q) return q; }
+      const aa=((Math.round(a/NA*ANG)+sg*d)%ANG+ANG)%ANG;
+      for(let k=0;k<FR;k++){ const q=SPR[base+ANG+'|'+aa+'|i|'+k]; if(q) return q; }
     }
     return null;
   }
-  sprBudget--;
-  const ang=a/ANG*Math.PI*2;
+  sprMade++;
+  const ang=a/NA*Math.PI*2;
   const yaw=ang-Math.PI/2;
-  const W=Math.round(m.W*m.ss), H=Math.round(m.H*m.ss);
-  const f=m.ppu*m.dd0*m.ss;
+  const sx=animated?1.5:m.ss;
+  const W=Math.round(m.W*sx), H=Math.round(m.H*sx);
+  const f=m.ppu*m.dd0*sx;
   const cp=Math.cos(BATTLE_PITCH);
-  // подбираем центр так, чтобы точка (0,0,0) попала в якорь
-  const cx=m.ax*m.ss;
-  const cy=m.ay*m.ss-1.3*cp*f/m.dd0;
-  const res=render(def,{W,H,yaw,pitch:BATTLE_PITCH,t:fr*FR_DT,f,cx,cy,pedestal:false});
+  const cx=m.ax*sx;
+  const cy=m.ay*sx-1.3*cp*f/m.dd0;
+  const res=render(def,{W,H,yaw,pitch:BATTLE_PITCH,t:animated?pose.p*.9+.2:fr*FR_DT,f,cx,cy,pedestal:false,pose});
   const hi=toCanvas(res,'spr');
   const cv=mkCanvas(m.W,m.H), g=cv.getContext('2d');
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
   g.drawImage(hi,0,0,m.W,m.H);
   s={canvas:cv,ax:m.ax,ay:m.ay,w:m.W,h:m.H};
-  if(++sprCount>900){ for(const k in SPR) delete SPR[k]; sprCount=0; }
+  if(++sprCount>SPR_CAP){ for(const k in SPR) delete SPR[k]; sprCount=0; }
   SPR[key]=s; return s;
 }
-function resetBudget(){ sprBudget=4; }
+function resetBudget(){ sprT0=nowMs(); sprMade=0; }
 function has(id){ return !!MODELS[id]; }
 
-const API={draw,models:MODELS,render,battleSprite,resetBudget,has,_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
+const API={draw,models:MODELS,render,battleSprite,resetBudget,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
 (typeof window!=='undefined'?window:globalThis).Hero3D=API;
 if(typeof module!=='undefined') module.exports=API;
 })();

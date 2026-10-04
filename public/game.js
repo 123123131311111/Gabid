@@ -6561,6 +6561,11 @@ function skillFxColor(hero, skillId){
   return hero.def.color2 || hero.def.color;
 }
 
+/* анимация каста 3D-бойца (Чип): разворот к цели + длительность по способности */
+function startChipCastAnim(hero, slot, def, tx, ty){
+  if(def.type==='point' && typeof tx==='number' && Math.hypot(tx-hero.x,ty-hero.y)>8) hero.facing = Math.atan2(ty-hero.y, tx-hero.x);
+  hero.castAnim = { slot, t0:gameTime, dur: def.ult ? 1.5 : (slot===1 ? 1.2 : 1.0), facing:hero.facing||0 };
+}
 function castSkillVisual(hero, skill, tx, ty){
   const color = skillFxColor(hero, skill.id);
   const isPoint = skill.def.type === 'point';
@@ -6666,6 +6671,7 @@ function castSkill(hero, slot, tx, ty){
     if(castSucceeded){
       if(def.costType === 'hp') hero.hp = Math.max(1,hero.hp-hpCost);
       else hero.mp -= mana;
+      if(hero.def && hero.def.id==='chip') startChipCastAnim(hero, slot, def, tx, ty);
       if(def.ult) playHeroSfx('ultimate');
       else playAbilitySound('cast');
       if(invokeSpellKey) hero.spellCooldowns[invokeSpellKey] = (INVOKE_COOLDOWNS[invokeSpellKey] || 0) * cooldownMultiplier;
@@ -9492,7 +9498,16 @@ function drawUnit(u){
   if(u.type === 'hero' && !portraitRenderMode && window.Hero3D && Hero3D.has(u.def.id)){
     let fa = u.facing || 0;
     if(u.isAttacking && u.attackTarget && u.attackTarget.alive) fa = Math.atan2(u.attackTarget.y-u.y, u.attackTarget.x-u.x);
-    hero3dSpr = Hero3D.battleSprite(u.def, u.radius, fa, gameTime);
+    let anim3d = null;
+    if(Hero3D.hasAnim && Hero3D.hasAnim(u.def.id)){
+      if(u.castAnim){
+        const cp = (gameTime-u.castAnim.t0)/u.castAnim.dur;
+        if(cp>=0 && cp<1){ anim3d = {kind:'cast', slot:u.castAnim.slot, p:cp}; fa = u.castAnim.facing; }
+        else u.castAnim = null;
+      }
+      if(!anim3d && u.isAttacking) anim3d = {kind:'attack', p:Math.min(1,u.attackAnimProgress)};
+    }
+    hero3dSpr = Hero3D.battleSprite(u.def, u.radius, fa, gameTime, anim3d);
     if(hero3dSpr){
       const footY = u.radius*0.7;
       // кольцо команды под ногами
@@ -9503,7 +9518,7 @@ function drawUnit(u){
       // выпад в сторону цели при атаке
       let lx = 0, ly = 0;
       if(u.isAttacking){
-        const lunge = Math.sin(Math.min(1,u.attackAnimProgress)*Math.PI) * u.radius*0.28;
+        const lunge = Math.sin(Math.min(1,u.attackAnimProgress)*Math.PI) * u.radius*(anim3d ? 0.12 : 0.28);
         lx = Math.cos(fa)*lunge; ly = Math.sin(fa)*lunge*0.6;
       }
       ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax + lx, footY - hero3dSpr.ay + ly);
