@@ -593,6 +593,7 @@ const STORE_AUDIO_FALLBACK = 'C:/Users/elski/Downloads/korolia-ne-ubit.mp3';
 let portraitRenderMode = false;
 let winner = null;
 let rankedOnlineMatch = false;
+const RANKED_WIN_MMR = 50, RANKED_LOSS_MMR = 40;
 let visGrid    = new Uint8Array(GRID*GRID);
 let explored   = new Uint8Array(GRID*GRID);
 let visibleUnitCache = new WeakSet();
@@ -6688,6 +6689,29 @@ function spawnWave(){
 
 function draftSkipRect(){ return {x:VW-24-230,y:78,w:230,h:38}; }
 
+/* Драфт: в рейтинге герои уникальны (бот не берёт героя игрока и наоборот), боты выбирают
+   постепенно. В обычных режимах допускается до двух одинаковых героев. */
+let draftBotTimer = 0;
+const DRAFT_MAX_COPIES = () => rankedOnlineMatch ? 1 : 2;
+function draftHeroCount(index, ignoreBotSlot=-1){
+  let count = draftPlayerIndex === index ? 1 : 0;
+  draftBotIndices.forEach((bot, slot) => { if(bot === index && slot !== ignoreBotSlot) count++; });
+  return count;
+}
+function draftBotPool(slot){
+  const result = [];
+  for(let i=0;i<HERO_DEFS.length;i++) if(draftHeroCount(i, slot) < DRAFT_MAX_COPIES()) result.push(i);
+  return result;
+}
+function draftPlayerBlocked(index){
+  /* Игрок не может взять героя, если лимит копий исчерпан ботами (свой текущий выбор не считается). */
+  let count = 0; draftBotIndices.forEach(bot => { if(bot === index) count++; });
+  return count >= DRAFT_MAX_COPIES();
+}
+function draftFillBot(slot){
+  const pool = draftBotPool(slot);
+  draftBotIndices[slot] = pool[Math.floor(Math.random()*pool.length)];
+}
 function beginDraft(preselected=-1){
   menuStage='draft';
   draftTime=30;
@@ -6695,12 +6719,17 @@ function beginDraft(preselected=-1){
   draftCountdownSpoken=false;
   draftPlayerIndex=preselected;
   selectedHeroIndex=preselected>=0 ? preselected : 0;
-  const available=HERO_DEFS.map((_,index)=>index).filter(index=>index!==preselected);
-  draftBotIndices=[];
-  for(let i=0;i<7;i++){
-    const pool=available.filter(index=>!draftBotIndices.includes(index));
-    draftBotIndices.push(pool[Math.floor(Math.random()*pool.length)]);
+  draftBotIndices=new Array(7).fill(-1);
+  draftBotTimer=1.5;
+  if(!rankedOnlineMatch) for(let i=0;i<7;i++) draftFillBot(i);
+}
+function finishDraft(){
+  for(let i=0;i<7;i++) if(draftBotIndices[i] < 0) draftFillBot(i);
+  if(draftPlayerIndex<0){
+    const pool=[]; for(let i=0;i<HERO_DEFS.length;i++) if(!draftPlayerBlocked(i)) pool.push(i);
+    draftPlayerIndex=pool[Math.floor(Math.random()*pool.length)];
   }
+  startGame(draftPlayerIndex,draftBotIndices);
 }
 
 function updateDraft(dt){
@@ -6711,13 +6740,14 @@ function updateDraft(dt){
     draftLastSec=draftSec;
     if(DRAFT_LINES[draftSec]) announce(DRAFT_LINES[draftSec], {interrupt: draftSec<=10});
   }
-  if(draftTime<=0){
-    if(draftPlayerIndex<0){
-      const available=HERO_DEFS.map((_,index)=>index).filter(index=>!draftBotIndices.includes(index));
-      draftPlayerIndex=available[Math.floor(Math.random()*available.length)];
+  if(rankedOnlineMatch){
+    draftBotTimer-=dt;
+    if(draftBotTimer<=0){
+      const open=[]; draftBotIndices.forEach((index,slot)=>{ if(index<0) open.push(slot); });
+      if(open.length){ draftFillBot(open[Math.floor(Math.random()*open.length)]); draftBotTimer=1.2+Math.random()*2.2; }
     }
-    startGame(draftPlayerIndex,draftBotIndices);
   }
+  if(draftTime<=0) finishDraft();
 }
 
 function startGame(playerIndex, draftPicks=null){
@@ -8238,7 +8268,7 @@ canvas.addEventListener('mouseup', e => {
 
 window.addEventListener('keydown', e => {
   if(gameState === 'menu' && menuStage === 'draft' && draftPlayerIndex >= 0 && !settingsOpen && (e.code === 'Enter' || e.code === 'NumpadEnter')){
-    startGame(draftPlayerIndex, draftBotIndices);
+    finishDraft();
     e.preventDefault();
     return;
   }
@@ -13169,29 +13199,33 @@ window.__renderHeroPortrait = function(target, heroId){
 };
 function modeCardRects(){
   const narrow = VW < 760;
-  const w = narrow ? Math.min(VW-48, 420) : Math.min(380, (VW-90)/2);
-  const h = narrow ? Math.min(210, (VH-230)/2) : 280;
+  const w = narrow ? Math.min(VW-48, 420) : Math.min(340, (VW-120)/3);
+  const h = narrow ? Math.min(170, (VH-260)/3) : 300;
   const gap = 28;
   const y0 = narrow ? 150 : Math.max(150, VH/2 - h/2 - 10);
   if(narrow) return [
     {id:'turbo',   x:VW/2-w/2, y:y0,       w, h},
-    {id:'allpick', x:VW/2-w/2, y:y0+h+16, w, h}
+    {id:'allpick', x:VW/2-w/2, y:y0+h+12, w, h},
+    {id:'ranked',  x:VW/2-w/2, y:y0+(h+12)*2, w, h}
   ];
   return [
-    {id:'turbo',   x:VW/2-w-gap/2, y:y0, w, h},
-    {id:'allpick', x:VW/2+gap/2,   y:y0, w, h}
+    {id:'turbo',   x:VW/2-w*1.5-gap, y:y0, w, h},
+    {id:'allpick', x:VW/2-w/2,       y:y0, w, h},
+    {id:'ranked',  x:VW/2+w/2+gap,   y:y0, w, h}
   ];
 }
 function drawModeSelect(){
   const info = {
     turbo:   {title:'ТУРБО',    tag:'БЫСТРАЯ ИГРА',  color:'#ff9d62', lines:['+3 монеты в секунду','Полная награда за крипов','Обычный опыт','Боты идут в мид с 5-й минуты']},
-    allpick: {title:'ALL PICK', tag:'КЛАССИКА',      color:'#8dd2ff', lines:['+1 монета в секунду','Крипы дают в 2 раза меньше монет','За героя — как обычно (200)','Опыт медленнее: уровни дольше','Боты дольше стоят на линиях (до 10-й минуты)']}
+    allpick: {title:'ALL PICK', tag:'КЛАССИКА',      color:'#8dd2ff', lines:['+1 монета в секунду','Крипы дают в 2 раза меньше монет','За героя — как обычно (200)','Опыт медленнее: уровни дольше','Боты дольше стоят на линиях (до 10-й минуты)']},
+    ranked:  {title:'РЕЙТИНГ',  tag:'ALL PICK 4 НА 4', color:'#ffd866', lines:['Правила All Pick, 4 на 4 с ботами','Победа: +'+RANKED_WIN_MMR+' MMR','Поражение: −'+RANKED_LOSS_MMR+' MMR',
+      account.profile ? 'Твой ранг: '+accountRatingRank(account.profile.rating||0)+' · '+(account.profile.rating||0) : 'Нужен вход в аккаунт']}
   };
   ctx.textAlign='center';
   ctx.fillStyle='#f6e6be'; ctx.font='bold 27px Georgia, serif';
   ctx.fillText('ВЫБОР РЕЖИМА',VW/2,72);
   ctx.font='13px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.68)';
-  ctx.fillText('Игра против ботов 4 на 4',VW/2,100);
+  ctx.fillText('Игра против ботов 4 на 4 · рейтинговый режим даёт MMR',VW/2,100);
   const back={x:24,y:78,w:120,h:38}; drawMenuButton(back,'‹  НАЗАД',{radius:7});
   for(const m of modeCardRects()){
     const d = info[m.id];
@@ -13511,6 +13545,7 @@ function handleMenuClick(mx, my){
       return;
     }
     if(mx>=detailStart.x && mx<=detailStart.x+detailStart.w && my>=detailStart.y && my<=detailStart.y+detailStart.h){
+      rankedOnlineMatch=false;
       beginDraft(selectedHeroIndex);
       return;
     }
@@ -13525,7 +13560,13 @@ function handleMenuClick(mx, my){
     const back={x:24,y:78,w:120,h:38};
     if(mx>=back.x && mx<=back.x+back.w && my>=back.y && my<=back.y+back.h){ menuStage='home'; return; }
     for(const m of modeCardRects()){
-      if(mx>=m.x && mx<=m.x+m.w && my>=m.y && my<=m.y+m.h){ gameMode=m.id; beginDraft(); return; }
+      if(mx>=m.x && mx<=m.x+m.w && my>=m.y && my<=m.y+m.h){
+        if(m.id==='ranked'){
+          if(!account.token){ openAccountModal(); return; }
+          gameMode='allpick'; rankedOnlineMatch=true;
+        } else { gameMode=m.id; rankedOnlineMatch=false; }
+        beginDraft(); return;
+      }
     }
     return;
   }
@@ -13533,10 +13574,10 @@ function handleMenuClick(mx, my){
     const back={x:24,y:78,w:120,h:38};
     if(mx>=back.x && mx<=back.x+back.w && my>=back.y && my<=back.y+back.h){ stopMenuMusic(); announcerStop(); menuStage='home'; return; }
     const skip=draftSkipRect();
-    if(draftPlayerIndex>=0 && mx>=skip.x && mx<=skip.x+skip.w && my>=skip.y && my<=skip.y+skip.h){ startGame(draftPlayerIndex,draftBotIndices); return; }
+    if(draftPlayerIndex>=0 && mx>=skip.x && mx<=skip.x+skip.w && my>=skip.y && my<=skip.y+skip.h){ finishDraft(); return; }
     for(let i=0;i<HERO_DEFS.length;i++){
       const r=menuCardRect(i);
-      if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h){ draftPlayerIndex=i; selectedHeroIndex=i; return; }
+      if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h){ if(draftPlayerBlocked(i)) return; draftPlayerIndex=i; selectedHeroIndex=i; return; }
     }
     return;
   }
@@ -13986,15 +14027,20 @@ function accountRank(level){
   for(const [min, title] of ACCOUNT_RANKS) if(level >= min) name = title;
   return name;
 }
+const MMR_RANKS = ['РЕКРУТ','СТРАЖ','РЫЦАРЬ','ГЕРОЛЬД','ЗАЩИТНИК','ЛЕГЕНДА','БОЖЕСТВО','ТИТАН'];
+/* 100 MMR = одна звезда, 5 звёзд = ранг (500 MMR). С 4000 MMR — БЕССМЕРТНЫЙ. */
 function accountRatingRank(rating){
-  return 'РЕКРУТ ' + (Math.min(5,Math.floor(Math.max(0,rating)/100)+1));
+  rating = Math.max(0, Math.floor(rating || 0));
+  const tier = Math.floor(rating / 500);
+  if(tier >= MMR_RANKS.length) return 'БЕССМЕРТНЫЙ';
+  return MMR_RANKS[tier] + ' ' + (Math.floor((rating % 500) / 100) + 1);
 }
 function refreshOnlineEntryLabel(){
   if(!onlineEntryElement) return;
   const profile=account.profile;
   if(!profile){ onlineEntryElement.textContent='ОНЛАЙН 3 НА 3 · ВОЙДИ ДЛЯ РЕЙТИНГА'; return; }
   const rating=Number.isFinite(profile.rating)?profile.rating:0;
-  onlineEntryElement.textContent='ОНЛАЙН 3 НА 3 · '+accountRatingRank(rating)+' · '+rating;
+  onlineEntryElement.textContent='ОНЛАЙН · '+accountRatingRank(rating)+' · '+rating+' MMR';
 }
 function accountStore(key, value){
   try { if(value == null) localStorage.removeItem(key); else localStorage.setItem(key, value); }
@@ -15504,7 +15550,7 @@ function drawMenu(){
     const skipRect=draftSkipRect(), canSkip=draftPlayerIndex>=0;
     drawMenuButton(skipRect,canSkip?'⏭  ПРОПУСТИТЬ':'ПРОПУСК: ВЫБЕРИ БОЙЦА',{radius:7,primary:canSkip,active:canSkip,fontSize:canSkip?15:12});
     if(!canSkip){ ctx.save(); ctx.fillStyle='rgba(0,0,0,.5)'; ctx.beginPath(); ctx.roundRect(skipRect.x,skipRect.y,skipRect.w,skipRect.h,7); ctx.fill(); ctx.restore(); }
-    for(let i=0;i<HERO_DEFS.length;i++){ const r=menuCardRect(i), selected=i===draftPlayerIndex; drawHeroTexture(HERO_DEFS[i],r.x,r.y,r.w,r.h,now); if(selected){ ctx.strokeStyle='#ffd568'; ctx.lineWidth=4; ctx.strokeRect(r.x-2,r.y-2,r.w+4,r.h+4); } ctx.fillStyle='rgba(4,7,12,.76)'; ctx.fillRect(r.x,r.y+r.h-24,r.w,24); ctx.fillStyle='#fff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(HERO_DEFS[i].name,r.x+r.w/2,r.y+r.h-8); }
+    for(let i=0;i<HERO_DEFS.length;i++){ const r=menuCardRect(i), selected=i===draftPlayerIndex; drawHeroTexture(HERO_DEFS[i],r.x,r.y,r.w,r.h,now); if(selected){ ctx.strokeStyle='#ffd568'; ctx.lineWidth=4; ctx.strokeRect(r.x-2,r.y-2,r.w+4,r.h+4); } if(draftPlayerBlocked(i)&&!selected){ ctx.fillStyle='rgba(0,0,0,.62)'; ctx.fillRect(r.x,r.y,r.w,r.h); } ctx.fillStyle='rgba(4,7,12,.76)'; ctx.fillRect(r.x,r.y+r.h-24,r.w,24); ctx.fillStyle='#fff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(HERO_DEFS[i].name,r.x+r.w/2,r.y+r.h-8); }
     return;
   }
 
@@ -15944,7 +15990,11 @@ requestAnimationFrame(loop);
     });
     socket.on('game_over', data => {
       if(!data || !Number.isInteger(data.winner)) return;
-      winner = data.winner;
+      /* Сервер присылает победителя в глобальных командах (0 — Свет, 1 — Тьма), а на клиенте
+         своя команда всегда локальная 0 (карта для Тьмы зеркалится). Переводим в локальные,
+         иначе победа Тьмы засчитывалась как поражение. */
+      const localMember = onlineRoster && onlineRoster.find(member => member.id === onlineId);
+      winner = localMember ? (data.winner === localMember.team ? 0 : 1) : data.winner;
       gameState = 'over';
     });
     socket.on('playerSnapshot', applyRemotePlayerSnapshot);
@@ -15997,7 +16047,7 @@ requestAnimationFrame(loop);
       onlineRoster = payload.roster;
       onlineHostId = payload.hostId || null;
       gameMode = (payload.settings && GAME_MODES[payload.settings.ruleset]) ? payload.settings.ruleset : 'turbo';
-      rankedOnlineMatch = !payload.roster.some(member => member.bot);
+      rankedOnlineMatch = !!(payload.settings && payload.settings.ranked);
       rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
       orientOnlineMapForTeam(local.team);

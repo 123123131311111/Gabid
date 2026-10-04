@@ -86,6 +86,10 @@
             <option value="turbo">Турбо</option>
             <option value="allpick">All Pick</option>
           </select></label>
+          <label>Рейтинг<select id="set-ranked">
+            <option value="off">Выкл — без MMR</option>
+            <option value="on">Вкл — All Pick 4×4, +50 / −40 MMR</option>
+          </select></label>
           <label>Боты<select id="set-bots">
             <option value="off">Нет — только игроки</option>
             <option value="on">Заменять пустые места ботами</option>
@@ -255,7 +259,7 @@
   const createButton = document.getElementById('lobby-create');
   const heroGrid = document.getElementById('hero-grid');
   const setName = document.getElementById('set-name'), setMode = document.getElementById('set-mode');
-  const setRuleset = document.getElementById('set-ruleset'), setBots = document.getElementById('set-bots');
+  const setRuleset = document.getElementById('set-ruleset'), setBots = document.getElementById('set-bots'), setRanked = document.getElementById('set-ranked');
   const portraitCache = new Map();
   const MODE_LABEL = {'1v1':'1 на 1 • Solo Mid','2v2':'2 на 2','3v3':'3 на 3','4v4':'4 на 4'};
   const RULE_LABEL = {turbo:'Турбо',allpick:'All Pick'};
@@ -299,6 +303,7 @@
   document.getElementById('lobby-swap').addEventListener('click', () => socket && socket.emit('room:swap'));
   setMode.addEventListener('change', () => socket.emit('room:settings', {mode:setMode.value}));
   setRuleset.addEventListener('change', () => socket.emit('room:settings', {ruleset:setRuleset.value}));
+  setRanked.addEventListener('change', () => socket.emit('room:settings', {ranked:setRanked.value === 'on'}));
   setBots.addEventListener('change', () => socket.emit('room:settings', {fillBots:setBots.value === 'on'}));
   setName.addEventListener('change', () => socket.emit('room:settings', {name:setName.value}));
 
@@ -345,15 +350,15 @@
 
   function renderHeroGrid(next){
     const me = next.players.find(item => item.id === socket.id);
-    const taken = new Map(next.players.filter(item => item.hero).map(item => [item.hero, item.id]));
+    const copies = {}; next.players.forEach(item => { if(item.hero) copies[item.hero] = (copies[item.hero] || 0) + 1; });
+    const maxCopies = next.settings && next.settings.ranked ? 1 : 2;
     heroGrid.innerHTML = '';
     const defs = (typeof HERO_DEFS !== 'undefined') ? HERO_DEFS : HERO_IDS_FOR_ROOM;
     defs.forEach(def => {
       const cell = document.createElement('button');
       cell.type = 'button'; cell.className = 'hero-cell';
-      const owner = taken.get(def.id);
       if(me && me.hero === def.id) cell.classList.add('selected');
-      else if(owner) { cell.classList.add('taken'); cell.disabled = true; }
+      else if((copies[def.id] || 0) >= maxCopies) { cell.classList.add('taken'); cell.disabled = true; }
       cell.title = def.name;
       cell.appendChild(heroPortrait(def.id, 64));
       const label = document.createElement('span'); label.textContent = def.name; cell.appendChild(label);
@@ -384,11 +389,11 @@
     if(!un.children.length) un.textContent = '—';
     renderHeroGrid(next);
     const host_ = isHost();
-    for(const el of [setName, setMode, setRuleset, setBots]) el.disabled = !host_;
+    for(const el of [setName, setMode, setRuleset, setBots, setRanked]) el.disabled = !host_ || (s.ranked && el !== setName && el !== setRanked);
     if(document.activeElement !== setName) setName.value = s.name || '';
-    setMode.value = s.mode || '3v3'; setRuleset.value = s.ruleset || 'turbo'; setBots.value = s.fillBots ? 'on' : 'off';
+    setMode.value = s.mode || '3v3'; setRuleset.value = s.ruleset || 'turbo'; setBots.value = s.fillBots ? 'on' : 'off'; setRanked.value = s.ranked ? 'on' : 'off';
     document.getElementById('settings-hint').textContent = host_ ? '' : '(меняет владелец лобби)';
-    document.getElementById('settings-summary').textContent = s.ruleset === 'allpick'
+    document.getElementById('settings-summary').textContent = s.ranked ? 'Рейтинговая игра: All Pick 4 на 4, пустые места займут боты. Победа +50 MMR, поражение −40.' : s.ruleset === 'allpick'
       ? 'All Pick: 1 монета в секунду, крипы дают вдвое меньше, опыт медленнее, боты дольше стоят на линиях.'
       : 'Турбо: 3 монеты в секунду, быстрая игра.';
     document.getElementById('lobby-balance').style.display = host_ ? '' : 'none';

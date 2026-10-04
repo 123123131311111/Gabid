@@ -46,7 +46,7 @@ const roomOf = socket => rooms[socketRooms.get(socket.id)];
 
 function createRoom(hostId, hostNick=''){
   const room = {id:makeRoomId(), hostId, started:false, players:Object.create(null), bullets:[],
-    settings:{name:(hostNick ? 'Лобби ' + hostNick : 'Лобби').slice(0,28), mode:'3v3', ruleset:'turbo', fillBots:false}};
+    settings:{name:(hostNick ? 'Лобби ' + hostNick : 'Лобби').slice(0,28), mode:'3v3', ruleset:'turbo', fillBots:false, ranked:false}};
   rooms[room.id] = room;
   return room;
 }
@@ -556,7 +556,7 @@ io.on('connection', socket => {
       player.slot = data.slot; player.team = slotTeam(data.slot);
     }
     if(typeof data.heroId === 'string' && HERO_IDS.includes(data.heroId) &&
-       !Object.values(room.players).some(other => other.id !== socket.id && other.hero === data.heroId)) player.hero = data.heroId;
+       Object.values(room.players).filter(other => other.id !== socket.id && other.hero === data.heroId).length < (room.settings.ranked ? 1 : 2)) player.hero = data.heroId;
     emitLobby(room);
   });
   /* Настройки лобби — только владелец комнаты. */
@@ -567,6 +567,16 @@ io.on('connection', socket => {
     if(typeof data.mode === 'string' && MODE_SIZES[data.mode]) room.settings.mode = data.mode;
     if(typeof data.ruleset === 'string' && RULESETS.includes(data.ruleset)) room.settings.ruleset = data.ruleset;
     if(typeof data.fillBots === 'boolean') room.settings.fillBots = data.fillBots;
+    if(typeof data.ranked === 'boolean') room.settings.ranked = data.ranked;
+    if(room.settings.ranked){
+      room.settings.mode = '4v4'; room.settings.ruleset = 'allpick'; room.settings.fillBots = true;
+      /* В рейтинге герои уникальны: повторы переназначаем. */
+      const seen = new Set();
+      for(const member of humansOf(room)){
+        if(member.hero && seen.has(member.hero)){ member.hero = null; member.hero = pickFreeHero(room); }
+        seen.add(member.hero);
+      }
+    }
     if(typeof data.name === 'string') room.settings.name = data.name.replace(/[<>]/g,'').trim().slice(0,28) || room.settings.name;
     repackRoom(room);
     emitLobby(room);

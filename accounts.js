@@ -276,7 +276,7 @@ const routes = {
 
     const won = body.won === true;
     const xpGained = 100 + kills * 12 + assists * 5 + (won ? 100 : 0);
-    const ratingChange = body.ranked === true ? (won ? 25 : -20) : 0;
+    const ratingChange = body.ranked === true ? (won ? 50 : -40) : 0;
     const filter = { _id: account._id };
     if(matchId) filter.recent = { $ne: matchId };
     const update = {
