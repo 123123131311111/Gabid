@@ -5828,44 +5828,43 @@ const EARTHSHAKER_SKILLS = {
   earthshakerFissure: {
     name:'Fissure', short:'Q', type:'point', maxLevel:4,
     cd:[0,17,15,13,11], mana:[0,110,120,130,140], range:820,
-    desc:'Создаёт непроходимую каменную стену вдоль линии удара: наносит урон и оглушает врагов, временно перекрывая проход.',
+    desc:'Шмедик бьёт тотемом о землю: от него по направлению удара расходится каменный разлом, наносящий урон и оглушающий врагов. Стоящих на пути отбрасывает в стороны — застрять в стене невозможно.',
     cast(h,x,y,lvl){
-      const angle = Math.atan2(y-h.y, x-h.x);
+      /* Разлом рождается у самого героя и бежит вперёд по линии прицела
+         (а не появляется в точке курсора). */
+      let angle = Math.atan2(y-h.y, x-h.x);
+      if(!Number.isFinite(angle)) angle = Number.isFinite(h.facing) ? h.facing : 0;
       h.facing = angle;
-      const dist = clamp(Math.hypot(x-h.x, y-h.y), 90, 820);
-      const cx = clamp(h.x + Math.cos(angle)*dist, 60, WORLD-60);
-      const cy = clamp(h.y + Math.sin(angle)*dist, 60, WORLD-60);
-      const length = 380 + lvl*36;
+      const ux = Math.cos(angle), uy = Math.sin(angle);
+      const length = 440 + lvl*60;
+      const startOff = h.radius + 34;
+      const sx = clamp(h.x + ux*startOff, 60, WORLD-60);
+      const sy = clamp(h.y + uy*startOff, 60, WORLD-60);
       const dmg = abilityDamage(h, 130 + 57*lvl);
       const stunDuration = 1.1 + lvl*0.22;
-      /* Как в Dota 2: разлом тянется вдоль направления удара (через героя
-         к точке прицела), а не поперёк него. */
+      const growDur = 0.42;
       walls.push({
-        x:cx, y:cy, angle, length, width:32,
-        team:h.team, source:h, dmg, slow:0.45, life:3.6 + lvl*0.3, t:0,
-        hit:new Set(), stun:stunDuration, blocking:true, style:'fissure'
+        x:sx, y:sy, sx, sy, angle, length:10, fullLength:length, growDur,
+        width:34, team:h.team, source:h, dmg, slow:0.45, life:3.6 + lvl*0.3, t:0,
+        hit:new Set(), stun:stunDuration, blocking:true, style:'fissure',
+        seed:Math.random()*1000
       });
-      const halfLen = length/2;
-      const startX = cx - Math.cos(angle)*halfLen, startY = cy - Math.sin(angle)*halfLen;
-      const endX = cx + Math.cos(angle)*halfLen, endY = cy + Math.sin(angle)*halfLen;
-      fxRing(cx, cy, halfLen, '#6b5842', 0.55);
-      fxBeam(startX, startY, endX, endY, '#8a6b45', 0.6);
-      /* Каскад из вздымающихся кусков камня и пыли вдоль всего разлома,
-         как рябь от удара тотемом о землю, плюс ударная волна у героя. */
-      const segments = Math.max(5, Math.round(length/55));
+      /* Волна пыли и камней, бегущая по разлому от героя */
+      const segments = Math.max(6, Math.round(length/50));
       for(let i=0;i<=segments;i++){
         const t = i/segments;
-        const px = startX + (endX-startX)*t, py = startY + (endY-startY)*t;
-        const delay = Math.abs(t-0.5)*0.16;
+        const px = sx + ux*length*t, py = sy + uy*length*t;
+        const delay = t*growDur;
         setTimeout(()=>{
-          spawnParticles(px, py, '#c9a878', 10, 0.85);
-          spawnParticles(px, py, '#4a3a26', 6, 0.5);
-          fxRing(px, py, 26, '#a68a5f', 0.3);
+          spawnParticles(px, py, '#c9a878', 9, 0.85);
+          spawnParticles(px, py, '#4a3a26', 5, 0.5);
+          if(i%2===0) fxRing(px, py, 30, '#a68a5f', 0.3);
         }, delay*1000);
       }
-      spawnParticles(cx, cy, '#a68a5f', 34, 1.25);
-      spawnRadialBlades(h.x, h.y, 90, '#6b5842', 14);
-      fxRing(h.x, h.y, 70, '#c9a06b', 0.4);
+      fxBeam(sx, sy, sx+ux*length, sy+uy*length, '#8a6b45', 0.5);
+      spawnParticles(h.x, h.y, '#a68a5f', 26, 1.2);
+      spawnRadialBlades(h.x, h.y, 90, '#6b5842', 12);
+      fxRing(h.x, h.y, 80, '#c9a06b', 0.4);
       addText(h.x, h.y-74, 'FISSURE', '#c9a06b', 1.25, 18);
       return true;
     }
@@ -6595,7 +6594,8 @@ function startChipCastAnim(hero, slot, def, tx, ty){
 }
 function castSkillVisual(hero, skill, tx, ty){
   const color = skillFxColor(hero, skill.id);
-  const isPoint = skill.def.type === 'point';
+  const atSelf = skill.id === 'earthshakerFissure';
+  const isPoint = skill.def.type === 'point' && !atSelf;
   const x = isPoint ? tx : hero.x;
   const y = isPoint ? ty : hero.y;
   spawnParticles(hero.x, hero.y, color, isPoint ? 12 : 20, isPoint ? 0.5 : 0.9);
@@ -7906,6 +7906,40 @@ function update(dt){
   for(const wall of walls){
     wall.t += dt;
     const ux=Math.cos(wall.angle), uy=Math.sin(wall.angle);
+    /* Fissure растёт от героя вперёд: текущая длина увеличивается, центр сдвигается */
+    if(wall.fullLength){
+      const k = Math.min(1, wall.t/(wall.growDur||0.4));
+      const cur = Math.max(10, wall.fullLength*(1-Math.pow(1-k,2)));
+      wall.length = cur;
+      wall.x = wall.sx + ux*cur/2;
+      wall.y = wall.sy + uy*cur/2;
+    }
+    /* Антизастревание: любого, кто оказался внутри непроходимой стены (враг, союзник,
+       крип), мгновенно выталкиваем вбок — как настоящий Fissure в Dota 2. */
+    if(wall.blocking){
+      for(const u of units){
+        if(u.dead||isStructure(u)) continue;
+        const dx=u.x-wall.x, dy=u.y-wall.y;
+        const along=dx*ux+dy*uy, across=dx*uy-dy*ux;
+        const half=wall.width/2+u.radius+2;
+        if(Math.abs(along)<wall.length/2+u.radius*0.5 && Math.abs(across)<half){
+          let side = across>=0 ? 1 : -1;
+          if(Math.abs(across)<1){
+            /* ровно по центру: толкаем в ту сторону, куда юнит смотрит/идёт, иначе в случайную */
+            side = (u.facing!==undefined && Math.sin((u.facing||0)-wall.angle)>=0) ? 1 : -1;
+          }
+          const push = (half+4) - Math.abs(across);
+          let nx = u.x + uy*side*push, ny = u.y - ux*side*push;
+          if(!canMoveTo(nx, ny, u.radius, true)){
+            side = -side;
+            nx = u.x + uy*side*(push+Math.abs(across)*2);
+            ny = u.y - ux*side*(push+Math.abs(across)*2);
+          }
+          u.x = clamp(nx, 40, WORLD-40); u.y = clamp(ny, 40, WORLD-40);
+          if(u.moveTarget && Math.hypot(u.moveTarget.x-u.x,u.moveTarget.y-u.y)<10) u.moveTarget=null;
+        }
+      }
+    }
     for(const u of units){
       if(u.dead||u.team===wall.team||isStructure(u)) continue;
       const dx=u.x-wall.x, dy=u.y-wall.y;
@@ -11132,23 +11166,64 @@ function drawWorldObjects(){
   for(const wall of walls){
     ctx.save(); ctx.translate(wall.x,wall.y); ctx.rotate(wall.angle);
     if(wall.style === 'fissure'){
-      const fade = Math.min(1, (wall.life - wall.t) / 0.6);
-      ctx.globalAlpha = Math.max(0.35, fade);
-      const rockGrad = ctx.createLinearGradient(0,-wall.width/2,0,wall.width/2);
-      rockGrad.addColorStop(0,'#8a6f4d'); rockGrad.addColorStop(0.5,'#5b4630'); rockGrad.addColorStop(1,'#3c2f1f');
-      ctx.fillStyle = rockGrad; ctx.shadowBlur=16; ctx.shadowColor='#3c2f1f';
-      ctx.fillRect(-wall.length/2,-wall.width/2,wall.length,wall.width);
+      const fade = Math.max(0, Math.min(1, (wall.life - wall.t) / 0.7));
+      const cur = wall.length, W = wall.width;
+      const rnd = (i,k)=>{ const v=Math.sin((i+1)*12.9898 + (wall.seed||0)*78.233 + k*37.719)*43758.5453; return v-Math.floor(v); };
+      ctx.globalAlpha = 0.25 + 0.75*fade;
+      /* тёмная трещина в земле: рваный контур */
+      const nodes = Math.max(6, Math.round(cur/26));
+      ctx.beginPath();
+      for(let i=0;i<=nodes;i++){
+        const px = -cur/2 + cur*i/nodes;
+        const jag = (rnd(i,1)-0.5)*W*0.5;
+        const wid = W*(0.55 + 0.35*rnd(i,2)) * (i===0||i===nodes ? 0.6 : 1);
+        if(i===0) ctx.moveTo(px, -wid/2+jag); else ctx.lineTo(px, -wid/2+jag);
+      }
+      for(let i=nodes;i>=0;i--){
+        const px = -cur/2 + cur*i/nodes;
+        const jag = (rnd(i,3)-0.5)*W*0.5;
+        const wid = W*(0.55 + 0.35*rnd(i,4)) * (i===0||i===nodes ? 0.6 : 1);
+        ctx.lineTo(px, wid/2+jag);
+      }
+      ctx.closePath();
+      ctx.fillStyle='#120c07'; ctx.shadowColor='#000'; ctx.shadowBlur=14; ctx.fill();
       ctx.shadowBlur=0;
-      ctx.strokeStyle='#2a2015'; ctx.lineWidth=3; ctx.strokeRect(-wall.length/2,-wall.width/2,wall.length,wall.width);
-      ctx.strokeStyle='#8bd4ff'; ctx.globalAlpha=Math.max(0.25,fade*0.6); ctx.lineWidth=2;
-      const cracks = Math.max(4, Math.round(wall.length/60));
-      for(let i=0;i<cracks;i++){
-        const cx = -wall.length/2 + (i+0.5)*(wall.length/cracks);
-        ctx.beginPath();
-        ctx.moveTo(cx, -wall.width/2);
-        ctx.lineTo(cx + (i%2?6:-6), 0);
-        ctx.lineTo(cx, wall.width/2);
-        ctx.stroke();
+      /* раскалённое/голубое свечение глубины разлома */
+      const glow = 0.55 + 0.25*Math.sin(wall.t*9);
+      const grd = ctx.createLinearGradient(-cur/2,0,cur/2,0);
+      grd.addColorStop(0,'rgba(255,170,70,'+glow+')'); grd.addColorStop(1,'rgba(139,212,255,'+glow+')');
+      ctx.strokeStyle = grd; ctx.lineWidth = 3; ctx.lineJoin='round';
+      ctx.beginPath();
+      for(let i=0;i<=nodes;i++){
+        const px = -cur/2 + cur*i/nodes;
+        const jy = (rnd(i,5)-0.5)*W*0.5;
+        if(i===0) ctx.moveTo(px,jy); else ctx.lineTo(px,jy);
+      }
+      ctx.stroke();
+      /* каменные глыбы, вздымающиеся вслед за фронтом разлома */
+      const spikes = Math.max(5, Math.round(cur/30));
+      for(let i=0;i<spikes;i++){
+        const sPos = (i+0.5)/spikes * cur;
+        const rise = Math.max(0, Math.min(1, (cur - sPos)/70 + 0.15));
+        if(rise<=0) continue;
+        const px = -cur/2 + sPos;
+        const side = rnd(i,6)>0.5 ? 1 : -1;
+        const py = side*(W*0.22 + rnd(i,7)*W*0.28);
+        const h = (16 + rnd(i,8)*22) * rise;
+        const w = 9 + rnd(i,9)*8;
+        ctx.save(); ctx.translate(px,py); ctx.rotate((rnd(i,10)-0.5)*0.7);
+        ctx.fillStyle='#4a3a28';
+        ctx.beginPath(); ctx.moveTo(-w,0); ctx.lineTo(-w*0.35,-h); ctx.lineTo(w*0.5,-h*0.82); ctx.lineTo(w,0); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#8a6f4d';
+        ctx.beginPath(); ctx.moveTo(-w,0); ctx.lineTo(-w*0.35,-h); ctx.lineTo(-w*0.05,-h*0.1); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='rgba(20,12,6,0.9)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(-w,0); ctx.lineTo(-w*0.35,-h); ctx.lineTo(w*0.5,-h*0.82); ctx.lineTo(w,0); ctx.stroke();
+        ctx.restore();
+      }
+      /* яркая вспышка на фронте разлома, пока он растёт */
+      if(wall.fullLength && wall.t < (wall.growDur||0.4)+0.1){
+        ctx.fillStyle='rgba(255,236,190,0.75)'; ctx.shadowColor='#ffd27a'; ctx.shadowBlur=22;
+        ctx.beginPath(); ctx.arc(cur/2,0,10,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
       }
       ctx.globalAlpha=1;
     } else {

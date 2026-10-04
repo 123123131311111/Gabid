@@ -1551,6 +1551,412 @@ function battleSprite(def,radius,facing,time,anim){
 function resetBudget(){ sprT0=nowMs(); sprMade=0; }
 function has(id){ return !!MODELS[id]; }
 
+/* =========================================================
+   0.8.2 — Шмедик (Earthshaker) и Сасыч (Bloodseeker):
+   новые модели с настоящим скелетом (IK рук и ног), ходьбой
+   на четырёх лапах / хищным бегом, ударом и 4 способностями.
+   ========================================================= */
+const RK=(p,ks)=>{                 // ключевые кадры: [[t,значение,easing?],...]; значение — число или массив
+  if(p<=ks[0][0]) return ks[0][1];
+  for(let i=1;i<ks.length;i++) if(p<=ks[i][0]){
+    const a=ks[i-1], b=ks[i], e=(b[2]||E_io)(cl01((p-a[0])/((b[0]-a[0])||1)));
+    return Array.isArray(a[1])?a[1].map((v,j)=>v+(b[1][j]-v)*e):a[1]+(b[1]-a[1])*e;
+  }
+  return ks[ks.length-1][1];
+};
+function mkRot(pitch,yaw,roll){
+  const cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw),cr=Math.cos(roll),sr=Math.sin(roll);
+  return v=>{ let x=v[0],y=v[1],z=v[2];
+    let x1=x*cy+z*sy, z1=-x*sy+z*cy; x=x1; z=z1;           // скрутка корпуса (вокруг Y)
+    let y2=y*cp-z*sp, z2=z*cp+y*sp; y=y2; z=z2;            // наклон вперёд (вокруг X)
+    let x3=x*cr-y*sr, y3=x*sr+y*cr;                        // крен (вокруг Z)
+    return [x3,y3,z]; };
+}
+function xfGroup(S,m,pivot,R,tr,sc){                       // повернуть/сдвинуть/промасштабировать грани, добавленные после индекса m
+  const k=S.sc, pv=mul(pivot,k), t=mul(tr||[0,0,0],k), ss=sc||1;
+  const mv=q=>add(add(R(mul(sub(q,pv),ss)),pv),t);
+  for(let i=m;i<S.faces.length;i++){ const f=S.faces[i];
+    f.p=f.p.map(mv); f.c=mv(f.c); if(f.nm) f.nm=R(f.nm); if(f.vn) f.vn=f.vn.map(R); }
+}
+function ik2(sh,tg,l1,l2,pole){                            // двухсуставная конечность: возвращает локоть/колено и достижимую кисть
+  let d=sub(tg,sh), D=len(d); const mx=l1+l2-.002;
+  if(D>mx){ tg=add(sh,mul(norm(d),mx)); d=sub(tg,sh); D=mx; }
+  if(D<.12){ D=.12; }
+  const dir=norm(d), a=(l1*l1-l2*l2+D*D)/(2*D), h=Math.sqrt(Math.max(0,l1*l1-a*a));
+  let pv=sub(pole,mul(dir,dot(pole,dir))); pv=len(pv)<1e-4?[0,0,1]:norm(pv);
+  return {el:add(add(sh,mul(dir,a)),mul(pv,h)),hand:tg};
+}
+function limbPhase(ph,A,z0,lift,gy){                       // шаг: опора (скользит назад) + мах вперёд по дуге
+  const u=((ph/(Math.PI*2))%1+1)%1;
+  if(u<.5) return [z0+A-2*A*(u/.5),gy];
+  const s=(u-.5)/.5; return [z0-A+2*A*E_io(s),gy+lift*Math.sin(Math.PI*s)];
+}
+function rigResolve(pose,t,key,nc){
+  if(!pose||!pose.kind||pose.kind==='idle') return {kind:'idle',p:0};
+  if(pose.kind!=='show') return pose;
+  const L=[['idle',1.2],['walk',2.4],['attack',.8],['attack',.8],['idle',.8]];
+  for(let i=0;i<nc;i++){ L.push(['cast',i===nc-1?1.5:1.15,i]); L.push(['idle',.7]); }
+  const T=L.reduce((a,x)=>a+x[1],0); let tm=((t%T)+T)%T;
+  for(const [k,du,sl] of L){ if(tm<du) return {kind:k,slot:sl,p:k==='walk'?tm*1.25:tm/du}; tm-=du; }
+  return {kind:'idle',p:0};
+}
+function floorFx(S,fn){ const kk=S.sc, tg=S.target; S.target=S.pre; S.sc=1; try{ fn(); } finally { S.sc=kk; S.target=tg; } }
+const rnd1=(i,k)=>{ const v=Math.sin((i+1)*12.9898+k*78.233)*43758.5453; return v-Math.floor(v); };
+
+/* ---------------- ШМЕДИК: Earthshaker, ходит на четырёх лапах ---------------- */
+function esPose(rp,t){
+  const k=rp.kind, p=rp.p||0, sl=rp.slot|0, br=Math.sin(t*1.6);
+  const P={pitch:.34+.018*br,twist:0,roll:0,offY:.012*br,offZ:0,head:0,
+    hR:[.9,.58+.02*br,.44],hL:[-.9,.58+.02*Math.sin(t*1.6+1),.44],fR:[.38,0,.08],fL:[-.38,0,0],glow:0,rise:0};
+  if(k==='walk'){
+    const ph=p*Math.PI*2;
+    const hr=limbPhase(ph,.42,.9,.46,.2), hl=limbPhase(ph+Math.PI,.42,.9,.46,.2);
+    const fl=limbPhase(ph,.46,.04,.36,0), fr=limbPhase(ph+Math.PI,.46,.04,.36,0);
+    P.hR=[.86,hr[1],hr[0]]; P.hL=[-.86,hl[1],hl[0]]; P.fL=[-.38,fl[1],fl[0]]; P.fR=[.38,fr[1],fr[0]];
+    P.pitch=.82+.035*Math.sin(ph*2); P.offY=.04*Math.cos(ph*2)-.05; P.roll=.05*Math.sin(ph); P.twist=-.12*Math.cos(ph);
+    P.head=-.55*P.pitch+.05*Math.sin(ph*2); P.glow=.1;
+  } else if(k==='attack'){
+    P.pitch=RK(p,[[0,.34],[.3,-.06],[.5,.7,E_in],[.75,.5],[1,.34]]);
+    P.twist=RK(p,[[0,0],[.3,.55],[.5,-.5,E_in],[.8,-.15],[1,0]]);
+    P.offZ=RK(p,[[0,0],[.3,-.06],[.5,.18,E_in],[1,0]]);
+    P.hR=RK(p,[[0,P.hR],[.3,[1.05,2.7,-.5]],[.5,[.38,.45,1.6],E_in],[.75,[.5,.5,1.35]],[1,[.9,.58,.44]]]);
+    P.hL=RK(p,[[0,P.hL],[.3,[-.95,1.15,.7]],[.5,[-.8,1.1,.6]],[1,[-.9,.58,.44]]]);
+    P.head=RK(p,[[0,0],[.3,.2],[.5,-.3],[1,0]]);
+    P.fire=bell(p,.52,.1);
+  } else if(k==='cast'&&sl===0){          // Fissure: встаёт на дыбы и бьёт кулаками в землю, разлом бежит вперёд
+    P.pitch=RK(p,[[0,.34],[.3,-.28],[.5,.82,E_in],[.8,.7],[1,.34]]);
+    P.offY=RK(p,[[0,0],[.3,.14],[.5,-.12,E_in],[1,0]]);
+    P.offZ=RK(p,[[0,0],[.3,-.1],[.5,.22,E_in],[1,0]]);
+    P.hR=RK(p,[[0,P.hR],[.3,[.55,3.05,-.1]],[.5,[.55,.16,1.55],E_in],[.82,[.55,.16,1.55]],[1,[.9,.58,.44]]]);
+    P.hL=RK(p,[[0,P.hL],[.3,[-.55,3.05,-.1]],[.5,[-.55,.16,1.55],E_in],[.82,[-.55,.16,1.55]],[1,[-.9,.58,.44]]]);
+    P.head=RK(p,[[0,0],[.3,.5],[.5,-.5,E_in],[1,0]]);
+    P.glow=bell(p,.55,.3); P.fire=bell(p,.52,.1);
+  } else if(k==='cast'&&sl===1){          // Enchant Totem: приседает, подпрыгивает с тотемом, приземляется со вспышкой
+    P.pitch=RK(p,[[0,.34],[.25,.7],[.5,-.05],[.65,.6,E_in],[.85,.5],[1,.34]]);
+    P.offY=RK(p,[[0,0],[.25,-.22],[.5,1.0,E_out],[.65,-.1,E_in],[.8,0],[1,0]]);
+    P.hR=RK(p,[[0,P.hR],[.25,[.95,.2,.55]],[.5,[.8,3.0,.2]],[.65,[1.0,.16,1.0],E_in],[1,[.9,.58,.44]]]);
+    P.hL=RK(p,[[0,P.hL],[.25,[-.95,.2,.55]],[.5,[-.8,3.0,.2]],[.65,[-1.0,.16,1.0],E_in],[1,[-.9,.58,.44]]]);
+    const air=Math.max(0,P.offY); P.fR=[.38,air*.9,.1+air*.2]; P.fL=[-.38,air*.9,.1+air*.2];
+    P.head=RK(p,[[0,0],[.5,.4],[.65,-.3],[1,0]]); P.glow=bell(p,.55,.3)*1.2; P.fire=bell(p,.62,.08);
+  } else if(k==='cast'&&sl===2){          // Aftershock: топает ногой, ударная волна
+    P.pitch=RK(p,[[0,.34],[.3,.22],[.5,.62,E_in],[.8,.5],[1,.34]]);
+    P.offY=RK(p,[[0,0],[.3,.1],[.5,-.14,E_in],[1,0]]);
+    P.hR=RK(p,[[0,P.hR],[.3,[1.45,1.5,.2]],[.5,[1.15,.3,.7],E_in],[1,[.9,.58,.44]]]);
+    P.hL=RK(p,[[0,P.hL],[.3,[-1.45,1.5,.2]],[.5,[-1.15,.3,.7],E_in],[1,[-.9,.58,.44]]]);
+    P.fR=RK(p,[[0,P.fR],[.3,[.5,.95,.4]],[.5,[.42,0,.25],E_in],[1,P.fR]]);
+    P.head=RK(p,[[0,0],[.3,.3],[.5,-.2],[1,0]]); P.glow=bell(p,.52,.2); P.fire=bell(p,.5,.1);
+  } else if(k==='cast'){                  // Echo Slam: встаёт во весь рост, рычит и обрушивает кулаки — волны по всей земле
+    P.pitch=RK(p,[[0,.34],[.28,-.18],[.42,-.22],[.52,.85,E_in],[.8,.7],[1,.34]]);
+    P.offY=RK(p,[[0,0],[.28,.22],[.42,.26],[.52,-.16,E_in],[1,0]]);
+    P.hR=RK(p,[[0,P.hR],[.28,[1.35,2.8,.2]],[.42,[1.4,3.0,.15]],[.52,[.95,.14,1.0],E_in],[.85,[.95,.14,1.0]],[1,[.9,.58,.44]]]);
+    P.hL=RK(p,[[0,P.hL],[.28,[-1.35,2.8,.2]],[.42,[-1.4,3.0,.15]],[.52,[-.95,.14,1.0],E_in],[.85,[-.95,.14,1.0]],[1,[-.9,.58,.44]]]);
+    P.head=RK(p,[[0,0],[.3,.65],[.42,.7],[.52,-.5,E_in],[1,0]]);
+    P.glow=1.4*bell(p,.5,.35); P.fire=bell(p,.54,.12); P.shake=bell(p,.4,.14);
+  }
+  return P;
+}
+function esFloor(S,rp,P){
+  const k=rp.kind, p=rp.p||0, sl=rp.slot|0; if(k!=='cast') return;
+  const A='#ffb04a', B='#8bd4ff';
+  floorFx(S,()=>{
+    if(sl===0){
+      const g=E_out(cl01((p-.5)/.24)), fade=1-cl01((p-.78)/.22); if(g<=0.01) return;
+      let prev=[0,.025,.75];
+      for(let i=1;i<=9;i++){
+        const z=.75+i*.2*g*1.0, x=(rnd1(i,3)-.5)*.34*(i/9);
+        const q=[x,.025,z];
+        S.obox(prev,q,.09*fade+.02,.03,i%2?A:B,{glow:1,hint:[0,1,0]});
+        const h=(.12+.28*rnd1(i,5))*g*fade;
+        S.cone([x+.16,0,z],[x+.2,h,z+.02],.07,'#6b5842',{seg:5});
+        S.cone([x-.16,0,z],[x-.2,h*.8,z-.02],.06,'#8a6f4d',{seg:5});
+        prev=q;
+      }
+    } else if(sl===1){
+      const r=cl01((p-.62)/.38); if(r>0){ S.ring([0,.012,0],.3+1.5*E_out(r),.07*(1-r)+.015,B,{glow:1,n:36}); S.ring([0,.012,0],.2+1.0*E_out(r),.05*(1-r)+.01,A,{glow:1,n:30}); }
+    } else if(sl===2){
+      for(const j of [0,.1]){ const r=cl01((p-.5-j)/.42); if(r>0) S.ring([0,.012,0],.2+1.45*E_out(r),.06*(1-r)+.015,j?A:B,{glow:1,n:34}); }
+    } else {
+      for(const j of [0,.09,.18]){ const r=cl01((p-.52-j)/.46); if(r>0) S.ring([0,.012,0],.3+2.1*E_out(r),.07*(1-r)+.015,j===.09?A:B,{glow:1,n:44}); }
+      const g=E_out(cl01((p-.52)/.2)), fade=1-cl01((p-.85)/.15);
+      if(g>.01) for(let i=0;i<8;i++){ const a=i/8*Math.PI*2+.2; S.obox([Math.cos(a)*.35,.025,Math.sin(a)*.35],[Math.cos(a)*(.35+1.9*g),.025,Math.sin(a)*(.35+1.9*g)],.07*fade+.015,.03,i%2?A:B,{glow:1,hint:[0,1,0]}); }
+    }
+  });
+}
+MODELS.earthshaker=(S,d,t,pose)=>{
+  const rp=rigResolve(pose,t,'es',4), P=esPose(rp,t);
+  const FUR='#d9852b', FUR2='#f0a746', FURD='#a85a1f', LEA='#2b1a16', LEA2='#43281e', RED='#b8262c', STONE='#8f8678', STONE2='#a89f90', RUNE=P.glow>.6?'#ffc878':'#ff8a2b';
+  const PV=[0,.95,0], sh=P.shake?Math.sin(t*60)*.025*P.shake:0;
+  const R=mkRot(P.pitch,P.twist,P.roll), TR=[sh,P.offY,P.offZ];
+  const Wp=q=>add(add(R(sub(q,PV)),PV),TR);
+  esFloor(S,rp,P);
+  const m0=S.faces.length;
+  /* корпус: мех, ремни, шипы */
+  S.ell([0,.98,0],[.5,.3,.36],LEA2,{rings:6,seg:12});
+  S.tube([0,.9,0],[0,1.25,0],.46,.52,LEA,{seg:12});
+  S.tube([0,.96,0],[0,1.1,0],.56,.56,LEA,{seg:14,shine:.4});
+  S.box([0,1.03,.55],[.2,.18,.06],RED,{shine:.5}); S.box([0,1.03,.58],[.1,.1,.03],'#ff8a2b',{glow:1});
+  S.ell([0,1.5,0],[.72,.62,.55],FUR,{rings:9,seg:16});
+  S.ell([0,1.38,.12],[.55,.5,.44],FUR2,{rings:7,seg:12});
+  S.ell([0,1.55,.26],[.5,.46,.28],LEA2,{rings:6,seg:12,shine:.3});
+  for(const s of [-1,1]){
+    S.obox([s*.5,1.9,.18],[-s*.42,1.05,.3],.15,.05,RED,{shine:.4});
+    S.obox([s*.5,1.9,.18],[-s*.42,1.05,.3],.07,.06,LEA,{shine:.4});
+    S.ell([s*.74,1.85,0],[.42,.34,.42],FUR2,{rings:7,seg:12});
+    S.ell([s*.8,1.92,.02],[.3,.2,.3],LEA2,{rings:5,seg:10,shine:.4});
+    for(let i=0;i<3;i++) S.cone([s*(.62+i*.14),2.0,.0+(i-1)*.1],[s*(.7+i*.2),2.38+i*.04,(i-1)*.14],.07,'#d8d4cc',{seg:5});
+    for(let i=0;i<4;i++) S.cone([s*(.5+i*.08),1.55-i*.1,-.15],[s*(.78+i*.1),1.45-i*.12,-.38],.08,FURD,{seg:5});
+    S.cone([s*.3,1.72,.4],[s*.34,1.9,.52],.06,'#d8d4cc',{seg:5});
+  }
+  for(let i=0;i<2;i++) S.cone([(i?.18:-.18),1.42,.5],[(i?.2:-.2),1.52,.64],.06,'#d8d4cc',{seg:5});
+  S.cone([0,1.3,.52],[0,1.4,.68],.06,'#d8d4cc',{seg:5});
+  /* тотем-молот на спине */
+  const tz=-.52, ty=2.32;
+  S.tube([-.85,ty,tz],[.85,ty,tz],.25,.25,STONE,{seg:10,shine:.3});
+  for(const s of [-1,1]){
+    S.tube([s*.78,ty,tz],[s*1.22,ty,tz],.42,.42,STONE2,{seg:8,shine:.35});
+    S.tube([s*1.2,ty,tz],[s*1.3,ty,tz],.46,.46,RED,{seg:8,shine:.45});
+    S.tube([s*1.3,ty,tz],[s*1.34,ty,tz],.36,.36,'#d2573a',{seg:8,shine:.3});
+    S.tube([s*.74,ty,tz],[s*.8,ty,tz],.46,.46,RED,{seg:8,shine:.45});
+    for(let i=0;i<4;i++){ const a=i*Math.PI/2+Math.PI/4;
+      S.box([s*1.0,ty+Math.sin(a)*.43,tz+Math.cos(a)*.43],[.3,.16,.05],RUNE,{glow:1,rot:[-a,0,0]}); }
+    S.box([s*.52,ty+.01,tz+.26],[.14,.26,.03],RUNE,{glow:1}); S.box([s*.3,ty+.26,tz+.01],[.14,.03,.2],RUNE,{glow:1});
+  }
+  S.box([0,ty,tz+.27],[.5,.05,.03],RUNE,{glow:1}); S.box([0,ty+.25,tz],[.04,.03,.5],RUNE,{glow:1});
+  for(const s of [-1,1]) S.box([s*.3,ty-.2,tz],[.16,.55,.5],LEA,{shine:.3});
+  for(const s of [-1,1]) S.obox([s*.34,2.0,.05],[s*.3,ty-.15,tz+.1],.1,.05,RED,{shine:.4});
+  /* голова: наклоняется независимо от корпуса, чтобы смотреть вперёд */
+  const mh=S.faces.length, HP=[0,1.82,.2];
+  S.ell([0,1.96,.04],[.52,.44,.4],FURD,{rings:7,seg:12});
+  for(let i=0;i<7;i++){ const a=-1.1+i*.37; S.cone([Math.sin(a)*.3,2.06,Math.cos(a)*.26-.05],[Math.sin(a)*.5,2.25+(i%2)*.08,Math.cos(a)*.3-.22],.07,FUR,{seg:5}); }
+  S.ell([0,1.99,.38],[.33,.32,.36],FUR2,{rings:9,seg:14});
+  S.ell([0,1.9,.62],[.14,.1,.16],'#2b2420',{rings:5,seg:8,shine:.4});
+  S.cone([0,1.93,.62],[0,1.82,.92],.13,'#2b2420',{seg:6,shine:.5});
+  S.ell([0,2.0,.58],[.1,.08,.12],FUR,{rings:4,seg:6});
+  for(const s of [-1,1]){
+    S.ell([s*.15,2.07,.66],[.065,.055,.04],'#f4f1ea',{rings:5,seg:8});
+    S.ell([s*.15,2.07,.69],[.04,.04,.02],'#ffd23f',{rings:4,seg:6,glow:1});
+    S.box([s*.15,2.16,.65],[.18,.045,.05],'#3a1a10',{rot:[0,0,-s*.5]});
+    S.cone([s*.26,2.16,.46],[s*.5,2.46,.4],.075,'#efe4c4',{seg:6,shine:.4});
+    S.cone([s*.34,2.0,.32],[s*.5,2.1,.22],.06,FURD,{seg:5});
+  }
+  S.ell([0,1.74,.52],[.3,.34,.2],'#e8892f',{rings:7,seg:12});
+  S.cone([0,1.78,.55],[0,1.18,.72],.22,'#e8892f',{seg:8});
+  S.tube([0,1.3,.74],[0,.98,.76],.07,.05,'#d2681f',{seg:6});
+  S.tube([0,1.2,.75],[0,1.14,.76],.095,.095,RED,{seg:8,shine:.4});
+  xfGroup(S,mh,HP,mkRot(P.head,0,0),[0,0,.07],1.3);
+  /* свечение рун и вспышка удара */
+  if(P.glow>.15){ for(const s of [-1,1]) G(S,[s*1.36,ty,tz+.02],.1+.08*P.glow,'#ff9a3c'); G(S,[0,ty+.28,tz],.08+.06*P.glow,'#ffe2a8'); }
+  xfGroup(S,m0,PV,R,TR);
+  /* конечности — по IK, ладони/стопы стоят на земле */
+  const sw=s=>Wp([s*.74,1.76,0]);
+  const arm=(s,tg)=>{
+    const shd=sw(s), r=ik2(shd,tg,.78,.78,[s*.55,-.1,-.7]), el=r.el, hd=r.hand, dir=norm(sub(hd,el));
+    S.tube(shd,el,.21,.17,FUR); S.ell(el,[.18,.18,.18],FURD,{rings:6,seg:9});
+    S.cone(el,add(el,[s*.18,-.08,-.3]),.07,FUR2,{seg:5});
+    S.tube(el,lerp(el,hd,.5),.17,.17,FUR);
+    const a=lerp(el,hd,.36), b=lerp(el,hd,.97);
+    S.tube(a,b,.27,.25,LEA,{seg:10,shine:.35});
+    S.tube(a,lerp(a,b,.14),.29,.29,RED,{seg:10,shine:.45}); S.tube(lerp(a,b,.86),b,.28,.28,RED,{seg:10,shine:.45});
+    const mid=lerp(a,b,.5); const out=norm(cross(dir,[0,0,1])); const od=mul(out,s*(out[0]*s<0?-1:1));
+    S.cone(add(mid,mul(od,.2)),add(add(mid,mul(od,.5)),[0,.1,0]),.07,'#d8d4cc',{seg:5});
+    S.cone(add(lerp(a,b,.3),mul(od,.2)),add(add(lerp(a,b,.3),mul(od,.44)),[0,.1,0]),.06,'#d8d4cc',{seg:5});
+    S.ell(add(hd,mul(dir,.1)),[.25,.22,.27],'#3a2418',{rings:6,seg:10,shine:.3});
+    S.tube(hd,add(hd,mul(dir,.14)),.24,.24,RED,{seg:10,shine:.4});
+    for(let i=-1;i<=1;i++) S.ell(add(add(hd,mul(dir,.26)),[i*.09,0,0]),[.07,.07,.07],'#5a3622',{rings:4,seg:6});
+  };
+  arm(1,P.hR); arm(-1,P.hL);
+  const leg=(s,ft)=>{
+    const hip=[s*.36,.96+P.offY,P.offZ*.6], r=ik2(hip,add(ft,[0,.2,0]),.58,.58,[s*.12,.1,1]), kn=r.el, an=r.hand;
+    S.ell(hip,[.27,.24,.27],FURD,{rings:6,seg:10});
+    S.tube(hip,kn,.24,.2,LEA2,{seg:10}); S.ell(kn,[.2,.2,.2],LEA,{rings:6,seg:10,shine:.3});
+    S.ell(add(kn,[0,0,.12]),[.14,.15,.08],'#d8d4cc',{rings:4,seg:6,shine:.5});
+    S.tube(kn,an,.2,.17,LEA2,{seg:10});
+    S.tube(add(an,[0,.14,0]),add(an,[0,-.05,0]),.22,.2,'#4a2e20',{seg:10,shine:.3});
+    S.tube(add(an,[0,.1,0]),add(an,[0,.04,0]),.235,.235,RED,{seg:10,shine:.45});
+    S.ell(add(ft,[0,.1,.16]),[.21,.1,.32],'#4a2e20',{rings:5,seg:9,shine:.3});
+    S.ell(add(ft,[0,.08,.4]),[.17,.08,.1],FUR,{rings:4,seg:7});
+    S.box(add(ft,[0,.02,.14]),[.34,.04,.62],'#14100d');
+  };
+  leg(1,P.fR); leg(-1,P.fL);
+  /* вспышки удара */
+  if(P.fire>.1){ for(const s of [-1,1]){ const h=s>0?P.hR:P.hL; if(rp.kind==='attack'&&s<0) continue; G(S,add(h,[0,.12,.1]),.09+.1*P.fire,'#ffd27a'); G(S,add(h,[0,.12,.1]),.04+.05*P.fire,'#ffffff'); } }
+  if(rp.kind==='idle'||rp.kind==='walk'){ for(let i=0;i<3;i++){ const a=t*.9+i*2.1; G(S,[Math.cos(a)*1.45,.5+Math.sin(t*1.7+i)*.14+.2*(rp.kind==='walk'),Math.sin(a)*1.45],.035,'#ffb04a'); } }
+};
+
+/* ---------------- САСЫЧ: Bloodseeker, хищник с кровавым клинком ---------------- */
+function bsPose(rp,t){
+  const k=rp.kind, p=rp.p||0, sl=rp.slot|0, br=Math.sin(t*1.8);
+  const P={pitch:.44+.02*br,twist:.12,roll:0,offY:-.04+.015*br,offZ:0,head:-.2,
+    hR:[.78,1.0+.02*br,.5],hL:[-.72,.92,.55],fR:[.46,0,.14],fL:[-.46,0,-.12],
+    ba:[.25,.85,.5],bc:[.5,0,.9],glow:0};
+  if(k==='walk'){
+    const ph=p*Math.PI*2;
+    const fr=limbPhase(ph,.62,.06,.46,0), fl=limbPhase(ph+Math.PI,.62,.06,.46,0);
+    P.fR=[.4,fr[1],fr[0]]; P.fL=[-.4,fl[1],fl[0]];
+    P.pitch=.74+.05*Math.sin(ph*2); P.offY=-.1+.05*Math.cos(ph*2); P.twist=.2*Math.cos(ph); P.roll=-.06*Math.sin(ph);
+    P.hR=[.74,.78+.16*Math.abs(Math.sin(ph)),.1-.38*Math.cos(ph)]; P.hL=[-.66,.9+.12*Math.abs(Math.sin(ph)),.55+.5*Math.cos(ph)];
+    P.ba=[.14,.12+.2*Math.sin(ph*2),-.95]; P.bc=[.9,.3,0]; P.head=-.55*P.pitch+.1;
+  } else if(k==='attack'){
+    P.pitch=RK(p,[[0,.46],[.28,.15],[.5,.78,E_in],[.8,.55],[1,.46]]);
+    P.twist=RK(p,[[0,.12],[.28,.62],[.5,-.65,E_in],[.8,-.2],[1,.12]]);
+    P.offZ=RK(p,[[0,0],[.28,-.08],[.5,.28,E_in],[1,0]]);
+    P.hR=RK(p,[[0,P.hR],[.28,[.95,2.4,-.35]],[.5,[-.25,.85,1.4],E_in],[.78,[.2,.95,1.0]],[1,[.78,1.0,.5]]]);
+    P.ba=RK(p,[[0,P.ba],[.28,[.35,.55,-.75]],[.5,[-.55,.1,.85],E_in],[.78,[0,.5,.8]],[1,[.25,.85,.5]]]);
+    P.bc=RK(p,[[0,P.bc],[.28,[0,1,0]],[.5,[.2,.9,.2]],[1,[.5,0,.9]]]);
+    P.hL=RK(p,[[0,P.hL],[.28,[-.9,1.5,.3]],[.5,[-.55,.95,1.25],E_in],[.8,[-.7,.9,.7]],[1,[-.72,.92,.55]]]);
+    P.head=RK(p,[[0,-.2],[.28,.15],[.5,-.45],[1,-.2]]); P.fire=bell(p,.52,.1);
+  } else if(k==='cast'&&sl===0){          // Bloodrage: поднимает клинок, ревёт, багровая аура
+    P.pitch=RK(p,[[0,.46],[.35,-.15],[.75,-.12],[1,.46]]);
+    P.twist=.1+.08*Math.sin(t*50)*bell(p,.5,.3);
+    P.offY=RK(p,[[0,-.1],[.35,.08],[.75,.06],[1,-.1]]);
+    P.hR=RK(p,[[0,P.hR],[.35,[.5,2.95,.1]],[.75,[.5,2.95,.1]],[1,[.78,1.0,.5]]]);
+    P.ba=RK(p,[[0,P.ba],[.35,[.05,.98,.2]],[.75,[.05,.98,.2]],[1,[.25,.85,.5]]]);
+    P.hL=RK(p,[[0,P.hL],[.35,[-1.2,2.2,.2]],[.75,[-1.2,2.0,.25]],[1,[-.72,.92,.55]]]);
+    P.head=RK(p,[[0,-.2],[.35,.65],[.75,.55],[1,-.2]]); P.glow=1.2*bell(p,.5,.32); P.fire=bell(p,.45,.2);
+  } else if(k==='cast'&&sl===1){          // Blood Rite: вонзает клинок в землю перед собой
+    P.pitch=RK(p,[[0,.46],[.3,-.1],[.5,.78,E_in],[.85,.7],[1,.46]]);
+    P.twist=RK(p,[[0,.12],[.3,.3],[.5,-.2],[1,.12]]);
+    P.offZ=RK(p,[[0,0],[.3,-.06],[.5,.2,E_in],[1,0]]);
+    P.hR=RK(p,[[0,P.hR],[.3,[.4,2.9,.0]],[.5,[.3,1.0,1.35],E_in],[.88,[.3,1.0,1.35]],[1,[.78,1.0,.5]]]);
+    P.ba=RK(p,[[0,P.ba],[.3,[0,.95,-.2]],[.5,[0,-.98,.15],E_in],[.88,[0,-.98,.15]],[1,[.25,.85,.5]]]);
+    P.bc=RK(p,[[0,P.bc],[.5,[0,0,1]],[1,[.5,0,.9]]]);
+    P.hL=RK(p,[[0,P.hL],[.3,[-.45,2.6,.1]],[.5,[-.35,1.15,1.15],E_in],[.88,[-.35,1.15,1.15]],[1,[-.72,.92,.55]]]);
+    P.head=RK(p,[[0,-.2],[.3,.3],[.5,-.5],[1,-.2]]); P.glow=bell(p,.55,.25); P.fire=bell(p,.5,.1);
+  } else if(k==='cast'&&sl===2){          // Thirst: чует кровь — задирает голову, когти в стороны
+    P.pitch=RK(p,[[0,.46],[.4,.05],[.8,.1],[1,.46]]);
+    P.twist=.1*Math.sin(p*Math.PI*4);
+    P.hR=RK(p,[[0,P.hR],[.4,[1.3,1.7,.35]],[.8,[1.3,1.6,.4]],[1,[.78,1.0,.5]]]);
+    P.ba=RK(p,[[0,P.ba],[.4,[.6,.75,.2]],[.8,[.6,.75,.2]],[1,[.25,.85,.5]]]);
+    P.hL=RK(p,[[0,P.hL],[.4,[-1.3,1.7,.35]],[.8,[-1.3,1.6,.4]],[1,[-.72,.92,.55]]]);
+    P.head=RK(p,[[0,-.2],[.4,.6],[.8,.5],[1,-.2]]); P.glow=bell(p,.5,.3); P.fire=bell(p,.45,.2);
+  } else if(k==='cast'){                  // Rupture: рывок вперёд и выпад клинком, кровавая цепь
+    P.pitch=RK(p,[[0,.46],[.3,.28],[.5,.92,E_in],[.8,.8],[1,.46]]);
+    P.twist=RK(p,[[0,.12],[.3,.7],[.5,-.2,E_in],[1,.12]]);
+    P.offZ=RK(p,[[0,0],[.3,-.18],[.5,.4,E_in],[.8,.34],[1,0]]);
+    P.offY=RK(p,[[0,-.1],[.3,-.24],[.5,-.16],[1,-.1]]);
+    P.hR=RK(p,[[0,P.hR],[.3,[1.0,1.5,-.3]],[.5,[.3,1.35,1.7],E_in],[.85,[.3,1.35,1.6]],[1,[.78,1.0,.5]]]);
+    P.ba=RK(p,[[0,P.ba],[.3,[.4,.2,-.9]],[.5,[0,.04,1],E_in],[.85,[0,.04,1]],[1,[.25,.85,.5]]]);
+    P.bc=RK(p,[[0,P.bc],[.5,[0,1,0]],[1,[.5,0,.9]]]);
+    P.hL=RK(p,[[0,P.hL],[.3,[-.9,1.1,.2]],[.5,[-.5,1.2,1.5],E_in],[.85,[-.5,1.2,1.4]],[1,[-.72,.92,.55]]]);
+    P.fR=RK(p,[[0,P.fR],[.3,[.5,0,-.2]],[.5,[.42,0,.55],E_in],[1,P.fR]]);
+    P.fL=RK(p,[[0,P.fL],[.3,[-.5,0,.0]],[.5,[-.42,0,.05],E_in],[1,P.fL]]);
+    P.head=RK(p,[[0,-.2],[.3,.1],[.5,-.7],[1,-.2]]); P.glow=bell(p,.55,.3); P.fire=bell(p,.5,.1); P.chain=E_out(cl01((p-.45)/.3))*(1-cl01((p-.85)/.15));
+  }
+  return P;
+}
+function bsFloor(S,rp,P,hdBase){
+  const k=rp.kind, p=rp.p||0, sl=rp.slot|0, R1='#ff3b55', R2='#ffd0da';
+  floorFx(S,()=>{
+    if(k==='attack'){ const r=cl01((p-.48)/.4); if(r>0) S.ring([0,.012,.5],.25+.7*E_out(r),.05*(1-r)+.01,R1,{glow:1,n:26}); return; }
+    if(k!=='cast') return;
+    if(sl===0){ for(const j of [0,.14]){ const r=cl01((p-.3-j)/.5); if(r>0) S.ring([0,.012,0],.3+1.5*E_out(r),.06*(1-r)+.012,j?R2:R1,{glow:1,n:34}); } }
+    else if(sl===1){ const r=cl01((p-.48)/.5); if(r>0){ const c=[.3,.012,1.4]; S.ring(c,.25+.8*E_out(r),.05*(1-r)+.015,R1,{glow:1,n:28}); S.ring(c,.18+.5*E_out(r),.035*(1-r)+.01,R2,{glow:1,n:22}); } }
+    else if(sl===2){ for(const j of [0,.12]){ const r=cl01((p-.35-j)/.5); if(r>0) S.ring([0,.012,0],.2+1.2*E_out(r),.05*(1-r)+.012,j?R2:R1,{glow:1,n:30}); } }
+    else { const r=cl01((p-.55)/.4); if(r>0) S.ring([0,.012,1.8],.2+.7*E_out(r),.05*(1-r)+.012,R1,{glow:1,n:26}); }
+  });
+}
+MODELS.sasych=(S,d,t,pose)=>{
+  const rp=rigResolve(pose,t,'bs',4), P=bsPose(rp,t);
+  const SK='#b9763f', SKD='#8f5428', SKL='#d09258', RED='#c4222b', REDD='#7d1219', BLK='#1b1413', BONE='#f1ead6', HAIR='#2a1b15';
+  const PV=[0,.9,0], R=mkRot(P.pitch,P.twist,P.roll), TR=[0,P.offY,P.offZ];
+  const Wp=q=>add(add(R(sub(q,PV)),PV),TR);
+  bsFloor(S,rp,P);
+  const m0=S.faces.length;
+  /* корпус: набедренная повязка, рельефный торс, красно-чёрная накидка */
+  S.ell([0,.95,0],[.42,.26,.3],SKD,{rings:6,seg:12});
+  S.tube([0,.95,0],[0,.4,0],.43,.5,RED,{seg:12,shine:.3});
+  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; S.box([Math.sin(a)*.47,.62,Math.cos(a)*.47],[.07,.5,.03],BLK,{rot:[0,a,0]}); }
+  S.tube([0,.9,0],[0,1.04,0],.46,.46,BLK,{seg:14,shine:.4});
+  S.box([0,.97,.46],[.16,.16,.04],BONE,{shine:.6}); S.box([0,.97,.485],[.08,.08,.02],RED,{glow:0});
+  S.box([.18,.45,-.34],[.2,.9,.04],RED,{rot:[.1,0,.08]}); S.box([-.22,.4,-.34],[.2,.95,.04],REDD,{rot:[.1,0,-.06]});
+  S.tube([0,1.0,0],[0,1.4,0],.33,.4,SK,{seg:14});
+  S.ell([0,1.58,.02],[.58,.46,.36],SK,{rings:9,seg:16});
+  for(const s of [-1,1]){ S.ell([s*.26,1.62,.2],[.27,.21,.16],SKL,{rings:6,seg:10});
+    S.ell([s*.18,1.25,.22],[.16,.1,.08],SKD,{rings:4,seg:8}); S.ell([s*.17,1.1,.2],[.15,.09,.08],SKD,{rings:4,seg:8});
+    S.ell([s*.64,1.8,0],[.27,.24,.27],SKL,{rings:6,seg:10});
+    S.tube([s*.6,1.82,0],[s*.7,1.84,0],.28,.28,BLK,{seg:10,shine:.3}); }
+  S.ell([0,1.86,-.06],[.46,.2,.3],SK,{rings:5,seg:10});
+  S.box([0,1.7,-.31],[.74,.92,.05],RED,{shine:.3});
+  for(let i=-2;i<=2;i++) S.box([i*.14,1.7,-.335],[.045,.9,.02],BLK);
+  S.box([0,1.3,-.33],[.76,.06,.05],BLK);
+  /* голова и кость-воротник (отдельная группа — голова смотрит вперёд) */
+  const mh=S.faces.length, HP=[0,1.92,.04];
+  S.tube([0,1.82,0],[0,2.0,.06],.17,.15,SK,{seg:10});
+  for(let r=0;r<2;r++) for(let i=0;i<10;i++){ const a=i/10*Math.PI*2+r*.31, rr=.2+r*.04;
+    const bx=Math.sin(a)*rr, bz=Math.cos(a)*rr+.04, by=1.86+r*.1;
+    S.cone([bx,by,bz],[bx+Math.sin(a)*(.3+.08*rnd1(i,r)),by+.13+.1*rnd1(i,r+3),bz+Math.cos(a)*(.28+.08*rnd1(i,r+7))],.058-.01*r,BONE,{seg:5,shine:.5}); }
+  S.ell([0,2.13,.1],[.27,.32,.29],RED,{rings:9,seg:14,shine:.25});
+  S.ell([0,2.0,.2],[.19,.17,.15],RED,{rings:6,seg:10});
+  for(let i=-1;i<=1;i++){ S.box([i*.1,2.34,.18],[.04,.2,.03],BLK,{rot:[-.7,0,i*.25]}); }
+  for(const s of [-1,1]){
+    S.box([s*.13,2.19,.375],[.2,.05,.03],BLK,{rot:[0,0,-s*.45]});
+    S.box([s*.14,2.12,.385],[.14,.07,.03],BLK,{rot:[0,0,-s*.4]});
+    S.ell([s*.12,2.15,.385],[.045,.026,.02],'#ffe27a',{glow:1,rings:4,seg:6});
+    S.box([s*.16,2.0,.34],[.04,.2,.03],BLK,{rot:[0,0,s*.55]});
+    S.box([s*.07,2.3,.3],[.03,.18,.03],BLK,{rot:[-.5,0,s*.1]});
+  }
+  S.box([0,1.98,.345],[.16,.07,.03],'#2a0a0e');
+  for(let i=-2;i<=2;i++){ S.cone([i*.03,2.015,.355],[i*.03,1.955,.36],.014,BONE,{seg:4}); S.cone([i*.03,1.945,.355],[i*.03,1.985,.36],.012,BONE,{seg:4}); }
+  S.ell([0,2.26,-.12],[.2,.2,.3],HAIR,{rings:6,seg:10});
+  for(let i=0;i<9;i++){ const sx=(i-4)*.07;
+    S.cone([sx*.8,2.36,-.02-i*.015],[sx*1.9,2.46+.08*Math.sin(i*1.7),-.5-.08*(i%3)],.07,i%2?HAIR:'#3a2519',{seg:5}); }
+  for(const s of [-1,1]) for(let i=0;i<3;i++) S.cone([s*.2,2.2-i*.05,-.1],[s*(.48+i*.08),2.0-i*.2,-.42-i*.06],.05,HAIR,{seg:5});
+  xfGroup(S,mh,HP,mkRot(P.head,0,0),[0,0,.04],1.32);
+  xfGroup(S,m0,PV,R,TR);
+  /* руки по IK: правая держит клинок, левая — когти */
+  const shp=s=>Wp([s*.64,1.78,0]);
+  let hdR=null, elR=null;
+  const arm=(s,tg)=>{
+    const shd=shp(s), r=ik2(shd,tg,.62,.62,[s*.6,-.15,-.8]), el=r.el, hd=r.hand, dir=norm(sub(hd,el));
+    S.tube(shd,el,.14,.11,SK); S.ell(el,[.12,.12,.12],SKD,{rings:5,seg:8});
+    S.tube(el,lerp(el,hd,.35),.11,.1,SK);
+    S.tube(lerp(el,hd,.3),lerp(el,hd,.95),.145,.13,BLK,{seg:9,shine:.3});
+    S.tube(lerp(el,hd,.3),lerp(el,hd,.38),.16,.16,RED,{seg:9,shine:.4}); S.tube(lerp(el,hd,.86),hd,.15,.15,RED,{seg:9,shine:.4});
+    S.ell(add(hd,mul(dir,.07)),[.1,.1,.11],SK,{rings:5,seg:8});
+    if(s<0) for(let i=-1;i<=1;i++){ const fp=add(add(hd,mul(dir,.14)),[i*.05,0,0]); S.cone(fp,add(fp,add(mul(dir,.2),[i*.03,-.04,0])),.028,BONE,{seg:4,shine:.5}); }
+    if(s>0){ hdR=hd; elR=el; }
+  };
+  arm(1,P.hR); arm(-1,P.hL);
+  /* изогнутый кровавый клинок в правой руке */
+  if(hdR){
+    const a=norm(P.ba); let c=sub(P.bc,mul(a,dot(P.bc,a))); c=len(c)<1e-3?[0,0,1]:norm(c); const nrm=norm(cross(a,c));
+    const H=add(hdR,mul(a,-.0)), L=1.65, curve=1.0, Rb=L/curve;
+    S.tube(add(H,mul(a,-.24)),add(H,mul(a,.16)),.05,.05,BLK,{seg:7,shine:.4});
+    S.ell(add(H,mul(a,-.26)),[.07,.07,.07],BONE,{rings:4,seg:6,shine:.5});
+    S.tube(add(H,mul(a,.14)),add(H,mul(a,.2)),.1,.1,BONE,{seg:8,shine:.5});
+    const pt=u=>{ const b=u*curve; return add(add(H,mul(a,.2+Rb*Math.sin(b))),mul(c,Rb*(1-Math.cos(b)))); };
+    const N=9;
+    for(let i=0;i<N;i++){ const u0=i/N, u1=(i+1)/N, q0=pt(u0), q1=pt(u1);
+      const w=.13+.2*Math.sin(Math.PI*(.12+.82*(u0+u1)/2))-(u1>.85?.08:0);
+      const hint=nrm;
+      S.obox(q0,q1,Math.max(.06,w),.035,'#f4eee6',{shine:.7,hint});
+      S.obox(q0,q1,Math.max(.03,w*.5),.045,i%2?RED:'#a01822',{shine:.5,hint});
+    }
+    S.cone(pt(1),add(pt(1),mul(norm(add(mul(a,Math.cos(curve)),mul(c,Math.sin(curve)))),.22)),.07,'#f4eee6',{seg:4,shine:.7});
+    if(P.glow>.1) for(let i=0;i<5;i++){ const q=pt(.2+i*.17); G(S,add(q,mul(nrm,.05)),.05+.07*P.glow,'#ff3b55'); }
+  }
+  /* ноги: широкий хищный шаг, голые стопы с когтями */
+  const leg=(s,ft)=>{
+    const hip=[s*.32,.9+P.offY,P.offZ*.6], r=ik2(hip,add(ft,[0,.12,0]),.62,.6,[s*.12,.1,1]), kn=r.el, an=r.hand;
+    S.ell(hip,[.24,.22,.24],SKD,{rings:5,seg:9});
+    S.tube(hip,kn,.22,.16,SK,{seg:10}); S.ell(kn,[.16,.17,.16],SKL,{rings:5,seg:8});
+    S.tube(kn,an,.15,.11,SK,{seg:9});
+    S.tube(add(an,[0,.16,0]),add(an,[0,.02,0]),.13,.12,BLK,{seg:9,shine:.3}); S.tube(add(an,[0,.14,0]),add(an,[0,.1,0]),.14,.14,RED,{seg:9,shine:.4});
+    S.ell(add(ft,[0,.07,.12]),[.12,.07,.25],SK,{rings:4,seg:8});
+    for(let i=-1;i<=1;i++) S.cone(add(ft,[i*.06,.06,.34]),add(ft,[i*.065,.03,.5]),.03,BONE,{seg:4,shine:.5});
+    S.box(add(ft,[0,.015,.14]),[.26,.03,.5],'#14100d');
+  };
+  leg(1,P.fR); leg(-1,P.fL);
+  /* кровавые эффекты */
+  if(P.glow>.1){ for(let i=0;i<6;i++){ const ph=(t*.8+i/6)%1, a=i*1.05+t; G(S,[Math.cos(a)*(.9+.2*P.glow),.2+ph*2.2,Math.sin(a)*(.9+.2*P.glow)],.05*(1-ph*.5)+.02,i%2?'#ff3b55':'#ffd0da'); } }
+  if(P.fire>.1 && hdR) G(S,hdR,.06+.08*P.fire,'#ff3b55');
+  if(P.chain>.02){ for(let i=1;i<=9;i++){ const q=add(hdR||[.3,1.4,1.5],[Math.sin(i*2.1+t*8)*.05,Math.sin(i*1.3)*.04,.35+i*.24*P.chain]); G(S,q,.07*(1-i/12)*P.chain+.02,i%2?'#ff3b55':'#ffd0da'); } }
+};
+const _bsCasts=4;
+ANIM.earthshaker=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'walk',p:.25},{kind:'walk',p:.75},{kind:'cast',slot:0,p:.3},{kind:'cast',slot:0,p:.55},{kind:'cast',slot:1,p:.5},{kind:'cast',slot:1,p:.7},{kind:'cast',slot:2,p:.3},{kind:'cast',slot:2,p:.55},{kind:'cast',slot:3,p:.4},{kind:'cast',slot:3,p:.6}];
+ANIM.sasych=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'walk',p:.25},{kind:'walk',p:.75},{kind:'cast',slot:0,p:.4},{kind:'cast',slot:0,p:.6},{kind:'cast',slot:1,p:.3},{kind:'cast',slot:1,p:.6},{kind:'cast',slot:2,p:.4},{kind:'cast',slot:2,p:.6},{kind:'cast',slot:3,p:.35},{kind:'cast',slot:3,p:.6}];
+
+
 /* ---------- Настройки анимаций бойцов: idle-руки, стиль атаки, стили 4 способностей ---------- */
 gaReg('shadow',{walkArm:0.2,idle:{R:[.85,1.1,.5],L:[-.85,1.1,.5]},att:'dual',ranged:1,shotBoth:1,hit:.5,casts:['raise','raise','raise','fan'],rings:[0,1,2,3],ringR:1.3,col:['#ff5a1f','#fff0a8']});
 gaReg('mageHunter',{walkArm:0.15,idle:{R:[.8,1.2,.55],L:[-.8,1.2,.55]},att:'cross',hit:.5,casts:['punch','cross','guard','raise'],rings:[3],hands:'none',trailOff:[0,.55,.25],col:['#d58cff','#ffffff']});
@@ -1582,7 +1988,6 @@ function autoAnim(id,cfg){
 }
 autoAnim('warlord',   {walkArm:.1, att:'slashR', hit:.5, casts:['sweep','raise','stab','whirl'], rings:[1,3], ringR:1.35, hands:'R', trailOff:[0,.7,.3], col:['#4fc3f7','#e1f5fe']});
 autoAnim('golly',     {walkArm:.06,att:'throw',  hit:.52,ranged:1, casts:['lpoint','raise','guard','raise','fan'], rings:[1,3,4], ringR:1.3, hands:'R', trailOff:[0,.6,0], col:['#7fe8ff','#e8fbff']});
-autoAnim('sasych',    {walkArm:.14,att:'cross',  hit:.5, casts:['raise','whirl','guard','cross'], rings:[1,3], ringR:1.3, hands:'none', trailOff:[0,.45,.2], col:['#d9425c','#ffd0da']});
 autoAnim('ilya',      {walkArm:.1, att:'punch',  hit:.5, casts:['throw','clap','guard','raise'], rings:[1,3], ringR:1.6, col:['#8dff79','#e6ffd9']});
 autoAnim('malit',     {walkArm:.08,att:'slashR', hit:.5, casts:['raise','guard','stab','gunup'], rings:[0,3], ringR:1.3, hands:'R', trailOff:[0,.7,.1], col:['#ff6a4a','#ffe0b0']});
 autoAnim('arcady',    {walkArm:.05,att:'recoil', hit:.45,ranged:1, casts:['recoil','throw','guard','gunup'], rings:[2,3], ringR:1.2, hands:'R', trail:'none', col:['#ff762f','#fff3b0']});
@@ -1593,7 +1998,6 @@ autoAnim('exileKnight',{walkArm:.08,att:'slashR',hit:.5, casts:['stab','sweep','
 autoAnim('juvsyut',   {walkArm:.1, att:'punch',  hit:.5, casts:['bigrecoil','guard','whirl','raise'], rings:[0,2,3], ringR:1.6, hands:'R', trailOff:[0,.5,0], col:['#ffd568','#fff3b0']});
 autoAnim('savely',    {walkArm:.1, att:'punch',  hit:.5, casts:['guard','raise','throw','raise'], rings:[1,3], ringR:1.6, hands:'R', trail:'none', col:['#ffcc66','#fff3c4']});
 autoAnim('juggernaut',{walkArm:.1, att:'slashR', hit:.5, casts:['whirl','lup','sweep','flurry'], rings:[0,3], ringR:1.35, hands:'R', trailOff:[0,.9,.2], col:['#ffe7a2','#ffffff']});
-autoAnim('earthshaker',{walkArm:.06,att:'slashR',hit:.52,casts:['stab','raise','guard','raise'], rings:[0,1,3], ringR:1.7, hands:'R', trailOff:[0,.7,0], col:['#8bd4ff','#e6f7ff']});
 autoAnim('sniper',    {walkArm:.05,att:'recoil', hit:.4, ranged:1, casts:['throw','recoil','aim','bigrecoil'], rings:[2], ringR:1.2, hands:'R', trail:'none', col:['#ffd27a','#fff3c4']});
 
 const API={draw,models:MODELS,render,battleSprite,resetBudget,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
