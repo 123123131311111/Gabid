@@ -9,7 +9,10 @@ const server = http.createServer(app);
 const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000 });
 const PORT = process.env.PORT || 3000;
 accounts.connect().catch(() => console.error('accounts: MongoDB unavailable; account API will retry when requested'));
-const MAX_SLOTS = 6;
+const SLOTS_PER_TEAM = 4;
+const MAX_SLOTS = SLOTS_PER_TEAM * 2;
+const MODE_SIZES = {'1v1':1,'2v2':2,'3v3':3,'4v4':4};
+const RULESETS = ['turbo','allpick'];
 const WORLD_SIZE = 6500;
 const TICK_RATE = 30;
 const MAP_SCALE = 1.846;
@@ -41,37 +44,69 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const makeRoomId = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const roomOf = socket => rooms[socketRooms.get(socket.id)];
 
-function createRoom(hostId){
-  const room = {id:makeRoomId(), hostId, started:false, players:Object.create(null), bullets:[]};
+function createRoom(hostId, hostNick=''){
+  const room = {id:makeRoomId(), hostId, started:false, players:Object.create(null), bullets:[],
+    settings:{name:(hostNick ? 'Лобби ' + hostNick : 'Лобби').slice(0,28), mode:'3v3', ruleset:'turbo', fillBots:false}};
   rooms[room.id] = room;
   return room;
 }
-function findOpenRoom(){ return Object.values(rooms).find(room => !room.started && Object.keys(room.players).length < MAX_SLOTS); }
+const teamSize = room => MODE_SIZES[room.settings.mode] || 3;
+const humansOf = room => Object.values(room.players).filter(player => !player.bot);
+const slotTeam = slot => Math.floor(slot / SLOTS_PER_TEAM);
+function freeSlotsOf(room, team){
+  const used = new Set(Object.values(room.players).map(player => player.slot));
+  const result = [];
+  for(let i=0;i<teamSize(room);i++){ const slot = team*SLOTS_PER_TEAM+i; if(!used.has(slot)) result.push(slot); }
+  return result;
+}
+function findOpenRoom(){ return Object.values(rooms).find(room => !room.started && humansOf(room).length < teamSize(room)*2); }
 function createLobbyPlayer(id, slot, identity={}){
   const frame = ['iron','veteran','dominion','legend'].includes(identity.frame) ? identity.frame : 'iron';
   return {
-    id, slot, team:slot < 3 ? 0 : 1, bot:false, hero:DEFAULT_HEROES[slot],
+    id, slot, team:slot < 0 ? -1 : slotTeam(slot), bot:false, hero:null,
     nick:typeof identity.nick === 'string' ? identity.nick.slice(0,16) : '',
     title:typeof identity.title === 'string' ? identity.title.slice(0,32) : '',
     frame
   };
 }
 function nextOpenSlot(room){
-  const players = Object.values(room.players);
+  const light = freeSlotsOf(room, 0), dark = freeSlotsOf(room, 1);
+  const players = humansOf(room);
   const counts = [players.filter(player => player.team === 0).length, players.filter(player => player.team === 1).length];
-  const preferredTeam = counts[0] <= counts[1] ? 0 : 1;
-  const slots = preferredTeam === 0 ? [0,1,2,3,4,5] : [3,4,5,0,1,2];
-  return slots.find(slot => !players.some(player => player.slot === slot));
+  const order = counts[0] <= counts[1] ? [light, dark] : [dark, light];
+  for(const list of order) if(list.length) return list[0];
+  return undefined;
+}
+function pickFreeHero(room, preferred){
+  const taken = new Set(Object.values(room.players).map(player => player.hero).filter(Boolean));
+  if(preferred && HERO_IDS.includes(preferred) && !taken.has(preferred)) return preferred;
+  const pool = HERO_IDS.filter(id => !taken.has(id));
+  return pool[Math.floor(Math.random()*pool.length)] || HERO_IDS[0];
+}
+/* После смены режима/размера лобби: игроки, которым не хватило места, становятся «неопределившимися». */
+function repackRoom(room){
+  const size = teamSize(room);
+  const people = humansOf(room);
+  const keep = [];
+  for(const player of people){
+    const ok = player.slot >= 0 && (player.slot % SLOTS_PER_TEAM) < size;
+    if(ok) keep.push(player); else { player.slot = -1; player.team = -1; }
+  }
+  for(const player of people){
+    if(player.slot >= 0) continue;
+    const slot = nextOpenSlot(room);
+    if(Number.isInteger(slot)){ player.slot = slot; player.team = slotTeam(slot); }
+  }
 }
 function lobbyPayload(room){
-  return {roomId:room.id, hostId:room.hostId, started:room.started,
+  return {roomId:room.id, hostId:room.hostId, started:room.started, settings:{...room.settings}, teamSize:teamSize(room),
     players:Object.values(room.players).map(player => ({...player}))};
 }
 function emitLobby(room){ io.to(room.id).emit('lobbyUpdate', lobbyPayload(room)); }
 function emitOnlineCount(){ io.emit('update-online', {count:io.engine.clientsCount}); }
 function spawnPlayer(member){
   const base = BASES[member.team];
-  const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % 3)-1)*0.55;
+  const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % SLOTS_PER_TEAM)-1.5)*0.45;
   const spawn = {x:base.x+Math.cos(angle)*SPAWN_RADIUS,y:base.y+Math.sin(angle)*SPAWN_RADIUS};
   return {id:member.id, slot:member.slot, team:member.team, bot:member.bot, heroId:member.hero || 'shadow',
     x:spawn.x, y:spawn.y,
@@ -83,9 +118,20 @@ function spawnPlayer(member){
 }
 function startRoom(room){
   if(!room || room.started) return false;
-  const players = Object.values(room.players);
-  const teamCounts = [players.filter(player => player.team === 0).length, players.filter(player => player.team === 1).length];
-  if(players.length < 2 || players.length > MAX_SLOTS || Math.abs(teamCounts[0]-teamCounts[1]) > 1) return false;
+  const humans = humansOf(room);
+  if(!humans.length || humans.some(player => player.slot < 0 || !player.hero)) return false;
+  const counts = [humans.filter(player => player.team === 0).length, humans.filter(player => player.team === 1).length];
+  if(!room.settings.fillBots){
+    if(humans.length < 2 || !counts[0] || !counts[1] || Math.abs(counts[0]-counts[1]) > 1) return false;
+  } else {
+    for(const team of [0,1]){
+      for(const slot of freeSlotsOf(room, team)){
+        const id = 'bot:' + room.id + ':' + slot;
+        room.players[id] = {id, slot, team, bot:true, hero:pickFreeHero(room), nick:'Бот', title:'', frame:'iron'};
+        socketRooms.set(id, room.id);
+      }
+    }
+  }
   room.started = true;
   room.state = Object.create(null);
   room.towers = Object.create(null);
@@ -115,8 +161,8 @@ function startRoom(room){
   room.towers[makeTowerId(1, null, null, true)] = {id:makeTowerId(1, null, null, true),team:1,x:BASES[1].x,y:BASES[1].y,hp:ancientHp,maxHp:ancientHp,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
   const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
-  for(const member of Object.values(room.players))
-    io.to(member.id).emit('match:begin', {id:member.id, roomId:room.id, roster, state:gameState(room)});
+  for(const member of humansOf(room))
+    io.to(member.id).emit('match:begin', {id:member.id, roomId:room.id, hostId:room.hostId, settings:{...room.settings}, roster, state:gameState(room)});
   return true;
 }
 function gameState(room){
@@ -247,7 +293,7 @@ function handlePlayerStats(socket, stats){
   }
 }
 function emitPlayerVitals(room,player){
-  io.to(player.id).emit('playerVitals',{
+  io.to(player.bot ? room.hostId : player.id).emit('playerVitals',{
     id:player.id,hp:player.hp,maxHp:player.maxHp,alive:player.alive,
     respawnTimer:player.respawnTimer,damageVersion:player.damageVersion
   });
@@ -493,35 +539,101 @@ io.on('connection', socket => {
     }
     socket.data.matchJoinPending=false;
     if(!profile) return socket.emit('room:error',{code:'ACCOUNT_REQUIRED',message:'Для игры в мультиплеер войдите в аккаунт.'});
-    const room = findOpenRoom() || createRoom(socket.id);
+    const room = (!(data && data.create) && findOpenRoom()) || createRoom(socket.id, profile.nick);
     const slot = nextOpenSlot(room);
     if(!Number.isInteger(slot)) return socket.emit('room:error',{message:'Комната заполнена.'});
-    room.players[socket.id] = createLobbyPlayer(socket.id, slot, profile);
+    const lobbyPlayer = createLobbyPlayer(socket.id, slot, profile);
+    lobbyPlayer.hero = pickFreeHero(room);
+    room.players[socket.id] = lobbyPlayer;
+    if(!room.hostId || !room.players[room.hostId]) room.hostId = socket.id;
     socketRooms.set(socket.id, room.id); socket.join(room.id); emitLobby(room);
   });
   socket.on('room:select', data => {
     const room = roomOf(socket); const player = room?.players?.[socket.id];
-    if(!room || room.started || !player) return;
-    if(Number.isInteger(data.slot) && data.slot >= 0 && data.slot < MAX_SLOTS &&
+    if(!room || room.started || !player || !data) return;
+    if(Number.isInteger(data.slot) && data.slot >= 0 && data.slot < MAX_SLOTS && (data.slot % SLOTS_PER_TEAM) < teamSize(room) &&
        !Object.values(room.players).some(other => other.id !== socket.id && other.slot === data.slot)){
-      const nextTeam = data.slot < 3 ? 0 : 1;
-      const players = Object.values(room.players);
-      const counts = [players.filter(other => other.team === 0 && other.id !== socket.id).length,
-        players.filter(other => other.team === 1 && other.id !== socket.id).length];
-      counts[nextTeam]++;
-      if(Math.abs(counts[0]-counts[1]) <= 1){ player.slot = data.slot; player.team = nextTeam; }
+      player.slot = data.slot; player.team = slotTeam(data.slot);
     }
     if(typeof data.heroId === 'string' && HERO_IDS.includes(data.heroId) &&
        !Object.values(room.players).some(other => other.id !== socket.id && other.hero === data.heroId)) player.hero = data.heroId;
     emitLobby(room);
   });
+  /* Настройки лобби — только владелец комнаты. */
+  socket.on('room:settings', data => {
+    const room = roomOf(socket);
+    if(!room || room.started || !data) return;
+    if(room.hostId !== socket.id) return socket.emit('room:error',{message:'Настройки меняет только владелец лобби.'});
+    if(typeof data.mode === 'string' && MODE_SIZES[data.mode]) room.settings.mode = data.mode;
+    if(typeof data.ruleset === 'string' && RULESETS.includes(data.ruleset)) room.settings.ruleset = data.ruleset;
+    if(typeof data.fillBots === 'boolean') room.settings.fillBots = data.fillBots;
+    if(typeof data.name === 'string') room.settings.name = data.name.replace(/[<>]/g,'').trim().slice(0,28) || room.settings.name;
+    repackRoom(room);
+    emitLobby(room);
+  });
+  socket.on('room:swap', () => {
+    const room = roomOf(socket);
+    if(!room || room.started || room.hostId !== socket.id) return;
+    for(const player of humansOf(room)){ if(player.slot >= 0){ player.slot = (player.slot + SLOTS_PER_TEAM) % MAX_SLOTS; player.team = slotTeam(player.slot); } }
+    emitLobby(room);
+  });
+  socket.on('room:balance', () => {
+    const room = roomOf(socket);
+    if(!room || room.started || room.hostId !== socket.id) return;
+    const people = humansOf(room);
+    for(const player of people){ player.slot = -1; player.team = -1; }
+    people.forEach((player, index) => {
+      const team = index % 2;
+      const slot = freeSlotsOf(room, team)[0] ?? freeSlotsOf(room, 1-team)[0];
+      if(Number.isInteger(slot)){ player.slot = slot; player.team = slotTeam(slot); }
+    });
+    emitLobby(room);
+  });
+  function removeFromLobby(room, id, reason){
+    delete room.players[id]; socketRooms.delete(id);
+    const target = io.sockets.sockets.get(id);
+    if(target){ target.leave(room.id); if(reason) target.emit('room:left',{reason}); }
+  }
+  socket.on('room:kick', data => {
+    const room = roomOf(socket);
+    if(!room || room.started || room.hostId !== socket.id || !data || data.id === socket.id || !room.players[data.id] || room.players[data.id].bot) return;
+    removeFromLobby(room, data.id, 'Владелец лобби исключил вас.');
+    emitLobby(room);
+  });
+  socket.on('room:leave', () => {
+    const room = roomOf(socket);
+    if(!room || room.started) return;
+    removeFromLobby(room, socket.id, 'Вы покинули лобби.');
+    if(!humansOf(room).length) delete rooms[room.id];
+    else { if(room.hostId === socket.id) room.hostId = humansOf(room)[0].id; emitLobby(room); }
+  });
+  socket.on('room:disband', () => {
+    const room = roomOf(socket);
+    if(!room || room.started || room.hostId !== socket.id) return;
+    for(const player of humansOf(room)) removeFromLobby(room, player.id, 'Лобби распущено.');
+    delete rooms[room.id];
+  });
   socket.on('room:start', () => {
     const room = roomOf(socket);
     if(!room || room.started) return socket.emit('room:error',{message:'Комната уже запущена.'});
     if(room.hostId !== socket.id) return socket.emit('room:error',{message:'Стартовать может только хост.'});
-    if(Object.keys(room.players).length < 2) return socket.emit('room:error',{message:'Нужен хотя бы ещё один игрок.'});
-    if(!startRoom(room)) return socket.emit('room:error',{message:'Распределите игроков по командам поровну.'});
+    const people = humansOf(room);
+    if(people.some(player => player.slot < 0)) return socket.emit('room:error',{message:'Есть игроки без места. Пусть займут слот.'});
+    if(!room.settings.fillBots && people.length < 2) return socket.emit('room:error',{message:'Нужен ещё игрок или включите ботов.'});
+    if(!startRoom(room)) return socket.emit('room:error',{message:'Распределите игроков по командам поровну (или включите ботов).'});
     socket.emit('room:started');
+  });
+  /* Хост управляет ботами: его клиент считает их ИИ и присылает данные от имени бота. */
+  socket.on('botProxy', msg => {
+    const room = roomOf(socket);
+    if(!room || !room.started || room.hostId !== socket.id || !msg || typeof msg.botId !== 'string') return;
+    const bot = room.state?.[msg.botId];
+    if(!bot || !bot.bot) return;
+    const proxy = {id:bot.id, to:(...args) => socket.to(...args)};
+    if(msg.type === 'input') handleInput(proxy, msg.payload);
+    else if(msg.type === 'stats') handlePlayerStats(proxy, msg.payload);
+    else if(msg.type === 'damage') handlePlayerDamage(proxy, msg.payload);
+    else if(msg.type === 'snapshot') handlePlayerSnapshot(proxy, msg.payload);
   });
   socket.on('playerInput', input => handleInput(socket, input));
   socket.on('playerStats', stats => handlePlayerStats(socket, stats));
@@ -532,15 +644,19 @@ io.on('connection', socket => {
     emitOnlineCount();
     const room = roomOf(socket); socketRooms.delete(socket.id); if(!room) return;
     delete room.players[socket.id];
-    if(!room.started){
-      if(room.hostId === socket.id) room.hostId = Object.keys(room.players)[0] || null;
-      if(Object.keys(room.players).length) emitLobby(room); else delete rooms[room.id];
-    } else if(room.state){
-      delete room.state[socket.id];
-      io.to(room.id).emit('match:player-left',{message:'Игрок отключился.'});
-      if(Object.keys(room.players).length) io.to(room.id).emit('gameState',gameState(room));
-      else delete rooms[room.id];
+    const people = humansOf(room);
+    if(!people.length){
+      for(const player of Object.values(room.players)) socketRooms.delete(player.id);
+      delete rooms[room.id];
+      return;
     }
+    const hostLeft = room.hostId === socket.id;
+    if(hostLeft) room.hostId = people[0].id;
+    if(!room.started){ emitLobby(room); return; }
+    if(room.state) delete room.state[socket.id];
+    io.to(room.id).emit('match:player-left',{message:'Игрок отключился.'});
+    if(hostLeft) io.to(room.id).emit('room:host',{hostId:room.hostId});
+    io.to(room.id).emit('gameState',gameState(room));
   });
 });
 

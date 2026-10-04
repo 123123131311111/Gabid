@@ -45,20 +45,61 @@
   </div>
 </section>
 <section id="mode-picker" hidden>
-  <div class="mode-panel">
+  <div class="mode-panel lobby-panel">
+    <button type="button" id="lobby-close" class="lobby-x" aria-label="Закрыть">✕</button>
     <div>DotaSens</div>
-    <h1>Онлайн 3 на 3</h1>
-    <p id="match-status">Найди комнату, посмотри статистику и настрой профиль перед матчем.</p>
+    <h1 id="lobby-heading">Онлайн</h1>
+    <p id="match-status">Найди комнату или создай своё лобби и настрой режим.</p>
     <div class="online-tools" aria-label="Возможности онлайн-меню">
       <div class="online-tool"><b id="online-profile-name">ГОСТЬ</b><span id="online-profile-stats">Войди в аккаунт для рейтинга и истории матчей</span></div>
       <button type="button" id="online-account">ПРОФИЛЬ И СТАТИСТИКА</button>
       <button type="button" id="online-changelog">ЧТО НОВОГО</button>
     </div>
-    <div id="room-state"></div>
-    <div class="mode-actions">
+    <div class="mode-actions" id="lobby-entry-actions">
       <button type="button" id="online-button">Найти игроков</button>
-      <button type="button" id="room-start">СТАРТ МАТЧА</button>
+      <button type="button" id="lobby-create">Создать лобби</button>
     </div>
+    <div id="lobby-view" hidden>
+      <div class="lobby-head"><b id="lobby-name">Лобби</b><span id="lobby-leader"></span></div>
+      <div class="lobby-teams">
+        <div class="lobby-team light"><div class="lobby-team-title"><i></i>Силы Света</div><div id="team-light"></div></div>
+        <div class="lobby-team dark"><div class="lobby-team-title"><i></i>Силы Тьмы</div><div id="team-dark"></div></div>
+      </div>
+      <div class="lobby-tools">
+        <button type="button" id="lobby-balance">СБАЛАНСИРОВАТЬ ⇄</button>
+        <button type="button" id="lobby-swap">ПОМЕНЯТЬ МЕСТАМИ ⇆</button>
+      </div>
+      <div class="lobby-unassigned"><span>НЕОПРЕДЕЛИВШИЕСЯ</span><div id="team-unassigned"></div></div>
+      <div class="lobby-section-title">ВЫБОР ГЕРОЯ</div>
+      <div id="hero-grid" class="hero-grid"></div>
+      <div class="lobby-settings">
+        <div class="lobby-section-title">НАСТРОЙКИ ЛОББИ <small id="settings-hint"></small></div>
+        <div class="settings-grid">
+          <label>Название<input id="set-name" type="text" maxlength="28"></label>
+          <label>Режим игры<select id="set-mode">
+            <option value="1v1">1 на 1 • Solo Mid</option>
+            <option value="2v2">2 на 2</option>
+            <option value="3v3">3 на 3</option>
+            <option value="4v4">4 на 4</option>
+          </select></label>
+          <label>Правила<select id="set-ruleset">
+            <option value="turbo">Турбо</option>
+            <option value="allpick">All Pick</option>
+          </select></label>
+          <label>Боты<select id="set-bots">
+            <option value="off">Нет — только игроки</option>
+            <option value="on">Заменять пустые места ботами</option>
+          </select></label>
+        </div>
+        <p id="settings-summary"></p>
+      </div>
+      <div class="mode-actions lobby-actions">
+        <button type="button" id="room-start">СТАРТ МАТЧА</button>
+        <button type="button" id="lobby-leave">ПОКИНУТЬ ЛОББИ ✕</button>
+        <button type="button" id="lobby-disband">РАСПУСТИТЬ ЛОББИ</button>
+      </div>
+    </div>
+    <div id="room-state"></div>
   </div>
 </section>
 <section id="account-modal" hidden>
@@ -108,7 +149,7 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="./game.js?v=0.7.7"></script>
+<script src="./game.js?v=0.8.1"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
@@ -160,9 +201,15 @@
     });
     nextSocket.on('lobbyUpdate', next => {
       room = next;
-      button.style.display = 'none';
-      status.textContent = 'Комната ' + next.roomId + ' • игроков: ' + next.players.length + '/6';
       renderRoom(next);
+    });
+    nextSocket.on('room:left', data => {
+      room = null; joinRequested = false;
+      document.getElementById('lobby-view').hidden = true;
+      document.getElementById('lobby-entry-actions').hidden = false;
+      document.getElementById('lobby-heading').textContent = 'Онлайн';
+      button.disabled = false; button.textContent = 'Найти игроков';
+      status.textContent = (data && data.reason) || 'Вы вышли из лобби.';
     });
     nextSocket.on('room:error', data => {
       joinRequested = false; status.textContent = data.message; start.disabled = false; button.disabled = false; button.textContent = 'Найти игроков';
@@ -203,99 +250,158 @@
     try { return localStorage.getItem('dotasense-account-token') || ''; }
     catch(err) { return ''; }
   }
-  function emitMatchJoin(){
-    const token=accountSessionToken();
-    if(!token || !window.__shadowAccountProfile){
-      status.textContent='Войдите в аккаунт, чтобы играть в мультиплеер.';
-      button.disabled=false; button.textContent='Найти игроков';
-      if(typeof openAccountModal==='function') openAccountModal();
-      return;
-    }
-    socket.emit('match:join', { accountToken:token });
-  }
-  button.addEventListener('click', () => {
+  const lobbyView = document.getElementById('lobby-view');
+  const entryActions = document.getElementById('lobby-entry-actions');
+  const createButton = document.getElementById('lobby-create');
+  const heroGrid = document.getElementById('hero-grid');
+  const setName = document.getElementById('set-name'), setMode = document.getElementById('set-mode');
+  const setRuleset = document.getElementById('set-ruleset'), setBots = document.getElementById('set-bots');
+  const portraitCache = new Map();
+  const MODE_LABEL = {'1v1':'1 на 1 • Solo Mid','2v2':'2 на 2','3v3':'3 на 3','4v4':'4 на 4'};
+  const RULE_LABEL = {turbo:'Турбо',allpick:'All Pick'};
+  document.getElementById('lobby-close').addEventListener('click', () => { picker.hidden = true; });
+  function isHost(){ return !!(socket && room && room.hostId === socket.id); }
+  function ensureSocketAndJoin(create){
     if(!accountSessionToken() || !window.__shadowAccountProfile){
       status.textContent='Для игры в мультиплеер нужен аккаунт.';
       if(typeof openAccountModal==='function') openAccountModal();
       return;
     }
     if(!socket){
-      if(typeof io !== 'function'){
-        status.textContent = 'Онлайн-сервер недоступен';
-        onlineCounter.textContent = 'Онлайн: недоступен';
-        return;
-      }
-      socket = io();
-      bindSocket(socket);
+      if(typeof io !== 'function'){ status.textContent = 'Онлайн-сервер недоступен'; return; }
+      socket = io(); bindSocket(socket);
     }
     if(room || joinRequested) return;
-    joinRequested = true;
-    button.disabled = true;
-    button.textContent = 'Создание комнаты...';
+    joinRequested = true; pendingCreate = !!create;
+    button.disabled = true; createButton.disabled = true;
     status.textContent = 'Подключение к серверу';
     if(socket.connected){ joinRequested = false; emitMatchJoin(); }
     else socket.connect();
-  });
-  start.addEventListener('click', () => { if(socket && room && room.players.length >= 2 && room.hostId === socket.id) socket.emit('room:start'); });
-
-  function renderRoom(next){
-    roomState.innerHTML = '';
-    const title = document.createElement('div');
-    title.textContent = next.players.length < 2 ? 'Нужен ещё хотя бы один игрок. Ботов в онлайн-матче нет.' : (next.hostId === socket.id ? 'Ты владелец комнаты. Можно запускать матч.' : 'Ждём старта от владельца комнаты.');
-    roomState.appendChild(title);
-    const selectedHeroes = new Set(next.players.map(member => member.hero).filter(Boolean));
-    for(let slot=0; slot<6; slot++){
-      const member = next.players.find(item => item.slot === slot);
-      const row = document.createElement('div');
-      row.className = 'room-slot' + (member && member.id === socket.id ? ' mine' : '');
-      const label = document.createElement('strong');
-      label.textContent = (slot < 3 ? 'Свет ' : 'Тьма ') + ((slot % 3) + 1);
-      row.appendChild(label);
-      if(member){
-        const name = document.createElement('span');
-        name.textContent = member.nick || (member.id === socket.id ? 'Ты' : 'Игрок');
-        if(member.frame) row.dataset.frame = member.frame;
-        row.appendChild(name);
-        if(member.title){
-          const title = document.createElement('small');
-          title.className = 'room-title';
-          title.textContent = member.title;
-          row.appendChild(title);
-        }
-        if(member.id === socket.id){
-          const select = document.createElement('select');
-          HERO_IDS_FOR_ROOM.forEach(hero => {
-            const option = document.createElement('option'); option.value = hero.id; option.textContent = hero.name;
-            option.disabled = selectedHeroes.has(hero.id) && hero.id !== member.hero;
-            if(hero.id === member.hero) option.selected = true;
-            select.appendChild(option);
-          });
-          select.addEventListener('change', () => socket.emit('room:select', {heroId:select.value}));
-          row.appendChild(select);
-        } else row.appendChild(document.createTextNode(' • ' + (member.hero || 'выбирает героя')));
-      } else {
-        const take = document.createElement('button'); take.textContent = 'ЗАНЯТЬ СЛОТ';
-        take.addEventListener('click', () => socket.emit('room:select', {slot}));
-        row.appendChild(take);
-      }
-      roomState.appendChild(row);
+  }
+  let pendingCreate = false;
+  function emitMatchJoin(){
+    const token=accountSessionToken();
+    if(!token || !window.__shadowAccountProfile){
+      status.textContent='Войдите в аккаунт, чтобы играть в мультиплеер.';
+      button.disabled=false; createButton.disabled=false;
+      if(typeof openAccountModal==='function') openAccountModal();
+      return;
     }
-    start.style.display = next.hostId === socket.id ? 'block' : 'none';
-    start.disabled = next.players.length < 2;
-    start.textContent = next.players.length < 2 ? 'НУЖЕН ЕЩЁ ИГРОК' : 'СТАРТ МАТЧА';
+    socket.emit('match:join', { accountToken:token, create:pendingCreate });
+    pendingCreate = false;
+  }
+  button.addEventListener('click', () => ensureSocketAndJoin(false));
+  createButton.addEventListener('click', () => ensureSocketAndJoin(true));
+  start.addEventListener('click', () => { if(socket && room && isHost()) socket.emit('room:start'); });
+  document.getElementById('lobby-leave').addEventListener('click', () => { if(socket && room) socket.emit('room:leave'); });
+  document.getElementById('lobby-disband').addEventListener('click', () => { if(socket && room && isHost() && confirm('Распустить лобби?')) socket.emit('room:disband'); });
+  document.getElementById('lobby-balance').addEventListener('click', () => socket && socket.emit('room:balance'));
+  document.getElementById('lobby-swap').addEventListener('click', () => socket && socket.emit('room:swap'));
+  setMode.addEventListener('change', () => socket.emit('room:settings', {mode:setMode.value}));
+  setRuleset.addEventListener('change', () => socket.emit('room:settings', {ruleset:setRuleset.value}));
+  setBots.addEventListener('change', () => socket.emit('room:settings', {fillBots:setBots.value === 'on'}));
+  setName.addEventListener('change', () => socket.emit('room:settings', {name:setName.value}));
+
+  function heroPortrait(heroId, size){
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    canvas.className = 'portrait';
+    const cached = portraitCache.get(heroId + ':' + size);
+    if(cached){ canvas.getContext('2d').drawImage(cached, 0, 0); return canvas; }
+    if(typeof window.__renderHeroPortrait === 'function' && window.__renderHeroPortrait(canvas, heroId)){
+      const copy = document.createElement('canvas'); copy.width = size; copy.height = size;
+      copy.getContext('2d').drawImage(canvas, 0, 0);
+      portraitCache.set(heroId + ':' + size, copy);
+    }
+    return canvas;
+  }
+  function heroName(id){ const def = (typeof HERO_DEFS !== 'undefined') ? HERO_DEFS.find(hero => hero.id === id) : null; return def ? def.name : (id || '—'); }
+
+  function slotRow(next, slot){
+    const member = next.players.find(item => item.slot === slot);
+    const row = document.createElement('div');
+    row.className = 'lobby-slot' + (member ? ' taken' : ' empty') + (member && member.id === socket.id ? ' mine' : '');
+    if(member){
+      if(member.frame) row.dataset.frame = member.frame;
+      row.appendChild(heroPortrait(member.hero, 40));
+      const text = document.createElement('div'); text.className = 'slot-text';
+      const nm = document.createElement('b');
+      nm.textContent = (member.nick || 'Игрок') + (member.id === next.hostId ? ' ★' : '');
+      const hn = document.createElement('small'); hn.textContent = heroName(member.hero);
+      text.append(nm, hn); row.appendChild(text);
+      if(isHost() && member.id !== socket.id){
+        const kick = document.createElement('button'); kick.className = 'slot-kick'; kick.textContent = '✕'; kick.title = 'Исключить';
+        kick.addEventListener('click', () => socket.emit('room:kick', {id:member.id}));
+        row.appendChild(kick);
+      }
+    } else {
+      const take = document.createElement('button'); take.className = 'slot-take';
+      take.textContent = next.settings && next.settings.fillBots ? 'ЗАНЯТЬ  (иначе — бот)' : 'ЗАНЯТЬ';
+      take.addEventListener('click', () => socket.emit('room:select', {slot}));
+      row.appendChild(take);
+    }
+    return row;
   }
 
-  const HERO_IDS_FOR_ROOM = [
-    {id:'shadow',name:'Шадоу'},{id:'ilya',name:'Илья'},{id:'golly',name:'Голли'},
-    {id:'pyro',name:'Пиромант'},{id:'warlord',name:'Вождь'},{id:'grisha',name:'Гриша'},
-    {id:'sasych',name:'Сасыч'},{id:'malit',name:'Малит'},{id:'arcady',name:'Аркадий'},
-    {id:'illusionist',name:'Иллюзионист'},{id:'mageHunter',name:'Охотник на магов'},
-    {id:'regina',name:'Ригина'},{id:'yosyp',name:'Йосып'},{id:'dawnMaiden',name:'Рассветная дева'},
-    {id:'exileKnight',name:'Рыцарь-изгнанник'},{id:'juggernaut',name:'Джаггернаут'},
-    {id:'sniper',name:'Снайпер'},{id:'earthshaker',name:'Шмедик'},
-    {id:'mo3gi',name:'Мо3ги'},{id:'tribupainer',name:'Трибупейнер'},
-    {id:'juvsyut',name:'Джувсют'},{id:'chip',name:'Чип'},{id:'savely',name:'Савелий'}
-  ];
+  function renderHeroGrid(next){
+    const me = next.players.find(item => item.id === socket.id);
+    const taken = new Map(next.players.filter(item => item.hero).map(item => [item.hero, item.id]));
+    heroGrid.innerHTML = '';
+    const defs = (typeof HERO_DEFS !== 'undefined') ? HERO_DEFS : HERO_IDS_FOR_ROOM;
+    defs.forEach(def => {
+      const cell = document.createElement('button');
+      cell.type = 'button'; cell.className = 'hero-cell';
+      const owner = taken.get(def.id);
+      if(me && me.hero === def.id) cell.classList.add('selected');
+      else if(owner) { cell.classList.add('taken'); cell.disabled = true; }
+      cell.title = def.name;
+      cell.appendChild(heroPortrait(def.id, 64));
+      const label = document.createElement('span'); label.textContent = def.name; cell.appendChild(label);
+      cell.addEventListener('click', () => socket.emit('room:select', {heroId:def.id}));
+      heroGrid.appendChild(cell);
+    });
+  }
+
+  function renderRoom(next){
+    entryActions.hidden = true;
+    lobbyView.hidden = false;
+    createButton.disabled = false;
+    const host = next.players.find(item => item.id === next.hostId);
+    const s = next.settings || {};
+    document.getElementById('lobby-heading').textContent = 'Лобби ' + next.roomId;
+    document.getElementById('lobby-name').textContent = s.name || 'Лобби';
+    document.getElementById('lobby-leader').textContent = 'Лидер лобби: ' + (host ? (host.nick || 'Игрок') : '—');
+    status.textContent = 'Игроков: ' + next.players.filter(p => !p.bot).length + ' • ' + (MODE_LABEL[s.mode] || '') + ' • ' + (RULE_LABEL[s.ruleset] || '');
+    const size = next.teamSize || 3;
+    for(const [team, id] of [[0,'team-light'],[1,'team-dark']]){
+      const box = document.getElementById(id); box.innerHTML = '';
+      for(let i=0;i<size;i++) box.appendChild(slotRow(next, team*4+i));
+    }
+    const un = document.getElementById('team-unassigned'); un.innerHTML = '';
+    next.players.filter(p => p.slot < 0).forEach(p => {
+      const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = p.nick || 'Игрок'; un.appendChild(chip);
+    });
+    if(!un.children.length) un.textContent = '—';
+    renderHeroGrid(next);
+    const host_ = isHost();
+    for(const el of [setName, setMode, setRuleset, setBots]) el.disabled = !host_;
+    if(document.activeElement !== setName) setName.value = s.name || '';
+    setMode.value = s.mode || '3v3'; setRuleset.value = s.ruleset || 'turbo'; setBots.value = s.fillBots ? 'on' : 'off';
+    document.getElementById('settings-hint').textContent = host_ ? '' : '(меняет владелец лобби)';
+    document.getElementById('settings-summary').textContent = s.ruleset === 'allpick'
+      ? 'All Pick: 1 монета в секунду, крипы дают вдвое меньше, опыт медленнее, боты дольше стоят на линиях.'
+      : 'Турбо: 3 монеты в секунду, быстрая игра.';
+    document.getElementById('lobby-balance').style.display = host_ ? '' : 'none';
+    document.getElementById('lobby-swap').style.display = host_ ? '' : 'none';
+    document.getElementById('lobby-disband').style.display = host_ ? '' : 'none';
+    const humans = next.players.filter(p => !p.bot).length;
+    const needMore = !s.fillBots && humans < 2;
+    start.style.display = host_ ? 'block' : 'none';
+    start.disabled = needMore;
+    start.textContent = needMore ? 'НУЖЕН ЕЩЁ ИГРОК ИЛИ БОТЫ' : 'СТАРТ МАТЧА';
+  }
+
+  const HERO_IDS_FOR_ROOM = [];
 })();
 </script>
 <script>

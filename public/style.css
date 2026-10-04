@@ -683,3 +683,75 @@ canvas {
   .career-panel { padding: 9px; }
   .career-participant { grid-template-columns: minmax(0,1fr) 42px 58px 58px; font-size: 8px; }
 }
+
+/* ===== Лобби в стиле Dota 2 ===== */
+.lobby-panel { position: relative; width: min(860px, 100%); text-align: left; padding: 26px 30px; }
+.lobby-panel > div:first-of-type, .lobby-panel h1, .lobby-panel > p { text-align: center; }
+.lobby-panel h1 { font-size: 28px; margin: 8px 0; }
+.lobby-x { position: absolute; top: 12px; right: 14px; width: 34px; height: 34px; border: 1px solid rgba(215,179,106,.5); background: rgba(0,0,0,.4); color: #f2d49b; cursor: pointer; font-size: 15px; }
+.lobby-x:hover { border-color: #ffd568; }
+.lobby-panel [hidden] { display: none !important; }
+#lobby-entry-actions { grid-template-columns: 1fr 1fr; margin-top: 14px; }
+#lobby-entry-actions button, .lobby-actions button, .lobby-tools button {
+  min-height: 44px; padding: 8px 14px; border: 1px solid var(--gold); cursor: pointer;
+  background: linear-gradient(180deg, #9d4434, #662622); color: var(--gold-light);
+  font: 700 13px 'Trebuchet MS','Segoe UI',sans-serif; letter-spacing: .06em;
+}
+#lobby-create { background: linear-gradient(180deg, #2f6c8f, #1b3f58) !important; }
+#lobby-entry-actions button:disabled { opacity: .55; cursor: wait; }
+.lobby-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 2px 10px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.lobby-head b { font: 700 22px Georgia, serif; color: #fff2d2; }
+.lobby-head span { color: rgba(255,255,255,.62); font-size: 13px; }
+.lobby-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; padding: 10px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); }
+.lobby-team-title { display: flex; align-items: center; gap: 10px; padding: 6px 8px 10px; font: 700 20px Georgia, serif; border-bottom: 1px solid rgba(255,255,255,.14); margin-bottom: 4px; }
+.lobby-team-title i { width: 26px; height: 26px; border-radius: 4px; display: inline-block; }
+.lobby-team.light { background: linear-gradient(180deg, rgba(60,140,70,.16), transparent 46%); }
+.lobby-team.light .lobby-team-title { color: #7dff95; text-shadow: 0 0 10px rgba(90,255,120,.4); }
+.lobby-team.light .lobby-team-title i { background: linear-gradient(135deg,#9bffb0,#2f8a4a); }
+.lobby-team.dark { background: linear-gradient(180deg, rgba(160,50,50,.2), transparent 46%); }
+.lobby-team.dark .lobby-team-title { color: #ff8b8b; text-shadow: 0 0 10px rgba(255,90,90,.4); }
+.lobby-team.dark .lobby-team-title i { background: linear-gradient(135deg,#ffb07a,#a8322e); }
+.lobby-slot { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.lobby-slot.mine { background: rgba(255,213,104,.09); box-shadow: inset 3px 0 #ffd568; }
+.lobby-slot[data-frame="veteran"] { box-shadow: inset 3px 0 #67c9df; }
+.lobby-slot[data-frame="dominion"] { box-shadow: inset 3px 0 #d797ff; }
+.lobby-slot[data-frame="legend"] { box-shadow: inset 3px 0 #ffd568; }
+.lobby-slot .portrait { width: 40px; height: 40px; border-radius: 6px; border: 1px solid rgba(255,255,255,.28); flex: 0 0 auto; background: #0a0f18; }
+.slot-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.slot-text b { color: #fff; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot-text small { color: rgba(255,255,255,.55); font-size: 11px; }
+.slot-kick { width: 30px; height: 30px; border: 0; background: transparent; color: #c0463f; font-size: 17px; cursor: pointer; }
+.slot-kick:hover { color: #ff6b61; }
+.slot-take { flex: 1; min-height: 40px; border: 0; background: transparent; color: rgba(255,255,255,.28); font: 700 14px 'Trebuchet MS',sans-serif; letter-spacing: .12em; cursor: pointer; }
+.slot-take:hover { color: #ffd568; background: rgba(255,255,255,.05); }
+.lobby-tools { display: flex; justify-content: center; gap: 14px; margin: 12px 0; }
+.lobby-tools button { min-height: 34px; background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.28); color: #cfd6e2; font-size: 12px; }
+.lobby-tools button:hover { border-color: #ffd568; color: #fff; }
+.lobby-unassigned { padding: 10px 14px; min-height: 52px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); text-align: center; color: rgba(255,255,255,.45); }
+.lobby-unassigned > span { display: block; font: 700 13px 'Trebuchet MS',sans-serif; letter-spacing: .14em; margin-bottom: 4px; }
+.lobby-unassigned .chip { display: inline-block; padding: 3px 10px; margin: 2px; border: 1px solid rgba(255,255,255,.25); color: #fff; }
+.lobby-section-title { margin: 16px 0 8px; font: 700 13px 'Trebuchet MS',sans-serif; letter-spacing: .14em; color: #d7b36a; }
+.lobby-section-title small { margin-left: 10px; color: rgba(255,255,255,.45); letter-spacing: 0; font-weight: 400; }
+.hero-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; max-height: 230px; overflow: auto; padding: 4px; }
+.hero-cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px; border: 1.5px solid rgba(255,255,255,.18); background: rgba(8,12,20,.8); cursor: pointer; color: #dfe6f2; }
+.hero-cell .portrait { width: 100%; height: auto; aspect-ratio: 1; border-radius: 5px; background: #0a0f18; }
+.hero-cell span { font-size: 10.5px; line-height: 1.1; text-align: center; min-height: 22px; display: flex; align-items: center; }
+.hero-cell:hover:not(:disabled) { border-color: #ffd568; transform: translateY(-2px); }
+.hero-cell.selected { border-color: #7dff95; box-shadow: 0 0 14px rgba(110,255,140,.45); }
+.hero-cell.taken { opacity: .38; filter: grayscale(.8); cursor: not-allowed; }
+.lobby-settings { margin-top: 6px; padding: 12px 16px 14px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); }
+.lobby-settings .lobby-section-title { margin-top: 0; }
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; }
+.settings-grid label { display: flex; flex-direction: column; gap: 4px; color: rgba(255,255,255,.55); font: 700 11px 'Trebuchet MS',sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.settings-grid input, .settings-grid select { min-height: 36px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.25); background: #101b2a; color: #fff; font: 600 14px 'Segoe UI',sans-serif; text-transform: none; letter-spacing: 0; }
+.settings-grid input:disabled, .settings-grid select:disabled { opacity: .7; }
+#settings-summary { margin: 10px 0 0 !important; font-size: 12px; text-align: left !important; color: rgba(255,255,255,.55) !important; }
+.lobby-actions { grid-template-columns: 2fr 1.2fr 1.2fr; margin-top: 14px; }
+.lobby-actions #room-start { display: none; }
+#lobby-leave { background: linear-gradient(180deg, #5a2a30, #3a1a20) !important; }
+#lobby-disband { background: rgba(255,255,255,.04) !important; border-color: rgba(255,255,255,.3) !important; color: #c9ccd4 !important; }
+@media (max-width: 720px) {
+  .lobby-teams, .settings-grid { grid-template-columns: 1fr; }
+  .lobby-actions { grid-template-columns: 1fr; }
+  .lobby-panel { padding: 18px 14px; }
+}

@@ -5,7 +5,7 @@ const clamp = (v,a,b) => v<a?a:(v>b?b:v);
 const rnd   = (a,b) => a + Math.random()*(b-a);
 
 const canvas = document.getElementById('game');
-const ctx    = canvas.getContext('2d');
+let ctx    = canvas.getContext('2d');
 const onlineEntryElement = document.getElementById('online-entry');
 const terrainFrameCanvas = document.createElement('canvas');
 const terrainFrameCtx = terrainFrameCanvas.getContext('2d');
@@ -497,7 +497,14 @@ const CELL   = WORLD / GRID;
 const TEAM_COL = ['#4caf50', '#e53935', '#b58a55'];
 const TEAM_NAME = ['Свет', 'Тьма'];
 const LANE_NAMES = ['МИД', 'ВЕРХ', 'НИЗ'];
-const MID_PUSH_TIME = 300;
+let MID_PUSH_TIME = 300;
+/* Режимы игры против ботов: turbo — как раньше, allpick — медленная экономика и долгая лайн-фаза */
+const GAME_MODES = {
+  turbo:   {name:'ТУРБО',    coinsPerSec:3, creepBountyMul:1,   xpMul:1,   midPushTime:300},
+  allpick: {name:'ALL PICK', coinsPerSec:1, creepBountyMul:0.5, xpMul:0.6, midPushTime:600}
+};
+let gameMode = 'turbo';
+function gameModeCfg(){ return GAME_MODES[gameMode] || GAME_MODES.turbo; }
 const BOT_FARM_PHASE_TIME = 180;
 const BOT_SCENARIO_NAMES = [
   'Фарм и быстрый пуш мида', 'Лесная засада-ганг', 'Давление по бокам',
@@ -614,7 +621,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.7.7';
+const GAME_VERSION = '0.8.0';
 const CHANGELOG_HISTORY = [
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
   'Обновление 0.7.7: карта увеличена на 30%, здоровье башен и трона увеличено втрое, обновлены Иллюзионист и панель героя, активные предметы расходуют ману, добавлена анимированная заставка',
@@ -700,7 +707,21 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.7.7', title:'КАРТА, БОЙЦЫ И БАЛАНС', changes:[
+  const sections = [{version:'0.8.0', title:'ОНЛАЙН-ЛОББИ', changes:[
+    'Онлайн-меню переделано в стиле Dota 2: две колонки «Силы Света» и «Силы Тьмы», слоты с портретами героев, кнопки «Занять», «Сбалансировать», «Поменять местами», блок «Неопределившиеся».',
+    'Появилась кнопка «Создать лобби». Создатель становится лидером: меняет название, режим и правила, исключает игроков, распускает лобби и запускает матч.',
+    'Герой выбирается сеткой портретов вместо списка имён; занятые герои затемнены.',
+    'Режимы лобби: 1 на 1 (Solo Mid), 2 на 2, 3 на 3 и 4 на 4. Правила: Турбо или All Pick.',
+    'Настройка ботов: пустые места можно заменять ботами или оставлять игрокам. Ботов считает компьютер лидера лобби; матчи с ботами не идут в рейтинг.',
+    'Онлайн-матч теперь поддерживает до 4 игроков в команде. Если лидер выходит, его роль переходит к следующему игроку.'
+  ]},{version:'0.7.9', title:'ТУРБО И ALL PICK', changes:[
+    'После кнопки «Играть» нужно выбрать режим игры против ботов: Турбо или All Pick.',
+    'Турбо — прежняя игра: 3 монеты в секунду, полная награда за крипов, боты уходят в мид с 5-й минуты.',
+    'All Pick: 1 монета в секунду, крипы и лесные нейтралы дают вдвое меньше монет, опыт идёт на 40% медленнее, боты дольше стоят на линиях и идут в мид только с 10-й минуты. За убийство героя награда прежняя — 200 монет.'
+  ]},{version:'0.7.8', title:'ДЖУВСЮТ И ОБЪЁМ', changes:[
+    'У Джувсюта над головой появился счётчик съеденного «🍖 ×N» с анимацией и полоской голода до потери стака; за лесного крипа +1, за героя +10.',
+    'Бойцы, крипы и постройки получили псевдо-3D объём: блик и тень на моделях, длинные косые тени, боковые стенки башен, казарм и трона.'
+  ]},{version:'0.7.7', title:'КАРТА, БОЙЦЫ И БАЛАНС', changes:[
     'Карта увеличена на 30%; масштабирование согласовано между игрой и сервером.',
     'Здоровье башен и трона сохранено на утроенном уровне.',
     'Иллюзионист получил бирюзово-золотую модель с короной, посохом и золотой иллюзией; нижняя панель героя разделена на ровные секции.',
@@ -2104,14 +2125,19 @@ function applyDamage(target, amount, source){
     if(onlineSocket && onlineSocket.connected && sourceHero && sourceHero.isPlayer &&
        sourceHero.onlinePlayerId === onlineSocket.id && sourceHero.team !== target.team){
       onlineSocket.emit('playerDamage',{towerId:target.id,amount:dmg});
+    } else if(onlineSocket && onlineSocket.connected && sourceHero && sourceHero.isHostedBot && sourceHero.team !== target.team){
+      onlineSocket.emit('botProxy',{botId:sourceHero.onlinePlayerId,type:'damage',payload:{towerId:target.id,amount:dmg}});
     }
     return;
   }
   const onlineSocket = window.__shadowOnlineSocket;
       const onlineSourceTeam = sourceHero ? sourceHero.team : source && source.team;
       if(onlineSocket && onlineSocket.connected && target.onlinePlayerId && onlineSourceTeam === 0 &&
-        onlineSocket.id !== target.onlinePlayerId){
+        onlineSocket.id !== target.onlinePlayerId && !target.isHostedBot){
     onlineSocket.emit('playerDamage',{targetId:target.onlinePlayerId,amount:dmg});
+  } else if(onlineSocket && onlineSocket.connected && sourceHero && sourceHero.isHostedBot && target.type === 'hero' &&
+        target.onlinePlayerId && !target.isHostedBot && target.onlinePlayerId !== onlineSocket.id && sourceHero.team !== target.team){
+    onlineSocket.emit('botProxy',{botId:sourceHero.onlinePlayerId,type:'damage',payload:{targetId:target.onlinePlayerId,amount:dmg}});
   }
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
     target.damageContributors.set(sourceHero, (target.damageContributors.get(sourceHero) || 0) + dmg);
@@ -2181,7 +2207,8 @@ function killUnit(u, source){
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
   if(u.type === 'neutral') u.respawnTimer = 30;
   if(rewardHero && rewardHero.team !== u.team){
-    const reward = u.type === 'neutral' ? 70 : (u.type === 'creep' ? 60 : (u.type === 'hero' ? 200 : 0));
+    const bountyMul = gameModeCfg().creepBountyMul;
+    const reward = u.type === 'neutral' ? Math.round(70*bountyMul) : (u.type === 'creep' ? Math.round(60*bountyMul) : (u.type === 'hero' ? 200 : 0));
     if(reward){
       rewardHero.coins += reward;
       if(rewardHero === playerHero) addText(u.x, u.y - u.radius - 24, '+' + reward + ' монет', '#ffd54f', 1.1, 14);
@@ -2267,7 +2294,7 @@ function killUnit(u, source){
   fxRing(u.x, u.y, u.radius*2.4, TEAM_COL[u.team], 0.5);
   for(const h of heroes){
     if(h.team === u.team || h.dead) continue;
-    if(Math.hypot(h.x-u.x, h.y-u.y) < 1500) gainXp(h, u.xpValue || 40);
+    if(Math.hypot(h.x-u.x, h.y-u.y) < 1500) gainXp(h, (u.xpValue || 40) * gameModeCfg().xpMul);
   }
   if(u.type === 'hero'){
     noteBotScenarioKill(1-u.team,u);
@@ -5394,6 +5421,8 @@ function juvsyutDevourGain(h, stacks, lvl, fixedDmg){
   const dmg = (fixedDmg !== undefined) ? fixedDmg : b.dmg * stacks;
   const maxBefore = h.maxHp, dmgBefore = h.dmg;
   st.count += stacks; st.hp += hp; st.dmg += dmg; st.hunger = 0;
+  h.devourPop = 0.6;
+  addText(h.x, h.y - 128, '🍖 +' + stacks + (stacks>=10 ? '  (ГЕРОЙ!)' : ''), stacks>=10 ? '#ff9d62' : '#ffd9a8', 1.4, stacks>=10 ? 22 : 18);
   h.maxHp += hp; h.hp += hp; h.dmg += dmg;
   addText(h.x, h.y - 96, '+' + Math.round(h.maxHp - maxBefore) + ' HP, +' + Math.round(h.dmg - dmgBefore) + ' урона  (всего ×' + st.count + ': +' + Math.round(st.hp) + ' HP, +' + Math.round(st.dmg) + ' урона)', '#ffb36b', 1.5, 15);
 }
@@ -5437,6 +5466,7 @@ function juvsyutFindDevourTarget(h, x, y){
 }
 function updateJuvsyutDevour(h, dt){
   const st = juvsyutDevourState(h);
+  if(h.devourPop > 0) h.devourPop = Math.max(0, h.devourPop - dt*1.5);
   /* Голод: 60 секунд без еды — минус один стак, затем отсчёт заново. */
   if(st.count > 0){
     st.hunger += dt;
@@ -6692,6 +6722,7 @@ function updateDraft(dt){
 
 function startGame(playerIndex, draftPicks=null){
   stopMenuMusic();
+  MID_PUSH_TIME = gameModeCfg().midPushTime;
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
@@ -6811,6 +6842,7 @@ function orientOnlineMapForTeam(globalTeam){
    мгновенно повышать уровень и восстанавливать HP/ману/КД.
    ========================================================= */
 function startTestMode(playerIndex){
+  MID_PUSH_TIME = GAME_MODES.turbo.midPushTime;
   stopMenuMusic();
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
@@ -7511,7 +7543,7 @@ function update(dt){
 
   for(const hero of heroes){
     hero.coinTimer += dt;
-    while(hero.coinTimer >= 1){ hero.coinTimer -= 1; hero.coins += 3; }
+    while(hero.coinTimer >= 1){ hero.coinTimer -= 1; hero.coins += gameModeCfg().coinsPerSec; }
   }
   if(testMode && playerHero){ playerHero.coins = 99999; playerHero.coinTimer = 0; }
 
@@ -9229,6 +9261,82 @@ function drawStructureModel(u, col){
   else { light ? drawLightTowerModel(u.radius, t) : drawDarkTowerModel(u.radius, t); }
 }
 
+
+/* ===== Счётчик съеденного для Джувсюта + псевдо-3D объём ===== */
+const FX_3D = true;
+function drawJuvsyutDevourBadge(u){
+  const st = u.devour;
+  const count = st ? st.count : 0;
+  const cx = u.x, cy = u.y - u.radius - 74;
+  const text = '×' + count;
+  ctx.save();
+  ctx.font = 'bold 15px Segoe UI, Arial';
+  const tw = ctx.measureText(text).width;
+  const w = tw + 46, h = 24;
+  const x = cx - w/2, y = cy - h/2;
+  const pop = u.devourPop > 0 ? 1 + Math.min(0.35, u.devourPop) : 1;
+  ctx.translate(cx, cy); ctx.scale(pop, pop); ctx.translate(-cx, -cy);
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, 'rgba(70,34,16,0.92)'); g.addColorStop(1, 'rgba(28,12,6,0.92)');
+  ctx.fillStyle = g; ctx.strokeStyle = count > 0 ? '#ffb36b' : 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2;
+  ctx.shadowColor = count > 0 ? '#ff9d62' : 'transparent'; ctx.shadowBlur = count > 0 ? 12 : 0;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 12); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.font = '15px Segoe UI Emoji, Segoe UI, Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('🍖', x + 8, cy + 1);
+  ctx.font = 'bold 15px Segoe UI, Arial'; ctx.textAlign = 'right';
+  ctx.fillStyle = count > 0 ? '#ffd9a8' : '#b9a58f';
+  ctx.fillText(text, x + w - 10, cy + 1);
+  /* Полоска голода: заполняется до потери стака */
+  if(count > 0){
+    const frac = clamp(st.hunger / JUVSYUT_HUNGER_TIME, 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x + 8, y + h + 2, w - 16, 3);
+    ctx.fillStyle = frac > 0.75 ? '#ff6b4a' : '#ffb36b';
+    ctx.fillRect(x + 8, y + h + 2, (w - 16) * (1 - frac), 3);
+  }
+  ctx.restore();
+}
+function draw3DLighting(u){
+  /* Объёмный свет: блик сверху-слева, тень снизу-справа, контровой свет */
+  const r = u.radius;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.clip();
+  const sh = ctx.createRadialGradient(-r*0.38, -r*0.45, r*0.1, 0, 0, r*1.05);
+  sh.addColorStop(0, 'rgba(255,255,255,0.28)');
+  sh.addColorStop(0.45, 'rgba(255,255,255,0)');
+  sh.addColorStop(1, 'rgba(0,0,20,0.42)');
+  ctx.fillStyle = sh; ctx.fillRect(-r, -r, r*2, r*2);
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r - 1, Math.PI*1.1, Math.PI*1.75); ctx.stroke();
+  ctx.restore();
+}
+function draw3DShadow(u){
+  /* Длинная косая тень от «солнца» вместо плоского эллипса */
+  const r = u.radius;
+  const tall = (u.type === 'tower' || u.type === 'ancient') ? 2.4 : (u.type === 'barracks' ? 1.4 : 1);
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.30)';
+  ctx.translate(r*0.25, r*0.7);
+  ctx.transform(1, 0, -0.65*tall, 1, 0, 0);
+  ctx.beginPath(); ctx.ellipse(0, -r*0.15*tall, r*0.8, r*0.5*tall, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+function draw3DExtrude(u){
+  /* Боковые стенки построек — эффект высоты */
+  const r = u.radius;
+  const hgt = u.type === 'ancient' ? r*0.9 : (u.type === 'tower' ? r*1.4 : r*0.5);
+  const side = ctx.createLinearGradient(-r, 0, r, 0);
+  side.addColorStop(0, 'rgba(0,0,0,0.05)'); side.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.save();
+  ctx.fillStyle = u.team === 0 ? '#1d3347' : '#3a1a24';
+  ctx.beginPath(); ctx.ellipse(0, r*0.55, r*0.9, r*0.38, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = side;
+  ctx.fillRect(-r*0.9, -hgt*0.2, r*1.8, hgt*0.9);
+  ctx.restore();
+}
+
 function drawUnit(u){
   if(u.dead) return;
   if(u.invisible) return;
@@ -9319,6 +9427,7 @@ function drawUnit(u){
   ctx.beginPath();
   ctx.ellipse(0, u.radius*0.75, u.radius*0.95, u.radius*0.45, 0, 0, Math.PI*2);
   ctx.fill();
+  if(FX_3D){ draw3DShadow(u); if(u.type==='tower'||u.type==='ancient'||u.type==='barracks') draw3DExtrude(u); }
 
   if(walkableUnit && u.moving){
     const facing = u.facing || 0;
@@ -10750,6 +10859,7 @@ function drawUnit(u){
     }
     ctx.restore();
   }
+  if(FX_3D && (u.type==='hero'||u.type==='neutral'||u.type==='creep'||u.type==='tower'||u.type==='ancient')) draw3DLighting(u);
   ctx.restore();
   const dianaAura = u.inventory && u.inventory.find(i => i && i.id === 'dianaPants' && i.auraOn);
   if(dianaAura && !u.dead){
@@ -10792,6 +10902,7 @@ function drawUnit(u){
     ctx.fillText(roleLabel, u.x, u.y - u.radius - 50);
     ctx.restore();
   }
+  if(u.type === 'hero' && u.def.id === 'juvsyut' && !portraitRenderMode) drawJuvsyutDevourBadge(u);
 }
 
 function drawHealthBar(u){
@@ -13038,6 +13149,72 @@ function menuNavRect(index){
   const total=3*w+2*gap;
   return {x:Math.round(VW/2-total/2)+index*(w+gap), y:VH-Math.round(150*s), w, h};
 }
+
+/* Портрет героя для HTML-лобби: рисуем настоящую модель на отдельном canvas. */
+window.__renderHeroPortrait = function(target, heroId){
+  const def = HERO_DEFS.find(hero => hero.id === heroId);
+  if(!def || !target) return false;
+  const previous = ctx;
+  try {
+    ctx = target.getContext('2d');
+    ctx.clearRect(0, 0, target.width, target.height);
+    drawHeroTexture(def, 0, 0, target.width, target.height, performance.now()/1000);
+    return true;
+  } catch(err) {
+    return false;
+  } finally {
+    ctx = previous;
+    portraitRenderMode = false;
+  }
+};
+function modeCardRects(){
+  const narrow = VW < 760;
+  const w = narrow ? Math.min(VW-48, 420) : Math.min(380, (VW-90)/2);
+  const h = narrow ? Math.min(210, (VH-230)/2) : 280;
+  const gap = 28;
+  const y0 = narrow ? 150 : Math.max(150, VH/2 - h/2 - 10);
+  if(narrow) return [
+    {id:'turbo',   x:VW/2-w/2, y:y0,       w, h},
+    {id:'allpick', x:VW/2-w/2, y:y0+h+16, w, h}
+  ];
+  return [
+    {id:'turbo',   x:VW/2-w-gap/2, y:y0, w, h},
+    {id:'allpick', x:VW/2+gap/2,   y:y0, w, h}
+  ];
+}
+function drawModeSelect(){
+  const info = {
+    turbo:   {title:'ТУРБО',    tag:'БЫСТРАЯ ИГРА',  color:'#ff9d62', lines:['+3 монеты в секунду','Полная награда за крипов','Обычный опыт','Боты идут в мид с 5-й минуты']},
+    allpick: {title:'ALL PICK', tag:'КЛАССИКА',      color:'#8dd2ff', lines:['+1 монета в секунду','Крипы дают в 2 раза меньше монет','За героя — как обычно (200)','Опыт медленнее: уровни дольше','Боты дольше стоят на линиях (до 10-й минуты)']}
+  };
+  ctx.textAlign='center';
+  ctx.fillStyle='#f6e6be'; ctx.font='bold 27px Georgia, serif';
+  ctx.fillText('ВЫБОР РЕЖИМА',VW/2,72);
+  ctx.font='13px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.68)';
+  ctx.fillText('Игра против ботов 4 на 4',VW/2,100);
+  const back={x:24,y:78,w:120,h:38}; drawMenuButton(back,'‹  НАЗАД',{radius:7});
+  for(const m of modeCardRects()){
+    const d = info[m.id];
+    const hover = mouse.x>=m.x && mouse.x<=m.x+m.w && mouse.y>=m.y && mouse.y<=m.y+m.h;
+    if(gameState==='menu') menuButtonHitboxes.push({x:m.x,y:m.y,w:m.w,h:m.h,key:'mode:'+m.id});
+    ctx.save();
+    ctx.shadowColor = hover ? d.color : 'rgba(0,0,0,.5)'; ctx.shadowBlur = hover ? 26 : 10;
+    const g = ctx.createLinearGradient(m.x,m.y,m.x,m.y+m.h);
+    g.addColorStop(0, hover ? 'rgba(48,30,26,.97)' : 'rgba(26,20,24,.95)'); g.addColorStop(1, 'rgba(8,8,12,.97)');
+    ctx.fillStyle = g; ctx.strokeStyle = hover ? d.color : 'rgba(215,179,106,.45)'; ctx.lineWidth = hover ? 3 : 2;
+    ctx.beginPath(); ctx.roundRect(m.x,m.y,m.w,m.h,14); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.textAlign='center';
+    ctx.fillStyle = d.color; ctx.font='bold 12px Segoe UI, Arial'; ctx.fillText(d.tag, m.x+m.w/2, m.y+30);
+    ctx.font='bold 34px Georgia, serif'; ctx.fillStyle='#fff2d2'; ctx.fillText(d.title, m.x+m.w/2, m.y+70);
+    ctx.strokeStyle = d.color; ctx.globalAlpha=.5; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(m.x+m.w*0.25, m.y+88); ctx.lineTo(m.x+m.w*0.75, m.y+88); ctx.stroke(); ctx.globalAlpha=1;
+    ctx.font='14px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.82)';
+    d.lines.forEach((line,i)=>ctx.fillText(line, m.x+m.w/2, m.y+118+i*26));
+    if(hover){ ctx.fillStyle=d.color; ctx.font='bold 13px Segoe UI, Arial'; ctx.fillText('НАЖМИ, ЧТОБЫ ВЫБРАТЬ', m.x+m.w/2, m.y+m.h-16); }
+  }
+}
+
 function menuPlayRect(){
   if(menuWide()){ const s=menuScale(); return {x:Math.round(44*s),y:Math.round(150*s),w:Math.round(360*s),h:Math.round(84*s)}; }
   return {x:VW/2-150,y:VW<820||VH<820?VH/2-122:VH/2-28,w:300,h:72};
@@ -13099,6 +13276,8 @@ function storePanelLayout(){
 }
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.8.0',title:'ALL PICK И ОНЛАЙН-ЛОББИ',description:'Новый режим All Pick с медленной экономикой и долгой лайн-фазой, а в онлайне — лобби как в Dota 2 с режимами 1v1–4v4 и ботами.',compactDescription:'All Pick и лобби 1v1–4v4 с ботами.'},
+  {version:'0.7.8',title:'СЧЁТЧИК ДЖУВСЮТА И 3D',description:'Над Джувсютом виден счётчик съеденных крипов, а бойцы и постройки получили объём и косые тени.',compactDescription:'Счётчик еды и объёмная графика.'},
   {version:'0.7.7',title:'ОБНОВЛЁННАЯ КАРТА',description:'Зелёные деревья Света в стиле Тьмы, более выразительное песчаное дно и прозрачная вода с бликами.',compactDescription:'Зелёный лес Света, детальный песок и вода.'},
   {version:'0.7.7',title:'НОВЫЕ ПРЕДМЕТЫ В МЕНЮ',description:'В новостях показаны Замисть и Диспёрсер, а также иллюстрация обновлённой карты.',compactDescription:'Замисть, Диспёрсер и улучшенная карта.'},
   {version:'0.7.7',title:'МАГАЗИН КАК В DOTA',description:'Предметы показаны компактными иконками, а название, цена и описание появляются при наведении.',compactDescription:'Иконки предметов и описание при наведении.'},
@@ -13314,7 +13493,7 @@ function handleMenuClick(mx, my){
     }
     const play = menuPlayRect();
     if(mx>=play.x && mx<=play.x+play.w && my>=play.y && my<=play.y+play.h){
-      beginDraft();
+      menuStage = 'mode';
       return;
     }
     const fighters = menuFightersRect();
@@ -13339,6 +13518,14 @@ function handleMenuClick(mx, my){
     if(mx>=detailTest.x && mx<=detailTest.x+detailTest.w && my>=detailTest.y && my<=detailTest.y+detailTest.h){
       startTestMode(selectedHeroIndex);
       return;
+    }
+    return;
+  }
+  if(menuStage === 'mode'){
+    const back={x:24,y:78,w:120,h:38};
+    if(mx>=back.x && mx<=back.x+back.w && my>=back.y && my<=back.y+back.h){ menuStage='home'; return; }
+    for(const m of modeCardRects()){
+      if(mx>=m.x && mx<=m.x+m.w && my>=m.y && my<=m.y+m.h){ gameMode=m.id; beginDraft(); return; }
     }
     return;
   }
@@ -14880,12 +15067,12 @@ function drawDotaSenseHome(){
   ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
   ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
   const news=[
+    {tag:'0.8.0',title:'ALL PICK: НОВЫЙ РЕЖИМ',art:'allpick',action:'changelog'},
     {tag:'0.7.7',title:'УЛУЧШЕННАЯ КАРТА',art:'map',action:'changelog'},
     {tag:'0.7.7',title:'ЗАМИСТЬ: НОВЫЙ АКТИВ',art:'item',item:'Замисть',itemId:'zamist',action:'store'},
     {tag:'0.7.7',title:'ДИСПЁРСЕР: НОВЫЙ ПРЕДМЕТ',art:'item',item:'Диспёрсер',itemId:'disperser',action:'store'},
     {tag:'0.7.5c',title:'СРАКА МО3ГОВ: НОВЫЙ АКТИВ',art:'item',item:'Срака мо3гов',itemId:'brainAss',action:'store'},
-    {tag:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',art:'heart',action:'account'},
-    {tag:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',art:'3v3',action:'leaderboard'}
+    {tag:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',art:'heart',action:'account'}
   ];
   const cGap=Math.round(10*s), cTop=nY+Math.round(52*s);
   const cH=Math.floor((nH-Math.round(52*s)-Math.round(12*s)-cGap*(news.length-1))/news.length);
@@ -14895,7 +15082,7 @@ function drawDotaSenseHome(){
     ctx.save();
     ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
     const art=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
-    const artTone = entry.art === 'map' ? ['#315c36','#0d2825'] : entry.art === 'item' ? ['#42142c','#140d24'] : entry.art === 'bot' ? ['#16383c','#101426'] : ['#3a0d12','#120508'];
+    const artTone = entry.art === 'map' ? ['#315c36','#0d2825'] : entry.art === 'item' ? ['#42142c','#140d24'] : entry.art === 'bot' ? ['#16383c','#101426'] : entry.art === 'allpick' ? ['#0f3550','#0a1424'] : ['#3a0d12','#120508'];
     art.addColorStop(0,artTone[0]); art.addColorStop(1,artTone[1]);
     ctx.fillStyle=art; ctx.fillRect(card.x,card.y,card.w,card.h);
     const gx=card.x+card.w*0.62, gy=card.y+card.h*0.42;
@@ -14930,6 +15117,14 @@ function drawDotaSenseHome(){
       }
       const featuredItem=SHOP_ITEMS[entry.itemId] || Object.values(SHOP_ITEMS).find(item=>item.name===entry.item);
       drawItemIcon({id:entry.itemId||'brainAss',color:featuredItem&&featuredItem.color},gx,gy,card.h*.75);
+    } else if(entry.art==='allpick'){
+      const nowT=performance.now()/1000;
+      const picks=[HERO_DEFS[2],HERO_DEFS[18]||HERO_DEFS[0],HERO_DEFS[9]||HERO_DEFS[1]];
+      const pw=card.w*0.2, ph=card.h-Math.round(40*s);
+      picks.forEach((def,k)=>{ if(def) drawHeroTexture(def,card.x+card.w*0.07+k*(pw+card.w*0.04),card.y+Math.round(24*s),pw,ph,nowT); });
+      ctx.globalAlpha=1; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.shadowColor='#6fd0ff'; ctx.shadowBlur=14;
+      ctx.fillStyle='#bfeaff'; ctx.font='bold '+Math.round(card.h*0.26)+'px Georgia, serif';
+      ctx.fillText('ALL',card.x+card.w*0.70,card.y+card.h*0.34); ctx.fillText('PICK',card.x+card.w*0.70,card.y+card.h*0.62);
     } else if(entry.art==='bot'){
       const colors=['#a7ff70','#ffd568','#ff638d'];
       for(let mark=0;mark<3;mark++){
@@ -15282,6 +15477,11 @@ function drawMenu(){
     drawMenuButton(storeButton,'▣  МАГАЗИН',{redBlack:true,radius:8});
     ctx.font = '14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
     if(VW>=820 && VH>=820) ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
+    return;
+  }
+
+  if(menuStage === 'mode'){
+    drawModeSelect();
     return;
   }
 
@@ -15693,6 +15893,9 @@ requestAnimationFrame(loop);
   let statsSequence = 0;
   let lastSnapshotSignature = '';
   let authoritativeMode = false;
+  let onlineHostId = null;
+  const botVersions = new Map();
+  let botSnapTick = 0;
   const remoteHeroes = new Map();
   const remoteBulletIds = new Set();
 
@@ -15726,6 +15929,11 @@ requestAnimationFrame(loop);
         }
       }
     });
+    socket.on('room:host', data => {
+      if(!data) return;
+      onlineHostId = data.hostId || null;
+      bindRosterHeroes();
+    });
     socket.on('tower:update', data => {
       if(!data || !data.id) return;
       syncTowerState(data);
@@ -15750,8 +15958,8 @@ requestAnimationFrame(loop);
 
   function beginAuthoritativeMatch(payload){
     if(onlineId) return;
-    if(!payload || !Array.isArray(payload.roster) || payload.roster.length < 2 || payload.roster.length > 6){
-      showMatchStartError('Для матча нужны от 2 до 6 игроков.');
+    if(!payload || !Array.isArray(payload.roster) || payload.roster.length < 2 || payload.roster.length > 8){
+      showMatchStartError('Для матча нужны от 2 до 8 игроков.');
       return;
     }
     const local = payload.roster.find(member => member.id === payload.id);
@@ -15762,8 +15970,8 @@ requestAnimationFrame(loop);
     const bySlot = (left,right) => left.slot-right.slot;
     const own = payload.roster.filter(member => member.team === local.team).sort(bySlot);
     const enemy = payload.roster.filter(member => member.team !== local.team).sort(bySlot);
-    if(!own.length || !enemy.length || own.length > 3 || enemy.length > 3 || Math.abs(own.length-enemy.length)>1){
-      showMatchStartError('Нужно от 1 до 3 игроков в каждой команде.');
+    if(!own.length || !enemy.length || own.length > 4 || enemy.length > 4 || Math.abs(own.length-enemy.length)>1){
+      showMatchStartError('Нужно от 1 до 4 игроков в каждой команде.');
       return;
     }
     const heroIdOf = member => member.hero || member.heroId;
@@ -15778,8 +15986,8 @@ requestAnimationFrame(loop);
       ownOthers[1] ? heroIndexOf(ownOthers[1]) : fallback,
       enemy[1] ? heroIndexOf(enemy[1]) : fallback,
       enemy[2] ? heroIndexOf(enemy[2]) : fallback,
-      fallback,
-      fallback];
+      ownOthers[2] ? heroIndexOf(ownOthers[2]) : fallback,
+      enemy[3] ? heroIndexOf(enemy[3]) : fallback];
     if(heroIndex < 0 || picks.some(index => index < 0)){
       showMatchStartError('Сервер прислал неизвестного героя.');
       return;
@@ -15787,7 +15995,9 @@ requestAnimationFrame(loop);
     try {
       onlineId = payload.id;
       onlineRoster = payload.roster;
-      rankedOnlineMatch = true;
+      onlineHostId = payload.hostId || null;
+      gameMode = (payload.settings && GAME_MODES[payload.settings.ruleset]) ? payload.settings.ruleset : 'turbo';
+      rankedOnlineMatch = !payload.roster.some(member => member.bot);
       rosterSignature = onlineRoster.map(member => `${member.id}:${member.slot}:${member.team}:${heroIdOf(member)}`).join('|');
       originalStartGame(heroIndex, picks);
       orientOnlineMapForTeam(local.team);
@@ -15857,7 +16067,9 @@ requestAnimationFrame(loop);
       /* heroes[3] — мид-союзник (в онлайне не используется); враги идут с индекса 4 */
       {member:enemy[0],hero:heroes[4]},
       {member:enemy[1],hero:heroes[5]},
-      {member:enemy[2],hero:heroes[6]}
+      {member:enemy[2],hero:heroes[6]},
+      {member:ownOthers[2],hero:heroes[3]},
+      {member:enemy[3],hero:heroes[7]}
     ].map(slot => slot.member ? {member:slot.member,hero:remoteHeroes.get(slot.member.id) || slot.hero} : slot)
      .filter(slot => slot.member && slot.hero);
     const currentIds = new Set(slots.map(slot => slot.member.id));
@@ -15879,7 +16091,9 @@ requestAnimationFrame(loop);
       hero.isOnlineRemote = member.id !== onlineId;
       hero.isPlayer = member.id === onlineId;
       hero.onlinePlayerId = member.id;
-      if(hero.isOnlineRemote){
+      hero.isHostedBot = !!member.bot && onlineHostId === onlineId;
+      hero.isOnlineBot = hero.isHostedBot;
+      if(hero.isOnlineRemote && !hero.isHostedBot){
         // Their real position/HP/mana already arrive over the network, so this
         // hero must never decide where to walk or whom to fight among players -
         // that used to fight the network sync every frame and is what caused the
@@ -15918,7 +16132,7 @@ requestAnimationFrame(loop);
   function syncRosterFromState(state){
     if(!authoritativeMode || !state || !Array.isArray(state.players)) return;
     const nextRoster = state.players.map(player => ({
-      id:player.id, slot:player.slot, team:player.team, bot:false,
+      id:player.id, slot:player.slot, team:player.team, bot:!!player.bot,
       hero:player.heroId, heroId:player.heroId
     }));
     if(!nextRoster.some(member => member.id === onlineId)) return;
@@ -15936,6 +16150,7 @@ requestAnimationFrame(loop);
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
+      if(hero.isHostedBot) continue;
       if(remote.id !== onlineId){
         const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
         if(error>260){ hero.x=remote.x; hero.y=remote.y; }
@@ -16133,28 +16348,53 @@ requestAnimationFrame(loop);
       speed:playerHero.getSpeed(),attackRange:playerHero.getAttackRange()});
   }
   function applyLocalVitals(vitals){
-    if(!vitals || vitals.id !== onlineId || !playerHero) return;
-    if(Number.isInteger(vitals.damageVersion) && vitals.damageVersion < serverDamageVersion) return;
-    if(Number.isInteger(vitals.damageVersion)) serverDamageVersion = vitals.damageVersion;
-    if(Number.isFinite(vitals.maxHp)) playerHero.maxHp = vitals.maxHp;
+    if(!vitals) return;
+    const isLocal = vitals.id === onlineId;
+    const hero = isLocal ? playerHero : remoteHeroes.get(vitals.id);
+    if(!hero || (!isLocal && !hero.isHostedBot)) return;
+    const knownVersion = isLocal ? serverDamageVersion : (botVersions.get(vitals.id) ?? -1);
+    if(Number.isInteger(vitals.damageVersion) && vitals.damageVersion < knownVersion) return;
+    if(Number.isInteger(vitals.damageVersion)){
+      if(isLocal) serverDamageVersion = vitals.damageVersion; else botVersions.set(vitals.id, vitals.damageVersion);
+    }
+    if(Number.isFinite(vitals.maxHp)) hero.maxHp = vitals.maxHp;
     if(vitals.alive === false){
-      if(!playerHero.dead){
-        playerHero.dead = true;
-        playerHero.deaths++;
-        playerHero.killStreak = 0;
-        playerHero.spreeKills = 0;
-        playerHero.lastHeroKillTime = -Infinity;
+      if(!hero.dead){
+        hero.dead = true;
+        hero.deaths++;
+        hero.killStreak = 0;
+        hero.spreeKills = 0;
+        hero.lastHeroKillTime = -Infinity;
       }
-      playerHero.hp = 0;
-      playerHero.respawnTimer = Math.max(0,Number(vitals.respawnTimer)||0);
+      hero.hp = 0;
+      hero.respawnTimer = Math.max(0,Number(vitals.respawnTimer)||0);
       return;
     }
-    if(vitals.alive === true && playerHero.dead){
-      playerHero.respawnTimer = 0;
-      playerHero.update(0);
+    if(vitals.alive === true && hero.dead){
+      hero.respawnTimer = 0;
+      hero.update(0);
     }
-    if(Number.isFinite(vitals.hp)) playerHero.hp = vitals.hp;
-    if(Number.isFinite(vitals.respawnTimer)) playerHero.respawnTimer = Math.max(0,vitals.respawnTimer);
+    if(Number.isFinite(vitals.hp)) hero.hp = vitals.hp;
+    if(Number.isFinite(vitals.respawnTimer)) hero.respawnTimer = Math.max(0,vitals.respawnTimer);
+  }
+  /* Хост считает ИИ ботов и шлёт серверу их позицию/здоровье от имени бота. */
+  function sendHostedBots(){
+    if(!socket || !socket.connected || !authoritativeMode || onlineHostId !== onlineId) return;
+    botSnapTick++;
+    for(const [id,hero] of remoteHeroes){
+      if(!hero.isHostedBot) continue;
+      const emit = (type,payload) => socket.emit('botProxy',{botId:id,type,payload});
+      if(!hero.dead) emit('input',{type:'position',x:hero.x,y:hero.y,angle:hero.facing,speed:hero.getSpeed(),attackRange:hero.getAttackRange()});
+      emit('stats',{hp:hero.hp,maxHp:hero.maxHp,gold:hero.coins,alive:!hero.dead,
+        respawnTimer:Math.max(0,hero.respawnTimer||0),damageVersion:botVersions.get(id) ?? 0,sequence:++statsSequence});
+      if(botSnapTick % 20 === 0){
+        emit('snapshot',{heroId:hero.def.id,level:hero.level,xp:hero.xp,x:hero.x,y:hero.y,teleport:false,
+          hp:hero.hp,maxHp:hero.maxHp,mp:hero.mp,maxMp:hero.maxMp,
+          inventory:hero.inventory.map(item=>item&&({id:item.id,cooldown:item.cooldown||0,activeTimer:item.activeTimer||0})),
+          skills:hero.skills.map(skill=>({id:skill.id,level:skill.level,cd:skill.cd||0})),
+          buffs:[],bkbActive:hero.bkbActive||0,timurPillow:hero.timurPillow||0,effects:[]});
+      }
+    }
   }
   function onlineKeyFromEvent(event){
     return PHYSICAL_KEY_LETTER[event.code] || (event.key || '').toLowerCase();
@@ -16187,6 +16427,7 @@ requestAnimationFrame(loop);
     if(authoritativeMode) sendPlayerPosition();
     if(authoritativeMode) sendPlayerStats();
     if(authoritativeMode) sendPlayerSnapshot(false);
+    if(authoritativeMode) sendHostedBots();
     if(authoritativeMode && playerHero && playerHero.attackTarget && !playerHero.attackTarget.dead){
       const target=playerHero.attackTarget;
       sendInput({type:'attackTarget',targetId:target.onlinePlayerId||null,targetX:target.x,targetY:target.y,
