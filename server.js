@@ -106,8 +106,10 @@ function emitLobby(room){ io.to(room.id).emit('lobbyUpdate', lobbyPayload(room))
 function emitOnlineCount(){ io.emit('update-online', {count:io.engine.clientsCount}); }
 function spawnPlayer(member){
   const base = BASES[member.team];
-  const angle = (member.team === 0 ? -Math.PI/4 : 3*Math.PI/4) + ((member.slot % SLOTS_PER_TEAM)-1.5)*0.45;
-  const spawn = {x:base.x+Math.cos(angle)*SPAWN_RADIUS,y:base.y+Math.sin(angle)*SPAWN_RADIUS};
+  /* Комната возрождения в углу карты: центр (340,340) от угла, игроки вокруг фонтана */
+  const roomU = 340 + Math.cos(((member.slot % SLOTS_PER_TEAM)/SLOTS_PER_TEAM)*Math.PI*2)*95;
+  const roomV = 340 + Math.sin(((member.slot % SLOTS_PER_TEAM)/SLOTS_PER_TEAM)*Math.PI*2)*95;
+  const spawn = member.team === 0 ? {x:roomU,y:WORLD_SIZE-roomV} : {x:WORLD_SIZE-roomV,y:roomU};
   return {id:member.id, slot:member.slot, team:member.team, bot:member.bot, heroId:member.hero || 'shadow',
     x:spawn.x, y:spawn.y,
     angle:member.team === 0 ? 0 : Math.PI, hp:900, maxHp:900, gold:600, alive:true,
