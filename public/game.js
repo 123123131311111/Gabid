@@ -9487,7 +9487,31 @@ function drawUnit(u){
     ctx.restore();
   }
 
-  if(u.type === 'tower' || u.type === 'ancient'){
+  /* 3D-боец (hero3d.js): модель рендерится в спрайт под нужный угол — тот же вид, что в просмотре бойца */
+  let hero3dSpr = null;
+  if(u.type === 'hero' && !portraitRenderMode && window.Hero3D && Hero3D.has(u.def.id)){
+    let fa = u.facing || 0;
+    if(u.isAttacking && u.attackTarget && u.attackTarget.alive) fa = Math.atan2(u.attackTarget.y-u.y, u.attackTarget.x-u.x);
+    hero3dSpr = Hero3D.battleSprite(u.def, u.radius, fa, gameTime);
+    if(hero3dSpr){
+      const footY = u.radius*0.7;
+      // кольцо команды под ногами
+      ctx.save();
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.85; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.ellipse(0, footY, u.radius*1.0, u.radius*0.5, 0, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+      // выпад в сторону цели при атаке
+      let lx = 0, ly = 0;
+      if(u.isAttacking){
+        const lunge = Math.sin(Math.min(1,u.attackAnimProgress)*Math.PI) * u.radius*0.28;
+        lx = Math.cos(fa)*lunge; ly = Math.sin(fa)*lunge*0.6;
+      }
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax + lx, footY - hero3dSpr.ay + ly);
+    }
+  }
+  if(hero3dSpr){
+    /* тело уже нарисовано выше */
+  } else if(u.type === 'tower' || u.type === 'ancient'){
     drawStructureModel(u, col);
   } else if(u.type === 'barracks'){
     const barracksGradient=ctx.createLinearGradient(-u.radius,-u.radius,u.radius,u.radius);
@@ -10869,7 +10893,7 @@ function drawUnit(u){
     ctx.beginPath(); ctx.arc(0,0,u.radius*0.42,0,Math.PI*2); ctx.fill();
   }
 
-  drawUnitWeapon(u);
+  if(!hero3dSpr) drawUnitWeapon(u);
   if(u.hitFlash > 0){
     ctx.globalAlpha = u.hitFlash*4;
     ctx.fillStyle = '#ffffff';
@@ -11098,6 +11122,7 @@ function drawWorldObjects(){
     unit.x+unit.radius>=viewLeft && unit.x-unit.radius<=viewRight &&
     unit.y+unit.radius>=viewTop && unit.y-unit.radius<=viewBottom
   ).sort((a,b) => a.y-b.y);
+  if(window.Hero3D) Hero3D.resetBudget();
   for(const u of list){
     if((u.type === 'tower' || u.type === 'ancient') && (!u.alive || u.hp <= 0 || u.dead)) continue;
     drawUnitSafely(u);
@@ -13938,7 +13963,7 @@ function drawHeroViewer(def,x,y,w,h,now){
   ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
   /* настоящая 3D-модель бойца (hero3d.js): вращение по двум осям, масштаб колесом */
   if(window.Hero3D){
-    Hero3D.draw(ctx,def,x,y,w,h,{yaw:heroView.yaw,pitch:heroView.pitch,zoom:heroView.zoom,t:now});
+    Hero3D.draw(ctx,def,x,y,w,h,{yaw:heroView.yaw,pitch:heroView.pitch,zoom:heroView.zoom,t:now,ss:heroView.drag?1:1.25});
   }
   ctx.restore();
 

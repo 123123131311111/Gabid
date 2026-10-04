@@ -40,7 +40,7 @@ function basisY(dir,hint){
 /* ---------- Сцена ---------- */
 class Scene{
   constructor(){ this.faces=[]; this.pre=[]; this.sc=1; this.target=this.faces; }
-  face(pts,center,color,glow,nm,shine){
+  face(pts,center,color,glow,nm,shine,vn){
     const k=this.sc;
     const P=pts.map(p=>[p[0]*k,p[1]*k,p[2]*k]);
     const col=rgb(color);
@@ -48,7 +48,7 @@ class Scene{
       const mx=Math.max(col[0],col[1],col[2]), mn=Math.min(col[0],col[1],col[2]);
       shine=(mx>105 && (mx-mn)/mx<.22)?.6:.16;
     }
-    this.target.push({p:P,c:[center[0]*k,center[1]*k,center[2]*k],col,glow:!!glow,nm:nm||null,sh:shine});
+    this.target.push({p:P,c:[center[0]*k,center[1]*k,center[2]*k],col,glow:!!glow,nm:nm||null,sh:shine,vn:vn||null});
   }
   box(c,s,color,o){
     o=o||{}; const r=o.rot||[0,0,0];
@@ -76,11 +76,16 @@ class Scene{
       const off=add(mul(bx,dx),mul(bz,dz));
       ra.push(add(a,mul(off,r1))); rb.push(add(b,mul(off,r2)));
     }
+    const vnr=[];
+    for(let i=0;i<n;i++){
+      const ang=i/n*Math.PI*2;
+      vnr.push(norm(add(add(mul(bx,Math.cos(ang)),mul(bz,Math.sin(ang))),mul(by,tilt))));
+    }
     for(let i=0;i<n;i++){
       const j=(i+1)%n;
       const am=(i+.5)/n*Math.PI*2;
       const nm=norm(add(add(mul(bx,Math.cos(am)),mul(bz,Math.sin(am))),mul(by,tilt)));
-      this.face([ra[i],ra[j],rb[j],rb[i]],c,color,o.glow,nm,o.shine);
+      this.face([ra[i],ra[j],rb[j],rb[i]],c,color,o.glow,nm,o.shine,o.flat?null:[vnr[i],vnr[j],vnr[j],vnr[i]]);
     }
     if(r1>0.001) this.face(ra.slice().reverse(),c,color,o.glow,mul(by,-1),o.shine);
     if(r2>0.001) this.face(rb,c,color,o.glow,by,o.shine);
@@ -93,13 +98,18 @@ class Scene{
       const p=[r[0]*Math.sin(th)*Math.cos(ph), r[1]*Math.cos(th), r[2]*Math.sin(th)*Math.sin(ph)];
       return add(rotEuler(p,rot),c);
     };
+    const vnAt=(i,j)=>{
+      const th=i/nr*Math.PI, ph=j/ns*Math.PI*2;
+      return norm(rotEuler([Math.sin(th)*Math.cos(ph)/r[0],Math.cos(th)/r[1],Math.sin(th)*Math.sin(ph)/r[2]],rot));
+    };
     for(let i=0;i<nr;i++) for(let j=0;j<ns;j++){
       const a=pt(i,j), b=pt(i,j+1), d=pt(i+1,j), e=pt(i+1,j+1);
       const tm=(i+.5)/nr*Math.PI, pm=(j+.5)/ns*Math.PI*2;
       const nm=norm(rotEuler([Math.sin(tm)*Math.cos(pm)/r[0],Math.cos(tm)/r[1],Math.sin(tm)*Math.sin(pm)/r[2]],rot));
-      if(i===0) this.face([a,d,e],c,color,o.glow,nm,o.shine);
-      else if(i===nr-1) this.face([a,b,d],c,color,o.glow,nm,o.shine);
-      else this.face([a,b,e,d],c,color,o.glow,nm,o.shine);
+      const na=vnAt(i,j), nb=vnAt(i,j+1), nd=vnAt(i+1,j), ne=vnAt(i+1,j+1);
+      if(i===0) this.face([a,d,e],c,color,o.glow,nm,o.shine,[na,nd,ne]);
+      else if(i===nr-1) this.face([a,b,d],c,color,o.glow,nm,o.shine,[na,nb,nd]);
+      else this.face([a,b,e,d],c,color,o.glow,nm,o.shine,[na,nb,ne,nd]);
     }
   }
   ring(c,R,th,color,o){
@@ -822,11 +832,6 @@ MODELS.sniper=(S,d,t)=>{
 };
 
 /* ---------- Запасная модель для героев без отдельной ---------- */
-function fallback(S,d,t){
-  man(S,{cloth:d.color||'#556',face:true,armR:[.7,1.3,.4],armL:[-.7,1.3,.4]});
-  robe(S,.55,.4,1.4,d.color||'#556',d.color2||'#fff');
-  S.ell([0,2.5,0],[.15,.15,.15],d.color2||'#fff',{glow:1});
-}
 
 /* ---------- Рендер ---------- */
 function drawPedestal(S,d,t){
@@ -840,93 +845,321 @@ function drawPedestal(S,d,t){
   S.sc=k; S.target=S.faces;
 }
 
-function draw(ctx,def,x,y,w,h,o){
-  const yaw=o.yaw||0, pitch=o.pitch==null?.2:o.pitch, zoom=o.zoom||1, t=o.t||0;
+/* ---------- Процедурные текстуры: 3D value-noise в координатах модели ---------- */
+const HT=new Float32Array(4096);
+(function(){ let s=1337; for(let i=0;i<4096;i++){ s=(s*1664525+1013904223)>>>0; HT[i]=s/4294967296; } })();
+function hash3(x,y,z){ return HT[((x*73856093)^(y*19349663)^(z*83492791))&4095]; }
+function vnoise(x,y,z){
+  const xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z);
+  let fx=x-xi, fy=y-yi, fz=z-zi;
+  fx=fx*fx*(3-2*fx); fy=fy*fy*(3-2*fy); fz=fz*fz*(3-2*fz);
+  const a=hash3(xi,yi,zi), b=hash3(xi+1,yi,zi), c=hash3(xi,yi+1,zi), d=hash3(xi+1,yi+1,zi);
+  const e=hash3(xi,yi,zi+1), f=hash3(xi+1,yi,zi+1), g=hash3(xi,yi+1,zi+1), h=hash3(xi+1,yi+1,zi+1);
+  const x1=a+(b-a)*fx, x2=c+(d-c)*fx, x3=e+(f-e)*fx, x4=g+(h-g)*fx;
+  const y1=x1+(x2-x1)*fy, y2=x3+(x4-x3)*fy;
+  return y1+(y2-y1)*fz;
+}
+
+/* ---------- Z-буфер растеризатор (вместо сортировки граней) ----------
+   Каждый пиксель хранит ближайший фрагмент (id грани, позиция в модели,
+   нормаль). Поэтому текстуры больше не «въезжают» друг в друга.
+   Освещение считается один раз на пиксель (deferred shading). */
+const PW26=new Float32Array(1025), PW70=new Float32Array(1025);
+for(let i=0;i<=1024;i++){ const x=i/1024; PW26[i]=Math.pow(x,26); PW70[i]=Math.pow(x,70); }
+let BUF=null, OUTB=null;
+const SCR={cap:0,IWF:null,NF:null,VX:new Float64Array(64),VY:new Float64Array(64),VZ:new Float64Array(64),XS:new Float64Array(64),YS:new Float64Array(64),EX:new Float64Array(4),EY:new Float64Array(4)};
+function getBuf(n){
+  if(!BUF||BUF.n<n){
+    BUF={n,w:new Float32Array(n),id:new Int32Array(n),l1:new Float32Array(n),l2:new Float32Array(n)};
+  }
+  return BUF;
+}
+function getOut(n){
+  if(!OUTB||OUTB.n<n){ OUTB={n,out:new Uint8ClampedArray(n*4),glow:new Uint8ClampedArray(n*4)}; }
+  return OUTB;
+}
+
+function render(def,o){
+  o=o||{};
+  const W=o.W|0, H=o.H|0;
+  const yaw=o.yaw||0, pitch=o.pitch==null?.2:o.pitch, t=o.t||0;
+  const D=9, f=o.f, cx=o.cx, cy=o.cy;
   const S=new Scene();
-  drawPedestal(S,def,t);
-  const bob=Math.sin(t*1.6)*.025;
+  if(o.pedestal) drawPedestal(S,def,t);
   (MODELS[def.id]||fallback)(S,def,t);
-  const D=9, f=Math.min(h*.86/3.5, w*.86/3.5)*D*zoom;
-  const cx=x+w/2, cy=y+h*.6;
+  const all=S.pre.concat(S.faces);
+  const preCount=S.pre.length;
+  const B=getBuf(W*H);
+  B.w.fill(0,0,W*H); B.id.fill(-1,0,W*H);
+  const Bw=B.w, Bid=B.id, Bl1=B.l1, Bl2=B.l2;
   const cyw=Math.cos(yaw), syw=Math.sin(yaw), cp=Math.cos(pitch), sp=Math.sin(pitch);
   const T=[0,1.3,0];
-  const tr=p=>{
-    let px=p[0]-T[0], py=p[1]-T[1]+(p.__b?0:0), pz=p[2]-T[2];
-    let X=px*cyw-pz*syw, Z=px*syw+pz*cyw;
-    let Y=py*cp-Z*sp, Z2=py*sp+Z*cp;
-    return [X,Y,Z2];
-  };
-  const L=norm([-.45,.7,.6]), L2=norm([.75,.15,.45]), L3=norm([.1,.35,-1]);
-  const H=norm(add(L,[0,0,1]));
-  const acc=rgb(def.color2||'#ffffff');
-  const rv=v=>{ const X=v[0]*cyw-v[2]*syw, Z=v[0]*syw+v[2]*cyw; return [X,v[1]*cp-Z*sp,v[1]*sp+Z*cp]; };
-  const prep=(arr,bobY)=>{
-    const out=[];
-    for(const fc of arr){
-      const P=fc.p.map(p=>tr([p[0],p[1]+bobY,p[2]]));
-      const C=tr([fc.c[0],fc.c[1]+bobY,fc.c[2]]);
-      let n;
-      if(P.length===3) n=cross(sub(P[1],P[0]),sub(P[2],P[0]));
-      else n=cross(sub(P[2],P[0]),sub(P[3],P[1]));
-      const nl=len(n); if(nl<1e-9) continue; n=mul(n,1/nl);
-      const outv=sub(P[0],C);
-      // нормаль должна смотреть наружу от центра примитива
-      const fcn=[(P[0][0]+P[1][0]+P[2][0])/3-C[0],(P[0][1]+P[1][1]+P[2][1])/3-C[1],(P[0][2]+P[1][2]+P[2][2])/3-C[2]];
-      if(dot(n,fcn)<0) n=mul(n,-1);
-      const fcPos=[(P[0][0]+P[1][0]+P[2][0])/3,(P[0][1]+P[1][1]+P[2][1])/3,(P[0][2]+P[1][2]+P[2][2])/3];
-      const view=[-fcPos[0],-fcPos[1],D-fcPos[2]];
-      if(dot(n,view)<=0) continue;
-      let zs=0; for(const p of P) zs+=p[2];
-      out.push({P,n,nm:fc.nm?rv(fc.nm):n,z:zs/P.length,col:fc.col,glow:fc.glow,sh:fc.sh});
+  const bob=Math.sin(t*1.6)*.025;
+  const BW=.00012;                       // допуск по глубине: декали (глаза, узоры) выигрывают у основы
+  const nF=all.length;
+  if(!SCR.IWF||SCR.cap<nF){ SCR.cap=Math.ceil(nF*1.3)+64; SCR.IWF=new Float32Array(SCR.cap*64); SCR.NF=new Float32Array(SCR.cap*3); }
+  const IWF=SCR.IWF, NF=SCR.NF, VX=SCR.VX, VY=SCR.VY, VZ=SCR.VZ, XS=SCR.XS, YS=SCR.YS, EX=SCR.EX, EY=SCR.EY;
+
+  for(let fi=0;fi<nF;fi++){
+    const fc=all[fi];
+    const bobY=fi<preCount?0:bob;
+    const n0=fc.p.length;
+    for(let k=0;k<n0;k++){
+      const p=fc.p[k];
+      const px=p[0]-T[0], py=p[1]+bobY-T[1], pz=p[2]-T[2];
+      const X=px*cyw-pz*syw, Z=px*syw+pz*cyw;
+      VX[k]=X; VY[k]=py*cp-Z*sp; VZ[k]=py*sp+Z*cp;
     }
-    return out;
-  };
-  const paint=list=>{
-    ctx.lineJoin='round';
-    for(const fc of list){
-      const pts=fc.P.map(p=>{const dd=D-p[2]; return [cx+p[0]*f/dd, cy-p[1]*f/dd];});
-      let r=fc.col[0],g=fc.col[1],b=fc.col[2];
-      if(fc.glow){
-        r=Math.min(255,r*1.1+55); g=Math.min(255,g*1.1+55); b=Math.min(255,b*1.1+55);
-        ctx.shadowColor='rgb('+(fc.col[0]|0)+','+(fc.col[1]|0)+','+(fc.col[2]|0)+')'; ctx.shadowBlur=16;
-      } else {
-        const nn=fc.nm;
-        const key=Math.max(0,dot(nn,L)), fil=Math.max(0,dot(nn,L2)), rim=Math.pow(Math.max(0,dot(nn,L3)),1.5);
-        const amb=.3+.16*nn[1];
-        const spc=Math.pow(Math.max(0,dot(nn,H)),30)*fc.sh*150;
-        const edge=Math.pow(1-Math.max(0,nn[2]),3)*.22;
-        r=r*(amb+key*.84+fil*.17)+acc[0]*(rim*.34+edge*.35)+spc;
-        g=g*(amb+key*.8+fil*.2)+acc[1]*(rim*.34+edge*.35)+spc;
-        b=b*(amb+key*.74+fil*.27)+acc[2]*(rim*.34+edge*.35)+spc;
-        r=Math.min(255,r); g=Math.min(255,g); b=Math.min(255,b);
-        ctx.shadowBlur=0;
+    const Cx=fc.c[0]-T[0], Cy=fc.c[1]+bobY-T[1], Cz=fc.c[2]-T[2];
+    const cX=Cx*cyw-Cz*syw, cZ=Cx*syw+Cz*cyw, cY=Cy*cp-cZ*sp, cZ2=Cy*sp+cZ*cp;
+    let ax,ay,az,bx,by,bz;
+    if(n0===3){ ax=VX[1]-VX[0]; ay=VY[1]-VY[0]; az=VZ[1]-VZ[0]; bx=VX[2]-VX[0]; by=VY[2]-VY[0]; bz=VZ[2]-VZ[0]; }
+    else { ax=VX[2]-VX[0]; ay=VY[2]-VY[0]; az=VZ[2]-VZ[0]; bx=VX[3]-VX[1]; by=VY[3]-VY[1]; bz=VZ[3]-VZ[1]; }
+    let nx=ay*bz-az*by, ny=az*bx-ax*bz, nz=ax*by-ay*bx;
+    const nl=Math.hypot(nx,ny,nz); if(nl<1e-9) continue; nx/=nl; ny/=nl; nz/=nl;
+    const fp0=(VX[0]+VX[1]+VX[2])/3, fp1=(VY[0]+VY[1]+VY[2])/3, fp2=(VZ[0]+VZ[1]+VZ[2])/3;
+    if(nx*(fp0-cX)+ny*(fp1-cY)+nz*(fp2-cZ2)<0){ nx=-nx; ny=-ny; nz=-nz; }
+    if(nx*(-fp0)+ny*(-fp1)+nz*(D-fp2)<=0) continue;       // задняя грань
+    let behind=false;
+    const iwo=fi*64;
+    for(let k=0;k<n0;k++){
+      const dd=D-VZ[k]; if(dd<.5){behind=true;break;}
+      IWF[iwo+k]=1/dd; XS[k]=cx+VX[k]*f/dd; YS[k]=cy-VY[k]*f/dd;
+    }
+    if(behind) continue;
+    if(fc.nm){ const m=fc.nm; const X=m[0]*cyw-m[2]*syw, Z=m[0]*syw+m[2]*cyw; NF[fi*3]=X; NF[fi*3+1]=m[1]*cp-Z*sp; NF[fi*3+2]=m[1]*sp+Z*cp; }
+    else { NF[fi*3]=nx; NF[fi*3+1]=ny; NF[fi*3+2]=nz; }
+    // построчная растеризация веера треугольников
+    for(let tri=1;tri<n0-1;tri++){
+      const x0=XS[0],y0=YS[0],x1=XS[tri],y1=YS[tri],x2=XS[tri+1],y2=YS[tri+1];
+      const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
+      if(Math.abs(area)<1e-6) continue;
+      const ymin=Math.max(0,Math.ceil(Math.min(y0,y1,y2)-.5)), ymax=Math.min(H-1,Math.floor(Math.max(y0,y1,y2)-.5));
+      if(ymin>ymax) continue;
+      const inv=1/area;
+      const l1x=(y2-y0)*inv, l1y=-(x2-x0)*inv, l2x=-(y1-y0)*inv, l2y=(x1-x0)*inv;   // аффинные барицентрики
+      const iw0=IWF[iwo], d1=IWF[iwo+tri]-iw0, d2=IWF[iwo+tri+1]-iw0;
+      const wx=l1x*d1+l2x*d2;
+      const code=fi*64+tri;
+      EX[0]=x0; EY[0]=y0; EX[1]=x1; EY[1]=y1; EX[2]=x2; EY[2]=y2; EX[3]=x0; EY[3]=y0;
+      for(let y=ymin;y<=ymax;y++){
+        const py=y+.5;
+        let xl=1e9, xr=-1e9;
+        for(let e=0;e<3;e++){
+          const ex=EX[e], ey=EY[e], fx=EX[e+1], fy=EY[e+1];
+          if((ey<=py&&fy>py)||(fy<=py&&ey>py)){ const x=ex+(py-ey)*(fx-ex)/(fy-ey); if(x<xl) xl=x; if(x>xr) xr=x; }
+        }
+        if(xl>xr) continue;
+        const xa=Math.max(0,Math.ceil(xl-.5)), xb=Math.min(W-1,Math.floor(xr-.5));
+        if(xa>xb) continue;
+        const pxa=xa+.5;
+        let l1=(pxa-x0)*l1x+(py-y0)*l1y;
+        let l2=(pxa-x0)*l2x+(py-y0)*l2y;
+        let ws=iw0+l1*d1+l2*d2;
+        let idx=y*W+xa;
+        for(let x=xa;x<=xb;x++,idx++){
+          if(ws>=Bw[idx]-BW){ Bw[idx]=ws; Bid[idx]=code; Bl1[idx]=l1; Bl2[idx]=l2; }
+          l1+=l1x; l2+=l2x; ws+=wx;
+        }
       }
-      const s='rgb('+(r|0)+','+(g|0)+','+(b|0)+')';
-      ctx.fillStyle=s; ctx.strokeStyle=s; ctx.lineWidth=1.1;
-      ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
-      for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
     }
-    ctx.shadowBlur=0;
-  };
+  }
+
+  /* ---- шейдинг: один раз на пиксель ---- */
+  const L=norm([-.45,.7,.6]), L2=norm([.75,.15,.45]), L3=norm([.1,.35,-1]);
+  const Hh=norm(add(L,[0,0,1]));
+  const acc=rgb(def.color2||'#ffffff');
+  const OB=getOut(W*H), out=OB.out;
+  out.fill(0,0,W*H*4);
+  let glowBuf=null;
+  if(o.bloom!==false){ glowBuf=OB.glow; glowBuf.fill(0,0,W*H*4); }
+  const tx=o.texture===false?0:1;
+  for(let idx=0,tot=W*H;idx<tot;idx++){
+    const code=B.id[idx]; if(code<0) continue;
+    const fi=code>>6, tri=code&63;
+    const fc=all[fi], o4=idx*4;
+    const i0=0,i1=tri,i2=tri+1;
+    const l1=B.l1[idx], l2=B.l2[idx], l0=1-l1-l2;
+    const iwo=fi*64;
+    const w0=l0*IWF[iwo], w1=l1*IWF[iwo+i1], w2=l2*IWF[iwo+i2], ws=w0+w1+w2;
+    const a=w0/ws, b=w1/ws, c=w2/ws;
+    const P0=fc.p[i0],P1=fc.p[i1],P2=fc.p[i2];
+    const mx=P0[0]*a+P1[0]*b+P2[0]*c, my=P0[1]*a+P1[1]*b+P2[1]*c, mz=P0[2]*a+P1[2]*b+P2[2]*c;
+    let cr=fc.col[0], cg=fc.col[1], cb=fc.col[2];
+    if(fc.glow){
+      const fl=.88+.12*vnoise(mx*14,my*14+t*3,mz*14);
+      out[o4]=Math.min(255,(cr*1.1+55)*fl); out[o4+1]=Math.min(255,(cg*1.1+55)*fl); out[o4+2]=Math.min(255,(cb*1.1+55)*fl); out[o4+3]=255;
+      if(glowBuf){ glowBuf[o4]=cr; glowBuf[o4+1]=cg; glowBuf[o4+2]=cb; glowBuf[o4+3]=255; }
+      continue;
+    }
+    let nx,ny,nz;
+    if(fc.vn){
+      const N=fc.vn, A=N[i0],Bn=N[i1],Cn=N[i2];
+      const mx_=A[0]*a+Bn[0]*b+Cn[0]*c, my_=A[1]*a+Bn[1]*b+Cn[1]*c, mz_=A[2]*a+Bn[2]*b+Cn[2]*c;   // модельное → камера
+      const Xr=mx_*cyw-mz_*syw, Zr=mx_*syw+mz_*cyw;
+      nx=Xr; ny=my_*cp-Zr*sp; nz=my_*sp+Zr*cp;
+    } else { nx=NF[fi*3]; ny=NF[fi*3+1]; nz=NF[fi*3+2]; }
+    const nlen=Math.sqrt(nx*nx+ny*ny+nz*nz)||1; nx/=nlen; ny/=nlen; nz/=nlen;
+    const sh=fc.sh;
+    let mul_=1, spcBoost=1;
+    if(tx&&fi>=preCount){
+      // крупные пятна + мелкое зерно (привязаны к модели, не «плывут» при вращении)
+      const n1=vnoise(mx*4.2,my*4.2,mz*4.2), n2=vnoise(mx*17,my*17,mz*17);
+      mul_=.92+.16*n1+(n2-.5)*.1;
+      if(sh>.4){                                   // металл — «шлифовка» вдоль вертикали
+        const st=vnoise(mx*46,my*5,mz*46);
+        mul_*=.94+.12*st; spcBoost=.75+.5*st;
+      }
+    }
+    const key=Math.max(0,(nx*L[0]+ny*L[1]+nz*L[2]+.22)/1.22);
+    const fil=Math.max(0,nx*L2[0]+ny*L2[1]+nz*L2[2]);
+    const rm0=Math.max(0,nx*L3[0]+ny*L3[1]+nz*L3[2]), rim=rm0*Math.sqrt(rm0);
+    const amb=.3+.17*ny+Math.max(0,-ny)*.05;                               // полусферический ambient
+    const ao=.68+.32*Math.min(1,Math.max(0,(my-.05)/1.1));                  // затенение у земли
+    const ndh=Math.max(0,nx*Hh[0]+ny*Hh[1]+nz*Hh[2]);
+    const spc=(sh>.4?PW70:PW26)[(Math.min(1,ndh)*1024)|0]*sh*150*spcBoost;
+    const om=1-Math.max(0,nz), edge=om*om*om*.22;
+    const env=sh>.4?(Math.max(0,ny)*.1*sh+om*om*.12*sh)*255:0;
+    const base=amb*ao, rm=rim*.34+edge*.35;
+    out[o4]  =cr*mul_*(base+key*.84+fil*.17)+acc[0]*rm+spc+env*.5;
+    out[o4+1]=cg*mul_*(base+key*.8 +fil*.2 )+acc[1]*rm+spc+env*.55;
+    out[o4+2]=cb*mul_*(base+key*.74+fil*.27)+acc[2]*rm+spc+env*.7;
+    out[o4+3]=255;
+  }
+
+  /* ---- тонкий тёмный контур по силуэту и перепадам глубины (в 1/глубине) ---- */
+  if(o.outline!==false){
+    const thr=.0045;
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      const idx=y*W+x; if(B.id[idx]<0) continue;
+      const w=B.w[idx];
+      if(w-B.w[idx-1]>thr||w-B.w[idx+1]>thr||w-B.w[idx-W]>thr||w-B.w[idx+W]>thr){
+        const o4=idx*4; out[o4]*=.55; out[o4+1]*=.55; out[o4+2]*=.58;
+      }
+    }
+  }
+  return {data:out,glow:glowBuf,W,H};
+}
+
+/* ---------- Canvas-обёртки ---------- */
+function mkCanvas(w,h){
+  if(typeof document==='undefined') return null;
+  const c=document.createElement('canvas'); c.width=w; c.height=h; return c;
+}
+const TMP={};
+function tmpCanvas(name,w,h){
+  const k=name+w+'x'+h;
+  return TMP[k]||(TMP[k]=mkCanvas(w,h));
+}
+function toCanvas(res,name){
+  // итог: модель + мягкое свечение (bloom) поверх
+  const {W,H}=res, n=W*H*4;
+  const cv=tmpCanvas((name||'m'),W,H), g=cv.getContext('2d');
+  g.globalCompositeOperation='source-over'; g.globalAlpha=1;
+  g.putImageData(new ImageData(res.data.subarray(0,n),W,H),0,0);
+  if(res.glow){
+    const gc=tmpCanvas('g',W,H); gc.getContext('2d').putImageData(new ImageData(res.glow.subarray(0,n),W,H),0,0);
+    g.save(); g.globalCompositeOperation='lighter'; g.imageSmoothingEnabled=true;
+    for(const [div,al] of [[3,.55],[7,.5]]){
+      const sw=Math.max(2,Math.round(W/div)), sh=Math.max(2,Math.round(H/div));
+      const sm=tmpCanvas('s'+div,sw,sh), sg=sm.getContext('2d');
+      sg.clearRect(0,0,sw,sh); sg.imageSmoothingEnabled=true; sg.drawImage(gc,0,0,sw,sh);
+      g.globalAlpha=al; g.drawImage(sm,0,0,W,H);
+    }
+    g.restore();
+  }
+  return cv;
+}
+
+function fallback(S,d,t){
+  man(S,{cloth:d.color||'#556',face:true,armR:[.7,1.3,.4],armL:[-.7,1.3,.4]});
+  robe(S,.55,.4,1.4,d.color||'#556',d.color2||'#fff');
+  S.ell([0,2.5,0],[.15,.15,.15],d.color2||'#fff',{glow:1});
+}
+
+/* Окно просмотра бойца (вращение мышью) */
+function draw(ctx,def,x,y,w,h,o){
+  const yaw=o.yaw||0, pitch=o.pitch==null?.2:o.pitch, zoom=o.zoom||1, t=o.t||0;
+  const D=9;
+  const ss=o.ss||1.5;                              // суперсэмплинг для гладких краёв
+  const W=Math.max(8,Math.round(w*ss)), H=Math.max(8,Math.round(h*ss));
+  const fpx=Math.min(h*.86/3.5, w*.86/3.5)*D*zoom*ss;
+  const cx=W/2, cy=H*.6;
+  const sp=Math.sin(pitch);
+  const res=render(def,{W,H,yaw,pitch,t,f:fpx,cx,cy,pedestal:true});
+  const img=toCanvas(res,'view');
   ctx.save();
-  // тень под бойцом
-  const g=tr([0,0,0]); const dd=D-g[2];
-  { const gx=cx+g[0]*f/dd, gy=cy-g[1]*f/dd, rx=1.5*f/dd;
-    const bgl=ctx.createRadialGradient(cx,cy-f/dd*.4,4,cx,cy-f/dd*.4,f/dd*2.4);
-    const ac=rgb(def.color2||'#ffffff');
+  // мягкая тень/подсветка под бойцом
+  { const ac=rgb(def.color2||'#ffffff');
+    const unit=fpx/ss/D;
+    const bgl=ctx.createRadialGradient(x+w/2,y+h*.6-unit*.4,4,x+w/2,y+h*.6-unit*.4,unit*2.4);
     bgl.addColorStop(0,'rgba('+ac[0]+','+ac[1]+','+ac[2]+',.22)'); bgl.addColorStop(1,'rgba('+ac[0]+','+ac[1]+','+ac[2]+',0)');
-    ctx.fillStyle=bgl; ctx.fillRect(x,y,w,h);
-    ctx.save(); ctx.translate(gx,gy); ctx.scale(1,Math.max(.12,sp*.9+.1));
-    const sg=ctx.createRadialGradient(0,0,2,0,0,rx*.8);
-    sg.addColorStop(0,'rgba(0,0,0,.6)'); sg.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(0,0,rx*.8,0,Math.PI*2); ctx.fill(); ctx.restore(); }
-  const pre=prep(S.pre,0).sort((a,b)=>a.z-b.z);
-  paint(pre.filter(q=>!q.glow)); paint(pre.filter(q=>q.glow));
-  const mdl=prep(S.faces,bob).sort((a,b)=>a.z-b.z);
-  paint(mdl);
+    ctx.fillStyle=bgl; ctx.fillRect(x,y,w,h); }
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  ctx.drawImage(img,x,y,w,h);
   ctx.restore();
 }
 
-window.Hero3D={draw,models:MODELS};
+/* ---------- 3D-бойцы на поле боя ----------
+   Модель рендерится в спрайты (16 углов × 3 кадра анимации), кэшируется
+   и рисуется поверх карты. Угол поворота = направление взгляда бойца. */
+const SPR={}, SPR_META={};
+let sprBudget=4, sprCount=0;
+const ANG=16, FR=3, FR_DT=.23, BATTLE_PITCH=.5;
+function meta(def,radius){
+  const key=def.id+'|'+(def.skinId||'')+'|'+radius;
+  if(SPR_META[key]) return SPR_META[key];
+  // габариты модели: высота и радиус по горизонтали
+  const S=new Scene(); (MODELS[def.id]||fallback)(S,def,0);
+  let maxY=1, maxR=.6;
+  for(const fc of S.faces) for(const p of fc.p){ if(p[1]>maxY) maxY=p[1]; const r=Math.hypot(p[0],p[2]); if(r>maxR) maxR=r; }
+  maxY=Math.min(maxY,3.6); maxR=Math.min(maxR,1.8);
+  const ppu=Math.min(radius*3.5/maxY, radius*2.3/maxR);       // пикселей на единицу модели
+  const ss=2;
+  const W=Math.ceil((2*maxR*ppu*1.25+10)), Hc=Math.ceil(maxY*ppu*Math.cos(BATTLE_PITCH)+maxR*ppu*Math.sin(BATTLE_PITCH)*1.3+maxR*ppu*.6+16);
+  const D=9, dd0=D+1.3*Math.sin(BATTLE_PITCH);
+  const m={ppu,W,H:Hc,ss,maxY,maxR,D,dd0,ax:W/2,ay:Hc-Math.ceil(maxR*ppu*Math.sin(BATTLE_PITCH)*.9)-10};
+  return SPR_META[key]=m;
+}
+function battleSprite(def,radius,facing,time){
+  if(typeof document==='undefined'||!def) return null;
+  radius=Math.round(radius||24);
+  const m=meta(def,radius);
+  const a=((Math.round((facing||0)/(Math.PI*2)*ANG)%ANG)+ANG)%ANG;
+  const fr=Math.floor((time||0)/FR_DT)%FR;
+  const key=def.id+'|'+(def.skinId||'')+'|'+radius+'|'+a+'|'+fr;
+  let s=SPR[key];
+  if(s) return s;
+  if(sprBudget<=0){
+    // нет бюджета — берём любой уже готовый кадр этого бойца под ближайшим углом
+    for(let d=0;d<=ANG/2;d++) for(const sg of [1,-1]){
+      const aa=((a+sg*d)%ANG+ANG)%ANG;
+      for(let k=0;k<FR;k++){ const q=SPR[def.id+'|'+(def.skinId||'')+'|'+radius+'|'+aa+'|'+k]; if(q) return q; }
+    }
+    return null;
+  }
+  sprBudget--;
+  const ang=a/ANG*Math.PI*2;
+  const yaw=ang-Math.PI/2;
+  const W=Math.round(m.W*m.ss), H=Math.round(m.H*m.ss);
+  const f=m.ppu*m.dd0*m.ss;
+  const cp=Math.cos(BATTLE_PITCH);
+  // подбираем центр так, чтобы точка (0,0,0) попала в якорь
+  const cx=m.ax*m.ss;
+  const cy=m.ay*m.ss-1.3*cp*f/m.dd0;
+  const res=render(def,{W,H,yaw,pitch:BATTLE_PITCH,t:fr*FR_DT,f,cx,cy,pedestal:false});
+  const hi=toCanvas(res,'spr');
+  const cv=mkCanvas(m.W,m.H), g=cv.getContext('2d');
+  g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+  g.drawImage(hi,0,0,m.W,m.H);
+  s={canvas:cv,ax:m.ax,ay:m.ay,w:m.W,h:m.H};
+  if(++sprCount>900){ for(const k in SPR) delete SPR[k]; sprCount=0; }
+  SPR[key]=s; return s;
+}
+function resetBudget(){ sprBudget=4; }
+function has(id){ return !!MODELS[id]; }
+
+const API={draw,models:MODELS,render,battleSprite,resetBudget,has,_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
+(typeof window!=='undefined'?window:globalThis).Hero3D=API;
+if(typeof module!=='undefined') module.exports=API;
 })();
