@@ -1467,7 +1467,7 @@ function draw(ctx,def,x,y,w,h,o){
 const SPR={}, SPR_META={};
 let sprT0=0, sprMade=0, sprCount=0;
 const nowMs=()=>(typeof performance!=='undefined'?performance.now():Date.now());
-const ANG=16, ANG_A=8, FR=3, FR_DT=.23, BATTLE_PITCH=.5, SPR_CAP=2000;
+const ANG=16, ANG_A=8, FR=3, FR_DT=.23, BATTLE_PITCH=.5, SPR_CAP=1200;
 /* какие бойцы умеют позы (удар / каст) и какие позы покрывает спрайт */
 const ANIM={ chip:[{kind:'walk',p:.25},{kind:'walk',p:.75},{kind:'attack',p:.28},{kind:'attack',p:.5},{kind:'cast',slot:0,p:.3},{kind:'cast',slot:0,p:.55},{kind:'cast',slot:1,p:.32},{kind:'cast',slot:1,p:.7},
   {kind:'cast',slot:2,p:.3},{kind:'cast',slot:2,p:.6},{kind:'cast',slot:3,p:.38},{kind:'cast',slot:3,p:.62}] };
@@ -1495,10 +1495,84 @@ function meta(def,radius){
   return SPR_META[key]=m;
 }
 /* anim = {kind:'attack'|'cast', slot, p:0..1} — только для бойцов из ANIM */
-function battleSprite(def,radius,facing,time,anim){
+/* ---------- 0.8.4: спрайты бойцов считаются в Web Worker ----------
+   Раньше каждый новый ракурс/кадр анимации рендерился программным 3D прямо в
+   главном потоке (10–45 мс на спрайт) — отсюда лаги у всех игроков. Теперь
+   тяжёлая часть (сцена + растеризация) идёт в воркере, а в главном потоке
+   остаётся только дешёвая putImageData. Пока спрайт не готов, показывается
+   ближайший уже готовый кадр. Если воркер недоступен — старый путь с бюджетом. */
+const SELF_SRC=(typeof document!=='undefined'&&document.currentScript&&document.currentScript.src)||null;
+let WK=null, WK_STATE=0;                       // 0 — не пробовали, 1 — работает, -1 — недоступен
+const PEND=new Set(), META_PEND=new Set(), BAD=new Set();
+let sprFrame=0, sprLast=0, sprSlow=false;
+function onWorkerMsg(e){
+  const d=e.data; if(!d) return;
+  if(d.t==='meta'){ SPR_META[d.key]=d.m; META_PEND.delete(d.key); return; }
+  if(d.t==='err'){ PEND.delete(d.key); META_PEND.delete(d.key); BAD.add(d.key); return; }
+  if(d.t==='spr'){
+    PEND.delete(d.key);
+    const m=SPR_META[d.mkey]; if(!m) return;
+    const res={data:new Uint8ClampedArray(d.data),glow:d.glow?new Uint8ClampedArray(d.glow):null,W:d.W,H:d.H};
+    const hi=toCanvas(res,'spr');
+    const cv=mkCanvas(m.W,m.H), g=cv.getContext('2d');
+    g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+    g.drawImage(hi,0,0,m.W,m.H);
+    storeSprite(d.key,{canvas:cv,ax:m.ax,ay:m.ay,w:m.W,h:m.H,u:sprFrame});
+  }
+}
+function getWorker(){
+  if(WK_STATE!==0) return WK_STATE===1?WK:null;
+  try{
+    if(typeof Worker==='undefined'||!SELF_SRC||(typeof location!=='undefined'&&location.protocol==='file:')){ WK_STATE=-1; return null; }
+    WK=new Worker(SELF_SRC);
+    WK.onmessage=onWorkerMsg;
+    WK.onerror=()=>{ WK_STATE=-1; try{ WK.terminate(); }catch(err){} WK=null; PEND.clear(); META_PEND.clear(); };
+    WK_STATE=1;
+  }catch(err){ WK_STATE=-1; WK=null; }
+  return WK;
+}
+/* кэш с вытеснением давно не используемых спрайтов (раньше при 2000 весь кэш обнулялся → новая волна лагов) */
+function storeSprite(key,s){
+  if(!SPR[key]) sprCount++;
+  SPR[key]=s;
+  if(sprCount>SPR_CAP) evictSprites();
+}
+function evictSprites(){
+  const keys=Object.keys(SPR);
+  keys.sort((a,b)=>SPR[a].u-SPR[b].u);
+  const drop=Math.ceil(keys.length*.3);
+  for(let i=0;i<drop;i++) delete SPR[keys[i]];
+  sprCount=keys.length-drop;
+}
+/* общая часть для воркера и синхронного пути: растеризация одного ракурса */
+function spriteRaw(def,m,animated,pose,fr,ang){
+  const yaw=ang-Math.PI/2;
+  const sx=animated?1.5:m.ss;
+  const W=Math.round(m.W*sx), H=Math.round(m.H*sx);
+  const f=m.ppu*m.dd0*sx;
+  const cp=Math.cos(BATTLE_PITCH);
+  const cx=m.ax*sx;
+  const cy=m.ay*sx-1.3*cp*f/m.dd0;
+  return render(def,{W,H,yaw,pitch:BATTLE_PITCH,t:animated?pose.p*.9+.2:fr*FR_DT,f,cx,cy,pedestal:false,pose});
+}
+/* anim = {kind:'attack'|'cast', slot, p:0..1} — только для бойцов из ANIM */
+function battleSprite(def,radius,facing,time,anim,probe){
   if(typeof document==='undefined'||!def) return null;
   radius=Math.round(radius||24);
-  const m=meta(def,radius);
+  const wk=getWorker();
+  const mkey=def.id+'|'+(def.skinId||'')+'|'+radius;
+  let m=SPR_META[mkey];
+  if(!m){
+    if(wk){
+      if(BAD.has(mkey)) return null;
+      if(!META_PEND.has(mkey)&&META_PEND.size<4){
+        META_PEND.add(mkey);
+        wk.postMessage({t:'meta',key:mkey,def:{id:def.id,skinId:def.skinId,color:def.color},radius});
+      }
+      return null;
+    }
+    m=meta(def,radius);
+  }
   const animated=!!(anim&&ANIM[def.id]);
   const NA=animated?ANG_A:ANG;
   const a=((Math.round((facing||0)/(Math.PI*2)*NA)%NA)+NA)%NA;
@@ -1510,45 +1584,74 @@ function battleSprite(def,radius,facing,time,anim){
   } else { fr=Math.floor((time||0)/FR_DT)%FR; pose={kind:'idle'}; }
   const base=def.id+'|'+(def.skinId||'')+'|'+radius+'|';
   const key=base+NA+'|'+a+'|'+pk+'|'+fr;
+  if(probe) probe.key=key;
   let s=SPR[key];
-  if(s) return s;
-  if(sprMade>=1 && nowMs()-sprT0>8){
-    // нет бюджета — берём ближайший готовый кадр (сначала тот же, потом покоя)
+  if(s){ s.u=sprFrame; return s; }
+  /* ближайший уже готовый кадр (сначала тот же ракурс, потом покой) */
+  const nearest=()=>{
     for(let d=0;d<=NA/2;d++) for(const sg of [1,-1]){
-      const aa=((a+sg*d)%NA+NA)%NA, q=SPR[base+NA+'|'+aa+'|'+pk+'|'+fr]; if(q) return q;
+      const aa=((a+sg*d)%NA+NA)%NA, q=SPR[base+NA+'|'+aa+'|'+pk+'|'+fr]; if(q){ q.u=sprFrame; return q; }
     }
     if(animated){
       const q0=anim.kind==='walk'?Math.floor((((anim.p%1)+1)%1)*8)%8:Math.round(anim.p*ANIM_Q), kd=anim.kind[0]+(anim.slot==null?'':anim.slot)+'_';
       for(let dq=1;dq<=ANIM_Q;dq++) for(const sg of [-1,1]){
         const qq=q0+sg*dq; if(qq<0||qq>ANIM_Q) continue;
-        for(let d=0;d<=NA/2;d++) for(const s2 of [1,-1]){ const q=SPR[base+NA+'|'+(((a+s2*d)%NA+NA)%NA)+'|'+kd+qq+'|0']; if(q) return q; }
+        for(let d=0;d<=NA/2;d++) for(const s2 of [1,-1]){ const q=SPR[base+NA+'|'+(((a+s2*d)%NA+NA)%NA)+'|'+kd+qq+'|0']; if(q){ q.u=sprFrame; return q; } }
       }
     }
     for(let d=0;d<=ANG/2;d++) for(const sg of [1,-1]){
       const aa=((Math.round(a/NA*ANG)+sg*d)%ANG+ANG)%ANG;
-      for(let k=0;k<FR;k++){ const q=SPR[base+ANG+'|'+aa+'|i|'+k]; if(q) return q; }
+      for(let k=0;k<FR;k++){ const q=SPR[base+ANG+'|'+aa+'|i|'+k]; if(q){ q.u=sprFrame; return q; } }
     }
     return null;
+  };
+  const ang=a/NA*Math.PI*2;
+  if(wk){
+    /* асинхронный путь: ставим задачу воркеру, а пока рисуем ближайший готовый кадр */
+    if(!BAD.has(key)&&!PEND.has(key)&&PEND.size<6){
+      PEND.add(key);
+      wk.postMessage({t:'spr',key,mkey,def:{id:def.id,skinId:def.skinId,color:def.color},radius,animated,pose,fr,ang});
+    }
+    return nearest();
+  }
+  /* запасной синхронный путь (нет Worker): не больше одного спрайта за кадр и не в «тяжёлом» кадре */
+  if((sprMade>=1&&nowMs()-sprT0>8)||sprSlow){
+    const q=nearest(); if(q||sprMade>=1) return q;
   }
   sprMade++;
-  const ang=a/NA*Math.PI*2;
-  const yaw=ang-Math.PI/2;
-  const sx=animated?1.5:m.ss;
-  const W=Math.round(m.W*sx), H=Math.round(m.H*sx);
-  const f=m.ppu*m.dd0*sx;
-  const cp=Math.cos(BATTLE_PITCH);
-  const cx=m.ax*sx;
-  const cy=m.ay*sx-1.3*cp*f/m.dd0;
-  const res=render(def,{W,H,yaw,pitch:BATTLE_PITCH,t:animated?pose.p*.9+.2:fr*FR_DT,f,cx,cy,pedestal:false,pose});
+  const res=spriteRaw(def,m,animated,pose,fr,ang);
   const hi=toCanvas(res,'spr');
   const cv=mkCanvas(m.W,m.H), g=cv.getContext('2d');
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
   g.drawImage(hi,0,0,m.W,m.H);
-  s={canvas:cv,ax:m.ax,ay:m.ay,w:m.W,h:m.H};
-  if(++sprCount>SPR_CAP){ for(const k in SPR) delete SPR[k]; sprCount=0; }
-  SPR[key]=s; return s;
+  s={canvas:cv,ax:m.ax,ay:m.ay,w:m.W,h:m.H,u:sprFrame};
+  storeSprite(key,s); return s;
 }
-function resetBudget(){ sprT0=nowMs(); sprMade=0; }
+/* Предварительный прогрев: в начале матча воркер заранее считает покой и ходьбу всех бойцов */
+const WARM=[];
+function prewarm(list){
+  if(!getWorker()) return;
+  WARM.length=0;
+  for(const pair of list){
+    const def=pair[0], r=Math.round(pair[1]||24);
+    if(!def||!MODELS[def.id]) continue;
+    for(let a=0;a<ANG;a++) for(let k=0;k<FR;k++) WARM.push([def,r,a/ANG*Math.PI*2,k*FR_DT+.01,null]);
+    for(let a=0;a<ANG_A;a++) for(let ph=0;ph<8;ph++) WARM.push([def,r,a/ANG_A*Math.PI*2,0,{kind:'walk',p:(ph+.5)/8}]);
+  }
+}
+function pumpWarm(){
+  let guard=0;
+  while(WARM.length&&PEND.size<3&&guard++<4){
+    const it=WARM[0], probe={};
+    battleSprite(it[0],it[1],it[2],it[3],it[4],probe);
+    if(probe.key===undefined) break;         // метаданные ещё считаются в воркере
+    WARM.shift();
+  }
+}
+function resetBudget(){
+  const t=nowMs(); sprSlow=sprLast>0&&(t-sprLast)>24; sprLast=t; sprT0=t; sprMade=0; sprFrame++;
+  if(WARM.length&&!sprSlow) pumpWarm();
+}
 function has(id){ return !!MODELS[id]; }
 
 /* =========================================================
@@ -2000,7 +2103,26 @@ autoAnim('savely',    {walkArm:.1, att:'punch',  hit:.5, casts:['guard','raise',
 autoAnim('juggernaut',{walkArm:.1, att:'slashR', hit:.5, casts:['whirl','lup','sweep','flurry'], rings:[0,3], ringR:1.35, hands:'R', trailOff:[0,.9,.2], col:['#ffe7a2','#ffffff']});
 autoAnim('sniper',    {walkArm:.05,att:'recoil', hit:.4, ranged:1, casts:['throw','recoil','aim','bigrecoil'], rings:[2], ringR:1.2, hands:'R', trail:'none', col:['#ffd27a','#fff3c4']});
 
-const API={draw,models:MODELS,render,battleSprite,resetBudget,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
+/* ---- точка входа Web Worker (тот же файл, без DOM) ---- */
+if(typeof document==='undefined'&&typeof self!=='undefined'&&typeof importScripts==='function'){
+  self.onmessage=function(e){
+    const d=e.data; if(!d) return;
+    try{
+      if(d.t==='meta'){
+        const m=meta(d.def,d.radius);
+        self.postMessage({t:'meta',key:d.key,m});
+      } else if(d.t==='spr'){
+        const m=meta(d.def,d.radius);
+        const res=spriteRaw(d.def,m,d.animated,d.pose,d.fr,d.ang);
+        const n=res.W*res.H*4;
+        const data=res.data.slice(0,n), glow=res.glow?res.glow.slice(0,n):null;
+        const tr=[data.buffer]; if(glow) tr.push(glow.buffer);
+        self.postMessage({t:'spr',key:d.key,mkey:d.mkey,W:res.W,H:res.H,data:data.buffer,glow:glow?glow.buffer:null},tr);
+      }
+    }catch(err){ self.postMessage({t:'err',key:d.key,message:String(err&&err.message||err)}); }
+  };
+}
+const API={draw,models:MODELS,render,battleSprite,resetBudget,prewarm,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
 (typeof window!=='undefined'?window:globalThis).Hero3D=API;
 if(typeof module!=='undefined') module.exports=API;
 })();

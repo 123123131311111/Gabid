@@ -11643,6 +11643,9 @@ function drawWorldObjects(){
     ctx.restore();
   }
 
+  /* 0.8.4: свечение (shadowBlur) на каждой частице — самая дорогая операция canvas;
+     при большом числе частиц рисуем их без свечения */
+  const particleGlow = particles.length < 120;
   for(const p of particles){
     if(!isWorldPointVisible(p.x,p.y,90)) continue;
     const k = p.t/p.life;
@@ -11650,8 +11653,7 @@ function drawWorldObjects(){
     ctx.globalAlpha = (1-k)*0.9;
     ctx.fillStyle = p.color;
     ctx.strokeStyle = p.color;
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur = p.spark ? 12 : 5;
+    if(particleGlow){ ctx.shadowColor = p.color; ctx.shadowBlur = p.spark ? 12 : 5; }
     if(p.blade){
       ctx.translate(p.x,p.y);
       ctx.rotate(p.angle + Math.PI/2);
@@ -16459,6 +16461,7 @@ function drawOver(){
 
 let lastTime = performance.now();
 let domMatchState = false;
+let spritesWarmed = false;
 function loop(now){
   try {
     let dt = (now - lastTime)/1000;
@@ -16475,6 +16478,7 @@ function loop(now){
 
     if(gameState === 'menu'){
       if(domMatchState){ document.body.classList.remove('in-match'); domMatchState=false; }
+      spritesWarmed = false;
       startMenuMusic();
       updateDraft(dt);
       updateMenuHover();
@@ -16482,6 +16486,11 @@ function loop(now){
     } else {
       if(!domMatchState){ document.body.classList.add('in-match'); domMatchState=true; }
       stopMenuMusic();
+      /* 0.8.4: один раз за матч просим воркер заранее нарисовать спрайты всех бойцов */
+      if(!spritesWarmed && window.Hero3D && Hero3D.prewarm && heroes && heroes.length){
+        spritesWarmed = true;
+        try { Hero3D.prewarm(heroes.map(h => [h.def, h.radius])); } catch(err) {}
+      }
       update(dt);
       if(!Number.isFinite(cam.x) || !Number.isFinite(cam.y)){
         cam.x = playerHero && Number.isFinite(playerHero.x) ? playerHero.x : WORLD/2;
