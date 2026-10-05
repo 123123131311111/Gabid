@@ -1,6 +1,58 @@
 
 "use strict";
 
+/* ===== 0.8.3: адаптивное качество графики ===== */
+let perfLevel = 0;                      /* 0 — высокое, 1 — среднее, 2 — низкое */
+try { const sv = parseInt(localStorage.getItem('dota-sens-perf'), 10); if(sv >= 0 && sv <= 2) perfLevel = sv; } catch(err) {}
+window.__perfShadow = [1, 0.5, 0][perfLevel];
+if(perfLevel >= 1 && document.body) document.body.classList.add('perf-low');
+(function(){
+  /* shadowBlur — самая дорогая операция canvas. Масштабируем её по уровню качества. */
+  const proto = window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype;
+  const d = proto && Object.getOwnPropertyDescriptor(proto, 'shadowBlur');
+  if(!d || !d.set || !d.get) return;
+  Object.defineProperty(proto, 'shadowBlur', {
+    configurable: true, enumerable: d.enumerable,
+    get(){ return d.get.call(this); },
+    set(v){
+      const k = window.__perfShadow;
+      d.set.call(this, k === 1 ? v : (k > 0 ? Math.min(v * k, 10) : 0));
+    }
+  });
+})();
+const TERRAIN_MARGIN = 96;
+let terrainCamX = 0, terrainCamY = 0;
+let perfNoticeText = '', perfNoticeUntil = 0, perfLastCheck = 0, perfFrameCount = 0;
+const PERF_NAMES = ['Высокая', 'Средняя', 'Низкая'];
+function setPerfLevel(level, silent){
+  perfLevel = clamp(level, 0, 2);
+  window.__perfShadow = [1, 0.5, 0][perfLevel];
+  try { localStorage.setItem('dota-sens-perf', String(perfLevel)); } catch(err) {}
+  terrainFrameValid = false;
+  if(document.body) document.body.classList.toggle('perf-low', perfLevel >= 1);
+  if(!silent){
+    perfNoticeText = 'Графика: ' + PERF_NAMES[perfLevel] + (perfLevel > 0 ? ' — для плавности. F8 — сменить' : '');
+    perfNoticeUntil = performance.now() + 4500;
+  }
+}
+function terrainRefreshEvery(){ return perfLevel === 0 ? 3 : (perfLevel === 1 ? 4 : 6); }
+function particleCap(){ return perfLevel === 0 ? 900 : (perfLevel === 1 ? 520 : 260); }
+function fxCap(){ return perfLevel === 0 ? 220 : (perfLevel === 1 ? 150 : 90); }
+function perfSample(now){
+  if(gameState !== 'playing' || gameTime < 4){ perfLastCheck = 0; perfFrameCount = 0; return; }
+  if(!perfLastCheck){ perfLastCheck = now; perfFrameCount = 0; return; }
+  perfFrameCount++;
+  const span = now - perfLastCheck;
+  if(span < 2500) return;
+  const fps = perfFrameCount * 1000 / span;
+  perfFrameCount = 0; perfLastCheck = now;
+  if(span > 6000) return;                       /* вкладка была в фоне — замер недостоверен */
+  if(fps < 40 && perfLevel < 2) setPerfLevel(perfLevel + 1);
+}
+window.addEventListener('keydown', e => {
+  if(e.key === 'F8'){ e.preventDefault(); setPerfLevel((perfLevel + 1) % 3); }
+});
+
 const clamp = (v,a,b) => v<a?a:(v>b?b:v);
 const rnd   = (a,b) => a + Math.random()*(b-a);
 
@@ -622,7 +674,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.8.2';
+const GAME_VERSION = '0.8.3';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -709,7 +761,13 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.8.2', title:'НОВЫЕ ИКОНКИ БОЙЦОВ', changes:[
+  const sections = [{version:'0.8.3', title:'ЛЮБИМЫЙ БОЕЦ И ОПТИМИЗАЦИЯ', changes:[
+    'Любимого бойца можно поставить в центр главного меню: открой «Бойцы», выбери героя и нажми «Поставить в центр меню». Центр украшен аурой в цвет героя, рунными кольцами, искрами и табличкой с именем; клик по герою открывает его профиль.',
+    'Новый экран загрузки в красно-чёрном стиле: эмблема DOTA SENSE 3, рунная печать, полоса прогресса, подсказки и номер версии.',
+    'Новый фон экрана «Выбор режима»: алая арена с лучами света, печатью и тлеющими искрами.',
+    'Из реки убраны все деревья — раньше они росли прямо в воде.',
+    'Оптимизация: рельеф карты кэшируется и обновляется реже, лимиты частиц и эффектов, адаптивное качество. Если FPS падает ниже 40, игра сама снижает графику (в матче клавиша F8 переключает уровень вручную).'
+  ]},{version:'0.8.2', title:'НОВЫЕ ИКОНКИ БОЙЦОВ', changes:[
     'Старые 2D-иконки героев заменены на новые 3D-модельки: в меню бойцов, на стадии выбора, в лобби и во время матча.',
     'Над каждым героем в бою теперь написано его имя — над подписью линии и уровнем.',
     'Кнопка «Играть»: надпись 3x3 заменена на 4x4, добавлено мягкое свечение и блик.',
@@ -2430,7 +2488,7 @@ function addText(x,y,str,color,life,size){
   texts.push({x,y,str,color,life:life||0.9,t:0,size:size||14});
 }
 function spawnParticles(x,y,color,count=16,spread=1){
-  if(particles.length > 900) particles.splice(0, particles.length - 900);
+  if(particles.length > particleCap()) particles.splice(0, particles.length - particleCap());
   for(let i=0;i<count;i++){
     const angle = Math.random()*Math.PI*2;
     const speed = rnd(55, 260)*spread;
@@ -2442,7 +2500,7 @@ function spawnParticles(x,y,color,count=16,spread=1){
   }
 }
 function spawnFootstepDust(x,y,color){
-  if(particles.length > 900) particles.splice(0, particles.length - 900);
+  if(particles.length > particleCap()) particles.splice(0, particles.length - particleCap());
   const n = 2+Math.floor(Math.random()*2);
   for(let i=0;i<n;i++){
     const angle = Math.random()*Math.PI*2;
@@ -2463,7 +2521,7 @@ function spawnGrassBend(x,y,angle){
   });
 }
 function spawnRadialBlades(x,y,r,color,count=24){
-  if(particles.length > 900) particles.splice(0, particles.length - 900);
+  if(particles.length > particleCap()) particles.splice(0, particles.length - particleCap());
   for(let i=0;i<count;i++){
     const angle = i*Math.PI*2/count + rnd(-0.04,0.04);
     const distance = r*rnd(0.55,0.98);
@@ -2476,7 +2534,7 @@ function spawnRadialBlades(x,y,r,color,count=24){
   }
 }
 function fxRing(x,y,r,color,life){
-  if(fxs.length > 220) fxs.splice(0, fxs.length - 220);
+  if(fxs.length > fxCap()) fxs.splice(0, fxs.length - fxCap());
   fxs.push({type:'ring',x,y,r,t:0,life:life||0.4,color});
   if(r >= 80){
     spawnRadialBlades(x,y,r,color,Math.min(30,Math.max(14,Math.round(r/12))));
@@ -4079,7 +4137,7 @@ function createMapTrees(){
     ...barracksSpots(1)
   ];
   const canPlaceTree = (treeX, treeY, laneClearance=150) => {
-    if(pointSegmentDistance(treeX,treeY,200,200,3400,3400) < 185) return false;
+    if(pointSegmentDistance(treeX,treeY,90,90,WORLD-90,WORLD-90) < 300) return false;   /* 0.8.3: река (шире 480) без деревьев */
     if(barracks.some(spot => Math.hypot(spot.x-treeX, spot.y-treeY) < 210)) return false;
     for(const lane of LANES) for(let i=1;i<lane.length;i++){
       if(pointSegmentDistance(treeX,treeY,lane[i-1].x,lane[i-1].y,lane[i].x,lane[i].y)<laneClearance) return false;
@@ -4140,6 +4198,7 @@ function createMapTrees(){
       if(!nearBase && canPlaceTree(treeX, treeY, 120)) trees.push({x:treeX,y:treeY,radius:24,kind:['pine','broadleaf','crystal','birch','autumn'][Math.floor(Math.random()*5)]});
     }
   }
+  trees = trees.filter(tr => pointSegmentDistance(tr.x,tr.y,90,90,WORLD-90,WORLD-90) >= 290);
   /* Оба леса используют одинаковые силуэты; цвет и вариант задаются координатами. */
   for(const tree of trees){
     if(isDireSide(tree.x, tree.y)){
@@ -8875,7 +8934,7 @@ function drawTerrain(){
   }
 
   for(const tree of trees){
-    if(tree.x < cam.x-VW/2-60 || tree.x > cam.x+VW/2+60 || tree.y < cam.y-VH/2-60 || tree.y > cam.y+VH/2+60) continue;
+    if(tree.x < cam.x-VW/2-TERRAIN_MARGIN-60 || tree.x > cam.x+VW/2+TERRAIN_MARGIN+60 || tree.y < cam.y-VH/2-TERRAIN_MARGIN-60 || tree.y > cam.y+VH/2+TERRAIN_MARGIN+60) continue;
     ctx.save(); ctx.translate(tree.x,tree.y);
     ctx.fillStyle='rgba(3,8,7,0.34)';
     ctx.beginPath(); ctx.ellipse(9,34,29,10,-0.18,0,Math.PI*2); ctx.fill();
@@ -13592,6 +13651,7 @@ function storePanelLayout(){
 }
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.8.3',title:'ЛЮБИМЫЙ БОЕЦ И ОПТИМИЗАЦИЯ',description:'Любимого героя можно поставить в центр меню. Новый красно-чёрный экран загрузки, новый фон выбора режима, река без деревьев и серьёзная оптимизация: игра стала заметно меньше лагать.',compactDescription:'Любимый боец в меню, новая загрузка, оптимизация.'},
   {version:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',description:'Иконки героев заменены на новые 3D-модельки везде: меню, выбор бойцов, матч. Над героями в бою показывается имя, у кнопки «Играть» теперь 4x4, а музыка меню стала богаче.',compactDescription:'3D-иконки, имена над героями, 4x4, новая музыка.'},
   {version:'0.8.1',title:'АНИМАЦИИ БОЙЦОВ',description:'Все герои теперь ходят, бьют и колдуют: у каждого своя анимация автоатаки, способностей и ультимейта, а оружие движется вместе с руками.',compactDescription:'Анимации ходьбы, атак и ультов у всех героев.'},
   {version:'0.8.0',title:'ALL PICK И ОНЛАЙН-ЛОББИ',description:'Новый режим All Pick с медленной экономикой и долгой лайн-фазой, а в онлайне — лобби как в Dota 2 с режимами 1v1–4v4 и ботами.',compactDescription:'All Pick и лобби 1v1–4v4 с ботами.'},
@@ -13806,6 +13866,7 @@ function handleMenuClick(mx, my){
         else if(hit.action==='leaderboard') window.openLeaderboard();
         else if(hit.action==='changelog'){ changelogOpen=true; changelogScroll=0; }
         else if(hit.action==='fighters'){ menuStage='heroes'; menuHeroPage=0; }
+        else if(hit.action==='favHero'){ const fi=HERO_DEFS.findIndex(h=>h.id===favoriteHeroId); if(fi>=0){ selectedHeroIndex=fi; menuStage='heroDetail'; } }
         return;
       }
     }
@@ -13836,6 +13897,12 @@ function handleMenuClick(mx, my){
     const detailTest = menuDetailTestRect();
     if(mx>=detailTest.x && mx<=detailTest.x+detailTest.w && my>=detailTest.y && my<=detailTest.y+detailTest.h){
       startTestMode(selectedHeroIndex);
+      return;
+    }
+    const detailFav = menuDetailFavRect();
+    if(mx>=detailFav.x && mx<=detailFav.x+detailFav.w && my>=detailFav.y && my<=detailFav.y+detailFav.h){
+      const fd = HERO_DEFS[selectedHeroIndex];
+      if(fd) setFavoriteHero(favoriteHeroId === fd.id ? null : fd.id);
       return;
     }
     return;
@@ -14256,6 +14323,8 @@ function drawHeroDetail(def){
   drawMenuButton(menuDetailBackRect(),'‹  К СПИСКУ',{radius:7});
   drawMenuButton(menuDetailTestRect(),'⚙  ТЕСТ-РЕЖИМ',{radius:8});
   drawMenuButton(menuDetailStartRect(),'✓  ВЫБРАТЬ И ИГРАТЬ',{primary:true,large:true,radius:8});
+  { const isFav = favoriteHeroId === def.id;
+    drawMenuButton(menuDetailFavRect(), isFav ? '★  ЛЮБИМЫЙ БОЕЦ  (УБРАТЬ)' : '☆  ПОСТАВИТЬ В ЦЕНТР МЕНЮ', {radius:8, active:isFav, redBlack:true, fontSize:13}); }
   ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,.46)'; ctx.font='12px Segoe UI, Arial';
   ctx.fillText('Тяни мышью — крути 3D-модель бойца и осматривай со всех сторон',VW/2,VH-18);
 }
@@ -15018,7 +15087,7 @@ function dsRuneGlyph(x,y,size,seed){
 }
 
 /* Большая рунная печать: кольца, руны, гексаграмма, пентаграмма и горящий глаз. */
-function dsDrawSigil(cx,cy,R,now,intensity){
+function dsDrawSigil(cx,cy,R,now,intensity,noEye){
   intensity=intensity==null?1:intensity;
   const pulse=0.5+0.5*Math.sin(now*2);
   ctx.save();
@@ -15095,6 +15164,7 @@ function dsDrawSigil(cx,cy,R,now,intensity){
   }
   ctx.restore();
 
+  if(!noEye){
   /* Горящий глаз в центре. */
   const ew=R*0.27, eh=R*0.1;
   ctx.globalCompositeOperation='source-over';
@@ -15112,6 +15182,9 @@ function dsDrawSigil(cx,cy,R,now,intensity){
   ctx.globalCompositeOperation='lighter';
   ctx.beginPath(); ctx.moveTo(-ew,0); ctx.quadraticCurveTo(0,-eh*2,ew,0); ctx.quadraticCurveTo(0,eh*2,-ew,0); ctx.closePath();
   ctx.lineWidth=2; ctx.strokeStyle=goldColor; ctx.stroke();
+
+  }
+  ctx.globalCompositeOperation='lighter';
 
   /* Огненные шары на орбите с хвостами. */
   for(let k=0;k<3;k++){
@@ -15330,7 +15403,7 @@ function drawDotaSenseBackdrop(now){
   ctx.fillStyle=beam; ctx.fillRect(sx-R*0.22,0,R*0.44,sy);
   ctx.restore();
 
-  dsDrawSigil(sx,sy,R,now);
+  dsDrawSigil(sx,sy,R,now,1,menuWide() && !!getFavoriteHeroDef());
 
   /* поток энергии от печати к вихрю */
   if(VW>=700){
@@ -15381,8 +15454,123 @@ function drawDotaSenseBackdrop(now){
   ctx.restore();
 }
 
+/* ===== 0.8.3: любимый боец в центре главного меню ===== */
+let favoriteHeroId = null;
+try { favoriteHeroId = localStorage.getItem('dota-sens-fav-hero') || null; } catch(err) {}
+function getFavoriteHeroDef(){
+  if(!favoriteHeroId || !window.Hero3D || !Hero3D.has) return null;
+  const d = HERO_DEFS.find(h => h.id === favoriteHeroId);
+  return d && Hero3D.has(d.id) ? d : null;
+}
+function setFavoriteHero(id){
+  favoriteHeroId = id || null;
+  try { if(id) localStorage.setItem('dota-sens-fav-hero', id); else localStorage.removeItem('dota-sens-fav-hero'); } catch(err) {}
+}
+function menuDetailFavRect(){
+  const top = 150, ph = Math.min(430, VH - 258);
+  return {x: VW < 920 ? 28 : 64, y: Math.min(VH - 46, top + ph + 80), w: 300, h: 34};
+}
+function hexRgba(hex, a){
+  let h = String(hex || '#ffffff').replace('#', '');
+  if(h.length === 3) h = h.split('').map(c => c + c).join('');
+  const v = parseInt(h.slice(0, 6), 16) || 0xffffff;
+  return 'rgba(' + ((v >> 16) & 255) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')';
+}
+const homeHeroCache = {key: '', cv: null};
+function getHomeHeroSprite(def, w, h){
+  const key = def.id + '|' + (def.skinId || '') + '|' + w + 'x' + h;
+  if(homeHeroCache.key === key) return homeHeroCache.cv;
+  let cv = null;
+  try {
+    cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    Hero3D.draw(cv.getContext('2d'), def, 0, 0, w, h, {yaw: -0.42, pitch: 0.2, zoom: 1, t: 0.3, ss: 1.5});
+  } catch(err) { cv = null; }
+  homeHeroCache.key = key; homeHeroCache.cv = cv;
+  return cv;
+}
+function drawMenuFavoriteHero(now){
+  const R = Math.min(VW * 0.2, VH * 0.3), sx = VW * 0.37, sy = VH * 0.5;
+  const def = getFavoriteHeroDef();
+  ctx.save();
+  if(!def){
+    ctx.textAlign = 'center'; ctx.font = '12px Segoe UI, Arial';
+    ctx.fillStyle = 'rgba(255,214,170,' + (0.45 + 0.25 * Math.sin(now * 2)) + ')';
+    ctx.fillText('Открой «Бойцы» и поставь любимого героя в центр меню', sx, sy + R * 1.3);
+    ctx.restore();
+    return;
+  }
+  const sc = Math.max(0.72, R / 230);
+  const w = Math.max(160, Math.round(R * 1.1 / 16) * 16), h = Math.max(200, Math.round(R * 1.6 / 16) * 16);
+  const hit = {x: sx - R * 0.72, y: sy - R * 0.98, w: R * 1.44, h: R * 1.95};
+  menuHomeHits.push({x: hit.x, y: hit.y, w: hit.w, h: hit.h, action: 'favHero'});
+  const hover = mouse.x >= hit.x && mouse.x <= hit.x + hit.w && mouse.y >= hit.y && mouse.y <= hit.y + hit.h;
+  const c1 = def.color2 || '#ffb070', c0 = def.color || '#902020';
+  const footY = sy + R * 0.26;
+  const bob = Math.sin(now * 1.6) * R * 0.014;
+  const px = clamp((mouse.x - sx) / VW, -0.5, 0.5) * R * 0.12;
+
+  /* аура в цвет героя + столб света сверху */
+  ctx.globalCompositeOperation = 'lighter';
+  const aura = ctx.createRadialGradient(sx, sy - R * 0.2, R * 0.05, sx, sy - R * 0.2, R * 0.98);
+  aura.addColorStop(0, hexRgba(c1, hover ? 0.46 : 0.32)); aura.addColorStop(0.5, hexRgba(c0, 0.2)); aura.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(sx, sy - R * 0.2, R * 0.98, 0, Math.PI * 2); ctx.fill();
+  const beam = ctx.createLinearGradient(0, sy - R * 1.1, 0, footY);
+  beam.addColorStop(0, 'rgba(255,90,60,0)'); beam.addColorStop(1, hexRgba(c1, 0.20 + 0.05 * Math.sin(now * 1.8)));
+  ctx.fillStyle = beam;
+  ctx.beginPath(); ctx.moveTo(sx - R * 0.10, sy - R * 1.1); ctx.lineTo(sx + R * 0.10, sy - R * 1.1); ctx.lineTo(sx + R * 0.52, footY); ctx.lineTo(sx - R * 0.52, footY); ctx.closePath(); ctx.fill();
+
+  /* тень и рунные кольца под ногами */
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.save(); ctx.translate(sx, footY + R * 0.03); ctx.scale(1, 0.3);
+  const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.62);
+  sh.addColorStop(0, 'rgba(0,0,0,.65)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, R * 0.62, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = hexRgba(c1, 0.8); ctx.lineWidth = 2; ctx.setLineDash([9, 13]); ctx.lineDashOffset = -now * 24;
+  ctx.beginPath(); ctx.ellipse(sx, footY, R * 0.5, R * 0.16, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(255,205,150,' + (0.45 + 0.25 * Math.sin(now * 2.2)) + ')';
+  ctx.beginPath(); ctx.ellipse(sx, footY, R * 0.62, R * 0.2, 0, 0, Math.PI * 2); ctx.stroke();
+
+  /* модель героя (кэшируется, рисуется один раз) */
+  ctx.globalCompositeOperation = 'source-over';
+  const cv = getHomeHeroSprite(def, w, h);
+  if(cv){
+    const k = hover ? 1.035 : 1;
+    ctx.drawImage(cv, sx - w * k / 2 + px, footY - h * 0.6 * k + bob, w * k, h * k);
+  }
+
+  /* искры, поднимающиеся вокруг героя */
+  ctx.globalCompositeOperation = 'lighter';
+  for(let i = 0; i < 16; i++){
+    const ph = (now * 0.22 + i / 16) % 1, ang = i * 2.399 + now * 0.4;
+    const ex = sx + Math.cos(ang) * R * (0.28 + 0.3 * ((i * 7) % 5) / 5), ey = footY - ph * R * 1.1;
+    ctx.globalAlpha = 0.8 * Math.sin(ph * Math.PI);
+    ctx.fillStyle = i % 3 === 0 ? '#ffe0a0' : hexRgba(c1, 1);
+    ctx.fillRect(ex, ey, 2.2, 2.2);
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+
+  /* табличка с именем */
+  const pw = Math.round(R * 1.3), ph2 = Math.round(62 * sc), pxx = sx - pw / 2, pyy = sy + R * 0.66;
+  const pg = ctx.createLinearGradient(pxx, pyy, pxx, pyy + ph2);
+  pg.addColorStop(0, 'rgba(60,10,14,.94)'); pg.addColorStop(1, 'rgba(14,2,5,.96)');
+  ctx.fillStyle = pg; ctx.strokeStyle = hover ? '#ffd9a0' : 'rgba(232,185,120,.75)'; ctx.lineWidth = hover ? 2.5 : 1.6;
+  ctx.shadowColor = hexRgba(c1, 0.6); ctx.shadowBlur = hover ? 18 : 8;
+  ctx.beginPath(); ctx.roundRect(pxx, pyy, pw, ph2, 8); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+  ctx.fillStyle = c1; ctx.fillRect(pxx + 10, pyy + ph2 - 3, pw - 20, 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#e8b878'; ctx.font = 'bold ' + Math.round(10 * sc) + 'px Segoe UI, Arial';
+  ctx.fillText(hover ? 'ОТКРЫТЬ ПРОФИЛЬ  →' : '★  ЛЮБИМЫЙ БОЕЦ', sx, pyy + 16 * sc);
+  ctx.fillStyle = '#fff2d2'; ctx.font = 'bold ' + Math.round(24 * sc) + 'px Georgia, serif';
+  ctx.fillText(def.name, sx, pyy + 40 * sc);
+  ctx.fillStyle = 'rgba(255,255,255,.62)'; ctx.font = Math.round(11 * sc) + 'px Segoe UI, Arial';
+  ctx.fillText(def.title, sx, pyy + 55 * sc);
+  ctx.restore();
+}
+
 function drawDotaSenseHome(){
   const s=menuScale(), m=Math.round(44*s);
+  drawMenuFavoriteHero(performance.now()/1000);
   const hit=(r)=>mouse.x>=r.x&&mouse.x<=r.x+r.w&&mouse.y>=r.y&&mouse.y<=r.y+r.h;
 
   /* --- ИГРАТЬ 4x4 --- */
@@ -15498,7 +15686,8 @@ function drawDotaSenseHome(){
   ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
   ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
   const news=[
-    {tag:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',art:'map',action:'changelog'},
+    {tag:'0.8.3',title:'ЛЮБИМЫЙ БОЕЦ В МЕНЮ',art:'hero',hero:'Пиромант',action:'changelog'},
+    {tag:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',art:'hero',hero:'Вождь',action:'changelog'},
     {tag:'0.8.1',title:'АНИМАЦИИ ВСЕХ БОЙЦОВ',art:'map',action:'changelog'},
     {tag:'0.8.0',title:'ALL PICK: НОВЫЙ РЕЖИМ',art:'allpick',action:'changelog'},
     {tag:'0.7.7',title:'ЗАМИСТЬ: НОВЫЙ АКТИВ',art:'item',item:'Замисть',itemId:'zamist',action:'store'},
@@ -15605,6 +15794,60 @@ function drawDotaSenseHome(){
   ctx.beginPath(); ctx.arc(badge.x+badge.w-Math.round(20*s),badge.y+badge.h/2,Math.round(5*s),0,Math.PI*2); ctx.fill();
   ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.font=Math.round(11*s)+'px Consolas, monospace';
   ctx.fillText('v'+GAME_VERSION,VW-m,VH-Math.round(14*s));
+  ctx.restore();
+}
+
+/* 0.8.3: новый фон экрана выбора режима — алая арена */
+function drawModeBackdrop(now){
+  const g = ctx.createLinearGradient(0, 0, 0, VH);
+  g.addColorStop(0, '#080103'); g.addColorStop(0.5, '#2a060b'); g.addColorStop(1, '#040102');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  const cards = modeCardRects();
+  const cx = VW / 2, cy = cards.length ? cards[0].y + cards[0].h / 2 : VH * 0.5;
+  const big = Math.min(VW, VH) * 0.58;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(VW, VH) * 0.6);
+  core.addColorStop(0, 'rgba(190,34,28,.34)'); core.addColorStop(0.5, 'rgba(100,14,18,.16)'); core.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = core; ctx.fillRect(0, 0, VW, VH);
+  /* лучи света сверху */
+  for(let i = 0; i < 5; i++){
+    const bx = VW * (0.12 + i * 0.19) + Math.sin(now * 0.25 + i * 1.7) * VW * 0.03;
+    const bg = ctx.createLinearGradient(0, 0, 0, VH * 0.95);
+    bg.addColorStop(0, 'rgba(255,70,50,' + (0.13 + 0.04 * Math.sin(now * 0.9 + i)) + ')'); bg.addColorStop(1, 'rgba(255,70,50,0)');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.moveTo(bx - 8, 0); ctx.lineTo(bx + 8, 0); ctx.lineTo(bx + 90 * (i - 2) * 0.5 + 60, VH * 0.95); ctx.lineTo(bx + 90 * (i - 2) * 0.5 - 60, VH * 0.95); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  dsDrawSigil(cx, cy, big, now, 0.5, true);
+  /* диагональные клинки по краям */
+  ctx.save(); ctx.globalAlpha = 0.5;
+  for(let side = -1; side <= 1; side += 2){
+    for(let k = 0; k < 3; k++){
+      const x0 = cx + side * (VW * 0.46 - k * 36), y0 = VH * 0.08 + k * 18;
+      const bl = ctx.createLinearGradient(x0, y0, x0 - side * 140, y0 + VH * 0.8);
+      bl.addColorStop(0, 'rgba(160,24,28,.0)'); bl.addColorStop(0.5, 'rgba(210,50,40,' + (0.20 - k * 0.04) + ')'); bl.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.strokeStyle = bl; ctx.lineWidth = 3 - k * 0.6;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 - side * 140, y0 + VH * 0.8); ctx.stroke();
+    }
+  }
+  ctx.restore();
+  /* искры и пепел */
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for(let i = 0; i < 70; i++){
+    const ph = (now * 0.05 * (0.6 + (i % 5) * 0.2) + i / 70) % 1;
+    ctx.globalAlpha = 0.8 * Math.sin(ph * Math.PI);
+    ctx.fillStyle = i % 4 === 0 ? '#ffd27a' : '#ff5a3a';
+    const sz = i % 6 === 0 ? 2.4 : 1.4;
+    ctx.fillRect(((i * 149.3) % VW) + Math.sin(now * 0.5 + i) * 14, VH * (1 - ph), sz, sz);
+  }
+  ctx.restore();
+  /* рамка и виньетка */
+  ctx.save();
+  ctx.strokeStyle = 'rgba(200,60,48,.22)'; ctx.lineWidth = 2;
+  ctx.strokeRect(14, 14, VW - 28, VH - 28);
+  const vg = ctx.createRadialGradient(cx, VH / 2, Math.min(VW, VH) * 0.35, cx, VH / 2, Math.max(VW, VH) * 0.8);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.72)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
   ctx.restore();
 }
 
@@ -15752,7 +15995,8 @@ function drawMenu(){
   if(onlineEntry.style.top!==wantOnlineTop) onlineEntry.style.top=wantOnlineTop;
   menuHomeHits=[];
   const now = performance.now()/1000;
-  if(menuStage!=='home') drawMenuGenericBackdrop(now);
+  if(menuStage==='mode') drawModeBackdrop(now);
+  else if(menuStage!=='home') drawMenuGenericBackdrop(now);
 
   if(menuStage === 'home'){
     drawDotaSenseBackdrop(now);
@@ -16084,6 +16328,9 @@ function drawMatchIntro(){
     ctx.fillStyle = '#e8c984';
     const subY = cy + logoH / 2 + 34;
     ctx.fillText('АРЕНА ТРЁХ СИЛ', cx, subY);
+    ctx.font = 'bold 12px Consolas, monospace'; ctx.fillStyle = 'rgba(255,170,150,0.75)';
+    ctx.fillText('ВЕРСИЯ ' + GAME_VERSION, cx, subY + 28);
+    ctx.font = 'bold ' + Math.round(Math.max(13, Math.min(20, VW / 70))) + 'px Georgia, serif';
     const lineW = 160 * easeOut((t - 1.9) / 0.6);
     ctx.fillStyle = 'rgba(230,90,70,0.7)';
     ctx.fillRect(cx - 190 - lineW, subY - 1, lineW, 2); ctx.fillRect(cx + 190, subY - 1, lineW, 2);
@@ -16217,6 +16464,7 @@ function loop(now){
     let dt = (now - lastTime)/1000;
     lastTime = now;
     if(dt > 0.1) dt = 0.1;
+    perfSample(now);
 
     ctx.setTransform(1,0,0,1,0,0);
     ctx.globalAlpha = 1;
@@ -16243,21 +16491,29 @@ function loop(now){
       ctx.save();
       ctx.translate(-cam.x + VW/2, -cam.y + VH/2);
       terrainFrameIndex++;
-      const redrawTerrain = !terrainFrameValid || terrainFrameIndex % 2 === 0;
+      /* 0.8.3: рельеф рисуется в отдельный слой с запасом по краям и обновляется раз в N кадров;
+         между обновлениями слой просто сдвигается вслед за камерой. */
+      const redrawTerrain = !terrainFrameValid || terrainFrameIndex % terrainRefreshEvery() === 0 ||
+        Math.abs(cam.x - terrainCamX) > TERRAIN_MARGIN - 10 || Math.abs(cam.y - terrainCamY) > TERRAIN_MARGIN - 10;
       if(redrawTerrain){
-        drawTerrain();
-        ctx.save();
-        ctx.setTransform(1,0,0,1,0,0);
-        terrainFrameCtx.clearRect(0,0,VW,VH);
-        terrainFrameCtx.drawImage(canvas,0,0);
-        ctx.restore();
+        const mainCtx = ctx;
+        ctx = terrainFrameCtx;
+        try {
+          terrainFrameCtx.setTransform(1,0,0,1,0,0);
+          terrainFrameCtx.clearRect(0,0,terrainFrameCanvas.width,terrainFrameCanvas.height);
+          terrainFrameCtx.translate(-cam.x + terrainFrameCanvas.width/2, -cam.y + terrainFrameCanvas.height/2);
+          drawTerrain();
+        } finally {
+          terrainFrameCtx.setTransform(1,0,0,1,0,0);
+          ctx = mainCtx;
+        }
+        terrainCamX = cam.x; terrainCamY = cam.y;
         terrainFrameValid = true;
-      } else {
-        ctx.save();
-        ctx.setTransform(1,0,0,1,0,0);
-        ctx.drawImage(terrainFrameCanvas,0,0);
-        ctx.restore();
       }
+      ctx.save();
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.drawImage(terrainFrameCanvas, Math.round(terrainCamX - cam.x - TERRAIN_MARGIN), Math.round(terrainCamY - cam.y - TERRAIN_MARGIN));
+      ctx.restore();
       drawItemRangePreview();
       drawWorldObjects();
       drawBaseOverlay();
@@ -16271,6 +16527,13 @@ function loop(now){
       drawPrematchOverlay();
       drawScoreboard();
       drawMatchIntro();
+      if(performance.now() < perfNoticeUntil){
+        ctx.save(); ctx.textAlign='center'; ctx.font='bold 13px Segoe UI, Arial';
+        const tw=ctx.measureText(perfNoticeText).width+28;
+        ctx.fillStyle='rgba(20,4,8,.82)'; ctx.fillRect(VW/2-tw/2,VH-150,tw,30);
+        ctx.strokeStyle='rgba(230,90,70,.8)'; ctx.lineWidth=1.5; ctx.strokeRect(VW/2-tw/2,VH-150,tw,30);
+        ctx.fillStyle='#ffd9c4'; ctx.fillText(perfNoticeText,VW/2,VH-130); ctx.restore();
+      }
       if(gameState === 'over') drawOver();
     }
   } catch(err) {
@@ -16306,8 +16569,8 @@ function resize(){
   VH = canvas.height = window.innerHeight;
   fogCanvas.width  = VW;
   fogCanvas.height = VH;
-  terrainFrameCanvas.width = VW;
-  terrainFrameCanvas.height = VH;
+  terrainFrameCanvas.width = VW + TERRAIN_MARGIN*2;
+  terrainFrameCanvas.height = VH + TERRAIN_MARGIN*2;
   terrainFrameValid = false;
 }
 window.addEventListener('resize', resize);
