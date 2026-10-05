@@ -1581,7 +1581,7 @@ function battleSprite(def,radius,facing,time,anim,probe){
     if(anim.kind==='walk'){ const wq=(Math.floor((((anim.p%1)+1)%1)*8))%8; pose={kind:'walk',p:wq/8}; pk='w_'+wq; }
     else { const q=Math.min(ANIM_Q,Math.max(0,Math.round(anim.p*ANIM_Q)));
     pose={kind:anim.kind,slot:anim.slot,p:q/ANIM_Q}; pk=anim.kind[0]+(anim.slot==null?'':anim.slot)+'_'+q; }
-  } else { fr=Math.floor((time||0)/FR_DT)%FR; pose={kind:'idle'}; }
+  } else { fr=(def.id.indexOf('mon_')===0)?0:Math.floor((time||0)/FR_DT)%FR; pose={kind:'idle'}; }   // 0.8.4: монстры — один кадр покоя на ракурс (оживляются в game.js)
   const base=def.id+'|'+(def.skinId||'')+'|'+radius+'|';
   const key=base+NA+'|'+a+'|'+pk+'|'+fr;
   if(probe) probe.key=key;
@@ -1635,6 +1635,7 @@ function prewarm(list){
   for(const pair of list){
     const def=pair[0], r=Math.round(pair[1]||24);
     if(!def||!MODELS[def.id]) continue;
+    if(def.id.indexOf('mon_')===0){ for(let a=0;a<ANG;a++) WARM.push([def,r,a/ANG*Math.PI*2,0,null]); continue; }
     for(let a=0;a<ANG;a++) for(let k=0;k<FR;k++) WARM.push([def,r,a/ANG*Math.PI*2,k*FR_DT+.01,null]);
     for(let a=0;a<ANG_A;a++) for(let ph=0;ph<8;ph++) WARM.push([def,r,a/ANG_A*Math.PI*2,0,{kind:'walk',p:(ph+.5)/8}]);
   }
@@ -2103,6 +2104,177 @@ autoAnim('savely',    {walkArm:.1, att:'punch',  hit:.5, casts:['guard','raise',
 autoAnim('juggernaut',{walkArm:.1, att:'slashR', hit:.5, casts:['whirl','lup','sweep','flurry'], rings:[0,3], ringR:1.35, hands:'R', trailOff:[0,.9,.2], col:['#ffe7a2','#ffffff']});
 autoAnim('sniper',    {walkArm:.05,att:'recoil', hit:.4, ranged:1, casts:['throw','recoil','aim','bigrecoil'], rings:[2], ringR:1.2, hands:'R', trail:'none', col:['#ffd27a','#fff3c4']});
 
+/* =========================================================
+   0.8.4 — 3D-монстры для крипов (5 вариантов).
+   Лайновые крипы получают случайного монстра из пяти,
+   лесные нейтралы — своего по типу лагеря.
+   Цвет глаз/самоцветов — цвет команды (skinId = 't0' / 't1' / 't2',
+   суффикс r — дальний бой, m — мега-крип).
+   ========================================================= */
+const MON_IDS=['mon_golem','mon_shroom','mon_hound','mon_imp','mon_slime'];
+const MON_ACC={'0':['#7dffb0','#e2fff0'],'1':['#ff6a4d','#ffd9cf'],'2':['#ffd36b','#fff3c8']};
+function monInfo(d){
+  const k=(d&&d.skinId)||'t2';
+  return {acc:MON_ACC[k.charAt(1)]||MON_ACC['2'], ranged:k.indexOf('r')>1, mega:k.indexOf('m')>1};
+}
+/* общие детали: шар магии у дальних, золотое кольцо и корона у мега-крипов */
+function monExtras(S,I,orbY,orbZ,topY,ringR){
+  if(I.ranged){
+    S.ell([0,orbY,orbZ],[.2,.2,.2],I.acc[1],{glow:1,rings:6,seg:10});
+    S.ring([0,orbY,orbZ],.34,.045,I.acc[0],{glow:1,n:12,axis:'z'});
+  }
+  if(I.mega){
+    S.ring([0,.04,0],ringR,.06,'#ffd24a',{glow:1,n:18});
+    for(let i=0;i<5;i++){
+      const a=i/5*Math.PI*2, x=Math.cos(a)*.22, z=Math.sin(a)*.22;
+      S.cone([x,topY,z],[x*1.3,topY+.34,z*1.3],.07,'#ffd24a',{seg:5,glow:1,shine:.7});
+    }
+  }
+}
+/* Каменный голем */
+MODELS.mon_golem=(S,d)=>{
+  const I=monInfo(d), A=I.acc[0], A2=I.acc[1];
+  const rock='#857d70', rock2='#625b51', dark='#3d3832', moss='#5f8d3c';
+  for(const s of [-1,1]){
+    S.tube([s*.4,.12,0],[s*.38,.9,0],.3,.34,rock2,{seg:8});
+    S.box([s*.4,.1,.14],[.62,.22,.78],dark);
+    S.ell([s*.38,.92,0],[.38,.24,.36],rock,{rings:5,seg:8});
+  }
+  S.ell([0,1.18,.02],[.72,.42,.56],rock2,{rings:6,seg:10});
+  S.ell([0,1.6,0],[.9,.82,.64],rock,{rings:8,seg:12});
+  S.box([0,1.66,.6],[.13,.7,.05],A,{glow:1});
+  S.box([-.22,1.45,.59],[.34,.08,.05],A,{glow:1,rot:[0,0,.55]});
+  S.box([.24,1.82,.59],[.34,.08,.05],A,{glow:1,rot:[0,0,-.55]});
+  S.ell([-.4,2.0,-.1],[.3,.09,.3],moss,{rings:4,seg:6});
+  for(const s of [-1,1]){
+    S.ell([s*1.02,2.0,0],[.48,.42,.46],rock2,{rings:6,seg:10});
+    S.ell([s*1.05,2.3,-.05],[.26,.08,.24],moss,{rings:4,seg:6});
+    S.tube([s*1.08,1.85,0],[s*1.24,.95,.16],.3,.26,rock,{seg:8});
+    S.ell([s*1.26,.72,.22],[.38,.36,.36],rock2,{rings:6,seg:10});
+    for(let k=-1;k<=1;k++) S.ell([s*1.26+k*.14,.5,.42],[.09,.1,.1],dark,{rings:4,seg:6});
+  }
+  S.ell([0,2.3,.2],[.42,.36,.4],rock,{rings:7,seg:10});
+  S.box([0,2.4,.52],[.66,.1,.14],dark);
+  for(const s of [-1,1]) S.ell([s*.15,2.3,.55],[.085,.06,.04],A2,{glow:1,rings:4,seg:6});
+  monExtras(S,I,1.9,1.0,2.7,1.1);
+};
+/* Мухомор-убийца */
+MODELS.mon_shroom=(S,d)=>{
+  const I=monInfo(d), A=I.acc[0];
+  const cream='#eadfc2', cream2='#cdbf9c', red='#c4342d';
+  for(const s of [-1,1]) S.ell([s*.26,.12,.14],[.2,.12,.28],cream2,{rings:4,seg:8});
+  S.ell([0,.45,0],[.58,.42,.52],cream,{rings:6,seg:12});
+  S.tube([0,.5,0],[0,1.2,0],.46,.4,cream,{seg:14});
+  S.ell([0,1.18,0],[1.1,.2,1.05],'#e9d6b0',{rings:4,seg:16});
+  S.ell([0,1.5,0],[1.12,.6,1.06],red,{rings:8,seg:16});
+  for(const p of [[0,0],[.5,.3],[-.5,.35],[.15,-.55],[-.45,-.4],[.7,-.2],[-.72,-.05],[.35,.7],[-.2,.78]]){
+    const nx=p[0]/1.12, nz=p[1]/1.06, k=1-nx*nx-nz*nz; if(k<=.02) continue;
+    S.ell([p[0],1.5+.6*Math.sqrt(k)*.97,p[1]],[.17,.05,.17],'#fff6e4',{rings:3,seg:6});
+  }
+  S.ell([0,1.32,.88],[.5,.14,.2],'#a82a25',{rings:4,seg:8});
+  for(const s of [-1,1]){
+    S.ell([s*.34,1.8,.86],[.11,.09,.05],'#fff6e4',{rings:4,seg:8,rot:[.6,0,0]});
+    S.ell([s*.34,1.82,.9],[.065,.06,.04],A,{glow:1,rings:4,seg:6,rot:[.6,0,0]});
+    S.box([s*.34,1.93,.84],[.26,.06,.05],'#5a1410',{rot:[.6,0,-s*.4]});
+    S.ell([s*.17,.98,.4],[.075,.07,.04],A,{glow:1,rings:4,seg:6});
+    S.tube([s*.42,.85,.02],[s*.72,.55,.22],.1,.08,cream,{seg:8});
+    S.ell([s*.74,.5,.26],[.13,.13,.13],cream2,{rings:5,seg:8});
+  }
+  S.box([0,.78,.42],[.2,.05,.03],'#3a2a1c');
+  S.box([0,1.7,.97],[.3,.06,.05],'#5a1410',{rot:[.6,0,0]});
+  for(const p of [[-.9,1.9,.3],[.8,2.05,-.2],[.1,2.3,.5]]) S.ell(p,[.07,.07,.07],A,{glow:1,rings:4,seg:6});
+  monExtras(S,I,1.1,.95,2.15,1.2);
+};
+/* Адская гончая */
+MODELS.mon_hound=(S,d)=>{
+  const I=monInfo(d), A=I.acc[0], A2=I.acc[1];
+  const fur='#463c52', fur2='#2f2839', belly='#5d5068';
+  S.ell([0,1.02,.05],[.64,.55,.98],fur,{rings:8,seg:14});
+  S.ell([0,1.1,.55],[.68,.62,.52],fur,{rings:7,seg:12});
+  S.ell([0,.95,-.55],[.6,.55,.5],fur2,{rings:7,seg:12});
+  S.ell([0,.78,.1],[.4,.3,.7],belly,{rings:5,seg:10});
+  for(const s of [-1,1]){
+    S.tube([s*.38,.95,.6],[s*.36,.1,.66],.2,.12,fur2,{seg:8});
+    S.ell([s*.36,.07,.74],[.15,.08,.22],'#201b28',{rings:4,seg:8});
+    S.tube([s*.38,.9,-.6],[s*.4,.5,-.85],.24,.14,fur2,{seg:8});
+    S.tube([s*.4,.5,-.85],[s*.36,.1,-.62],.14,.1,fur2,{seg:8});
+    S.ell([s*.36,.07,-.55],[.15,.08,.22],'#201b28',{rings:4,seg:8});
+  }
+  S.tube([0,1.15,.75],[0,1.55,1.0],.34,.26,fur,{seg:10});
+  S.ell([0,1.62,1.1],[.38,.34,.38],fur,{rings:7,seg:10});
+  S.tube([0,1.55,1.3],[0,1.48,1.7],.26,.15,fur,{seg:8});
+  S.ell([0,1.5,1.76],[.09,.07,.07],'#15101a',{rings:4,seg:6});
+  S.box([0,1.4,1.5],[.2,.04,.3],'#fbfbf2');
+  for(const s of [-1,1]){
+    S.ell([s*.15,1.72,1.34],[.06,.05,.04],A2,{glow:1,rings:4,seg:6});
+    S.cone([s*.17,1.84,1.05],[s*.24,2.2,.92],.09,fur2,{seg:6});
+  }
+  for(let i=0;i<5;i++){ const z=.75-i*.38; S.cone([0,1.47-i*.04,z],[0,1.8-i*.05,z-.12],.08,A,{seg:5,glow:1}); }
+  S.tube([0,1.1,-.95],[0,1.25,-1.5],.15,.07,fur2,{seg:8});
+  S.ell([0,1.3,-1.55],[.1,.1,.1],A,{glow:1,rings:4,seg:6});
+  monExtras(S,I,2.45,.9,2.35,1.3);
+};
+/* Рогатый бес */
+MODELS.mon_imp=(S,d)=>{
+  const I=monInfo(d), A=I.acc[0], A2=I.acc[1];
+  const skin='#a62a3c', skin2='#7c1f2e', bone='#ece0c4';
+  for(const s of [-1,1]){
+    S.tube([s*.22,.08,.06],[s*.25,.55,-.06],.1,.11,skin2,{seg:8});
+    S.tube([s*.25,.55,-.06],[s*.2,1.0,0],.11,.13,skin2,{seg:8});
+    S.ell([s*.22,.06,.2],[.12,.07,.22],'#26121a',{rings:4,seg:8});
+  }
+  S.ell([0,1.3,0],[.42,.52,.32],skin,{rings:7,seg:12});
+  S.ell([0,1.22,.2],[.28,.38,.14],'#d9705e',{rings:5,seg:8});
+  S.ell([0,1.25,.3],[.07,.07,.04],A,{glow:1,rings:4,seg:6});
+  for(const s of [-1,1]){
+    S.tube([s*.4,1.55,0],[s*.55,1.1,.22],.1,.08,skin,{seg:8});
+    for(let k=-1;k<=1;k++) S.cone([s*.55+k*.04,1.05,.26],[s*.55+k*.05,.82,.38],.035,bone,{seg:4});
+  }
+  S.ell([0,2.0,.04],[.36,.33,.32],skin,{rings:8,seg:12});
+  for(const s of [-1,1]){
+    S.cone([s*.2,2.2,0],[s*.38,2.74,-.16],.1,bone,{seg:6,shine:.5});
+    S.cone([s*.32,2.0,0],[s*.65,2.12,-.05],.07,skin,{seg:5});
+    S.ell([s*.14,2.05,.3],[.075,.06,.04],A2,{glow:1,rings:4,seg:6});
+    S.box([s*.14,2.15,.32],[.2,.045,.03],'#2a0e12',{rot:[0,0,-s*.4]});
+  }
+  S.box([0,1.84,.3],[.2,.04,.03],'#2a0e12');
+  for(const s of [-1,1]) S.cone([s*.07,1.84,.3],[s*.07,1.73,.32],.025,bone,{seg:4});
+  for(const s of [-1,1]){
+    const P=[s*.3,1.65,-.16], T1=[s*1.25,2.55,-.5], T2=[s*1.4,1.85,-.6], T3=[s*1.0,1.2,-.45];
+    S.tube(P,T1,.04,.02,skin2,{seg:5}); S.tube(P,T2,.04,.02,skin2,{seg:5}); S.tube(P,T3,.04,.02,skin2,{seg:5});
+    for(const q of [[P,T1,T2],[P,T2,T3]]) for(const dz of [-.3,.3]){
+      const c=[(q[0][0]+q[1][0]+q[2][0])/3,(q[0][1]+q[1][1]+q[2][1])/3,(q[0][2]+q[1][2]+q[2][2])/3+dz];
+      S.face(q,c,'#5a1a2e',false,null,.2);
+    }
+  }
+  S.tube([0,.95,-.2],[0,.62,-.7],.07,.05,skin2,{seg:6});
+  S.tube([0,.62,-.7],[0,.98,-1.05],.05,.04,skin2,{seg:6});
+  S.cone([0,.98,-1.05],[0,1.3,-1.18],.12,A,{seg:5,glow:1});
+  monExtras(S,I,1.45,.85,2.4,.9);
+};
+/* Одноглазый слизень */
+MODELS.mon_slime=(S,d)=>{
+  const I=monInfo(d), A=I.acc[0];
+  const g1='#3fbf8f', g2='#2a9a75', g3='#8ff0c4';
+  S.ell([0,.32,0],[1.0,.36,.95],g2,{rings:6,seg:16});
+  S.ell([0,.9,0],[.86,.82,.8],g1,{rings:9,seg:16});
+  S.ell([0,1.55,-.05],[.42,.34,.4],g1,{rings:6,seg:12});
+  S.ell([-.3,1.2,.52],[.2,.1,.1],g3,{rings:4,seg:8,shine:.8});
+  S.ell([0,1.0,.74],[.38,.42,.2],'#f4f6f0',{rings:7,seg:12,shine:.5});
+  S.ell([0,1.0,.88],[.21,.23,.09],A,{glow:1,rings:5,seg:10});
+  S.ell([0,1.0,.95],[.095,.15,.05],'#0b0b10',{rings:4,seg:8});
+  S.box([0,1.36,.8],[.62,.1,.1],'#1d6b52',{rot:[0,0,.12]});
+  S.box([0,.55,.82],[.52,.1,.08],'#12392d');
+  for(const x of [-.16,.0,.16]) S.cone([x,.6,.86],[x,.5,.88],.035,'#f4f6f0',{seg:4});
+  for(const s of [-1,1]){
+    S.ell([s*.86,.75,.12],[.24,.3,.24],g1,{rings:5,seg:10});
+    S.ell([s*.95,.22,.4],[.2,.2,.2],g2,{rings:4,seg:8});
+  }
+  for(const p of [[.5,1.1,.45],[-.55,.8,.5],[.2,1.45,.3],[.62,.5,.5]]) S.ell(p,[.07,.07,.07],g3,{rings:3,seg:6,glow:1});
+  S.ell([-.3,1.58,.15],[.07,.07,.07],A,{glow:1,rings:3,seg:6});
+  monExtras(S,I,1.4,.95,1.95,1.15);
+};
+
 /* ---- точка входа Web Worker (тот же файл, без DOM) ---- */
 if(typeof document==='undefined'&&typeof self!=='undefined'&&typeof importScripts==='function'){
   self.onmessage=function(e){
@@ -2122,7 +2294,7 @@ if(typeof document==='undefined'&&typeof self!=='undefined'&&typeof importScript
     }catch(err){ self.postMessage({t:'err',key:d.key,message:String(err&&err.message||err)}); }
   };
 }
-const API={draw,models:MODELS,render,battleSprite,resetBudget,prewarm,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
+const API={draw,models:MODELS,monsterIds:MON_IDS,render,battleSprite,resetBudget,prewarm,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
 (typeof window!=='undefined'?window:globalThis).Hero3D=API;
 if(typeof module!=='undefined') module.exports=API;
 })();

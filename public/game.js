@@ -674,7 +674,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.8.3';
+const GAME_VERSION = '0.8.4';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -761,7 +761,14 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.8.3', title:'ЛЮБИМЫЙ БОЕЦ И ОПТИМИЗАЦИЯ', changes:[
+  const sections = [{version:'0.8.4', title:'3D-КРИПЫ И НОВЫЙ МАГАЗИН', changes:[
+    'Все крипы теперь трёхмерные монстры, пять видов: Каменный голем, Мухомор-убийца, Адская гончая, Рогатый бес и Одноглазый слизень. Лайновые крипы получают случайного монстра, а лесные лагеря — своего по типу: обычный — мухомор, волки — гончая, большие — голем, сатиры — бес.',
+    'Глаза и самоцветы монстров светятся цветом команды: зелёным у Сил Света, красным у Сил Тьмы, золотым у лесных. Дальние крипы держат светящийся шар, мега-крипы носят золотую корону и кольцо. Монстры дышат, покачиваются при ходьбе и делают выпад при ударе.',
+    'Все модели в матче визуально стали больше на 15%: бойцы, крипы, лесные нейтралы, башни, казармы и трон. Хитбоксы и дальность атак не изменились, полоски здоровья и имена сдвинуты выше, чтобы не перекрывать модели.',
+    'Магазин переделан в стиле Dota 2: крупные карточки с названием и ценой, вкладки «Все», «Расходники», «Характеристики», «Активные» и «Особые», поиск по названию и описанию, панель с подробным описанием справа, рекомендуемая сборка для твоего бойца слева и твой инвентарь внизу. Предметы, на которые не хватает монет, затемнены, а цена показана красным. Esc закрывает магазин.',
+    'На узких экранах и телефонах магазин компактный: первое нажатие на предмет показывает описание, второе покупает. Кнопка «★ ГАЙД» открывает сборку от создателей.',
+    'Расчёт 3D-спрайтов бойцов и монстров вынесен в отдельный поток, а нужные спрайты считаются заранее в начале матча, поэтому в бою меньше подлагов.'
+  ]},{version:'0.8.3', title:'ЛЮБИМЫЙ БОЕЦ И ОПТИМИЗАЦИЯ', changes:[
     'Любимого бойца можно поставить в центр главного меню: открой «Бойцы», выбери героя и нажми «Поставить в центр меню». Центр украшен аурой в цвет героя, рунными кольцами, искрами и табличкой с именем; клик по герою открывает его профиль.',
     'Новый экран загрузки в красно-чёрном стиле: эмблема DOTA SENSE 3, рунная печать, полоса прогресса, подсказки и номер версии.',
     'Новый фон экрана «Выбор режима»: алая арена с лучами света, печатью и тлеющими искрами.',
@@ -3649,6 +3656,12 @@ class Unit {
   updateAI(dt){}
 }
 
+/* 0.8.4: каждый лайновый крип получает одного из 5 3D-монстров (псевдослучайно, но по порядку спавна) */
+let creepMonsterSerial = 0;
+function nextCreepMonster(){
+  creepMonsterSerial++;
+  return (Math.imul(creepMonsterSerial, 2654435761) >>> 9) % 5;
+}
 class Creep extends Unit {
   constructor(team, lane, kind, spawnOff){
     const ranged = kind==='ranged';
@@ -3662,6 +3675,7 @@ class Creep extends Unit {
       type:'creep', xpValue: ranged?90:70, hpRegen:2
     });
     this.ranged=ranged; this.lane=lane; this.path=LANES[lane];
+    this.monsterIdx = nextCreepMonster();
     this.dir = team===0?1:-1;
     this.wpIdx = team===0?0:this.path.length-1;
     this.offX=spawnOff.x; this.offY=spawnOff.y;
@@ -8491,6 +8505,21 @@ canvas.addEventListener('mouseup', e => {
   draggedInventoryIndex=-1;
 });
 
+/* 0.8.4: ввод в строку поиска магазина и Esc (перехватываем раньше игровых горячих клавиш) */
+window.addEventListener('keydown', e => {
+  if(gameState !== 'playing' || !shopOpen) return;
+  if(shopSearchFocus){
+    if(e.key === 'Escape' || e.key === 'Enter'){ shopSearchFocus = false; }
+    else if(e.key === 'Backspace'){ shopSearch = shopSearch.slice(0, -1); shopScrollRow = 0; }
+    else if(e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey){
+      if(shopSearch.length < 24) shopSearch += e.key;
+      shopScrollRow = 0;
+    } else return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    return;
+  }
+  if(e.key === 'Escape'){ shopCloseAll(); e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
 window.addEventListener('keydown', e => {
   if(gameState === 'menu' && menuStage === 'draft' && draftPlayerIndex >= 0 && !settingsOpen && (e.code === 'Enter' || e.code === 'NumpadEnter')){
     finishDraft();
@@ -9183,6 +9212,30 @@ function drawUnitSafely(u){
   }
 }
 
+/* ===== 0.8.4: 3D-монстры крипов ===== */
+const UNIT_VISUAL_SCALE = 1.15;      /* все модели в матче визуально крупнее на 15% (хитбокс не меняется) */
+const NEUTRAL_MONSTER = {wolf:'mon_hound', big:'mon_golem', satyr:'mon_imp'};   /* обычный лагерь — мухомор */
+function unitVisualScale(u){ return portraitRenderMode ? 1 : UNIT_VISUAL_SCALE; }
+function unitLabelLift(u){
+  const vs = unitVisualScale(u);
+  if(vs === 1) return 0;
+  return (vs - 1) * u.radius * ((u.type==='tower'||u.type==='ancient'||u.type==='barracks') ? 2 : 2.6);
+}
+function creepMonsterDef(u){
+  if(u._mdef) return u._mdef;
+  const ids = window.Hero3D && Hero3D.monsterIds;
+  if(!ids || !ids.length) return null;
+  let id, skin;
+  if(u.type === 'neutral'){
+    id = NEUTRAL_MONSTER[u.kind] || 'mon_shroom';
+    skin = 't2' + (u.kind === 'satyr' ? 'r' : '');
+  } else {
+    if(u.monsterIdx == null) u.monsterIdx = Math.floor(Math.random()*ids.length);
+    id = ids[u.monsterIdx % ids.length];
+    skin = 't' + (u.team === 1 ? 1 : 0) + (u.ranged ? 'r' : '') + (u.mega ? 'm' : '');
+  }
+  return u._mdef = {id, skinId:skin, color:'#ffffff'};
+}
 function drawForestCreepBody(u, col){
   /* Лесной страж — лайновый крип: кора+листва, светящаяся маска-прорезь глаз,
      белые клыки-рожки и мускулистые зелёные руки, как на референсе. */
@@ -9656,6 +9709,11 @@ function drawUnit(u){
     }
   }
 
+  const visScale = unitVisualScale(u);
+  if(visScale !== 1){            /* 0.8.4: +15% к размеру модели, масштаб от точки опоры */
+    const pivotY = u.radius*0.7;
+    ctx.translate(0, pivotY); ctx.scale(visScale, visScale); ctx.translate(0, -pivotY);
+  }
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
   ctx.ellipse(0, u.radius*0.75, u.radius*0.95, u.radius*0.45, 0, 0, Math.PI*2);
@@ -9708,6 +9766,39 @@ function drawUnit(u){
         lx = Math.cos(fa)*lunge; ly = Math.sin(fa)*lunge*0.6;
       }
       ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax + lx, footY - hero3dSpr.ay + ly);
+    }
+  }
+  /* 0.8.4: 3D-монстры для лайновых и лесных крипов */
+  if(!hero3dSpr && (u.type === 'creep' || u.type === 'neutral') && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
+    const md = creepMonsterDef(u);
+    if(md){
+      let fa = u.facing || 0;
+      if(u.isAttacking && u.attackTarget && u.attackTarget.alive) fa = Math.atan2(u.attackTarget.y-u.y, u.attackTarget.x-u.x);
+      hero3dSpr = Hero3D.battleSprite(md, u.radius, fa, gameTime, null);
+      if(hero3dSpr){
+        const footY = u.radius*0.7;
+        ctx.save();
+        ctx.strokeStyle = col; ctx.globalAlpha = 0.85; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.ellipse(0, footY, u.radius*1.0, u.radius*0.5, 0, 0, Math.PI*2); ctx.stroke();
+        ctx.restore();
+        /* оживление спрайта: дыхание, покачивание при ходьбе, выпад при ударе */
+        const breathe = Math.sin(gameTime*2.6 + u.x*0.013 + u.y*0.007) * 0.018;
+        const stride = u.moving ? Math.sin(u.walkPhase*Math.PI*2) : 0;
+        const sway = u.moving ? stride*0.09 : Math.sin(gameTime*1.7 + u.x*0.01)*0.02;
+        const squash = breathe + (u.moving ? Math.abs(stride)*0.035 : 0);
+        let lx = 0, ly = 0, lean = 0;
+        if(u.isAttacking){
+          const ap = Math.sin(Math.min(1,u.attackAnimProgress)*Math.PI);
+          lx = Math.cos(fa)*ap*u.radius*0.34; ly = Math.sin(fa)*ap*u.radius*0.2;
+          lean = Math.cos(fa)*ap*0.16;
+        }
+        ctx.save();
+        ctx.translate(lx, footY + ly);
+        ctx.rotate(sway + lean);
+        ctx.scale(1 - squash*0.6, 1 + squash);
+        ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+        ctx.restore();
+      }
     }
   }
   if(hero3dSpr){
@@ -11156,24 +11247,25 @@ function drawUnit(u){
   }
   if(!portraitRenderMode) drawHealthBar(u);
   if(u.type === 'hero' && !portraitRenderMode){
+    const vsLift = unitLabelLift(u);
     ctx.save();
     ctx.textAlign='center'; ctx.font='bold 12px Segoe UI, Arial';
     ctx.fillStyle=u.team===0 ? '#a8ffb0' : '#ffb0a8';
     ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3;
-    ctx.strokeText('Ур. ' + u.level, u.x, u.y - u.radius - 38);
-    ctx.fillText('Ур. ' + u.level, u.x, u.y - u.radius - 38);
+    ctx.strokeText('Ур. ' + u.level, u.x, u.y - u.radius - 38 - vsLift);
+    ctx.fillText('Ур. ' + u.level, u.x, u.y - u.radius - 38 - vsLift);
     ctx.font='bold 10px Segoe UI, Arial';
     ctx.fillStyle='rgba(255,239,184,0.9)';
     const roleLabel = gameTime >= MID_PUSH_TIME && u.midPushAssignment ? 'МИД • PUSH' : LANE_NAMES[u.assignedLane || 0];
-    ctx.strokeText(roleLabel, u.x, u.y - u.radius - 50);
-    ctx.fillText(roleLabel, u.x, u.y - u.radius - 50);
+    ctx.strokeText(roleLabel, u.x, u.y - u.radius - 50 - vsLift);
+    ctx.fillText(roleLabel, u.x, u.y - u.radius - 50 - vsLift);
     // 0.8.2: имя бойца над всеми героями (над подписью линии)
     ctx.font='bold 13px Georgia, serif';
     ctx.fillStyle=u.team===0 ? '#e6ffe9' : '#ffe3df';
     ctx.lineWidth=3.5;
     const nameLabel=(u.def && u.def.name) || '';
-    ctx.strokeText(nameLabel, u.x, u.y - u.radius - 63);
-    ctx.fillText(nameLabel, u.x, u.y - u.radius - 63);
+    ctx.strokeText(nameLabel, u.x, u.y - u.radius - 63 - vsLift);
+    ctx.fillText(nameLabel, u.x, u.y - u.radius - 63 - vsLift);
     ctx.restore();
   }
   if(u.type === 'hero' && u.def.id === 'juvsyut' && !portraitRenderMode) drawJuvsyutDevourBadge(u);
@@ -11183,7 +11275,7 @@ function drawHealthBar(u){
   const w = u.type==='hero' ? 68 : (u.type==='ancient' ? 130 : 46);
   const h = u.type==='hero' ? 8 : 6;
   const x = u.x - w/2;
-  const y = u.y - u.radius - (u.type==='hero' ? 26 : 18);
+  const y = u.y - u.radius - (u.type==='hero' ? 26 : 18) - unitLabelLift(u);
 
   ctx.fillStyle = 'rgba(0,0,0,0.75)';
   ctx.fillRect(x-2, y-2, w+4, h+4);
@@ -11827,20 +11919,6 @@ function shopButtonRect(){
   }
   return rect;
 }
-function shopGuideButtonRect(){
-  const {r} = shopLayout();
-  return {x:r.x+r.w-196, y:r.y+13, w:178, h:30};
-}
-function shopLayout(){
-  const h = Math.min(640, Math.max(420, VH-72));
-  const r = {x:Math.max(12,VW/2-560),y:Math.max(36,(VH-h)/2),w:Math.min(1120,VW-24),h};
-  const detailsW = VW >= 980 ? 282 : 0;
-  const columns = VW >= 980 ? 9 : (VW < 620 ? 4 : 5);
-  const gap = 8;
-  const visibleRows = Math.max(1, Math.floor((r.h-70)/78));
-  const totalRows = Math.ceil(SHOP_ITEM_IDS.length/columns);
-  return {r, detailsW, columns, gap, visibleRows, totalRows};
-}
 function drawCreatorGuide(){
   const hero = playerHero;
   const build = hero && CREATOR_BUILDS[hero.def.id];
@@ -11883,11 +11961,6 @@ function drawCreatorGuide(){
   });
   ctx.restore();
 }
-function shopItemRect(i){
-  const {r,detailsW,columns,gap} = shopLayout();
-  const itemW=(r.w-detailsW-40-gap*(columns-1))/columns;
-  return {x:r.x+20+(i%columns)*(itemW+gap), y:r.y+62+(Math.floor(i/columns)-shopScrollRow)*78, w:itemW, h:70};
-}
 function inventorySlotRect(i){
   const items = combatHudLayout().items;
   const column=i%items.columns, row=Math.floor(i/items.columns);
@@ -11900,13 +11973,7 @@ function hoveredItemRangePreview(){
     if(item&&mouse.x>=rect.x&&mouse.x<=rect.x+rect.w&&mouse.y>=rect.y&&mouse.y<=rect.y+rect.h)
       return item.id;
   }
-  if(shopOpen&&!shopGuideOpen){
-    for(let i=0;i<SHOP_ITEM_IDS.length;i++){
-      const rect=shopItemRect(i);
-      if(mouse.x>=rect.x&&mouse.x<=rect.x+rect.w&&mouse.y>=rect.y&&mouse.y<=rect.y+rect.h)
-        return SHOP_ITEM_IDS[i];
-    }
-  }
+  if(shopOpen&&!shopGuideOpen) return shopHoveredId();
   return null;
 }
 function drawItemRangePreview(){
@@ -11935,24 +12002,42 @@ function drawItemRangePreview(){
 function handleHudClick(mx, my){
   const button = shopButtonRect();
   if(mx>=button.x && mx<=button.x+button.w && my>=button.y && my<=button.y+button.h){
-    shopOpen = !shopOpen;
-    if(shopOpen) shopScrollRow = 0;
+    if(shopOpen) shopCloseAll(); else { shopOpen = true; shopScrollRow = 0; }
     return true;
   }
   if(shopOpen){
+    const L = shopLayout();
+    const hit = (r) => mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h;
+    if(hit(shopCloseRect(L))){ shopCloseAll(); return true; }
+    const sr = shopSearchRect(L);
+    if(hit(sr)){
+      if(shopSearch && mx >= sr.x + sr.w - 28){ shopSearch = ''; shopScrollRow = 0; }
+      else shopOpenSearch();
+      return true;
+    }
+    shopSearchFocus = false;
     const guideButton=shopGuideButtonRect();
-    if(mx>=guideButton.x && mx<=guideButton.x+guideButton.w && my>=guideButton.y && my<=guideButton.y+guideButton.h){
+    if(hit(guideButton)){
       shopGuideOpen=!shopGuideOpen;
       shopScrollRow=0;
       return true;
     }
+    for(let i=0;i<SHOP_TABS.length;i++){
+      if(hit(shopTabRect(i, L))){ shopTab = i; shopGuideOpen = false; shopScrollRow = 0; shopSelectedId = null; return true; }
+    }
     if(shopGuideOpen) return true;
-    for(let i=0;i<SHOP_ITEM_IDS.length;i++){
-      const r = shopItemRect(i);
-      if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h){
-        confirmShopPurchase(SHOP_ITEM_IDS[i]);
+    const ids = shopFilteredIds();
+    for(let i=0;i<ids.length;i++){
+      const row = Math.floor(i / L.columns);
+      if(row < shopScrollRow || row >= shopScrollRow + L.visibleRows) continue;
+      if(hit(shopItemRect(i, L))){
+        if(L.wide || shopSelectedId === ids[i]){ confirmShopPurchase(ids[i]); }
+        else shopSelectedId = ids[i];
         return true;
       }
+    }
+    for(const slot of shopGuideSlots(L)){
+      if(hit(slot.rect)){ confirmShopPurchase(slot.id); return true; }
     }
     return true;
   }
@@ -12619,6 +12704,177 @@ function getShopItemDescription(item, hero, itemId=null){
   return description;
 }
 
+/* =========================================================
+   0.8.4 — НОВЫЙ МАГАЗИН (в стиле Dota 2)
+   Вкладки по типам, поиск, крупные карточки с названием и ценой,
+   панель описания справа, рекомендации для героя слева и
+   инвентарь внизу. На узких экранах — компактная версия.
+   ========================================================= */
+const SHOP_TABS = ['ВСЕ','РАСХОДНИКИ','ХАРАКТЕРИСТИКИ','АКТИВНЫЕ','ОСОБЫЕ'];
+const SHOP_CATEGORY_OF = {
+  tango:1, timurPillow:1, mango:1, hatchet:1,
+  joelBoots:2, fangs:2, evsyutin:2, manaTome:2, manaHooves:2, brainEye:2, kinglandia:2, satanic:2, enemy302:2,
+  pt:4, aghanimShard:4, aghanimScepter:4
+};
+function shopItemCategory(id){ return SHOP_CATEGORY_OF[id] || 3; }
+let shopTab = 0, shopSearch = '', shopSearchFocus = false, shopSelectedId = null;
+let shopViewById = null;
+function shopView(id){
+  if(!shopViewById){ shopViewById = {}; for(const v of SHOP_ITEM_VIEWS) shopViewById[v.id] = v; }
+  return shopViewById[id] || (SHOP_ITEMS[id] ? {...SHOP_ITEMS[id], id} : null);
+}
+function shopFilteredIds(){
+  const q = shopSearch.trim().toLowerCase();
+  return SHOP_ITEM_IDS.filter(id => {
+    const it = SHOP_ITEMS[id];
+    if(!it) return false;
+    if(shopTab && shopItemCategory(id) !== shopTab) return false;
+    if(!q) return true;
+    return (it.name || '').toLowerCase().includes(q) || (it.desc || '').toLowerCase().includes(q);
+  }).sort((a, b) => SHOP_ITEMS[a].cost - SHOP_ITEMS[b].cost);
+}
+function shopLayout(){
+  const wide = VW >= 1100, compact = VW < 620;
+  const w = Math.min(1260, VW - 16);
+  const h = Math.min(720, Math.max(380, VH - 40));
+  const r = {x:Math.round((VW - w) / 2), y:Math.max(8, Math.round((VH - h) / 2)), w, h};
+  const guideW = wide ? 250 : 0, detailsW = wide ? 310 : 0;
+  const headerH = 58, tabsH = 42, footerH = wide ? 78 : 0;
+  const gx = r.x + 14 + (guideW ? guideW + 12 : 0);
+  const gy = r.y + headerH + tabsH + 10;
+  const gw = r.w - 28 - (guideW ? guideW + 12 : 0) - (detailsW ? detailsW + 12 : 0);
+  const gh = r.h - headerH - tabsH - 10 - footerH - 14;
+  const gap = compact ? 6 : 10;
+  const cellMin = compact ? 82 : 108;
+  const columns = Math.max(2, Math.floor((gw + gap) / (cellMin + gap)));
+  const itemW = Math.floor((gw - gap * (columns - 1)) / columns);
+  /* высота карточки подгоняется так, чтобы ряды целиком заполняли область */
+  const visibleRows = Math.max(1, Math.floor((gh + gap) / ((compact ? 104 : 110) + gap)));
+  const cellH = clamp(Math.floor((gh + gap) / visibleRows) - gap, 100, 132);
+  const totalRows = Math.max(1, Math.ceil(shopFilteredIds().length / columns));
+  return {r, wide, compact, guideW, detailsW, headerH, tabsH, footerH, gx, gy, gw, gh, cellH, itemW, gap, columns, visibleRows, totalRows};
+}
+function shopCloseRect(L){ L = L || shopLayout(); return {x:L.r.x + L.r.w - 48, y:L.r.y + 12, w:34, h:34}; }
+function shopSearchRect(L){
+  L = L || shopLayout();
+  const x = L.r.x + (L.compact ? 120 : 190);
+  const right = L.r.x + L.r.w - (L.compact ? 150 : 240);
+  return {x, y:L.r.y + 12, w:Math.max(90, Math.min(340, right - x)), h:34};
+}
+function shopTabRect(i, L){
+  L = L || shopLayout();
+  const count = SHOP_TABS.length + (L.wide ? 0 : 1);
+  const gap = 6, avail = L.r.w - 28;
+  const tw = Math.min(L.compact ? 120 : 168, Math.floor((avail - gap * (count - 1)) / count));
+  return {x:L.r.x + 14 + i * (tw + gap), y:L.r.y + L.headerH + 4, w:tw, h:34};
+}
+function shopGuideButtonRect(){
+  const L = shopLayout();
+  if(L.wide) return {x:-999, y:-999, w:0, h:0};
+  return shopTabRect(SHOP_TABS.length, L);
+}
+function shopItemRect(i, L){
+  L = L || shopLayout();
+  return {x:L.gx + (i % L.columns) * (L.itemW + L.gap),
+          y:L.gy + (Math.floor(i / L.columns) - shopScrollRow) * (L.cellH + L.gap), w:L.itemW, h:L.cellH};
+}
+function shopGuideSlots(L){
+  L = L || shopLayout();
+  const out = [];
+  const hero = playerHero, build = hero && hero.def && CREATOR_BUILDS[hero.def.id];
+  if(!L.wide || !build) return out;
+  const x0 = L.r.x + 26, size = 42, gap = 6;
+  let y = L.gy + 62;
+  build.categories.forEach(cat => {
+    const heading = y;
+    cat.items.forEach((entry, k) => {
+      if(!SHOP_ITEMS[entry[0]]) return;
+      out.push({id:entry[0], cat:cat.name, heading, rect:{x:x0 + k * (size + gap), y:y + 22, w:size, h:size}});
+    });
+    y += 22 + size + 16;
+  });
+  return out;
+}
+function shopHoveredId(L){
+  L = L || shopLayout();
+  if(!shopOpen || shopGuideOpen) return null;
+  const inside = (r) => mouse.x >= r.x && mouse.x <= r.x + r.w && mouse.y >= r.y && mouse.y <= r.y + r.h;
+  const ids = shopFilteredIds();
+  for(let i = 0; i < ids.length; i++){
+    const row = Math.floor(i / L.columns);
+    if(row < shopScrollRow || row >= shopScrollRow + L.visibleRows) continue;
+    if(inside(shopItemRect(i, L))) return ids[i];
+  }
+  for(const slot of shopGuideSlots(L)) if(inside(slot.rect)) return slot.id;
+  return null;
+}
+function shopFitText(text, maxW){
+  if(ctx.measureText(text).width <= maxW) return text;
+  while(text.length > 1 && ctx.measureText(text + '…').width > maxW) text = text.slice(0, -1);
+  return text + '…';
+}
+function shopWrapLines(text, maxW, maxLines){
+  const words = String(text).split(' '), lines = [];
+  let line = '';
+  for(const word of words){
+    const cand = line ? line + ' ' + word : word;
+    if(ctx.measureText(cand).width > maxW && line){ lines.push(line); line = word; } else line = cand;
+  }
+  if(line) lines.push(line);
+  if(lines.length > maxLines){
+    lines.length = maxLines;
+    lines[maxLines - 1] = shopFitText(lines[maxLines - 1] + '…', maxW);
+  }
+  return lines.map(l => shopFitText(l, maxW));
+}
+function shopCoinDot(x, y, r){
+  ctx.fillStyle = '#e8b93c'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#8a6414'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+function shopOwnedCount(id){
+  const h = playerHero; if(!h || !h.inventory) return 0;
+  return h.inventory.filter(i => i && i.id === id).length;
+}
+function shopOpenSearch(){
+  const touchy = ('ontouchstart' in window) || VW < 720;
+  if(touchy){
+    const v = window.prompt('Поиск предмета:', shopSearch);
+    if(v !== null){ shopSearch = v.slice(0, 24); shopScrollRow = 0; }
+    shopSearchFocus = false;
+  } else shopSearchFocus = true;
+}
+function shopCloseAll(){ shopOpen = false; shopSearchFocus = false; shopSelectedId = null; }
+
+function drawShopTooltipBody(id, h, x, y, w, big){
+  const item = shopView(id); if(!item) return;
+  const pad = 16;
+  ctx.textAlign = 'left';
+  drawItemIcon(item, x + pad + 30, y + pad + 30, 60);
+  ctx.fillStyle = item.color; ctx.font = 'bold ' + (big ? 20 : 17) + 'px Georgia, serif';
+  const nameLines = shopWrapLines(item.name, w - pad * 2 - 76, 2);
+  nameLines.forEach((ln, i) => ctx.fillText(ln, x + pad + 72, y + pad + 22 + i * 22));
+  const rowY = y + pad + 22 + nameLines.length * 22 + 2;
+  shopCoinDot(x + pad + 80, rowY - 5, 7);
+  const afford = h.coins >= item.cost;
+  ctx.fillStyle = afford ? '#ffd568' : '#ff8a80'; ctx.font = 'bold 16px Segoe UI, Arial';
+  ctx.fillText(String(item.cost), x + pad + 94, rowY);
+  const tagY = Math.max(y + pad + 70, rowY + 14);
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x + pad, tagY, w - pad * 2, 1);
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = 'bold 11px Segoe UI, Arial';
+  ctx.fillText((item.active ? 'АКТИВНЫЙ ПРЕДМЕТ' : 'ПАССИВНЫЙ ПРЕДМЕТ') + '  •  ' + SHOP_TABS[shopItemCategory(id)].toLowerCase(), x + pad, tagY + 20);
+  const desc = getShopItemDescription(item, h, id);
+  ctx.font = '14px Segoe UI, Arial';
+  const lines = shopWrapLines(desc, w - pad * 2, 12);
+  ctx.fillStyle = '#f2f5f7';
+  lines.forEach((ln, i) => ctx.fillText(ln, x + pad, tagY + 46 + i * 20));
+  let by = tagY + 46 + lines.length * 20 + 8;
+  const owned = shopOwnedCount(id);
+  if(owned){ ctx.fillStyle = '#9ad7ff'; ctx.font = 'bold 12px Segoe UI, Arial'; ctx.fillText('В инвентаре: ' + owned, x + pad, by); by += 20; }
+  ctx.font = 'bold 13px Segoe UI, Arial';
+  if(!afford){ ctx.fillStyle = '#ff8a80'; ctx.fillText('Не хватает ' + (item.cost - Math.floor(h.coins)) + ' монет', x + pad, by); }
+  else { ctx.fillStyle = '#7dffb0'; ctx.fillText(big ? 'Нажми, чтобы купить' : 'Нажми ещё раз, чтобы купить', x + pad, by); }
+}
+
 function drawShop(){
   const h = playerHero;
   if(!h) return;
@@ -12628,93 +12884,203 @@ function drawShop(){
   buttonGradient.addColorStop(0,shopOpen?'rgba(70,56,32,0.96)':'rgba(24,28,34,0.96)'); buttonGradient.addColorStop(1,'rgba(8,10,14,0.98)');
   ctx.fillStyle=buttonGradient; ctx.fillRect(button.x,button.y,button.w,button.h);
   ctx.strokeStyle=shopOpen?'#e2c07a':'rgba(150,125,80,0.8)'; ctx.lineWidth=2; ctx.strokeRect(button.x,button.y,button.w,button.h);
-  const cx=button.x+20, cy=button.y+button.h/2;
-  ctx.fillStyle='#e8b93c'; ctx.beginPath(); ctx.arc(cx,cy,9,0,Math.PI*2); ctx.fill();
+  const bcx=button.x+20, bcy=button.y+button.h/2;
+  ctx.fillStyle='#e8b93c'; ctx.beginPath(); ctx.arc(bcx,bcy,9,0,Math.PI*2); ctx.fill();
   ctx.strokeStyle='#8a6414'; ctx.lineWidth=2; ctx.stroke();
   ctx.fillStyle='#fff1b8'; ctx.font='bold 11px Consolas, monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('$',cx,cy+0.5);
+  ctx.fillText('$',bcx,bcy+0.5);
   ctx.textBaseline='alphabetic';
   ctx.fillStyle='#ffd568'; ctx.font='bold '+(VW<720?15:19)+'px Segoe UI, Arial'; ctx.textAlign='left';
   ctx.fillText(String(Math.floor(h.coins)),button.x+36,button.y+button.h/2+7);
   ctx.fillStyle='rgba(255,255,255,0.78)'; ctx.font='bold 11px Segoe UI, Arial'; ctx.textAlign='right';
   ctx.fillText(shopOpen?'ЗАКРЫТЬ':'МАГАЗИН',button.x+button.w-10,button.y+button.h/2+4);
   if(!shopOpen){ ctx.restore(); return; }
-  const {r, detailsW, columns, visibleRows, totalRows} = shopLayout();
-  const shopGradient=ctx.createLinearGradient(r.x,r.y,r.x+r.w,r.y+r.h);
-  shopGradient.addColorStop(0,'rgba(35,48,60,0.99)'); shopGradient.addColorStop(0.48,'rgba(18,27,36,0.99)'); shopGradient.addColorStop(1,'rgba(7,12,18,0.99)');
-  ctx.fillStyle=shopGradient; ctx.fillRect(r.x,r.y,r.w,r.h);
-  ctx.save();
-  ctx.beginPath(); ctx.rect(r.x+8,r.y+50,r.w-16,r.h-58); ctx.clip();
-  ctx.strokeStyle='rgba(125,168,194,0.07)'; ctx.lineWidth=1;
-  for(let offset=-r.h;offset<r.w;offset+=34){
-    ctx.beginPath(); ctx.moveTo(r.x+offset,r.y+r.h); ctx.lineTo(r.x+offset+r.h,r.y+50); ctx.stroke();
+
+  const L = shopLayout();
+  const {r} = L;
+  shopScrollRow = clamp(shopScrollRow, 0, Math.max(0, L.totalRows - L.visibleRows));
+  const ids = shopFilteredIds();
+  const hoveredId = shopHoveredId(L);
+  const detailId = hoveredId || (L.wide ? null : shopSelectedId);
+
+  /* затемнение карты и корпус */
+  ctx.fillStyle = 'rgba(2,5,9,0.55)'; ctx.fillRect(0, 0, VW, VH);
+  const body = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
+  body.addColorStop(0, 'rgba(30,38,48,0.99)'); body.addColorStop(1, 'rgba(9,13,19,0.99)');
+  ctx.fillStyle = body; ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.strokeStyle = '#c7a96b'; ctx.lineWidth = 3; ctx.strokeRect(r.x, r.y, r.w, r.h);
+  ctx.strokeStyle = 'rgba(243,208,145,0.35)'; ctx.lineWidth = 1; ctx.strokeRect(r.x + 5, r.y + 5, r.w - 10, r.h - 10);
+
+  /* шапка */
+  const head = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y);
+  head.addColorStop(0, 'rgba(110,62,48,0.9)'); head.addColorStop(0.5, 'rgba(40,50,60,0.95)'); head.addColorStop(1, 'rgba(20,28,36,0.95)');
+  ctx.fillStyle = head; ctx.fillRect(r.x + 8, r.y + 8, r.w - 16, L.headerH - 12);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#f6dca3'; ctx.font = 'bold ' + (L.compact ? 18 : 24) + 'px Georgia, serif';
+  ctx.fillText('МАГАЗИН', r.x + 20, r.y + 38);
+  const sr = shopSearchRect(L);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(sr.x, sr.y, sr.w, sr.h);
+  ctx.strokeStyle = shopSearchFocus ? '#8be9fd' : 'rgba(199,169,107,0.7)'; ctx.lineWidth = shopSearchFocus ? 2 : 1; ctx.strokeRect(sr.x, sr.y, sr.w, sr.h);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '15px Segoe UI, Arial';
+  ctx.fillText('⌕', sr.x + 9, sr.y + 23);
+  ctx.font = '15px Segoe UI, Arial';
+  if(shopSearch || shopSearchFocus){
+    ctx.fillStyle = '#ffffff';
+    const shown = shopFitText(shopSearch, sr.w - 62);
+    ctx.fillText(shown, sr.x + 32, sr.y + 23);
+    if(shopSearchFocus && Math.floor(performance.now() / 500) % 2 === 0){
+      const cx = sr.x + 32 + ctx.measureText(shown).width + 1;
+      ctx.fillRect(cx, sr.y + 8, 1.5, 18);
+    }
+  } else { ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText('Поиск предмета', sr.x + 32, sr.y + 23); }
+  if(shopSearch){
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 15px Segoe UI, Arial'; ctx.textAlign = 'center';
+    ctx.fillText('✕', sr.x + sr.w - 14, sr.y + 23);
   }
-  ctx.restore();
-  ctx.strokeStyle='#c7a96b'; ctx.lineWidth=3; ctx.strokeRect(r.x,r.y,r.w,r.h);
-  ctx.strokeStyle='rgba(243,208,145,0.42)'; ctx.lineWidth=1; ctx.strokeRect(r.x+6,r.y+6,r.w-12,r.h-12);
-  const headerGradient=ctx.createLinearGradient(r.x,r.y,r.x+r.w,r.y+44);
-  headerGradient.addColorStop(0,'rgba(114,65,52,0.92)'); headerGradient.addColorStop(0.52,'rgba(44,54,63,0.97)'); headerGradient.addColorStop(1,'rgba(18,26,34,0.96)');
-  ctx.fillStyle=headerGradient; ctx.fillRect(r.x+8,r.y+8,r.w-16,38);
-  ctx.strokeStyle='rgba(229,192,128,0.72)'; ctx.lineWidth=1; ctx.strokeRect(r.x+8,r.y+8,r.w-16,38);
-  ctx.fillStyle='#eac37c'; ctx.shadowColor='#d29d52'; ctx.shadowBlur=12;
-  ctx.beginPath(); ctx.arc(r.x+28,r.y+27,8+Math.sin(gameTime*4)*1.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-  ctx.fillStyle='rgba(106,155,184,0.045)'; ctx.fillRect(r.x+8,r.y+50,r.w-16,r.h-58);
-  ctx.textAlign='left'; ctx.fillStyle='#f1d49b'; ctx.font='bold 20px Georgia, serif';
-  ctx.fillText('МАГАЗИН',r.x+48,r.y+32);
-  ctx.textAlign='right'; ctx.fillStyle='#ffe9bd'; ctx.font='bold 16px Georgia, serif';
-  ctx.fillText(h.coins + ' монет',r.x+r.w-214,r.y+32);
-  const guideButton=shopGuideButtonRect();
-  ctx.fillStyle=shopGuideOpen ? '#d7b36a' : 'rgba(182,134,67,0.22)';
-  ctx.fillRect(guideButton.x,guideButton.y,guideButton.w,guideButton.h);
-  ctx.strokeStyle=shopGuideOpen ? '#fff0c7' : '#b58a55'; ctx.lineWidth=1.2; ctx.strokeRect(guideButton.x,guideButton.y,guideButton.w,guideButton.h);
-  ctx.fillStyle=shopGuideOpen ? '#111821' : '#f0d9aa'; ctx.font='bold 11px Segoe UI, Arial'; ctx.textAlign='center';
-  ctx.fillText('✦  ОТ СОЗДАТЕЛЕЙ',guideButton.x+guideButton.w/2,guideButton.y+19);
-  if(shopGuideOpen){
+  const cr = shopCloseRect(L);
+  ctx.fillStyle = 'rgba(150,50,50,0.85)'; ctx.fillRect(cr.x, cr.y, cr.w, cr.h);
+  ctx.strokeStyle = '#ffb4a8'; ctx.lineWidth = 1.5; ctx.strokeRect(cr.x, cr.y, cr.w, cr.h);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Segoe UI, Arial'; ctx.textAlign = 'center'; ctx.fillText('✕', cr.x + cr.w / 2, cr.y + 24);
+  shopCoinDot(cr.x - 24 - (String(Math.floor(h.coins)).length * 11), cr.y + 17, 9);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ffd568'; ctx.font = 'bold 21px Segoe UI, Arial';
+  ctx.fillText(String(Math.floor(h.coins)), cr.x - 12, cr.y + 25);
+
+  /* вкладки */
+  const tabNames = SHOP_TABS.concat(L.wide ? [] : ['★ ГАЙД']);
+  tabNames.forEach((name, i) => {
+    const tr = shopTabRect(i, L);
+    const isGuide = i === SHOP_TABS.length;
+    const active = isGuide ? shopGuideOpen : (!shopGuideOpen && shopTab === i);
+    const hov = mouse.x >= tr.x && mouse.x <= tr.x + tr.w && mouse.y >= tr.y && mouse.y <= tr.y + tr.h;
+    ctx.fillStyle = active ? 'rgba(199,160,92,0.95)' : (hov ? 'rgba(90,110,126,0.8)' : 'rgba(34,44,55,0.9)');
+    ctx.fillRect(tr.x, tr.y, tr.w, tr.h);
+    ctx.strokeStyle = active ? '#fff0c7' : 'rgba(150,125,80,0.6)'; ctx.lineWidth = active ? 2 : 1; ctx.strokeRect(tr.x, tr.y, tr.w, tr.h);
+    ctx.fillStyle = active ? '#141a22' : '#e9dcc0'; ctx.font = 'bold ' + (L.compact ? 10 : 12) + 'px Segoe UI, Arial'; ctx.textAlign = 'center';
+    ctx.fillText(shopFitText(name, tr.w - 10), tr.x + tr.w / 2, tr.y + 22);
+  });
+
+  if(shopGuideOpen && !L.wide){
     drawCreatorGuide();
+    const gb = shopGuideButtonRect();
+    ctx.fillStyle = 'rgba(199,160,92,0.95)'; ctx.fillRect(gb.x, gb.y, gb.w, gb.h);
+    ctx.strokeStyle = '#fff0c7'; ctx.lineWidth = 2; ctx.strokeRect(gb.x, gb.y, gb.w, gb.h);
+    ctx.fillStyle = '#141a22'; ctx.font = 'bold ' + (L.compact ? 10 : 12) + 'px Segoe UI, Arial'; ctx.textAlign = 'center';
+    ctx.fillText('★ ГАЙД', gb.x + gb.w / 2, gb.y + 22);
     ctx.restore();
     return;
   }
-  const entries=SHOP_ITEM_VIEWS;
-  let hoveredShopItem = null;
-  for(let i=0;i<entries.length;i++){
-    const itemRow = Math.floor(i/columns);
-    if(itemRow < shopScrollRow || itemRow >= shopScrollRow + visibleRows) continue;
-    const item=entries[i], ir=shopItemRect(i);
-    const hovered=mouse.x>=ir.x&&mouse.x<=ir.x+ir.w&&mouse.y>=ir.y&&mouse.y<=ir.y+ir.h;
-    if(hovered) hoveredShopItem = SHOP_ITEM_IDS[i];
-    const itemGradient=ctx.createLinearGradient(ir.x,ir.y,ir.x,ir.y+ir.h);
-    itemGradient.addColorStop(0,hovered?'rgba(111,145,160,0.52)':'rgba(43,57,68,0.92)'); itemGradient.addColorStop(1,hovered?'rgba(67,51,47,0.98)':'rgba(13,20,27,0.98)');
-    ctx.fillStyle=itemGradient; ctx.fillRect(ir.x,ir.y,ir.w,ir.h);
-    ctx.strokeStyle=item.color; ctx.lineWidth=hovered?2:1; ctx.strokeRect(ir.x,ir.y,ir.w,ir.h);
-    if(hovered){
-      ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1; ctx.strokeRect(ir.x+3,ir.y+3,ir.w-6,ir.h-6);
+
+  /* левая колонка: рекомендации для героя */
+  if(L.wide){
+    const gx = r.x + 14, gy = L.gy, gw = L.guideW, gh = L.gh + L.footerH + 4;
+    ctx.fillStyle = 'rgba(8,13,20,0.82)'; ctx.fillRect(gx, gy, gw, gh);
+    ctx.strokeStyle = 'rgba(139,233,253,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(gx, gy, gw, gh);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#ffd568'; ctx.font = 'bold 14px Georgia, serif';
+    ctx.fillText('РЕКОМЕНДУЕМ', gx + 12, gy + 24);
+    const build = h.def && CREATOR_BUILDS[h.def.id];
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '12px Segoe UI, Arial';
+    ctx.fillText(shopFitText(build ? build.title : ((h.def && h.def.name) || ''), gw - 24), gx + 12, gy + 44);
+    const slots = shopGuideSlots(L);
+    let lastHeading = -1;
+    for(const slot of slots){
+      if(slot.heading !== lastHeading){
+        lastHeading = slot.heading;
+        ctx.fillStyle = '#8be9fd'; ctx.font = 'bold 11px Segoe UI, Arial'; ctx.textAlign = 'left';
+        ctx.fillText(slot.cat, gx + 12, slot.heading + 14);
+      }
+      const rc = slot.rect, hov = hoveredId === slot.id;
+      const it = shopView(slot.id);
+      ctx.fillStyle = hov ? 'rgba(111,145,160,0.55)' : 'rgba(30,40,52,0.95)'; ctx.fillRect(rc.x, rc.y, rc.w, rc.h);
+      ctx.strokeStyle = h.coins >= it.cost ? it.color : 'rgba(255,255,255,0.22)'; ctx.lineWidth = hov ? 2 : 1; ctx.strokeRect(rc.x, rc.y, rc.w, rc.h);
+      ctx.globalAlpha = h.coins >= it.cost ? 1 : 0.5;
+      drawItemIcon(it, rc.x + rc.w / 2, rc.y + rc.h / 2, rc.w - 8);
+      ctx.globalAlpha = 1;
     }
-    ctx.fillStyle='rgba(255,231,185,0.08)'; ctx.fillRect(ir.x+4,ir.y+4,ir.w-8,3);
-    drawItemIcon(item,ir.x+ir.w/2,ir.y+ir.h/2,Math.min(54,ir.w-12));
+    if(!build){
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '13px Segoe UI, Arial'; ctx.textAlign = 'left';
+      ctx.fillText('Для этого бойца пока нет', gx + 12, gy + 82); ctx.fillText('готовой сборки.', gx + 12, gy + 100);
+    }
   }
-  if(totalRows > visibleRows){
-    const trackX = r.x + r.w - detailsW - 12;
-    const trackY = r.y + 62;
-    const trackH = visibleRows * 78 - 8;
-    const thumbH = Math.max(34, trackH * visibleRows / totalRows);
-    const thumbY = trackY + (trackH-thumbH) * shopScrollRow / (totalRows-visibleRows);
-    ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(trackX,trackY,5,trackH);
-    ctx.fillStyle='#8be9fd'; ctx.fillRect(trackX,thumbY,5,thumbH);
+
+  /* сетка предметов (обрезается по области) */
+  ctx.save();
+  ctx.beginPath(); ctx.rect(L.gx - 2, L.gy - 2, L.gw + 4 + (L.totalRows > L.visibleRows ? 12 : 0), L.gh + 4); ctx.clip();
+  if(!ids.length){
+    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '16px Segoe UI, Arial';
+    ctx.fillText('Ничего не найдено', L.gx + L.gw / 2, L.gy + 60);
+    ctx.font = '13px Segoe UI, Arial'; ctx.fillText('Измени запрос или выбери вкладку «ВСЕ»', L.gx + L.gw / 2, L.gy + 84);
   }
-  const selected = hoveredShopItem ? SHOP_ITEMS[hoveredShopItem] : null;
-  if(selected){
-    const panelW = detailsW ? detailsW : Math.min(300,r.w-20);
-    const panelH = detailsW ? 420 : Math.min(220,r.h-76);
-    const panelX = detailsW ? r.x + r.w - detailsW - 10 : clamp(mouse.x+14,r.x+10,r.x+r.w-panelW-10);
-    const panelY = detailsW ? r.y + 54 : clamp(mouse.y+14,r.y+54,r.y+r.h-panelH-8);
-    ctx.fillStyle='rgba(11,14,15,0.98)'; ctx.fillRect(panelX,panelY,panelW,panelH);
-    ctx.strokeStyle='#b58a55'; ctx.lineWidth=2; ctx.strokeRect(panelX,panelY,panelW,panelH);
-    ctx.fillStyle='rgba(190,145,78,0.16)'; ctx.fillRect(panelX+1,panelY+40,panelW-2,1);
-    ctx.textAlign='left'; ctx.fillStyle=selected.color; ctx.font='bold 16px Georgia, serif';
-    ctx.fillText(selected.name + '  •  ' + selected.cost + ' монет',panelX+16,panelY+28);
-    drawWrappedText(getShopItemDescription(selected, h, hoveredShopItem || selectedShopItem), panelX+16, panelY+58, panelW-32, 18, '#fff', '13px Segoe UI, Arial');
-    ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='11px Segoe UI, Arial';
-    ctx.fillText(selected.active ? 'Активный предмет' : 'Пассивный предмет',panelX+16,panelY+panelH-14);
+  for(let i = 0; i < ids.length; i++){
+    const row = Math.floor(i / L.columns);
+    if(row < shopScrollRow || row >= shopScrollRow + L.visibleRows) continue;
+    const id = ids[i], item = shopView(id), ir = shopItemRect(i, L);
+    const hov = hoveredId === id, sel = shopSelectedId === id && !L.wide;
+    const afford = h.coins >= item.cost;
+    const grad = ctx.createLinearGradient(ir.x, ir.y, ir.x, ir.y + ir.h);
+    grad.addColorStop(0, hov || sel ? 'rgba(111,145,160,0.6)' : 'rgba(43,57,68,0.95)'); grad.addColorStop(1, hov || sel ? 'rgba(67,51,47,0.98)' : 'rgba(13,20,27,0.98)');
+    ctx.fillStyle = grad; ctx.fillRect(ir.x, ir.y, ir.w, ir.h);
+    ctx.strokeStyle = afford ? item.color : 'rgba(255,255,255,0.2)'; ctx.lineWidth = hov || sel ? 2.5 : 1.5; ctx.strokeRect(ir.x, ir.y, ir.w, ir.h);
+    if(hov || sel){ ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1; ctx.strokeRect(ir.x + 3, ir.y + 3, ir.w - 6, ir.h - 6); }
+    ctx.globalAlpha = afford ? 1 : 0.5;
+    drawItemIcon(item, ir.x + ir.w / 2, ir.y + 36, Math.min(52, ir.w - 20));
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'center'; ctx.fillStyle = afford ? '#ffffff' : 'rgba(255,255,255,0.6)';
+    ctx.font = 'bold ' + (L.compact ? 11 : 12) + 'px Segoe UI, Arial';
+    const nl = shopWrapLines(item.name, ir.w - 10, 2);
+    nl.forEach((ln, k) => ctx.fillText(ln, ir.x + ir.w / 2, ir.y + 72 + k * 14));
+    const cost = String(item.cost);
+    ctx.font = 'bold ' + (L.compact ? 13 : 15) + 'px Segoe UI, Arial';
+    const tw = ctx.measureText(cost).width;
+    shopCoinDot(ir.x + ir.w / 2 - tw / 2 - 9, ir.y + ir.h - 12, 6);
+    ctx.fillStyle = afford ? '#ffd568' : '#ff8a80'; ctx.textAlign = 'left';
+    ctx.fillText(cost, ir.x + ir.w / 2 - tw / 2 + 1, ir.y + ir.h - 7);
+    const owned = shopOwnedCount(id);
+    if(owned){
+      ctx.fillStyle = 'rgba(40,120,200,0.9)'; ctx.fillRect(ir.x + ir.w - 26, ir.y + 4, 22, 16);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Segoe UI, Arial'; ctx.textAlign = 'center'; ctx.fillText('×' + owned, ir.x + ir.w - 15, ir.y + 16);
+    }
+  }
+  ctx.restore();
+  if(L.totalRows > L.visibleRows){
+    const trackX = L.gx + L.gw + 4, trackY = L.gy, trackH = L.gh;
+    const thumbH = Math.max(34, trackH * L.visibleRows / L.totalRows);
+    const thumbY = trackY + (trackH - thumbH) * shopScrollRow / (L.totalRows - L.visibleRows);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(trackX, trackY, 6, trackH);
+    ctx.fillStyle = '#8be9fd'; ctx.fillRect(trackX, thumbY, 6, thumbH);
+  }
+
+  /* правая панель с описанием (широкий экран) */
+  if(L.wide){
+    const dx = r.x + r.w - 14 - L.detailsW, dy = L.gy, dh = L.gh + L.footerH + 4;
+    ctx.fillStyle = 'rgba(8,11,13,0.96)'; ctx.fillRect(dx, dy, L.detailsW, dh);
+    ctx.strokeStyle = '#b58a55'; ctx.lineWidth = 2; ctx.strokeRect(dx, dy, L.detailsW, dh);
+    if(detailId) drawShopTooltipBody(detailId, h, dx, dy, L.detailsW, true);
+    else {
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '14px Segoe UI, Arial';
+      const hint = shopWrapLines('Наведи курсор на предмет, чтобы увидеть описание. Клик — покупка.', L.detailsW - 40, 4);
+      hint.forEach((ln, i) => ctx.fillText(ln, dx + L.detailsW / 2, dy + 60 + i * 20));
+    }
+    /* нижняя панель: инвентарь */
+    const fy = L.gy + L.gh + 8, fx = L.gx, fw = L.gw;
+    ctx.fillStyle = 'rgba(8,13,20,0.82)'; ctx.fillRect(fx, fy, fw, L.footerH - 4);
+    ctx.strokeStyle = 'rgba(199,169,107,0.4)'; ctx.lineWidth = 1; ctx.strokeRect(fx, fy, fw, L.footerH - 4);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#ffd568'; ctx.font = 'bold 12px Segoe UI, Arial';
+    ctx.fillText('ТВОЙ ИНВЕНТАРЬ', fx + 12, fy + 18);
+    for(let i = 0; i < 6; i++){
+      const sx = fx + 12 + i * 50, sy = fy + 24, it = h.inventory[i];
+      ctx.fillStyle = 'rgba(13,19,28,0.95)'; ctx.fillRect(sx, sy, 44, 44);
+      ctx.strokeStyle = it ? it.color : 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.5; ctx.strokeRect(sx, sy, 44, 44);
+      if(it) drawItemIcon(it, sx + 22, sy + 22, 36);
+    }
+    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '12px Segoe UI, Arial';
+    ctx.fillText('Колесо мыши — прокрутка', fx + fw - 12, fy + 24);
+    ctx.fillText('Esc — закрыть магазин', fx + fw - 12, fy + 42);
+  } else if(detailId){
+    /* узкий экран: подсказка внизу панели */
+    const tw = Math.min(L.r.w - 24, 340), th = Math.min(280, Math.round(L.r.h * 0.5));
+    const tx = L.r.x + (L.r.w - tw) / 2, ty = L.r.y + L.r.h - th - 10;
+    ctx.fillStyle = 'rgba(8,11,13,0.98)'; ctx.fillRect(tx, ty, tw, th);
+    ctx.strokeStyle = '#b58a55'; ctx.lineWidth = 2; ctx.strokeRect(tx, ty, tw, th);
+    drawShopTooltipBody(detailId, h, tx, ty, tw, false);
   }
   ctx.restore();
 }
@@ -16489,7 +16855,17 @@ function loop(now){
       /* 0.8.4: один раз за матч просим воркер заранее нарисовать спрайты всех бойцов */
       if(!spritesWarmed && window.Hero3D && Hero3D.prewarm && heroes && heroes.length){
         spritesWarmed = true;
-        try { Hero3D.prewarm(heroes.map(h => [h.def, h.radius])); } catch(err) {}
+        try {
+          const warmList = heroes.map(h => [h.def, h.radius]);
+          /* 0.8.4: заранее считаем спрайты монстров-крипов (ближний/дальний бой у обеих команд и лесные лагеря) */
+          for(const id of (Hero3D.monsterIds || [])){
+            for(const sk of ['t0','t1']) warmList.push([{id, skinId:sk, color:'#ffffff'}, 17]);
+            for(const sk of ['t0r','t1r']) warmList.push([{id, skinId:sk, color:'#ffffff'}, 14]);
+          }
+          warmList.push([{id:'mon_shroom', skinId:'t2', color:'#ffffff'}, 18], [{id:'mon_hound', skinId:'t2', color:'#ffffff'}, 16],
+                        [{id:'mon_golem', skinId:'t2', color:'#ffffff'}, 24], [{id:'mon_imp', skinId:'t2r', color:'#ffffff'}, 21]);
+          Hero3D.prewarm(warmList);
+        } catch(err) {}
       }
       update(dt);
       if(!Number.isFinite(cam.x) || !Number.isFinite(cam.y)){
