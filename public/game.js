@@ -674,7 +674,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.8.4';
+const GAME_VERSION = '0.8.5';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -761,7 +761,10 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.8.4', title:'3D-КРИПЫ И НОВЫЙ МАГАЗИН', changes:[
+  const sections = [{version:'0.8.5', title:'ГОБЛИНЫ-КОПЕЙЩИКИ И БОШКА СЕМЁНА', changes:[
+    'Все лайновые крипы теперь гоблины-копейщики: одна трёхмерная модель для обеих команд — зелёный гоблин с большими ушами, щитом и копьём. Цвет глаз, плаща и вымпела на копье показывает команду; мега-крипы носят золотую корону и кольцо. Лесные нейтралы остались прежними.',
+    'Добавлен пассивный предмет «Бошка Семёна» (1200 монет): +290 к урону.'
+  ]},{version:'0.8.4', title:'3D-КРИПЫ И НОВЫЙ МАГАЗИН', changes:[
     'Все крипы теперь трёхмерные монстры, пять видов: Каменный голем, Мухомор-убийца, Адская гончая, Рогатый бес и Одноглазый слизень. Лайновые крипы получают случайного монстра, а лесные лагеря — своего по типу: обычный — мухомор, волки — гончая, большие — голем, сатиры — бес.',
     'Глаза и самоцветы монстров светятся цветом команды: зелёным у Сил Света, красным у Сил Тьмы, золотым у лесных. Дальние крипы держат светящийся шар, мега-крипы носят золотую корону и кольцо. Монстры дышат, покачиваются при ходьбе и делают выпад при ударе.',
     'Все модели в матче визуально стали больше на 15%: бойцы, крипы, лесные нейтралы, башни, казармы и трон. Хитбоксы и дальность атак не изменились, полоски здоровья и имена сдвинуты выше, чтобы не перекрывать модели.',
@@ -981,6 +984,13 @@ SHOP_ITEMS.zamist = {
   activeDuration:10, cooldown:30, damage:100, moveSpeed:50, damageResistance:0.65
 };
 SHOP_ITEM_IDS.push('dianaPants','girfsyutin','eggGolly','zamist');
+/* 0.8.5: «Бошка Семёна» — пассивный предмет на урон (цена ровно 1200, множитель 0.93 не применяется) */
+SHOP_ITEMS.semenHead = {
+  name:'Бошка Семёна', icon:'☻', cost:1200, color:'#e8b98a', active:false,
+  desc:'Пассивно: +290 к урону.',
+  damage:290
+};
+SHOP_ITEM_IDS.push('semenHead');
 
 /* ===== Пять новых предметов: Кая и Санга, Вейкер Ветра, Святой медальон, Нуллификатор, Диспёрсер ===== */
 SHOP_ITEMS.kayaSange = {
@@ -3245,7 +3255,7 @@ function buyBotItem(hero){
   }
   if(!ptOwned) return;
   const priority = ['munition','mantledSteel','aghanimHead'];
-  const remaining = ['bkb','blink','evsyutin','manaHooves','superBoots','ilyaHair','enemy302','tornBrainHand','hatchet','satanic','arcadiaScar','kinglandia','gur','brainEye','aghanimScepter','brainAss','kayaSange','disperser'];
+  const remaining = ['bkb','blink','evsyutin','manaHooves','superBoots','ilyaHair','enemy302','tornBrainHand','hatchet','satanic','arcadiaScar','kinglandia','semenHead','gur','brainEye','aghanimScepter','brainAss','kayaSange','disperser'];
   const owned = new Set(hero.inventory.filter(Boolean).map(item => item.id));
   const id = [...priority,...remaining].find(itemId => !owned.has(itemId) && SHOP_ITEMS[itemId] &&
     hero.coins >= SHOP_ITEMS[itemId].cost && hero.inventory.some(item => !item));
@@ -3349,7 +3359,7 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
   getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
   getSpeed(){
     let speed=this.speed;
@@ -9230,9 +9240,9 @@ function creepMonsterDef(u){
     id = NEUTRAL_MONSTER[u.kind] || 'mon_shroom';
     skin = 't2' + (u.kind === 'satyr' ? 'r' : '');
   } else {
-    if(u.monsterIdx == null) u.monsterIdx = Math.floor(Math.random()*ids.length);
-    id = ids[u.monsterIdx % ids.length];
-    skin = 't' + (u.team === 1 ? 1 : 0) + (u.ranged ? 'r' : '') + (u.mega ? 'm' : '');
+    /* 0.8.5: все лайновые крипы обеих команд — гоблины-копейщики (одна модель) */
+    id = 'mon_goblin';
+    skin = 't' + (u.team === 1 ? 1 : 0) + (u.mega ? 'm' : '');
   }
   return u._mdef = {id, skinId:skin, color:'#ffffff'};
 }
@@ -12540,6 +12550,8 @@ function drawItemIcon(item, x, y, size){
     ctx.save();ctx.strokeStyle='#d7a879';ctx.lineWidth=Math.max(3,size*.13);ctx.beginPath();ctx.moveTo(-size*.3,size*.35);ctx.lineTo(size*.2,-size*.18);ctx.stroke();ctx.fillStyle='#d7a879';ctx.strokeStyle='#744631';ctx.lineWidth=Math.max(1,size*.04);for(let finger=-2;finger<=2;finger++){ctx.beginPath();ctx.ellipse(size*.24+finger*size*.08,-size*.25+Math.abs(finger)*size*.03,size*.05,size*.18,finger*.18,0,Math.PI*2);ctx.fill();ctx.stroke();}ctx.restore();
   } else if(item.id === 'arcadiaScar' || item.id === 'kinglandia'){
     ctx.save();ctx.fillStyle=item.id==='kinglandia'?'#e6b64f':'#c44f35';ctx.strokeStyle='#ffe1a0';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.moveTo(-size*.34,size*.28);ctx.lineTo(-size*.1,-size*.3);ctx.lineTo(size*.04,size*.18);ctx.lineTo(size*.2,-size*.4);ctx.lineTo(size*.35,size*.28);ctx.quadraticCurveTo(0,size*.48,-size*.34,size*.28);ctx.fill();ctx.stroke();ctx.restore();
+  } else if(item.id === 'semenHead'){
+    ctx.save();ctx.fillStyle='#e8b98a';ctx.strokeStyle='#8a5a36';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.ellipse(0,0,size*.3,size*.36,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#8a5a36';ctx.beginPath();ctx.ellipse(-size*.3,size*.02,size*.05,size*.1,0,0,Math.PI*2);ctx.ellipse(size*.3,size*.02,size*.05,size*.1,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#2a1b12';ctx.beginPath();ctx.arc(-size*.12,-size*.06,size*.04,0,Math.PI*2);ctx.arc(size*.12,-size*.06,size*.04,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#2a1b12';ctx.lineWidth=Math.max(1.2,size*.04);ctx.beginPath();ctx.arc(0,size*.08,size*.12,0.15*Math.PI,0.85*Math.PI);ctx.stroke();ctx.restore();
   } else if(item.id === 'gur'){
     ctx.save();ctx.fillStyle='#58c7bf';ctx.strokeStyle='#d8fff1';ctx.lineWidth=Math.max(1.5,size*.05);ctx.beginPath();ctx.ellipse(-size*.16,size*.2,size*.2,size*.2,0,0,Math.PI*2);ctx.ellipse(size*.15,size*.16,size*.24,size*.18,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.strokeStyle='#b9fff1';ctx.beginPath();ctx.moveTo(0,size*.02);ctx.lineTo(0,-size*.4);ctx.stroke();ctx.restore();
   } else if(item.id === 'dagonEmpire'){
@@ -12713,7 +12725,7 @@ function getShopItemDescription(item, hero, itemId=null){
 const SHOP_TABS = ['ВСЕ','РАСХОДНИКИ','ХАРАКТЕРИСТИКИ','АКТИВНЫЕ','ОСОБЫЕ'];
 const SHOP_CATEGORY_OF = {
   tango:1, timurPillow:1, mango:1, hatchet:1,
-  joelBoots:2, fangs:2, evsyutin:2, manaTome:2, manaHooves:2, brainEye:2, kinglandia:2, satanic:2, enemy302:2,
+  joelBoots:2, fangs:2, evsyutin:2, manaTome:2, manaHooves:2, brainEye:2, kinglandia:2, satanic:2, enemy302:2, semenHead:2,
   pt:4, aghanimShard:4, aghanimScepter:4
 };
 function shopItemCategory(id){ return SHOP_CATEGORY_OF[id] || 3; }
@@ -13153,7 +13165,7 @@ function drawInventory(){
     ctx.strokeStyle=item ? (cooling?'#68717b':item.color) : 'rgba(255,255,255,0.25)'; ctx.lineWidth=item?2:1.5; ctx.strokeRect(r.x,r.y,r.w,r.h);
     ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=1; ctx.strokeRect(r.x+3,r.y+3,r.w-6,r.h-6);
     ctx.textAlign='center'; ctx.font='bold 20px Segoe UI, Arial'; ctx.fillStyle=item ? item.color : 'rgba(255,255,255,0.25)';
-    const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : '▲') : '-';
+    const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : item.id==='semenHead' ? '☻' : '▲') : '-';
     ctx.save();
     if(cooling) ctx.filter='grayscale(1)';
     drawItemIcon(item,r.x+r.w/2,r.y+r.h/2,Math.min(42,r.w-10));
@@ -16858,10 +16870,7 @@ function loop(now){
         try {
           const warmList = heroes.map(h => [h.def, h.radius]);
           /* 0.8.4: заранее считаем спрайты монстров-крипов (ближний/дальний бой у обеих команд и лесные лагеря) */
-          for(const id of (Hero3D.monsterIds || [])){
-            for(const sk of ['t0','t1']) warmList.push([{id, skinId:sk, color:'#ffffff'}, 17]);
-            for(const sk of ['t0r','t1r']) warmList.push([{id, skinId:sk, color:'#ffffff'}, 14]);
-          }
+          for(const sk of ['t0','t1']) warmList.push([{id:'mon_goblin', skinId:sk, color:'#ffffff'}, 17], [{id:'mon_goblin', skinId:sk, color:'#ffffff'}, 14]);
           warmList.push([{id:'mon_shroom', skinId:'t2', color:'#ffffff'}, 18], [{id:'mon_hound', skinId:'t2', color:'#ffffff'}, 16],
                         [{id:'mon_golem', skinId:'t2', color:'#ffffff'}, 24], [{id:'mon_imp', skinId:'t2r', color:'#ffffff'}, 21]);
           Hero3D.prewarm(warmList);
