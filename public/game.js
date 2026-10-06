@@ -65,59 +65,7 @@ let terrainFrameValid = false;
 let terrainFrameIndex = 0;
 const fogCanvas = document.createElement('canvas');
 const fogCtx    = fogCanvas.getContext('2d');
-/* Референсная модель Шадоу лежит рядом с этой HTML-игрой. */
-const shadowModelImage = new Image();
-shadowModelImage.decoding = 'async';
-shadowModelImage.onerror = () => {
-  /* Внешняя модель необязательна: Шадоу ниже всегда имеет процедурный fallback. */
-  shadowModelImage.onerror = null;
-  shadowModelImage.src = '';
-};
-shadowModelImage.src = './{3829EEC9-28FA-49A8-8DE2-D333BBD5B718}_1789393740984.png';
-/* Джаггернаут нарисован прямо в HTML: отдельная картинка больше не нужна. */
-const juggernautTexture = document.createElement('canvas');
-juggernautTexture.width = 160;
-juggernautTexture.height = 200;
-const juggernautTextureCtx = juggernautTexture.getContext('2d');
-function buildJuggernautTexture(){
-  const g = juggernautTextureCtx;
-  g.clearRect(0,0,160,200);
-  g.save();
-  g.translate(80,98);
-  g.shadowColor = '#ffbd42';
-  g.shadowBlur = 18;
-  g.fillStyle = '#54121d';
-  g.beginPath(); g.ellipse(0,26,52,76,0,0,Math.PI*2); g.fill();
-  g.shadowBlur = 0;
-  g.fillStyle = '#a92b35';
-  g.beginPath(); g.moveTo(-48,70); g.lineTo(-35,-8); g.lineTo(-25,-49);
-  g.lineTo(25,-49); g.lineTo(38,-8); g.lineTo(48,70); g.closePath(); g.fill();
-  g.fillStyle = '#e0a33c';
-  g.beginPath(); g.moveTo(-43,-5); g.lineTo(-24,-24); g.lineTo(-13,4);
-  g.lineTo(0,-13); g.lineTo(13,4); g.lineTo(24,-24); g.lineTo(43,-5);
-  g.lineTo(31,17); g.lineTo(0,7); g.lineTo(-31,17); g.closePath(); g.fill();
-  g.fillStyle = '#24151b';
-  g.beginPath(); g.ellipse(0,-53,31,36,0,0,Math.PI*2); g.fill();
-  g.fillStyle = '#9b1f2c';
-  g.beginPath(); g.moveTo(-34,-62); g.lineTo(-18,-91); g.lineTo(-4,-68);
-  g.lineTo(4,-68); g.lineTo(18,-91); g.lineTo(34,-62);
-  g.lineTo(27,-27); g.lineTo(0,-17); g.lineTo(-27,-27); g.closePath(); g.fill();
-  g.fillStyle = '#e7b84f';
-  g.fillRect(-27,-39,54,9);
-  g.fillStyle = '#ffe9a0';
-  g.fillRect(-18,-37,10,3); g.fillRect(8,-37,10,3);
-  g.strokeStyle = '#ffdc72'; g.lineWidth = 5;
-  g.beginPath(); g.moveTo(-31,18); g.lineTo(-58,48); g.lineTo(-43,61); g.stroke();
-  g.beginPath(); g.moveTo(31,18); g.lineTo(58,48); g.lineTo(43,61); g.stroke();
-  g.fillStyle = '#ffcf62';
-  g.beginPath(); g.arc(0,-77,7,0,Math.PI*2); g.fill();
-  g.restore();
-}
-buildJuggernautTexture();
-const sniperTexture = new Image();
-sniperTexture.decoding = 'async';
-sniperTexture.onerror = () => { sniperTexture.onerror = null; sniperTexture.src = ''; };
-sniperTexture.src = './изображение_1790414627915.png';
+/* 0.8.7: старые плоские 2D-текстуры (Шадоу, Джаггернаут, Снайпер) удалены — бойцы рисуются только 3D-моделями. */
 /* ===== ТЕКСТУРЫ КАРТЫ 0.7.6: зелёный лес Света, чёрный лес Тьмы, вода и песок ===== */
 function mulberry32(seed){
   let a = seed|0;
@@ -674,7 +622,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.8.5';
+const GAME_VERSION = '0.8.7';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -761,7 +709,15 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.8.5', title:'ГОБЛИНЫ-КОПЕЙЩИКИ И БОШКА СЕМЁНА', changes:[
+  const sections = [{version:'0.8.7', title:'КРАСИВЫЕ БОЙЦЫ', changes:[
+    'Исправлен баг: при входе в бой на секунду мелькали старые плоские 2D-текстуры бойцов. Пока 3D-модель считается, теперь видны только мягкая тень и кольцо команды.',
+    'Старые 2D-картинки Шадоу, Джаггернаута и Снайпера полностью удалены из игры.',
+    '3D-текстуры стали гладкими: убрано мелкое зерно и крап, оставлены мягкие широкие переходы тона.',
+    'Бойцы стали красивее: более плавные округлые формы, чище и насыщеннее цвета, мягче контур и тень под ногами.'
+  ]}, {version:'0.8.6', title:'3D-ДРОН МО3ГИ', changes:[
+    'Боевой дрон Мо3ги теперь настоящая трёхмерная модель, а не плоский значок: FPV-квадрокоптер с карбоновой рамой, зелёными моторами и вращающимися винтами, батареей в чёрной обмотке с белой лентой, камерой спереди, антенной и тяжёлым боеприпасом, примотанным скотчем снизу.',
+    'Дрон поворачивается по направлению полёта, слегка покачивается в воздухе и наклоняется при движении; под ним светится зелёное кольцо, огонёк на раме показывает команду. Урон, радиус взрыва и управление дроном не менялись.'
+  ]},{version:'0.8.5', title:'ГОБЛИНЫ-КОПЕЙЩИКИ И БОШКА СЕМЁНА', changes:[
     'Все лайновые крипы теперь гоблины-копейщики: одна трёхмерная модель для обеих команд — зелёный гоблин с большими ушами, щитом и копьём. Цвет глаз, плаща и вымпела на копье показывает команду; мега-крипы носят золотую корону и кольцо. Лесные нейтралы остались прежними.',
     'Добавлен пассивный предмет «Бошка Семёна» (1200 монет): +290 к урону.'
   ]},{version:'0.8.4', title:'3D-КРИПЫ И НОВЫЙ МАГАЗИН', changes:[
@@ -1587,22 +1543,44 @@ function noteStructureAttack(target, source, fromSync){
 }
 
 /* Свои звуки диктора: Rampage и Monster Kill слышат ВСЕ игроки, когда кто-то делает такое убийство */
-const KILL_SFX_SRC = {rampage:'./sounds/rampage.mp3', monster:'./sounds/monster-kill.mp3'};
-const KILL_SFX_LEN = {rampage:2.1, monster:1.9};
+const KILL_SFX_SRC = {
+  rampage:'./sounds/rampage.mp3', monster:'./sounds/monster-kill.mp3',
+  firstblood:'./sounds/first-blood.mp3', double:'./sounds/double-kill.mp3', triple:'./sounds/triple-kill.mp3',
+  spree:'./sounds/killing-spree.mp3', dominating:'./sounds/dominating.mp3', mega:'./sounds/mega-kill.mp3',
+  unstoppable:'./sounds/unstoppable.mp3', wicked:'./sounds/wicked-sick.mp3',
+  godlike:'./sounds/godlike.mp3', holyshit:'./sounds/holy-shit.mp3'
+};
+const KILL_SFX_LEN = {rampage:2.1, monster:1.9, firstblood:1.7, double:2.1, triple:2.0, spree:2.4, dominating:1.8,
+  mega:2.6, unstoppable:2.1, wicked:2.6, godlike:1.8, holyshit:2.3};
+/* Какой звук играть на какую серию убийств без смертей (spreeKills). 8 = Monster Kill (свой файл, слышат все). */
+const SPREE_SFX = {3:'spree', 4:'dominating', 5:'mega', 6:'unstoppable', 7:'wicked', 8:'monster', 9:'godlike', 10:'holyshit'};
 const killSfxCache = {};
+const killSfxActive = new Set();
 let killSfxFreeAt = 0;
-function playKillSfx(kind){
+function stopKillSfx(){
+  killSfxFreeAt = 0;
+  for(const a of killSfxActive){ try { a.pause(); } catch(err) {} }
+  killSfxActive.clear();
+}
+function playKillSfx(kind, opts={}){
   if(!ANNOUNCER.enabled) return;
+  if(opts.interrupt) stopKillSfx();
   const nowMs = performance.now();
   const delay = Math.max(0, killSfxFreeAt - nowMs);      // второй звук ждёт, пока доиграет первый
   killSfxFreeAt = nowMs + delay + (KILL_SFX_LEN[kind] || 2) * 1000;
+  const fallback = () => {
+    if(kind === 'rampage') playRampageSynth();
+    else if(opts.text) announce(opts.text);
+  };
   const go = () => {
     try {
       const a = (killSfxCache[kind] ||= new Audio(KILL_SFX_SRC[kind])).cloneNode(true);
       a.volume = 1;
+      killSfxActive.add(a);
+      a.addEventListener('ended', () => killSfxActive.delete(a), {once:true});
       const pr = a.play();
-      if(pr && pr.catch) pr.catch(() => { if(kind === 'rampage') playRampageSynth(); });
-    } catch(err) { if(kind === 'rampage') playRampageSynth(); }
+      if(pr && pr.catch) pr.catch(() => { killSfxActive.delete(a); fallback(); });
+    } catch(err) { fallback(); }
   };
   if(delay > 30) setTimeout(go, delay); else go();
 }
@@ -2432,15 +2410,19 @@ function killUnit(u, source){
     if(multi >= 4) playKillSfx('rampage');                                   // слышат все
     if(spree && rewardHero.spreeKills === 8) playKillSfx('monster');         // слышат все
     if(rewardHero === playerHero){
-      /* Приоритет: Rampage > мульти-килл > первая кровь; серия без смертей идёт следом. */
+      /* Приоритет: Rampage > мульти-килл > первая кровь; серия без смертей идёт следом.
+         Теперь всё играет из mp3 в public/sounds (они лежат в игре у каждого игрока);
+         если файл не загрузился — запасной вариант: голос браузера. */
+      const sprSfx = spree ? (SPREE_SFX[rewardHero.spreeKills] || 'holyshit') : null;   // 11+ (Beyond Godlike) — тоже Holy Shit
+      const sprPlay = spree && rewardHero.spreeKills !== 8;   // 8 = Monster Kill, он уже сыгран выше
       if(multi >= 4){
         announcerStop();
-        if(spree && rewardHero.spreeKills !== 8) announce(spree[0]);
+        if(sprPlay) playKillSfx(sprSfx, {text:spree[0]});
       } else {
-        if(multi === 3) announce('Triple Kill!', {interrupt:true});
-        else if(multi === 2) announce('Double Kill!', {interrupt:true});
-        else if(isFirstBlood) announce('First Blood!', {interrupt:true});
-        if(spree && rewardHero.spreeKills !== 8) announce(spree[0], {interrupt: multi < 2 && !isFirstBlood});
+        if(multi === 3) playKillSfx('triple', {interrupt:true, text:'Triple Kill!'});
+        else if(multi === 2) playKillSfx('double', {interrupt:true, text:'Double Kill!'});
+        else if(isFirstBlood) playKillSfx('firstblood', {interrupt:true, text:'First Blood!'});
+        if(sprPlay) playKillSfx(sprSfx, {interrupt: multi < 2 && !isFirstBlood, text:spree[0]});
       }
     }
     if(rewardHero === playerHero){
@@ -9041,27 +9023,6 @@ function getWeaponConfig(unit){
   return {type:'sword',color:unit.def && unit.def.color2 || '#d7e6ef',size:0.95};
 }
 
-function drawReferenceTexture(image, accent){
-  if(!image || !(image.naturalWidth || image.width)) return false;
-  const isSniperTexture = image === sniperTexture;
-  const w=isSniperTexture ? 76 : 72;
-  const h=isSniperTexture ? 82 : 88;
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(0,-4,34,49,0,0,Math.PI*2);
-  ctx.clip();
-  ctx.globalAlpha=0.98;
-  ctx.drawImage(image,-w/2,-h+18,w,h);
-  ctx.restore();
-  ctx.save();
-  ctx.strokeStyle=accent || '#ffffff';
-  ctx.globalAlpha=0.65;
-  ctx.lineWidth=2;
-  ctx.beginPath(); ctx.ellipse(0,-4,34,49,0,0,Math.PI*2); ctx.stroke();
-  ctx.restore();
-  return true;
-}
-
 function drawUnitWeapon(unit){
   if(unit.def && unit.def.id === 'yosyp') return;
   const weapon=getWeaponConfig(unit);
@@ -9764,6 +9725,12 @@ function drawUnit(u){
     hero3dSpr = Hero3D.battleSprite(u.def, u.radius, fa, gameTime, anim3d);
     if(hero3dSpr){
       const footY = u.radius*0.7;
+      // 0.8.7: мягкая тень под ногами — боец «стоит» на земле, а не парит
+      const sg1 = ctx.createRadialGradient(0, footY, 1, 0, footY, u.radius*1.05);
+      sg1.addColorStop(0,'rgba(8,10,6,0.38)'); sg1.addColorStop(1,'rgba(8,10,6,0)');
+      ctx.save(); ctx.fillStyle = sg1;
+      ctx.beginPath(); ctx.ellipse(0, footY, u.radius*1.05, u.radius*0.52, 0, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
       // кольцо команды под ногами
       ctx.save();
       ctx.strokeStyle = col; ctx.globalAlpha = 0.85; ctx.lineWidth = 2.5;
@@ -9811,6 +9778,30 @@ function drawUnit(u){
       }
     }
   }
+  /* 0.8.6: боевой дрон Мо3ги — настоящая 3D-модель FPV-дрона с боеприпасом (вместо плоского значка) */
+  if(!hero3dSpr && u.type === 'summon' && u.summonKind === 'mo3giDrone' && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
+    const dd = {id:'mon_drone', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#ffffff'};
+    const fa = u.facing || 0;
+    hero3dSpr = Hero3D.battleSprite(dd, u.radius, fa, gameTime, null);
+    if(hero3dSpr){
+      const footY = u.radius*0.7;
+      const ph = (u.dronePulse||0);
+      /* зелёное свечение и кольцо под дроном — видно, что он в воздухе */
+      ctx.save();
+      ctx.globalAlpha = 0.55 + Math.sin(ph*8)*0.12; ctx.strokeStyle = '#65ff9a'; ctx.lineWidth = 2;
+      ctx.shadowColor = '#65ff9a'; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.ellipse(0, footY, u.radius*1.05, u.radius*0.52, 0, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+      /* лёгкое зависание: покачивание вверх-вниз и наклон по ходу движения */
+      const bob = Math.sin(ph*7 + u.radius)*2.2 - 5;
+      const tilt = (u.moving ? 0.07 : 0) + Math.sin(ph*5)*0.015;
+      ctx.save();
+      ctx.translate(0, footY + bob);
+      ctx.rotate(tilt*Math.cos(fa));
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+      ctx.restore();
+    }
+  }
   if(hero3dSpr){
     /* тело уже нарисовано выше */
   } else if(u.type === 'tower' || u.type === 'ancient'){
@@ -9828,6 +9819,16 @@ function drawUnit(u){
     ctx.beginPath(); ctx.arc(0,-u.radius*0.18,5+Math.sin(gameTime*5)*1.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
     ctx.fillStyle='#2a1b18'; ctx.fillRect(-9,2,18,16);
     ctx.fillStyle='rgba(255,220,150,0.8)'; ctx.fillRect(-6,5,4,5); ctx.fillRect(2,5,4,5);
+  } else if(u.type === 'hero' && !portraitRenderMode && window.Hero3D && Hero3D.has(u.def.id)){
+    /* 0.8.7: 3D-спрайт ещё считается в воркере — вместо старой 2D-картинки рисуем только тень и кольцо команды */
+    const footY0 = u.radius*0.7;
+    const sg0 = ctx.createRadialGradient(0, footY0, 1, 0, footY0, u.radius*1.05);
+    sg0.addColorStop(0,'rgba(8,10,6,0.38)'); sg0.addColorStop(1,'rgba(8,10,6,0)');
+    ctx.save(); ctx.fillStyle = sg0;
+    ctx.beginPath(); ctx.ellipse(0, footY0, u.radius*1.05, u.radius*0.52, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = col; ctx.globalAlpha = 0.85; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(0, footY0, u.radius*1.0, u.radius*0.5, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
   } else if(u.type === 'hero'){
     const isReferenceModel = ['juggernaut','sniper'].includes(u.def.id);
     const isDetailedModel = ['sasych','ilya','malit','arcady','juvsyut','chip','earthshaker','yosyp'].includes(u.def.id) || isReferenceModel;
@@ -9860,7 +9861,7 @@ function drawUnit(u){
     ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=2; ctx.stroke();
     }
     if(u.def.id==='juggernaut'){
-      const used=drawReferenceTexture(juggernautTexture,'#ffe066');
+      const used=false;
       if(!used){
         const grad=ctx.createRadialGradient(-5,-12,2,0,0,32);
         grad.addColorStop(0,'#ffdd87'); grad.addColorStop(1,'#681c28');
@@ -9870,7 +9871,7 @@ function drawUnit(u){
         ctx.fillStyle='#fff0a8'; ctx.fillRect(-11,-12,22,3);
       }
     } else if(u.def.id==='sniper'){
-      const used=drawReferenceTexture(sniperTexture,'#ffd27a');
+      const used=false;
       if(!used){
         const grad=ctx.createRadialGradient(-5,-12,2,0,0,32);
         grad.addColorStop(0,'#c99455'); grad.addColorStop(1,'#3a2922');
@@ -10406,23 +10407,10 @@ function drawUnit(u){
        ctx.fillStyle='rgba(105,9,35,0.44)';
        ctx.beginPath(); ctx.ellipse(0,10,34,39,0,0,Math.PI*2); ctx.fill();
        ctx.shadowBlur=0;
-       if(shadowModelImage.complete && shadowModelImage.naturalWidth){
-         ctx.save();
-         ctx.beginPath();
-         ctx.moveTo(-31,26); ctx.lineTo(-27,-24); ctx.lineTo(-8,-39); ctx.lineTo(0,-32);
-         ctx.lineTo(10,-40); ctx.lineTo(31,-22); ctx.lineTo(29,27); ctx.closePath();
-         ctx.clip();
-         ctx.drawImage(shadowModelImage,-34,-42,68,80);
-         ctx.restore();
-         ctx.strokeStyle='#b5164e'; ctx.lineWidth=2.2;
-         ctx.beginPath(); ctx.moveTo(-31,26); ctx.lineTo(-27,-24); ctx.lineTo(-8,-39); ctx.lineTo(0,-32);
-         ctx.lineTo(10,-40); ctx.lineTo(31,-22); ctx.lineTo(29,27); ctx.lineTo(0,39); ctx.closePath(); ctx.stroke();
-       } else {
-         ctx.fillStyle='rgba(9,4,18,0.92)'; ctx.strokeStyle='#8d1118'; ctx.lineWidth=2.5;
+                ctx.fillStyle='rgba(9,4,18,0.92)'; ctx.strokeStyle='#8d1118'; ctx.lineWidth=2.5;
          ctx.beginPath(); ctx.moveTo(-25,8); ctx.lineTo(-18,-18); ctx.lineTo(-8,-30); ctx.lineTo(0,-20); ctx.lineTo(10,-32); ctx.lineTo(23,-14); ctx.lineTo(28,10); ctx.lineTo(0,34); ctx.closePath(); ctx.fill(); ctx.stroke();
          ctx.fillStyle='#d22d55'; ctx.shadowColor='#ff315d'; ctx.shadowBlur=10;
          ctx.beginPath(); ctx.arc(-8,-7,3.5,0,Math.PI*2); ctx.arc(8,-7,3.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-       }
        ctx.fillStyle='#ff2e5c'; ctx.shadowColor='#ff174f'; ctx.shadowBlur=12;
        ctx.beginPath(); ctx.arc(-9,-9,2.8+Math.sin(gameTime*8)*0.8,0,Math.PI*2); ctx.arc(9,-9,2.8+Math.sin(gameTime*8)*0.8,0,Math.PI*2); ctx.fill();
        ctx.shadowBlur=0;
@@ -16873,6 +16861,7 @@ function loop(now){
           for(const sk of ['t0','t1']) warmList.push([{id:'mon_goblin', skinId:sk, color:'#ffffff'}, 17], [{id:'mon_goblin', skinId:sk, color:'#ffffff'}, 14]);
           warmList.push([{id:'mon_shroom', skinId:'t2', color:'#ffffff'}, 18], [{id:'mon_hound', skinId:'t2', color:'#ffffff'}, 16],
                         [{id:'mon_golem', skinId:'t2', color:'#ffffff'}, 24], [{id:'mon_imp', skinId:'t2r', color:'#ffffff'}, 21]);
+          if(heroes.some(h => h.def && h.def.id === 'mo3gi')) for(const sk of ['t0','t1']) warmList.push([{id:'mon_drone', skinId:sk, color:'#ffffff'}, 22]);
           Hero3D.prewarm(warmList);
         } catch(err) {}
       }
