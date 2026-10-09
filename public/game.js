@@ -541,6 +541,16 @@ let controlledUnit = null;
 let cam = {x:WORLD/2, y:WORLD/2};
 let playerHero = null, enemyHero = null;
 let gameTime = 0, waveTimer = 8, waveCount = 0;
+/* Тишина в бою: если 30 секунд нет драк между героями — играет фраза Гриши */
+const IDLE_VOICE_SECONDS = 30;
+let lastFightTime = 0, lastIdleVoiceTime = 0;
+function updateIdleVoice(){
+  if(gameState !== 'playing') return;
+  if(gameTime - Math.max(lastFightTime, lastIdleVoiceTime) < IDLE_VOICE_SECONDS) return;
+  lastIdleVoiceTime = gameTime;
+  if(!heroes.some(h => h && h.def && h.def.id === 'grisha')) return;   // Гриша должен быть в матче
+  playKillSfx('grisha');
+}
 let visionTimer = 0;
 let gameState = 'menu';
 let menuStage = 'home';
@@ -1548,10 +1558,11 @@ const KILL_SFX_SRC = {
   firstblood:'./sounds/first-blood.mp3', double:'./sounds/double-kill.mp3', triple:'./sounds/triple-kill.mp3',
   spree:'./sounds/killing-spree.mp3', dominating:'./sounds/dominating.mp3', mega:'./sounds/mega-kill.mp3',
   unstoppable:'./sounds/unstoppable.mp3', wicked:'./sounds/wicked-sick.mp3',
-  godlike:'./sounds/godlike.mp3', holyshit:'./sounds/holy-shit.mp3'
+  godlike:'./sounds/godlike.mp3', holyshit:'./sounds/holy-shit.mp3',
+  grisha:'./sounds/grisha-kill.mp3'
 };
 const KILL_SFX_LEN = {rampage:2.1, monster:1.9, firstblood:1.7, double:2.1, triple:2.0, spree:2.4, dominating:1.8,
-  mega:2.6, unstoppable:2.1, wicked:2.6, godlike:1.8, holyshit:2.3};
+  mega:2.6, unstoppable:2.1, wicked:2.6, godlike:1.8, holyshit:2.3, grisha:2.7};
 /* Какой звук играть на какую серию убийств без смертей (spreeKills). 8 = Monster Kill (свой файл, слышат все). */
 const SPREE_SFX = {3:'spree', 4:'dominating', 5:'mega', 6:'unstoppable', 7:'wicked', 8:'monster', 9:'godlike', 10:'holyshit'};
 const killSfxCache = {};
@@ -2159,6 +2170,7 @@ function applyDamage(target, amount, source){
   const sourceHero = source && source.coins !== undefined
     ? source
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
+  if(target.type === 'hero' && sourceHero && sourceHero !== target && sourceHero.team !== target.team) lastFightTime = gameTime;
   if(target.onlinePlayerId && sourceHero && sourceHero.isOnlineReplicatedCast) return;
   if(target.onlinePlayerId && sourceHero && sourceHero.isPlayer && sourceHero.team === target.team) return;
   if(isBuilding(target) && source && Number.isInteger(source.team) && source.team === target.team) return;
@@ -2425,6 +2437,8 @@ function killUnit(u, source){
         if(sprPlay) playKillSfx(sprSfx, {interrupt: multi < 2 && !isFirstBlood, text:spree[0]});
       }
     }
+    /* Фраза Гриши после убийства героя — слышат ВСЕ игроки (играется после голоса диктора) */
+    if(rewardHero.def && rewardHero.def.id === 'grisha') playKillSfx('grisha');
     if(rewardHero === playerHero){
       killStreakBanner = {text:streak, color:rewardHero.killStreak >= 2 ? '#ff3b30' : '#ff8b78', t:2.6, scale:rewardHero.killStreak >= 2 ? 1.18 : 1};
       spawnParticles(playerHero.x, playerHero.y, '#ff3b30', rewardHero.killStreak >= 2 ? 42 : 24, rewardHero.killStreak >= 2 ? 1.5 : 1);
@@ -2549,6 +2563,22 @@ function fxHit(x,y,color){
   fxs.push({type:'hit',x,y,r:18,t:0,life:0.3,color:impactColor});
   spawnParticles(x,y,impactColor,16,0.7);
   spawnRadialBlades(x,y,28,impactColor,8);
+}
+/* Яркий «магический взрыв» (используется скилами Гриши): световое ядро,
+   вращающаяся звезда из лучей, двойная ударная волна и искры-звёздочки.
+   Цвет скила не меняется — взрыв рисуется в его цвете с белым ядром. */
+function fxArcaneBurst(x,y,r,color,life,delay){
+  if(fxs.length > fxCap()) fxs.splice(0, fxs.length - fxCap());
+  const L = life || 0.8;
+  const d = delay || 0;
+  const sparks = [];
+  const n = 9;
+  for(let i=0;i<n;i++) sparks.push({a:i*Math.PI*2/n+rnd(-0.2,0.2), s:rnd(0.5,1), ph:rnd(0,6.28)});
+  fxs.push({type:'arcane',x,y,r,t:-d,life:L,color,spin:Math.random()<0.5?1:-1,sparks,rays:r>=170?20:14});
+  if(d<=0){
+    spawnParticles(x,y,color,Math.min(26,Math.round(r/9)),Math.min(1.8,r/130));
+    spawnParticles(x,y,'#ffffff',Math.min(12,Math.round(r/20)),Math.min(1.2,r/170));
+  }
 }
 function fxBeam(x1,y1,x2,y2,color,life){
   fxs.push({type:'beam',x1,y1,x2,y2,t:0,life:life||0.35,color});
@@ -2758,9 +2788,152 @@ function spawnRollingSpell(x,y,tx,ty,dmg,source,color,radius,kind){
   spawnRadialBlades(x,y,Math.max(42,radius*2.5),color,16);
 }
 function spawnIceWall(x,y,tx,ty,source,lvl){
-  walls.push({x,y,angle:Math.atan2(ty-y,tx-x)+Math.PI/2,length:360+35*lvl,
-    width:34,team:source.team,source,dmg:abilityDamage(source,55+25*lvl),slow:0.82,life:7,t:0,hit:new Set()});
+  const angle=Math.atan2(ty-y,tx-x)+Math.PI/2;
+  const length=360+35*lvl, width=34;
+  /* Кристаллы льда: вырастают волной от центра к краям */
+  const crystals=[];
+  const count=Math.round(length/15);
+  for(let i=0;i<count;i++){
+    const along=rnd(-length/2,length/2);
+    const big=Math.random()<0.22;
+    const h=big ? rnd(58,92) : rnd(24,56);
+    crystals.push({
+      along, across:rnd(-width*1.05,width*1.05), h, w:h*rnd(0.26,0.4),
+      tilt:rnd(-0.32,0.32), delay:Math.abs(along)/(length/2)*0.38+rnd(0,0.1),
+      tone:Math.random(), cluster:Math.random()<0.55
+    });
+  }
+  walls.push({x,y,angle,length,style:'ice',crystals,
+    width,team:source.team,source,dmg:abilityDamage(source,55+25*lvl),slow:0.82,life:7,t:0,hit:new Set(),ambient:0});
+  const ux=Math.cos(angle), uy=Math.sin(angle);
   spawnParticles(x,y,'#a0e0ff',24,0.8);
+  spawnParticles(x,y,'#ffffff',14,0.9);
+  fxArcaneBurst(x,y,150,'#a0e0ff',0.9);
+  fxArcaneBurst(x+ux*length/2,y+uy*length/2,85,'#a0e0ff',0.7,0.38);
+  fxArcaneBurst(x-ux*length/2,y-uy*length/2,85,'#a0e0ff',0.7,0.38);
+}
+
+/* Один кристалл льда, нарисованный «стоящим» (остриё вверх на экране). */
+function drawIceCrystal(ctx,w,h,tone){
+  const g=ctx.createLinearGradient(0,0,0,-h);
+  g.addColorStop(0, tone>0.5 ? '#5b7db3' : '#6a8cc0');
+  g.addColorStop(0.55,'#a9d3f5');
+  g.addColorStop(1,'#eaf8ff');
+  ctx.shadowColor='#9fe0ff'; ctx.shadowBlur=14;
+  ctx.fillStyle=g;
+  ctx.beginPath();
+  ctx.moveTo(-w,0); ctx.lineTo(-w*0.82,-h*0.56); ctx.lineTo(w*0.08,-h);
+  ctx.lineTo(w*0.88,-h*0.5); ctx.lineTo(w,0); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur=0;
+  /* светлая грань слева */
+  ctx.fillStyle='rgba(240,252,255,0.78)';
+  ctx.beginPath(); ctx.moveTo(-w,0); ctx.lineTo(-w*0.82,-h*0.56); ctx.lineTo(w*0.08,-h); ctx.lineTo(-w*0.08,-h*0.12); ctx.closePath(); ctx.fill();
+  /* тёмная грань справа */
+  ctx.fillStyle='rgba(70,105,160,0.45)';
+  ctx.beginPath(); ctx.moveTo(w*0.08,-h); ctx.lineTo(w*0.88,-h*0.5); ctx.lineTo(w,0); ctx.lineTo(-w*0.08,-h*0.12); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(230,248,255,0.95)'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(-w,0); ctx.lineTo(-w*0.82,-h*0.56); ctx.lineTo(w*0.08,-h); ctx.lineTo(w*0.88,-h*0.5); ctx.lineTo(w,0); ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(w*0.08,-h); ctx.lineTo(-w*0.08,-h*0.12); ctx.stroke();
+}
+
+function drawIceWall(wall){
+  const a=wall.angle, ca=Math.cos(a), sa=Math.sin(a);
+  const L=wall.length, W=wall.width, t=wall.t;
+  const fade=Math.max(0,Math.min(1,(wall.life-t)/0.8));
+  const grow=1-Math.pow(1-Math.min(1,t/0.42),3);
+  const half=L/2*grow;
+  const jr=(i,k)=>{ const v=Math.sin((i+1)*12.9898+(wall.x+wall.y)*0.013+k*37.719)*43758.5453; return v-Math.floor(v); };
+
+  /* --- земля: морозный след + свечение --- */
+  ctx.save(); ctx.translate(wall.x,wall.y); ctx.rotate(a);
+  ctx.globalCompositeOperation='lighter';
+  const hz=ctx.createLinearGradient(0,-W*2.4,0,W*2.4);
+  hz.addColorStop(0,'rgba(120,200,255,0)'); hz.addColorStop(0.5,'rgba(150,225,255,'+(0.42*fade).toFixed(3)+')'); hz.addColorStop(1,'rgba(120,200,255,0)');
+  ctx.fillStyle=hz; ctx.fillRect(-half-14,-W*2.4,half*2+28,W*4.8);
+  ctx.globalCompositeOperation='source-over';
+  const nodes=Math.max(8,Math.round(L/20));
+  ctx.beginPath();
+  for(let i=0;i<=nodes;i++){
+    const px=-half+half*2*i/nodes, e=(i===0||i===nodes)?0.55:1;
+    const wy=W*(0.62+0.5*jr(i,1))*e;
+    if(i===0) ctx.moveTo(px,-wy); else ctx.lineTo(px,-wy);
+  }
+  for(let i=nodes;i>=0;i--){
+    const px=-half+half*2*i/nodes, e=(i===0||i===nodes)?0.55:1;
+    ctx.lineTo(px,W*(0.62+0.5*jr(i,2))*e);
+  }
+  ctx.closePath();
+  const fg=ctx.createLinearGradient(0,-W,0,W);
+  fg.addColorStop(0,'rgba(150,215,255,'+(0.55*fade).toFixed(3)+')');
+  fg.addColorStop(0.5,'rgba(235,250,255,'+(0.92*fade).toFixed(3)+')');
+  fg.addColorStop(1,'rgba(150,215,255,'+(0.55*fade).toFixed(3)+')');
+  ctx.fillStyle=fg; ctx.shadowColor='#8fdcff'; ctx.shadowBlur=22; ctx.fill(); ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(235,252,255,'+(0.9*fade).toFixed(3)+')'; ctx.lineWidth=2; ctx.stroke();
+  /* бегущий блик по льду */
+  ctx.globalCompositeOperation='lighter';
+  const sh=((t*0.55)%1)*(L+120)-L/2-60;
+  const sg=ctx.createLinearGradient(sh-60,0,sh+60,0);
+  sg.addColorStop(0,'rgba(255,255,255,0)'); sg.addColorStop(0.5,'rgba(255,255,255,'+(0.5*fade).toFixed(3)+')'); sg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=sg; ctx.fillRect(Math.max(-half,sh-60),-W*0.9,Math.min(half*2,120),W*1.8);
+  ctx.globalCompositeOperation='source-over';
+  /* трещинки внутри льда */
+  ctx.strokeStyle='rgba(255,255,255,'+(0.65*fade).toFixed(3)+')'; ctx.lineWidth=1;
+  for(let i=0;i<nodes;i+=2){
+    const px=-half+half*2*i/nodes;
+    if(Math.abs(px)>half) continue;
+    ctx.beginPath(); ctx.moveTo(px,(jr(i,3)-0.5)*W); ctx.lineTo(px+(jr(i,4)-0.5)*40,(jr(i,5)-0.5)*W*1.3); ctx.stroke();
+  }
+  ctx.restore();
+
+  /* --- кристаллы: остриём вверх, сортировка по глубине --- */
+  const list=[];
+  for(const c of wall.crystals){
+    const k=(t-c.delay)/0.3;
+    if(k<=0) continue;
+    const x=Math.min(1,k)-1;
+    const rise=k>=1?1:(1+2.70158*x*x*x+1.70158*x*x);
+    const sx=wall.x+c.along*ca-c.across*sa, sy=wall.y+c.along*sa+c.across*ca;
+    list.push({c,rise,sx,sy});
+  }
+  list.sort((p,q)=>p.sy-q.sy);
+  for(const it of list){
+    const c=it.c;
+    const shrink=fade<1 ? fade*fade : 1;
+    const hh=c.h*it.rise*shrink, ww=c.w*Math.min(1,it.rise*1.2)*(0.4+0.6*shrink);
+    if(hh<1) continue;
+    ctx.save(); ctx.translate(it.sx,it.sy);
+    ctx.globalAlpha=Math.min(1,0.25+fade);
+    /* мягкая тень/морозная каёмка у основания */
+    ctx.fillStyle='rgba(190,235,255,0.35)';
+    ctx.beginPath(); ctx.ellipse(0,0,ww*1.7,ww*0.6,0,0,Math.PI*2); ctx.fill();
+    ctx.rotate(c.tilt);
+    drawIceCrystal(ctx,ww,hh,c.tone);
+    if(c.cluster){
+      ctx.save(); ctx.translate(ww*1.15,ww*0.2); ctx.rotate(0.45);
+      drawIceCrystal(ctx,ww*0.62,hh*0.55,1-c.tone);
+      ctx.restore();
+      ctx.save(); ctx.translate(-ww*1.05,ww*0.15); ctx.rotate(-0.5);
+      drawIceCrystal(ctx,ww*0.55,hh*0.48,c.tone);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  /* мерцающие искры над стеной и холодный туман */
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<14;i++){
+    const along=(jr(i,6)-0.5)*L*grow;
+    const cyc=(t*0.7+jr(i,7))%1;
+    const px=wall.x+along*ca-(jr(i,8)-0.5)*W*2*sa;
+    const py=wall.y+along*sa+(jr(i,8)-0.5)*W*2*ca-cyc*60-6;
+    const al=Math.sin(cyc*Math.PI)*fade;
+    ctx.globalAlpha=al*0.85; ctx.fillStyle='#ffffff'; ctx.shadowColor='#9fe8ff'; ctx.shadowBlur=8;
+    const z=1.5+2.2*jr(i,9);
+    ctx.beginPath(); ctx.moveTo(px,py-z*2); ctx.lineTo(px+z*0.6,py); ctx.lineTo(px,py+z*2); ctx.lineTo(px-z*0.6,py); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(px-z*2,py); ctx.lineTo(px,py+z*0.6); ctx.lineTo(px+z*2,py); ctx.lineTo(px,py-z*0.6); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
 }
 
 function spawnHealingWard(hero, level){
@@ -4447,7 +4620,7 @@ function pushOrb(h, type){
   h.orbs.push(type);
   applyOrbBuffs(h);
   const col = type==='Q' ? '#7feaff' : (type==='W' ? '#c8b3ff' : '#ff9955');
-  fxRing(h.x, h.y, 55, col, 0.3);
+  fxArcaneBurst(h.x, h.y, 78, col, 0.55);
 }
 
 function applyOrbBuffs(h){
@@ -4488,6 +4661,7 @@ const INVOKE_SPELLS = {
       if(tgt){
         applyDamage(tgt, abilityDamage(h,200 + 70*lvl), h);
         tgt.stunTimer = 1.2;
+        fxArcaneBurst(tgt.x, tgt.y, 170, '#7feaff', 0.95);
         fxRing(tgt.x, tgt.y, 90, '#7feaff', 0.7);
         addText(tgt.x, tgt.y-55, '❄ СТАН', '#7feaff', 1.3, 18);
       } else {
@@ -4501,6 +4675,8 @@ const INVOKE_SPELLS = {
       const r = 300 + 30*lvl;
       spawnAoE(x,y,r,480 + 240*lvl,h,3,'#a0f0ff',120 + 60*lvl);
       fxMark(x,y,r,'#a0f0ff',3);
+      fxArcaneBurst(x,y,r*0.85,'#a0f0ff',0.5,0.0);
+      fxArcaneBurst(x,y,r*1.15,'#a0f0ff',1.3,3);
     }
   },
   '003': {
@@ -4509,6 +4685,7 @@ const INVOKE_SPELLS = {
       const r = 180;
       spawnAoE(x,y,r, (500 + 320*lvl) * 2, h, 0.9, '#ffcc00');
       fxMark(x,y,r,'#ffcc00',0.9);
+      fxArcaneBurst(x,y,r*1.5,'#ffcc00',1.1,0.9);
     }
   },
   '210': {
@@ -4516,7 +4693,6 @@ const INVOKE_SPELLS = {
     cast(h,x,y,lvl){
       const a = Math.atan2(y-h.y,x-h.x);
       spawnIceWall(x,y,x+Math.cos(a)*100,y+Math.sin(a)*100,h,lvl);
-      fxBeam(x-180*Math.cos(a),y-180*Math.sin(a),x+180*Math.cos(a),y+180*Math.sin(a),'#a0e0ff',0.7);
     }
   },
   '201': {
@@ -4526,19 +4702,20 @@ const INVOKE_SPELLS = {
       const maxD = 700;
       let tx = x, ty = y;
       if(d > maxD){ const k = maxD/d; tx = h.x + (x-h.x)*k; ty = h.y + (y-h.y)*k; }
-      fxRing(h.x,h.y,80,'#c0f0ff',0.35);
+      fxArcaneBurst(h.x,h.y,130,'#c0f0ff',0.7);
       h.x = clamp(tx,60,WORLD-60);
       h.y = clamp(ty,60,WORLD-60);
       h.moveTarget = null;
       h.addBuff({type:'spd', val:0.4, t:4});
       h.hp = Math.min(h.maxHp, h.hp + 150 + 50*lvl);
-      fxRing(h.x,h.y,80,'#c0f0ff',0.35);
+      fxArcaneBurst(h.x,h.y,150,'#c0f0ff',0.85);
     }
   },
   '120': {
     name:'Смерч',
     cast(h,x,y,lvl){
       spawnRollingSpell(h.x,h.y,x,y,200+110*lvl,h,'#d0e0ff',30,'tornado');
+      fxArcaneBurst(h.x,h.y,110,'#d0e0ff',0.6);
     }
   },
   '021': {
@@ -4546,8 +4723,8 @@ const INVOKE_SPELLS = {
     cast(h,x,y,lvl){
       h.buffs = h.buffs.filter(b => b.id !== 'invokeVigor');
       h.addBuff({type:'spd', id:'invokeVigor', val: 0.9 + 0.2*lvl, t: 6});
-      fxRing(h.x,h.y,130,'#ffe066',0.7);
-      fxRing(h.x,h.y,80,'#fff2a8',0.5);
+      fxArcaneBurst(h.x,h.y,190,'#ffe066',0.95);
+      fxArcaneBurst(h.x,h.y,100,'#fff2a8',0.6);
       addText(h.x, h.y-60, 'БОДРОСТЬ: СКОРОСТЬ +' + Math.round((0.9+0.2*lvl)*100) + '%', '#ffe066', 1.2, 18);
     }
   },
@@ -4556,6 +4733,8 @@ const INVOKE_SPELLS = {
     cast(h,x,y,lvl){
       spawnRollingSpell(h.x,h.y,x,y,900+420*lvl,h,'#ff5a00',34,'meteor');
       fxMark(x,y,120,'#ff5a00',0.8);
+      fxArcaneBurst(h.x,h.y,120,'#ff5a00',0.6);
+      fxArcaneBurst(x,y,150,'#ff5a00',0.9,0.8);
     }
   },
   '012': {
@@ -4571,12 +4750,12 @@ const INVOKE_SPELLS = {
         applyDamage(tgt, abilityDamage(h,280 + 140*lvl), h);
         fxBeam(h.x,h.y,tgt.x,tgt.y,'#ffcc00',0.35);
         fxHit(tgt.x, tgt.y, '#ffcc00');
-        fxRing(tgt.x, tgt.y, 70, '#ffcc00', 0.4);
+        fxArcaneBurst(tgt.x, tgt.y, 140, '#ffcc00', 0.8);
       }
       h.buffs = h.buffs.filter(b => b.id !== 'invokeForge');
       h.addBuff({type:'dmg', id:'invokeForge', val: 90 + 45*lvl, t: 8});
       h.addBuff({type:'armor', id:'invokeForgeArmor', val: 4 + 3*lvl, t: 8});
-      fxRing(h.x,h.y,120,'#ffb347',0.6);
+      fxArcaneBurst(h.x,h.y,180,'#ffb347',0.95);
       addText(h.x, h.y-60, 'КУЗНЕЧНЫЙ ДУХ', '#ffb347', 1.2, 18);
     }
   },
@@ -4592,7 +4771,8 @@ const INVOKE_SPELLS = {
           u.stunTimer = 0.6;
         }
       }
-      fxRing(x,y,r,'#ff44ff',0.6);
+      fxArcaneBurst(x,y,r,'#ff44ff',1.0);
+      fxArcaneBurst(x,y,r*0.55,'#ffffff',0.6);
     }
   }
 };
@@ -6940,7 +7120,7 @@ function startGame(playerIndex, draftPicks=null){
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
-  gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
+  gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
    barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
   structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
   structureProgress=[createStructureProgress(),createStructureProgress()];
@@ -7061,7 +7241,7 @@ function startTestMode(playerIndex){
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
-  gameTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
+  gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
   barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
   structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=0;
   structureProgress=[createStructureProgress(),createStructureProgress()];
@@ -7753,6 +7933,7 @@ function update(dt){
   else gameTime += dt;
   if(!pre) updateBotScenarios(dt);
   updateBotChatReplies();
+  updateIdleVoice();
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
   if(rampageBanner.t > 0) rampageBanner.t = Math.max(0, rampageBanner.t - dt);
   if(gameTime > 0 && Math.floor(gameTime/120) !== Math.floor((gameTime-dt)/120)) spawnRunes();
@@ -8081,6 +8262,30 @@ function update(dt){
           applyDamage(u,wall.dmg,wall.source || {team:wall.team});
           if(wall.stun) u.stunTimer=Math.max(u.stunTimer,wall.stun);
         }
+      }
+    }
+  }
+  for(const wall of walls){
+    if(wall.style!=='ice') continue;
+    const ux=Math.cos(wall.angle), uy=Math.sin(wall.angle);
+    if(wall.t<0.5){
+      /* осколки льда вылетают вдоль растущего фронта */
+      const prog=1-Math.pow(1-Math.min(1,wall.t/0.42),3);
+      for(const sgn of [-1,1]){
+        if(Math.random()<0.85) spawnParticles(wall.x+ux*wall.length/2*prog*sgn+rnd(-10,10), wall.y+uy*wall.length/2*prog*sgn+rnd(-10,10), Math.random()<0.5?'#e8fbff':'#a0e0ff', 2, 0.5);
+      }
+    }
+    wall.ambient-=dt;
+    if(wall.ambient<=0 && wall.t<wall.life-0.6){
+      wall.ambient=0.12;
+      const al=rnd(-0.5,0.5)*wall.length;
+      spawnParticles(wall.x+ux*al, wall.y+uy*al, '#e8fbff', 1, 0.18);
+    }
+    if(wall.t>=wall.life && !wall.shattered){
+      wall.shattered=true;
+      for(let i=0;i<22;i++){
+        const al=rnd(-0.5,0.5)*wall.length;
+        spawnParticles(wall.x+ux*al, wall.y+uy*al, i%3===0?'#ffffff':'#a0e0ff', 3, 0.9);
       }
     }
   }
@@ -11385,6 +11590,7 @@ function drawWorldObjects(){
     ctx.restore();
   }
   for(const wall of walls){
+    if(wall.style === 'ice'){ drawIceWall(wall); continue; }
     ctx.save(); ctx.translate(wall.x,wall.y); ctx.rotate(wall.angle);
     if(wall.style === 'fissure'){
       const fade = Math.max(0, Math.min(1, (wall.life - wall.t) / 0.7));
@@ -11532,6 +11738,7 @@ function drawWorldObjects(){
   for(const f of fxs){
     const fxX=Number.isFinite(f.x)?f.x:f.x1, fxY=Number.isFinite(f.y)?f.y:f.y1;
     if(!isWorldPointVisible(fxX,fxY,Math.max(180,f.r||0))) continue;
+    if(f.t<0) continue;
     const k = f.t/f.life;
     ctx.save();
     if(f.type === 'ring'){
@@ -11551,6 +11758,73 @@ function drawWorldObjects(){
         ctx.globalAlpha = (1-k)*0.16;
         ctx.fillStyle = f.color;
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r*(0.2+k*0.72), 0, Math.PI*2); ctx.fill();
+      }
+    } else if(f.type === 'arcane'){
+      const e = 1-Math.pow(1-k,3);
+      ctx.globalCompositeOperation = 'lighter';
+      const R = f.r;
+      /* световое ядро */
+      const gr = R*(0.32+0.78*e);
+      const g = ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,gr);
+      g.addColorStop(0,'rgba(255,255,255,'+(0.95*(1-k)).toFixed(3)+')');
+      g.addColorStop(0.28,f.color);
+      g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.globalAlpha = Math.pow(1-k,0.7)*0.85;
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(f.x,f.y,gr,0,Math.PI*2); ctx.fill();
+      /* звезда из лучей */
+      ctx.save();
+      ctx.translate(f.x,f.y); ctx.rotate(f.spin*(k*1.4+0.2));
+      ctx.globalAlpha = Math.pow(1-k,1.2);
+      ctx.fillStyle = f.color; ctx.shadowColor = f.color; ctx.shadowBlur = 22;
+      for(let i=0;i<f.rays;i++){
+        const a = i*Math.PI*2/f.rays;
+        const len = R*(0.45+0.85*e)*(i%2===0?1:0.58);
+        const w = 0.075*(1-k*0.6);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a-w)*R*0.06,Math.sin(a-w)*R*0.06);
+        ctx.lineTo(Math.cos(a)*len,Math.sin(a)*len);
+        ctx.lineTo(Math.cos(a+w)*R*0.06,Math.sin(a+w)*R*0.06);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff'; ctx.globalAlpha = Math.pow(1-k,1.6)*0.9;
+      for(let i=0;i<f.rays;i+=2){
+        const a = i*Math.PI*2/f.rays;
+        const len = R*(0.28+0.5*e);
+        const w = 0.03;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a-w)*R*0.04,Math.sin(a-w)*R*0.04);
+        ctx.lineTo(Math.cos(a)*len,Math.sin(a)*len);
+        ctx.lineTo(Math.cos(a+w)*R*0.04,Math.sin(a+w)*R*0.04);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+      /* двойная ударная волна */
+      ctx.strokeStyle = f.color; ctx.shadowColor = f.color; ctx.shadowBlur = 20;
+      ctx.globalAlpha = (1-k);
+      ctx.lineWidth = 7*(1-k)+1;
+      ctx.beginPath(); ctx.arc(f.x,f.y,R*(0.25+0.85*e),0,Math.PI*2); ctx.stroke();
+      const k2 = clamp((k-0.18)/0.82,0,1), e2 = 1-Math.pow(1-k2,3);
+      if(k>0.18){
+        ctx.globalAlpha = (1-k2)*0.8;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3*(1-k2)+0.5;
+        ctx.beginPath(); ctx.arc(f.x,f.y,R*(0.2+0.8*e2),0,Math.PI*2); ctx.stroke();
+      }
+      /* искры-звёздочки по спирали */
+      ctx.shadowBlur = 10; ctx.fillStyle = '#ffffff';
+      for(const sp of f.sparks){
+        const dist = R*(0.15+0.85*e)*sp.s;
+        const a = sp.a + f.spin*k*2.4;
+        const sx = f.x+Math.cos(a)*dist, sy = f.y+Math.sin(a)*dist;
+        const sz = (2+4*sp.s)*(1-k);
+        ctx.globalAlpha = (1-k)*(0.6+0.4*Math.sin(gameTime*18+sp.ph));
+        ctx.beginPath();
+        ctx.moveTo(sx,sy-sz*2); ctx.lineTo(sx+sz*0.6,sy); ctx.lineTo(sx,sy+sz*2); ctx.lineTo(sx-sz*0.6,sy);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(sx-sz*2,sy); ctx.lineTo(sx,sy+sz*0.6); ctx.lineTo(sx+sz*2,sy); ctx.lineTo(sx,sy-sz*0.6);
+        ctx.closePath(); ctx.fill();
       }
     } else if(f.type === 'skillBurst'){
       ctx.globalAlpha = (1-k) * 0.9;
@@ -13309,20 +13583,32 @@ function drawTalentPanel(){
 }
 
 function drawChat(){
-  if(!chatMessages.length && !chatInputOpen) return;
-  const x=8, w=Math.min(390,VW*0.34), h=chatMessages.length*22+48, y=VH-minimapSize()-24-h;
+  /* Компактный чат в стиле Dota 2: без рамки, тёмная полупрозрачная подложка,
+     строки «Имя: текст», старые сообщения плавно исчезают. */
+  const SHOW=9, FADE=2.5;
+  const now=gameTime;
+  const visible=chatMessages.filter(m=>chatInputOpen || (now-m.t)<SHOW+FADE);
+  if(!visible.length) return;
+  const lineH=17, padX=8, padY=5;
+  const x=8, w=Math.min(340,VW*0.3), h=visible.length*lineH+padY*2;
+  const y=VH-minimapSize()-24-h;
   ctx.save();
-  const panel=ctx.createLinearGradient(x,y,x+w,y+h);
-  panel.addColorStop(0,'rgba(19,40,57,0.94)'); panel.addColorStop(1,'rgba(8,12,24,0.96)');
-  ctx.fillStyle=panel; ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle='#65eaff'; ctx.lineWidth=1.5; ctx.strokeRect(x,y,w,h);
-  ctx.fillStyle='#b8f5ff'; ctx.font='bold 12px Segoe UI, Arial'; ctx.textAlign='left';
-  ctx.fillText('ЧАТ  •  ENTER — написать',x+12,y+19);
-  chatMessages.forEach((message,index)=>{
-    ctx.fillStyle=message.color; ctx.font='bold 11px Segoe UI, Arial';
-    ctx.fillText(message.name + ':',x+12,y+40+index*22);
-    ctx.fillStyle='#ffffff'; ctx.font='11px Segoe UI, Arial';
-    ctx.fillText(message.text,x+82,y+40+index*22);
+  ctx.font='12px Segoe UI, Arial'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  const bg=ctx.createLinearGradient(x,0,x+w,0);
+  bg.addColorStop(0,'rgba(8,14,20,0.62)'); bg.addColorStop(1,'rgba(8,14,20,0)');
+  ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
+  visible.forEach((m,i)=>{
+    const age=now-m.t;
+    const alpha=chatInputOpen ? 1 : clamp(1-(age-SHOW)/FADE,0,1);
+    const ly=y+padY+12+i*lineH;
+    ctx.globalAlpha=alpha;
+    ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=3;
+    ctx.fillStyle=m.color; ctx.font='bold 12px Segoe UI, Arial';
+    const nameText=m.name+':';
+    ctx.fillText(nameText,x+padX,ly);
+    const nw=ctx.measureText(nameText).width;
+    ctx.fillStyle='#e8eef2'; ctx.font='12px Segoe UI, Arial';
+    ctx.fillText(m.text,x+padX+nw+5,ly,Math.max(40,w-padX*2-nw-5));
   });
   ctx.restore();
 }
@@ -13661,7 +13947,6 @@ function drawHUD(){
 
   drawInventory();
   drawShop();
-  drawInspectPanel();
   drawPurchaseConfirm();
   drawSellConfirm();
   drawTalentPanel();
