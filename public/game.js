@@ -47,7 +47,7 @@ function terrainRefreshEvery(){ return perfLevel === 0 ? 3 : (perfLevel === 1 ? 
 function particleCap(){ return perfLevel === 0 ? 900 : (perfLevel === 1 ? 520 : (perfLevel === 2 ? 260 : 70)); }
 function fxCap(){ return perfLevel === 0 ? 220 : (perfLevel === 1 ? 150 : (perfLevel === 2 ? 90 : 28)); }
 function perfSample(now){
-  if(gameState !== 'playing' || gameTime < 4){ perfLastCheck = 0; perfFrameCount = 0; return; }
+  if(gameState !== 'playing' || gameTime < 4 || matchIntroStart >= 0){ perfLastCheck = 0; perfFrameCount = 0; return; }
   if(!perfLastCheck){ perfLastCheck = now; perfFrameCount = 0; return; }
   perfFrameCount++;
   const span = now - perfLastCheck;
@@ -18770,146 +18770,731 @@ function drawMenu(){
 }
 
 /* =========================================================
-   Вступительная заставка матча (5 секунд, в стиле Dota)
+   Заставка матча: логотип DOTA SENSE 3 → СИЛЫ СВЕТА → СИЛЫ ТЬМЫ
+   Сначала выходит команда Света, затем Тьмы. Каждая сцена — кинематографичный
+   кадр с плавным приближением камеры: бойцы стоят на помосте, у каждого табличка.
+   Если в команде есть игрок — он всегда стоит по центру, впереди остальных.
+   Пропустить: Пробел / Enter / Esc / клик.
    ========================================================= */
-const MATCH_INTRO_SECONDS = 5;
-let matchIntroStart = -1, matchIntroFlags = {};
-function startMatchIntro(){ matchIntroStart = performance.now(); matchIntroFlags = {}; }
+const INTRO_SCENES = [
+  {team:0, start:3.0, dur:5.4},
+  {team:1, start:8.4, dur:7.4}
+];
+const MATCH_INTRO_SECONDS = 16.0;
+const INTRO_SCENE_FADE = 0.4;      /* уход сцены в тёмный кадр перед следующей */
+const INTRO_FADE_OUT = 0.8;
+let matchIntroStart = -1, matchIntroFlags = {}, matchIntroSkipAt = -1, matchIntroGuardUntil = 0;
+let lineupPlan = null, lineupBgCache = {};
+const LINEUP_PAL = {
+  light:{title:'СИЛЫ СВЕТА', accent:'#72e6a5', accent2:'#ffe6a0', glow:'255,226,150', rgb:'114,230,165'},
+  dark: {title:'СИЛЫ ТЬМЫ',  accent:'#ff6a5e', accent2:'#ffa070', glow:'255,80,64',   rgb:'255,106,94'}
+};
+/* позиции бойцов относительно центрального: x — в долях размера, d — глубина (0 впереди) */
+const LINEUP_SLOTS = [
+  {x:-0.56, d:0.22}, {x:0.56, d:0.22}, {x:-1.06, d:0.5}, {x:1.06, d:0.5}, {x:-1.5, d:0.7}, {x:1.5, d:0.7}
+];
+const lineupClamp01 = v => Math.max(0, Math.min(1, v));
+const lineupEaseOut = v => 1 - Math.pow(1 - lineupClamp01(v), 3);
+const lineupEaseInOut = v => { v = lineupClamp01(v); return v < 0.5 ? 4*v*v*v : 1 - Math.pow(-2*v + 2, 3) / 2; };
+function lineupRng(seed){ let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
+function lineupS0(){ return Math.min(VH * 0.56, VW * 0.36); }
+function lineupTexSize(){ return Math.max(384, Math.min(640, Math.round(lineupS0() * 1.3 / 32) * 32)); }
+
+function startMatchIntro(){
+  matchIntroStart = performance.now(); matchIntroFlags = {}; matchIntroSkipAt = -1; matchIntroGuardUntil = 0;
+  lineupPlan = null; lineupBgCache = {};
+  try { buildLineupPlan(); lineupLayers(0); } catch(err){ console.error('Заставка: не удалось подготовить сцены', err); lineupPlan = null; }
+}
+function endMatchIntro(){ matchIntroStart = -1; lineupPlan = null; lineupBgCache = {}; }
+
+/* Раскладка: кто где стоит. Игрок (или первый боец чужой команды) — по центру и впереди. */
+function buildLineupPlan(){
+  const list = heroes.filter(h => h && h.def && h.type === 'hero' && !h.isIllusion);
+  lineupPlan = INTRO_SCENES.map(sc => {
+    const group = list.filter(h => h.team === sc.team);
+    if(!group.length) return null;
+    const focus = (playerHero && group.includes(playerHero)) ? playerHero : group[0];
+    const rest = group.filter(h => h !== focus);
+    const mir = sc.team === 1 ? -1 : 1;
+    const entries = rest.map((hero, i) => {
+      const slot = LINEUP_SLOTS[i % LINEUP_SLOTS.length];
+      const x = slot.x * mir, d = Math.min(0.85, slot.d + Math.floor(i / LINEUP_SLOTS.length) * 0.12);
+      return {hero, focus:false, x, d, yaw:(x < 0 ? -1 : 1) * (d > 0.4 ? 0.46 : 0.36)};
+    });
+    entries.sort((a, b) => b.d - a.d);                    // сначала дальние
+    entries.push({hero:focus, focus:true, x:0, d:0, yaw:0}); // центральный выходит последним
+    entries.forEach((e, i) => {
+      e.delay = 0.45 + i * 0.34 + (e.focus ? 0.15 : 0);
+      e.appear = null; e.phase = i * 1.7;
+      const h = e.hero;
+      e.sdef = {id:h.def.id, skinId:h.skinId || h.def.skinId || null, color:h.def.color, color2:h.def.color2};
+    });
+    return {team:sc.team, entries, focusEntry:entries[entries.length - 1]};
+  });
+  requestLineupTextures();
+}
+function requestLineupTextures(){
+  if(!lineupPlan || !window.Hero3D || !Hero3D.stand) return true;
+  const size = lineupTexSize();
+  let ready = true;
+  for(const plan of lineupPlan){
+    if(!plan) continue;
+    for(const e of plan.entries) if(!Hero3D.stand(e.sdef, size, e.yaw)) ready = false;
+  }
+  return ready;
+}
+
+/* ---------- Пропуск заставки ---------- */
+function introBlocksInput(){
+  if(matchIntroStart < 0 || gameState !== 'playing') return false;
+  const t = (performance.now() - matchIntroStart) / 1000;
+  return t < MATCH_INTRO_SECONDS - INTRO_FADE_OUT && (matchIntroSkipAt < 0 || performance.now() < matchIntroGuardUntil);
+}
+function introSkipHandler(e){
+  if(!introBlocksInput()) return;
+  if(e.type === 'keydown'){
+    if(!['Space','Enter','NumpadEnter','Escape'].includes(e.code)) return;
+  }
+  e.preventDefault(); e.stopImmediatePropagation();
+  const now = performance.now();
+  if(matchIntroSkipAt < 0 && (now - matchIntroStart) / 1000 > 0.8 && e.type !== 'keyup'){
+    matchIntroSkipAt = now;
+    matchIntroGuardUntil = now + 450;
+  }
+}
+['keydown','pointerdown','mousedown','touchstart'].forEach(type =>
+  window.addEventListener(type, introSkipHandler, {capture:true, passive:false}));
+
+/* ---------- Фоны сцен (рисуются один раз в слои для параллакса) ---------- */
+function lineupLayers(side){
+  const key = side + '|' + VW + 'x' + VH;
+  const cached = lineupBgCache[side];
+  if(cached && cached.key === key) return cached;
+  const k = Math.max(0.6, Math.min(1, appliedRenderScale * 0.8));
+  const LW = Math.round(VW * 1.25), LH = Math.round(VH * 1.1), hy = VH * 0.55;
+  const make = () => {
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(LW * k)); cv.height = Math.max(1, Math.round(LH * k));
+    const g = cv.getContext('2d'); g.scale(k, k);
+    return {cv, g};
+  };
+  const far = make(), mid = make(), near = make();
+  const rng = lineupRng(side ? 777 : 4242);
+  if(side === 0){ lightFar(far.g, LW, LH, hy, rng); lightMid(mid.g, LW, LH, hy, rng); lightNear(near.g, LW, LH, rng); }
+  else { darkFar(far.g, LW, LH, hy, rng); darkMid(mid.g, LW, LH, hy, rng); darkNear(near.g, LW, LH, rng); }
+  return lineupBgCache[side] = {key, far:far.cv, mid:mid.cv, near:near.cv, LW, LH};
+}
+function bgEllipse(g, x, y, rx, ry, rot){ g.beginPath(); g.ellipse(x, y, Math.max(0.5, rx), Math.max(0.5, ry), rot || 0, 0, Math.PI * 2); g.fill(); }
+function bgCanopy(g, cx, cy, r, rng, cols, n){
+  for(let i = 0; i < (n || 48); i++){
+    const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * r;
+    const rr = r * (0.13 + rng() * 0.16);
+    g.fillStyle = cols[(rng() * cols.length) | 0];
+    bgEllipse(g, cx + Math.cos(a) * d * 1.25, cy + Math.sin(a) * d * 0.8, rr * 1.15, rr * 0.85, rng() * 3);
+  }
+  /* рваный край листвы */
+  for(let i = 0; i < 70; i++){
+    const a = rng() * Math.PI * 2, d = r * (0.95 + rng() * 0.3);
+    const x = cx + Math.cos(a) * d * 1.25, y = cy + Math.sin(a) * d * 0.8, s = r * (0.05 + rng() * 0.06);
+    g.fillStyle = cols[(rng() * cols.length) | 0];
+    g.beginPath(); g.moveTo(x, y - s); g.lineTo(x + s * 0.8, y + s * 0.7); g.lineTo(x - s * 0.8, y + s * 0.7); g.closePath(); g.fill();
+  }
+}
+function bgBanner(g, x, top, bottom, w, cloth, trim, dark){
+  g.fillStyle = '#1b1411'; g.fillRect(x - 3, top - 10, 6, bottom - top + 10);
+  g.fillStyle = trim; g.beginPath(); g.arc(x, top - 12, 6, 0, Math.PI * 2); g.fill();
+  const hTop = top + 6, hBot = top + (bottom - top) * 0.62;
+  g.fillStyle = trim; g.fillRect(x - w / 2 - 4, hTop - 6, w + 8, 8);
+  g.fillStyle = cloth;
+  g.beginPath(); g.moveTo(x - w / 2, hTop); g.lineTo(x + w / 2, hTop); g.lineTo(x + w / 2, hBot);
+  g.lineTo(x + w / 4, hBot - w * 0.18); g.lineTo(x, hBot); g.lineTo(x - w / 4, hBot - w * 0.18); g.lineTo(x - w / 2, hBot); g.closePath(); g.fill();
+  g.strokeStyle = trim; g.lineWidth = 3; g.stroke();
+  const ey = hTop + (hBot - hTop) * 0.4;
+  g.strokeStyle = trim; g.fillStyle = trim; g.lineWidth = 3;
+  if(!dark){
+    g.beginPath(); g.arc(x, ey, w * 0.16, 0, Math.PI * 2); g.fill();
+    for(let i = 0; i < 12; i++){ const a = i / 12 * Math.PI * 2; g.beginPath(); g.moveTo(x + Math.cos(a) * w * 0.22, ey + Math.sin(a) * w * 0.22); g.lineTo(x + Math.cos(a) * w * 0.34, ey + Math.sin(a) * w * 0.34); g.stroke(); }
+  } else {
+    g.beginPath(); g.arc(x, ey + w * 0.04, w * 0.15, 0, Math.PI * 2); g.fill();
+    for(const sg of [-1, 1]){ g.beginPath(); g.moveTo(x + sg * w * 0.1, ey - w * 0.06); g.quadraticCurveTo(x + sg * w * 0.34, ey - w * 0.1, x + sg * w * 0.3, ey - w * 0.36); g.quadraticCurveTo(x + sg * w * 0.22, ey - w * 0.14, x + sg * w * 0.06, ey - w * 0.1); g.closePath(); g.fill(); }
+    g.fillStyle = cloth; bgEllipse(g, x - w * 0.06, ey + w * 0.02, w * 0.025, w * 0.04); bgEllipse(g, x + w * 0.06, ey + w * 0.02, w * 0.025, w * 0.04);
+  }
+}
+function bgDeadTree(g, x, y, ang, len, wid, depth, rng){
+  if(depth <= 0 || len < 5) return;
+  const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+  g.lineWidth = Math.max(1, wid); g.lineCap = 'round';
+  g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo((x + x2) / 2 + (rng() - 0.5) * len * 0.3, (y + y2) / 2, x2, y2); g.stroke();
+  const n = depth > 3 ? 2 : (rng() < 0.45 ? 3 : 2);
+  for(let i = 0; i < n; i++) bgDeadTree(g, x2, y2, ang + (rng() - 0.5) * 1.15, len * (0.7 + rng() * 0.12), wid * 0.66, depth - 1, rng);
+}
+
+function lightFar(g, LW, LH, hy, rng){
+  g.fillStyle = 'rgba(100,132,126,0.55)';
+  g.beginPath(); g.moveTo(0, hy + 20);
+  for(let x = 0; x <= LW; x += 20) g.lineTo(x, hy - 26 - 22 * Math.sin(x * 0.0035 + 0.8) - 14 * Math.sin(x * 0.011));
+  g.lineTo(LW, hy + 20); g.closePath(); g.fill();
+  for(let i = 0; i < 70; i++){
+    const x = rng() * LW, h = 50 + rng() * 90, base = hy + 6 + rng() * 16, w = h * 0.34;
+    g.fillStyle = 'rgba(' + (52 + rng() * 20 | 0) + ',' + (84 + rng() * 18 | 0) + ',' + (82 + rng() * 14 | 0) + ',' + (0.5 + rng() * 0.25).toFixed(2) + ')';
+    for(let t = 0; t < 3; t++){
+      const ty = base - h * (0.30 + t * 0.27), tw = w * (1 - t * 0.28), th = h * 0.42;
+      g.beginPath(); g.moveTo(x, ty - th); g.lineTo(x + tw, ty + th * 0.35); g.lineTo(x - tw, ty + th * 0.35); g.closePath(); g.fill();
+    }
+  }
+  const gg = g.createLinearGradient(0, hy, 0, LH);
+  gg.addColorStop(0, '#9bb3a6'); gg.addColorStop(0.3, '#566a5d'); gg.addColorStop(1, '#141a17');
+  g.fillStyle = gg; g.fillRect(0, hy + 10, LW, LH - hy);
+}
+function lightMid(g, LW, LH, hy, rng){
+  const leaf = ['#1c3a33', '#234a3d', '#16302a', '#2b5444', '#10241f'];
+  for(let i = 0; i < 15; i++){
+    const x = LW * (0.03 + i * 0.065 + rng() * 0.04);
+    if(Math.abs(x - LW / 2) < LW * 0.12 && rng() < 0.7) continue;
+    const base = hy + 34 + rng() * 34, h = VH * (0.36 + rng() * 0.24), tw = h * 0.045;
+    g.fillStyle = '#1a1612';
+    g.beginPath(); g.moveTo(x - tw * 1.3, base); g.lineTo(x + tw, base); g.lineTo(x + tw * 0.6, base - h * 0.6); g.lineTo(x - tw * 0.6, base - h * 0.6); g.closePath(); g.fill();
+    bgCanopy(g, x, base - h * 0.74, h * 0.3, rng, leaf, 18);
+  }
+  bgBanner(g, LW * 0.73, hy - VH * 0.3, hy + VH * 0.02, VH * 0.11, '#4d3346', '#d9b36a', false);
+  const gg = g.createLinearGradient(0, hy + 24, 0, LH);
+  gg.addColorStop(0, 'rgba(120,140,128,0)'); gg.addColorStop(0.25, 'rgba(34,44,38,0.9)'); gg.addColorStop(1, 'rgba(9,12,10,0.98)');
+  g.fillStyle = gg; g.fillRect(0, hy + 24, LW, LH - hy);
+  g.lineCap = 'round';
+  for(let i = 0; i < 320; i++){
+    const x = rng() * LW, y = hy + 60 + Math.pow(rng(), 0.7) * (LH - hy - 70), s = 4 + (y - hy) * 0.03 * rng();
+    g.strokeStyle = 'rgba(' + (60 + rng() * 40 | 0) + ',' + (96 + rng() * 40 | 0) + ',' + (62 + rng() * 20 | 0) + ',' + (0.25 + rng() * 0.3).toFixed(2) + ')';
+    g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rng() - 0.5) * s, y - s * 1.6); g.stroke();
+  }
+}
+function lightNear(g, LW, LH, rng){
+  const cols = ['#08110f', '#0c1a16', '#0f221c', '#07100d'];
+  g.fillStyle = '#070d0b';
+  g.beginPath(); g.moveTo(LW * 0.0, LH); g.lineTo(LW * 0.0, 0); g.lineTo(LW * 0.085, 0); g.lineTo(LW * 0.075, LH * 0.55); g.lineTo(LW * 0.105, LH); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(LW, LH); g.lineTo(LW, 0); g.lineTo(LW * 0.925, 0); g.lineTo(LW * 0.94, LH * 0.5); g.lineTo(LW * 0.9, LH); g.closePath(); g.fill();
+  bgCanopy(g, LW * 0.07, LH * 0.02, VH * 0.34, rng, cols, 54);
+  bgCanopy(g, LW * 0.5, -LH * 0.04, VH * 0.3, rng, cols, 46);
+  bgCanopy(g, LW * 0.95, LH * 0.03, VH * 0.36, rng, cols, 54);
+}
+function darkFar(g, LW, LH, hy, rng){
+  g.fillStyle = 'rgba(58,16,32,0.9)';
+  g.beginPath(); g.moveTo(0, hy + 20);
+  for(let x = 0; x <= LW; x += 16) g.lineTo(x, hy - 20 - Math.abs(Math.sin(x * 0.006 + 1.3)) * 120 - rng() * 16);
+  g.lineTo(LW, hy + 20); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(30,8,18,0.85)';
+  for(let i = 0; i < 26; i++){ const x = rng() * LW; bgDeadTree(g, x, hy + 14 + rng() * 14, -Math.PI / 2 + (rng() - 0.5) * 0.3, 40 + rng() * 40, 3 + rng() * 2, 5, rng); }
+  const gg = g.createLinearGradient(0, hy, 0, LH);
+  gg.addColorStop(0, '#8a2a24'); gg.addColorStop(0.2, '#3a1220'); gg.addColorStop(1, '#09040a');
+  g.fillStyle = gg; g.fillRect(0, hy + 10, LW, LH - hy);
+}
+function darkMid(g, LW, LH, hy, rng){
+  g.strokeStyle = '#0d0610';
+  for(let i = 0; i < 9; i++){
+    const x = LW * (0.05 + i * 0.11 + rng() * 0.05);
+    if(Math.abs(x - LW / 2) < LW * 0.1 && rng() < 0.7) continue;
+    bgDeadTree(g, x, hy + 40 + rng() * 30, -Math.PI / 2 + (rng() - 0.5) * 0.25, VH * (0.16 + rng() * 0.08), 14 + rng() * 8, 6, rng);
+  }
+  g.fillStyle = '#0b0510';
+  for(let x = LW * 0.04; x < LW; x += 26){
+    if(Math.abs(x - LW / 2) < LW * 0.16) continue;
+    const h = 46 + rng() * 40, base = hy + 52 + Math.sin(x * 0.01) * 6;
+    g.beginPath(); g.moveTo(x - 6, base); g.lineTo(x, base - h); g.lineTo(x + 6, base); g.closePath(); g.fill();
+  }
+  bgBanner(g, LW * 0.75, hy - VH * 0.3, hy + VH * 0.02, VH * 0.11, '#5a0f1c', '#d89a4a', true);
+  const gg = g.createLinearGradient(0, hy + 24, 0, LH);
+  gg.addColorStop(0, 'rgba(140,40,30,0)'); gg.addColorStop(0.25, 'rgba(24,9,16,0.92)'); gg.addColorStop(1, 'rgba(6,3,8,0.99)');
+  g.fillStyle = gg; g.fillRect(0, hy + 24, LW, LH - hy);
+  /* лавовые трещины */
+  g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
+  for(let i = 0; i < 22; i++){
+    let x = rng() * LW, y = hy + 70 + rng() * (LH - hy - 90);
+    g.beginPath(); g.moveTo(x, y);
+    for(let s = 0; s < 6; s++){ x += (rng() - 0.5) * 80; y += (rng() - 0.3) * 26; g.lineTo(x, y); }
+    g.strokeStyle = 'rgba(255,90,40,0.18)'; g.lineWidth = 7; g.stroke();
+    g.strokeStyle = 'rgba(255,170,90,0.7)'; g.lineWidth = 1.6; g.stroke();
+  }
+  g.restore();
+}
+function darkNear(g, LW, LH, rng){
+  g.strokeStyle = '#06030a';
+  bgDeadTree(g, LW * 0.02, LH, -Math.PI / 2 + 0.2, VH * 0.34, 34, 7, rng);
+  bgDeadTree(g, LW * 0.985, LH, -Math.PI / 2 - 0.22, VH * 0.34, 34, 7, rng);
+  bgDeadTree(g, LW * 0.5, -10, Math.PI / 2, VH * 0.12, 12, 5, rng);
+  g.fillStyle = '#05020a';
+  for(const side of [0, 1]){
+    for(let i = 0; i < 7; i++){
+      const x = side ? LW - i * 34 - 6 : i * 34 + 6, h = VH * (0.1 + rng() * 0.18);
+      g.beginPath(); g.moveTo(x - 10, LH); g.lineTo(x + (side ? -6 : 6), LH - h); g.lineTo(x + 10, LH); g.closePath(); g.fill();
+    }
+  }
+}
+
+function lineupGlowSprite(rgb){
+  const key = 'glow|' + rgb;
+  if(lineupBgCache[key]) return lineupBgCache[key];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const g = cv.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(' + rgb + ',1)'); gr.addColorStop(0.35, 'rgba(' + rgb + ',0.35)'); gr.addColorStop(1, 'rgba(' + rgb + ',0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return lineupBgCache[key] = cv;
+}
+/* ---------- Кадр сцены ---------- */
+
+/* Магические шары-духи и стелющийся туман (как на референсе: огонь, глаз, водяной дух) */
+function drawLineupOrbs(now, dark, alpha, S0, groundY, u){
+  const cx = VW / 2;
+  /* туман у земли: два медленных слоя */
+  ctx.save();
+  for(let k = 0; k < 2; k++){
+    const drift = ((now * (0.012 + k * 0.007) + k * 0.4) % 1);
+    for(let i = 0; i < 5; i++){
+      const fx = (((i / 5 + drift * (k ? -1 : 1)) % 1) + 1) % 1 * VW * 1.4 - VW * 0.2;
+      const fy = groundY - S0 * (0.02 + k * 0.05) + Math.sin(now * 0.4 + i) * 6;
+      const r = S0 * (0.9 + k * 0.4);
+      const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, r);
+      const c = dark ? '170,50,56' : '215,235,215';
+      fg.addColorStop(0, 'rgba(' + c + ',' + (0.13 * alpha).toFixed(3) + ')'); fg.addColorStop(1, 'rgba(' + c + ',0)');
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.ellipse(fx, fy, r, r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+  /* духи */
+  const orbs = dark
+    ? [{kind:'fire', col:'255,60,40', x:-0.36, y:0.30, ph:0.0}, {kind:'eye', col:'170,70,255', x:0.0, y:1.22, ph:1.9}, {kind:'wisp', col:'90,255,150', x:0.38, y:0.32, ph:3.4}]
+    : [{kind:'fire', col:'255,150,40', x:-0.36, y:0.30, ph:0.0}, {kind:'eye', col:'220,90,255', x:0.0, y:1.22, ph:1.9}, {kind:'wisp', col:'90,190,255', x:0.38, y:0.32, ph:3.4}];
+  ctx.save();
+  orbs.forEach((o, i) => {
+    const appear = lineupEaseOut((u - 1.2 - i * 0.35) / 0.8);
+    if(appear <= 0) return;
+    const R = S0 * (o.kind === 'eye' ? 0.085 : 0.07) * (0.8 + 0.2 * appear);
+    const ox = cx + o.x * S0 + Math.cos(now * 0.7 + o.ph) * S0 * 0.07;
+    const oy = groundY - o.y * S0 + Math.sin(now * 1.1 + o.ph) * S0 * 0.045;
+    ctx.globalAlpha = alpha * appear;
+    /* ореол */
+    ctx.globalCompositeOperation = 'lighter';
+    const hg = ctx.createRadialGradient(ox, oy, R * 0.2, ox, oy, R * 2.8);
+    hg.addColorStop(0, 'rgba(' + o.col + ',0.55)'); hg.addColorStop(1, 'rgba(' + o.col + ',0)');
+    ctx.fillStyle = hg; ctx.fillRect(ox - R * 3, oy - R * 3, R * 6, R * 6);
+    ctx.globalCompositeOperation = 'source-over';
+    if(o.kind === 'fire'){            // огненная тыква с резным лицом
+      const bg = ctx.createRadialGradient(ox - R * 0.3, oy - R * 0.3, R * 0.1, ox, oy, R);
+      bg.addColorStop(0, '#ffe08a'); bg.addColorStop(0.55, '#ff8a1e'); bg.addColorStop(1, '#a52a0c');
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(ox, oy, R * 1.1, R * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3a0c02';
+      ctx.beginPath(); ctx.moveTo(ox - R * 0.55, oy - R * 0.1); ctx.lineTo(ox - R * 0.2, oy - R * 0.4); ctx.lineTo(ox - R * 0.15, oy); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(ox + R * 0.55, oy - R * 0.1); ctx.lineTo(ox + R * 0.2, oy - R * 0.4); ctx.lineTo(ox + R * 0.15, oy); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(ox - R * 0.5, oy + R * 0.25); ctx.quadraticCurveTo(ox, oy + R * 0.7, ox + R * 0.5, oy + R * 0.25); ctx.lineTo(ox, oy + R * 0.38); ctx.fill();
+    } else if(o.kind === 'eye'){      // кристальный куб с глазом
+      const bg = ctx.createLinearGradient(ox - R, oy - R, ox + R, oy + R);
+      bg.addColorStop(0, 'rgba(255,200,255,0.9)'); bg.addColorStop(1, 'rgba(' + o.col + ',0.7)');
+      ctx.fillStyle = bg; ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(ox - R, oy - R * 0.8, R * 2, R * 1.6, R * 0.25); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(ox, oy, R * 0.7, R * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+      const lx = Math.cos(now * 0.8 + o.ph) * R * 0.2;
+      ctx.fillStyle = '#7a1fc4'; ctx.beginPath(); ctx.arc(ox + lx, oy, R * 0.26, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#12001c'; ctx.beginPath(); ctx.arc(ox + lx, oy, R * 0.11, 0, Math.PI * 2); ctx.fill();
+    } else {                          // дух-капля с глазками
+      const bg = ctx.createRadialGradient(ox - R * 0.3, oy - R * 0.35, R * 0.1, ox, oy, R);
+      bg.addColorStop(0, '#e8fbff'); bg.addColorStop(0.5, 'rgba(' + o.col + ',0.95)'); bg.addColorStop(1, 'rgba(20,70,150,0.9)');
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(ox, oy, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ox - R * 0.32, oy - R * 0.1, R * 0.2, 0, Math.PI * 2); ctx.arc(ox + R * 0.32, oy - R * 0.1, R * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#0a2a55'; ctx.beginPath(); ctx.arc(ox - R * 0.3, oy - R * 0.08, R * 0.09, 0, Math.PI * 2); ctx.arc(ox + R * 0.34, oy - R * 0.08, R * 0.09, 0, Math.PI * 2); ctx.fill();
+    }
+    /* искры, вылетающие из духа */
+    ctx.globalCompositeOperation = 'lighter';
+    for(let j = 0; j < 6; j++){
+      const t2 = ((now * 0.6 + j / 6 + i * 0.17) % 1);
+      const a = j * 1.9 + o.ph, dist = R * (1 + t2 * 1.6);
+      ctx.globalAlpha = alpha * appear * (1 - t2) * 0.9;
+      ctx.fillStyle = 'rgba(' + o.col + ',1)';
+      ctx.fillRect(ox + Math.cos(a) * dist, oy + Math.sin(a) * dist - t2 * R, 3, 3);
+    }
+  });
+  ctx.restore();
+}
+
+function drawLineupScene(si, u, alpha){
+  const sc = INTRO_SCENES[si], plan = lineupPlan && lineupPlan[si];
+  const dark = sc.team === 1, pal = dark ? LINEUP_PAL.dark : LINEUP_PAL.light;
+  const ui = Math.max(0.72, Math.min(1.45, VH / 820));
+  const prog = lineupClamp01(u / sc.dur), camE = lineupEaseInOut(prog);
+  const Z = 1 + 0.30 * camE;
+  const now = performance.now() / 1000;
+  const L = lineupLayers(sc.team);
+  const horizon = VH * 0.5;
+  const S0 = lineupS0(), groundY = VH * 0.72;
+  const Fx = VW / 2, Fy = groundY - S0 * 0.32;
+  const barH = VH * 0.1;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  /* небо */
+  const sky = ctx.createLinearGradient(0, 0, 0, horizon + VH * 0.06);
+  if(dark){ sky.addColorStop(0, '#08040c'); sky.addColorStop(0.55, '#2a0b18'); sky.addColorStop(1, '#a8321e'); }
+  else { sky.addColorStop(0, '#2a3b46'); sky.addColorStop(0.5, '#6f8d88'); sky.addColorStop(1, '#e9c486'); }
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH);
+  /* солнце / кровавая луна */
+  const lz = 1 + (Z - 1) * 0.15;
+  ctx.save();
+  ctx.translate(Fx, Fy); ctx.scale(lz, lz); ctx.translate(-Fx, -Fy);
+  const pulse = 0.92 + 0.08 * Math.sin(now * 0.9);
+  if(dark){
+    const mx = VW * 0.72, my = VH * 0.27, mr = VH * 0.11;
+    const mg = ctx.createRadialGradient(mx, my, mr * 0.5, mx, my, mr * 4.2);
+    mg.addColorStop(0, 'rgba(255,70,50,' + (0.5 * pulse).toFixed(3) + ')'); mg.addColorStop(1, 'rgba(255,40,30,0)');
+    ctx.fillStyle = mg; ctx.fillRect(0, 0, VW, VH);
+    const md = ctx.createRadialGradient(mx - mr * 0.3, my - mr * 0.3, mr * 0.1, mx, my, mr);
+    md.addColorStop(0, '#ffb08a'); md.addColorStop(0.5, '#e24a30'); md.addColorStop(1, '#7a1220');
+    ctx.fillStyle = md; ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
+  } else {
+    const sx = VW * 0.8, sy = VH * 0.5;
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, VH * 0.75);
+    sg.addColorStop(0, 'rgba(255,214,140,' + (0.75 * pulse).toFixed(3) + ')'); sg.addColorStop(0.35, 'rgba(255,170,90,0.28)'); sg.addColorStop(1, 'rgba(255,150,70,0)');
+    ctx.fillStyle = sg; ctx.fillRect(0, 0, VW, VH);
+  }
+  ctx.restore();
+  /* лучи света */
+  if(!dark){
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for(let i = 0; i < 5; i++){
+      const bx = VW * (0.58 + i * 0.1) + Math.sin(now * 0.25 + i) * VW * 0.01;
+      const w0 = VW * 0.015, w1 = VW * (0.05 + 0.015 * i);
+      const rg = ctx.createLinearGradient(0, 0, 0, VH * 0.9);
+      const ra = 0.075 * (0.7 + 0.3 * Math.sin(now * 0.7 + i * 2));
+      rg.addColorStop(0, 'rgba(255,225,160,0)'); rg.addColorStop(0.25, 'rgba(255,225,160,' + ra.toFixed(3) + ')'); rg.addColorStop(1, 'rgba(255,225,160,0)');
+      ctx.fillStyle = rg; ctx.beginPath();
+      ctx.moveTo(bx - w0, 0); ctx.lineTo(bx + w0, 0); ctx.lineTo(bx - VW * 0.24 + w1, VH * 0.9); ctx.lineTo(bx - VW * 0.24 - w1, VH * 0.9); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  /* слои фона с параллаксом: дальний почти стоит, ближний летит мимо камеры */
+  const layer = (cv, zf, pf, yoff) => {
+    const zz = 1 + (Z - 1) * zf, pan = (0.5 - prog) * VW * 0.05 * pf;
+    ctx.save();
+    ctx.translate(Fx, Fy); ctx.scale(zz, zz); ctx.translate(-Fx, -Fy);
+    ctx.drawImage(cv, -0.125 * VW + pan, -0.05 * VH + (yoff || 0), VW * 1.25, VH * 1.1);
+    ctx.restore();
+  };
+  layer(L.far, 0.25, 0.3);
+  layer(L.mid, 0.55, 0.6);
+  /* дымка над землёй */
+  const fog = ctx.createLinearGradient(0, horizon - VH * 0.05, 0, horizon + VH * 0.2);
+  fog.addColorStop(0, 'rgba(' + (dark ? '120,30,40' : '200,220,200') + ',0)'); fog.addColorStop(0.5, 'rgba(' + (dark ? '140,40,44' : '210,225,205') + ',0.22)'); fog.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = fog; ctx.fillRect(0, horizon - VH * 0.05, VW, VH * 0.25);
+
+  /* помост, тени, бойцы — всё внутри камеры с приближением */
+  ctx.save();
+  ctx.translate(Fx, Fy); ctx.scale(Z, Z); ctx.translate(-Fx, -Fy);
+  const dcx = VW / 2, dcy = groundY - VH * 0.03, drx = S0 * 1.28, dry = S0 * 0.22;
+  const dp = lineupEaseOut(u / 0.9);
+  ctx.save(); ctx.globalAlpha = alpha * dp;
+  const dg = ctx.createRadialGradient(dcx, dcy, drx * 0.1, dcx, dcy, drx);
+  dg.addColorStop(0, 'rgba(' + pal.rgb + ',0.20)'); dg.addColorStop(0.7, 'rgba(10,10,14,0.55)'); dg.addColorStop(1, 'rgba(10,10,14,0)');
+  ctx.fillStyle = dg; ctx.beginPath(); ctx.ellipse(dcx, dcy, drx, dry, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(' + pal.rgb + ',0.55)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(dcx, dcy, drx * 0.86, dry * 0.86, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(' + pal.rgb + ',0.28)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(dcx, dcy, drx * 0.7, dry * 0.7, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(' + pal.rgb + ',0.7)';
+  for(let i = 0; i < 28; i++){
+    const a = i / 28 * Math.PI * 2 + now * 0.12;
+    ctx.fillRect(dcx + Math.cos(a) * drx * 0.93 - 1.5, dcy + Math.sin(a) * dry * 0.93 - 1, 3, 2);
+  }
+  ctx.restore();
+
+  const texSize = lineupTexSize();
+  const entries = plan ? plan.entries.slice().sort((a, b) => b.d - a.d) : [];
+  const placed = [];
+  for(const e of entries){
+    const tex = (window.Hero3D && Hero3D.stand) ? Hero3D.stand(e.sdef, texSize, e.yaw) : null;
+    if(tex && e.appear == null) e.appear = Math.max(e.delay, u);
+    if(!tex || e.appear == null) continue;
+    const a = u - e.appear, p = lineupEaseOut(a / 0.7);
+    const S = S0 * (1 - 0.35 * e.d), px = VW / 2 + e.x * S0, py = groundY - e.d * VH * 0.11, k = S / tex.w;
+    placed.push({e, px, py, S, a});
+    /* тень под ногами */
+    ctx.save(); ctx.globalAlpha = alpha * p * 0.75;
+    const sg = ctx.createRadialGradient(px, py, 2, px, py, S * 0.3);
+    sg.addColorStop(0, 'rgba(0,0,0,0.75)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(px, py, S * 0.3, S * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    /* золотое кольцо у центрального бойца */
+    if(e.focus){
+      ctx.save(); ctx.globalAlpha = alpha * p * (0.7 + 0.3 * Math.sin(now * 2.2));
+      ctx.strokeStyle = '#ffd568'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.ellipse(px, py, S * 0.34, S * 0.075, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    /* подсветка за спиной */
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha * p;
+    const ag = ctx.createRadialGradient(px, py - S * 0.4, 4, px, py - S * 0.4, S * 0.6);
+    ag.addColorStop(0, 'rgba(' + pal.rgb + ',0.20)'); ag.addColorStop(1, 'rgba(' + pal.rgb + ',0)');
+    ctx.fillStyle = ag; ctx.fillRect(px - S * 0.6, py - S, S * 1.2, S * 1.1);
+    ctx.restore();
+    /* сам боец: дыхание + выход из луча */
+    ctx.save();
+    ctx.globalAlpha = alpha * p;
+    ctx.translate(px, py + (1 - p) * S * 0.08);
+    ctx.scale(1, 1 + 0.006 * Math.sin(now * 1.6 + e.phase));
+    ctx.drawImage(tex.canvas, -tex.ax * k, -tex.ay * k, tex.w * k, tex.h * k);
+    ctx.restore();
+    /* луч и круговая волна при появлении */
+    if(a < 1.0){
+      const f = lineupClamp01(a / 1.0), top = py - S * 1.25;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha;
+      for(const [wk, ak, col] of [[0.5, 0.10, pal.rgb], [0.3, 0.2, pal.rgb], [0.13, 0.42, '255,255,255']]){
+        const bw = S * 0.5 * wk * (1 - f * 0.5);
+        const bg = ctx.createLinearGradient(0, top, 0, py);
+        bg.addColorStop(0, 'rgba(' + col + ',0)'); bg.addColorStop(0.7, 'rgba(' + col + ',' + (ak * (1 - f)).toFixed(3) + ')'); bg.addColorStop(1, 'rgba(' + col + ',' + (ak * 1.4 * (1 - f)).toFixed(3) + ')');
+        ctx.fillStyle = bg; ctx.beginPath();
+        ctx.moveTo(px - bw * 0.7, top); ctx.lineTo(px + bw * 0.7, top); ctx.lineTo(px + bw, py); ctx.lineTo(px - bw, py); ctx.closePath(); ctx.fill();
+      }
+      const rr = lineupEaseOut(a / 0.8);
+      ctx.strokeStyle = 'rgba(' + pal.rgb + ',' + (0.8 * (1 - rr)).toFixed(3) + ')'; ctx.lineWidth = 3 * (1 - rr) + 1;
+      ctx.beginPath(); ctx.ellipse(px, py, S * (0.1 + 0.8 * rr), S * (0.025 + 0.2 * rr), 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    if(e.focus && !matchIntroFlags['focus' + si] && a >= 0){ matchIntroFlags['focus' + si] = true; playSynthSfx(dark ? 'ultimate' : 'level'); }
+  }
+  drawLineupOrbs(now, dark, alpha, S0, groundY, u);
+  ctx.restore();
+
+  /* ближний план: деревья пролетают мимо камеры */
+  layer(L.near, 1.6, 1.4);
+
+  /* частицы: светлячки / искры (готовый спрайт свечения вместо градиента на каждую) */
+  const gl = lineupGlowSprite(pal.glow);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for(let i = 0; i < 46; i++){
+    const r1 = (Math.sin(i * 12.9898) * 43758.5453) % 1, r2 = (Math.sin(i * 78.233) * 12345.678) % 1, r3 = (Math.sin(i * 39.346) * 9871.123) % 1;
+    const bx = Math.abs(r1), by = Math.abs(r2), sp = 0.012 + Math.abs(r3) * 0.02;
+    let x, y;
+    if(dark){ x = (bx + Math.sin(now * 0.5 + i) * 0.015) * VW; y = (((by - now * sp * 2.2) % 1) + 1) % 1 * VH; }
+    else { x = (bx + Math.sin(now * 0.3 + i) * 0.03) * VW; y = (by + Math.cos(now * 0.25 + i * 1.7) * 0.04) * VH * 0.9; }
+    const tw = 0.5 + 0.5 * Math.sin(now * (1.5 + Math.abs(r3) * 2) + i);
+    const rad = (2 + Math.abs(r3) * 3.2) * ui * 3;
+    ctx.globalAlpha = alpha * 0.9 * tw;
+    ctx.drawImage(gl, x - rad, y - rad, rad * 2, rad * 2);
+  }
+  ctx.restore();
+
+  /* вспышка при выходе центрального бойца */
+  const fe = plan && plan.focusEntry;
+  if(fe && fe.appear != null){
+    const fa = (u - fe.appear) / 0.4;
+    if(fa >= 0 && fa < 1){ ctx.fillStyle = 'rgba(' + (dark ? '255,120,90' : '255,244,210') + ',' + (0.24 * (1 - fa)).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); }
+  }
+  /* виньетка */
+  const vg = ctx.createRadialGradient(VW / 2, VH * 0.52, Math.min(VW, VH) * 0.35, VW / 2, VH * 0.52, Math.max(VW, VH) * 0.75);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, dark ? 'rgba(8,0,6,0.78)' : 'rgba(2,8,6,0.7)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
+  /* низ кадра: плавный переход в темноту под таблички */
+  const bgd = ctx.createLinearGradient(0, VH * 0.78, 0, VH);
+  bgd.addColorStop(0, 'rgba(0,0,0,0)'); bgd.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = bgd; ctx.fillRect(0, VH * 0.78, VW, VH * 0.22);
+
+  /* таблички с именами (рисуются в экранных координатах, не масштабируются камерой) */
+  for(const pl of placed){
+    const pa = lineupClamp01((pl.a - 0.45) / 0.45);
+    if(pa <= 0) continue;
+    const h = pl.e.hero, me = h === playerHero;
+    const sx = Fx + (pl.px - Fx) * Z, sy = Fy + (pl.py - Fy) * Z;
+    const nick = me ? ((account.profile && account.profile.nick) || 'ТЫ') : (h.onlinePlayerId ? 'Игрок' : 'Бот');
+    const line1 = h.def.name, line2 = me ? '★ ' + nick : h.def.title;
+    const sc2 = (pl.e.focus ? 1.12 : 1) * ui * (1 - pl.e.d * 0.18);
+    ctx.save();
+    ctx.globalAlpha = alpha * pa; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold ' + Math.round(17 * sc2) + 'px Georgia, serif';
+    const w1 = ctx.measureText(line1).width;
+    ctx.font = Math.round(12 * sc2) + 'px Segoe UI, Arial';
+    const w2 = ctx.measureText(line2).width;
+    const pw = Math.max(w1, w2) + 34 * sc2, ph = 46 * sc2, ty = sy + 16 * ui + (1 - pa) * 10;
+    const pg2 = ctx.createLinearGradient(sx - pw / 2, 0, sx + pw / 2, 0);
+    pg2.addColorStop(0, 'rgba(6,4,8,0)'); pg2.addColorStop(0.15, 'rgba(6,4,8,0.82)'); pg2.addColorStop(0.85, 'rgba(6,4,8,0.82)'); pg2.addColorStop(1, 'rgba(6,4,8,0)');
+    ctx.fillStyle = pg2; ctx.fillRect(sx - pw / 2, ty, pw, ph);
+    ctx.fillStyle = me ? '#ffd568' : pal.accent; ctx.fillRect(sx - pw * 0.4, ty + ph - 2, pw * 0.8, 2);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.round(17 * sc2) + 'px Georgia, serif';
+    ctx.fillText(line1, sx, ty + ph * 0.36);
+    ctx.fillStyle = me ? '#ffd568' : 'rgba(255,255,255,0.62)'; ctx.font = Math.round(12 * sc2) + 'px Segoe UI, Arial';
+    ctx.fillText(line2, sx, ty + ph * 0.72);
+    ctx.restore();
+  }
+
+  /* заголовок команды слева сверху */
+  const tp = lineupEaseOut((u - 0.2) / 0.7);
+  if(tp > 0){
+    if(!matchIntroFlags['title' + si]){ matchIntroFlags['title' + si] = true; playSynthSfx('stun'); }
+    const fs = Math.round(Math.min(VW * 0.075, 80 * ui));
+    const tx = VW * 0.055 + (1 - tp) * -90, ty2 = barH + VH * 0.09 + fs * 0.5;
+    const myTeam = playerHero ? playerHero.team : 0;
+    ctx.save();
+    ctx.globalAlpha = alpha * tp; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    if('letterSpacing' in ctx) ctx.letterSpacing = '5px';
+    ctx.font = 'bold ' + Math.round(13 * ui) + 'px Segoe UI, Arial'; ctx.fillStyle = pal.accent;
+    ctx.fillText(sc.team === myTeam ? 'ТВОЯ КОМАНДА' : 'ПРОТИВНИКИ', tx + 4, ty2 - fs * 0.62);
+    if('letterSpacing' in ctx) ctx.letterSpacing = '3px';
+    ctx.font = 'italic 900 ' + fs + 'px "Segoe UI", "Arial Black", sans-serif';
+    ctx.shadowColor = 'rgba(' + pal.rgb + ',0.55)'; ctx.shadowBlur = 24;
+    ctx.lineWidth = Math.max(4, fs * 0.08); ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.strokeText(pal.title, tx, ty2); ctx.shadowBlur = 24;
+    const tg = ctx.createLinearGradient(0, ty2 - fs * 0.5, 0, ty2 + fs * 0.5);
+    tg.addColorStop(0, '#ffffff'); tg.addColorStop(1, dark ? '#ffc2b8' : '#d8f6e2');
+    ctx.fillStyle = tg; ctx.fillText(pal.title, tx, ty2);
+    ctx.shadowBlur = 0;
+    const tw = ctx.measureText(pal.title).width;
+    const ug = ctx.createLinearGradient(tx, 0, tx + tw, 0);
+    ug.addColorStop(0, pal.accent); ug.addColorStop(1, 'rgba(' + pal.rgb + ',0)');
+    ctx.fillStyle = ug; ctx.fillRect(tx, ty2 + fs * 0.58, tw * tp, Math.max(3, 4 * ui));
+    ctx.restore();
+  }
+  ctx.restore();
+}
 
 function drawMatchIntro(){
   if(matchIntroStart < 0) return;
-  const t = (performance.now() - matchIntroStart) / 1000;
-  if(t >= MATCH_INTRO_SECONDS || gameState !== 'playing'){ matchIntroStart = -1; return; }
-  const clamp01 = v => Math.max(0, Math.min(1, v));
-  const easeOut = v => 1 - Math.pow(1 - clamp01(v), 3);
-  const easeInOut = v => { v = clamp01(v); return v < 0.5 ? 4*v*v*v : 1 - Math.pow(-2*v + 2, 3) / 2; };
-  const now = performance.now() / 1000;
-  const fade = 1 - clamp01((t - 4.1) / 0.9);
-  const veil = t < 3.2 ? 0.96 : 0.96 * (1 - easeInOut((t - 3.2) / 1.8));
-  if(!matchIntroFlags.start && t > 0.05){ matchIntroFlags.start = true; playSynthSfx('ultimate'); }
-  if(!matchIntroFlags.slam && t >= 1.0){ matchIntroFlags.slam = true; playSynthSfx('stun'); }
-  if(!matchIntroFlags.teams && t >= 2.3){ matchIntroFlags.teams = true; playSynthSfx('level'); }
-
+  const nowMs = performance.now();
+  const t = (nowMs - matchIntroStart) / 1000;
+  if(t >= MATCH_INTRO_SECONDS || gameState !== 'playing'){ endMatchIntro(); return; }
+  let skipFade = 1;
+  if(matchIntroSkipAt >= 0){
+    const k = (nowMs - matchIntroSkipAt) / 500;
+    if(k >= 1){ endMatchIntro(); return; }
+    skipFade = 1 - k;
+  }
+  const endFade = lineupClamp01((MATCH_INTRO_SECONDS - t) / INTRO_FADE_OUT);
+  const master = Math.min(skipFade, lineupEaseInOut(endFade));
+  const easeOut = lineupEaseOut, clamp01 = lineupClamp01;
+  const now = nowMs / 1000;
   const cx = VW / 2, cy = VH * 0.46;
+
+  /* текстуры бойцов подгружаются в фоне; без Worker — по одной за кадр */
+  if(!matchIntroFlags.texReady) matchIntroFlags.texReady = requestLineupTextures();
+  if(t > 1.5 && !matchIntroFlags.darkBuilt){ matchIntroFlags.darkBuilt = true; try { lineupLayers(1); } catch(err){} }
+
   ctx.save();
-  ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0);
+  ctx.setTransform(appliedRenderScale, 0, 0, appliedRenderScale, 0, 0);
   ctx.globalAlpha = 1;
-  ctx.fillStyle = 'rgba(10,2,5,' + veil.toFixed(3) + ')';
-  ctx.fillRect(0, 0, VW, VH);
-  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(VW, VH) * 0.6);
-  glow.addColorStop(0, 'rgba(130,18,20,' + (0.55 * veil / 0.96).toFixed(3) + ')');
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow; ctx.fillRect(0, 0, VW, VH);
 
-  /* рунная печать */
-  const sigilR = Math.min(VW, VH) * 0.34 * (0.75 + 0.25 * easeOut(t / 1.4));
-  const sigilAlpha = fade * easeOut((t - 0.1) / 0.8);
-  if(sigilAlpha > 0.01){ ctx.globalAlpha = sigilAlpha; dsDrawSigil(cx, cy, sigilR, now, 1); ctx.globalAlpha = 1; }
-
-  /* ударные волны и вспышка в момент появления логотипа */
-  for(let k = 0; k < 2; k++){
-    const u = (t - 1.0 - k * 0.18) / 0.9;
-    if(u > 0 && u < 1){
-      ctx.strokeStyle = 'rgba(255,120,90,' + ((1 - u) * 0.8 * fade).toFixed(3) + ')';
-      ctx.lineWidth = 6 * (1 - u) + 1;
-      ctx.beginPath(); ctx.arc(cx, cy, easeOut(u) * Math.max(VW, VH) * 0.7, 0, Math.PI * 2); ctx.stroke();
+  /* ---- 1. логотип DOTA SENSE 3 (пока сцена Света не закрыла экран) ---- */
+  const s0 = INTRO_SCENES[0].start;
+  if(t < s0 + 0.7){
+    const fade = 1 - clamp01((t - 2.7) / 0.7);
+    if(!matchIntroFlags.start && t > 0.05){ matchIntroFlags.start = true; playSynthSfx('ultimate'); }
+    if(!matchIntroFlags.slam && t >= 1.0){ matchIntroFlags.slam = true; playSynthSfx('stun'); }
+    ctx.fillStyle = 'rgba(10,2,5,' + (0.97 * master).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH);
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(VW, VH) * 0.6);
+    glow.addColorStop(0, 'rgba(130,18,20,' + (0.55 * master).toFixed(3) + ')'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, VW, VH);
+    const sigilR = Math.min(VW, VH) * 0.34 * (0.75 + 0.25 * easeOut(t / 1.4));
+    const sigilAlpha = fade * master * easeOut((t - 0.1) / 0.8);
+    if(sigilAlpha > 0.01){ ctx.globalAlpha = sigilAlpha; dsDrawSigil(cx, cy, sigilR, now, 1); ctx.globalAlpha = 1; }
+    for(let k = 0; k < 2; k++){
+      const u = (t - 1.0 - k * 0.18) / 0.9;
+      if(u > 0 && u < 1){
+        ctx.strokeStyle = 'rgba(255,120,90,' + ((1 - u) * 0.8 * fade * master).toFixed(3) + ')';
+        ctx.lineWidth = 6 * (1 - u) + 1;
+        ctx.beginPath(); ctx.arc(cx, cy, easeOut(u) * Math.max(VW, VH) * 0.7, 0, Math.PI * 2); ctx.stroke();
+      }
     }
-  }
-  const flash = (t - 1.0) / 0.3;
-  if(flash > 0 && flash < 1){ ctx.fillStyle = 'rgba(255,200,170,' + (0.35 * (1 - flash)).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); }
-
-  /* логотип DOTA SENSE 3 */
-  const logoW = Math.min(Math.round(VW * 0.62), 780), logoH = Math.round(logoW * 0.17);
-  if(t >= 1.0){
-    const slam = easeOut((t - 1.0) / 0.35);
-    const shake = t < 1.5 ? (1 - (t - 1.0) / 0.5) * 6 : 0;
-    ctx.save();
-    ctx.globalAlpha = clamp01((t - 1.0) / 0.25) * fade;
-    ctx.translate(Math.sin(t * 90) * shake, Math.cos(t * 77) * shake);
-    ctx.translate(cx, cy); ctx.scale(1 + 0.55 * (1 - slam), 1 + 0.55 * (1 - slam)); ctx.translate(-cx, -cy);
-    drawDotaSenseLogo(cx, cy - logoH / 2, logoW, logoH, now, true);
-    ctx.restore();
-  }
-
-  /* подзаголовок */
-  if(t >= 1.9){
-    const a = clamp01((t - 1.9) / 0.5) * fade;
-    ctx.save();
-    ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if('letterSpacing' in ctx) ctx.letterSpacing = '8px';
-    ctx.font = 'bold ' + Math.round(Math.max(13, Math.min(20, VW / 70))) + 'px Georgia, serif';
-    ctx.fillStyle = '#e8c984';
-    const subY = cy + logoH / 2 + 34;
-    ctx.fillText('АРЕНА ТРЁХ СИЛ', cx, subY);
-    ctx.font = 'bold 12px Consolas, monospace'; ctx.fillStyle = 'rgba(255,170,150,0.75)';
-    ctx.fillText('ВЕРСИЯ ' + GAME_VERSION, cx, subY + 28);
-    ctx.font = 'bold ' + Math.round(Math.max(13, Math.min(20, VW / 70))) + 'px Georgia, serif';
-    const lineW = 160 * easeOut((t - 1.9) / 0.6);
-    ctx.fillStyle = 'rgba(230,90,70,0.7)';
-    ctx.fillRect(cx - 190 - lineW, subY - 1, lineW, 2); ctx.fillRect(cx + 190, subY - 1, lineW, 2);
-    ctx.restore();
-  }
-
-  /* команды: портреты героев выезжают с двух сторон */
-  if(t >= 2.2 && playerHero){
-    const list = heroes.filter(h => h && h.def && h.type === 'hero' && !h.isIllusion);
-    const myTeam = playerHero.team;
-    const mine = list.filter(h => h.team === myTeam).sort((a, b) => (b === playerHero) - (a === playerHero)).slice(0, 4);
-    const foes = list.filter(h => h.team !== myTeam).slice(0, 4);
-    const bw = Math.round(Math.min(118, VW / 10)), bh = Math.round(bw * 0.78), gap = 10, rowY = Math.round(VH * 0.64);
-    const place = (arr, side) => arr.forEach((h, i) => {
-      const p = easeOut((t - 2.3 - i * 0.12) / 0.6);
-      if(p <= 0) return;
-      const total = arr.length * (bw + gap) - gap;
-      const x = (side < 0 ? cx - 70 - total : cx + 70) + i * (bw + gap) + side * (1 - p) * VW * 0.35;
-      const isMe = h === playerHero;
+    const flash = (t - 1.0) / 0.3;
+    if(flash > 0 && flash < 1){ ctx.fillStyle = 'rgba(255,200,170,' + (0.35 * (1 - flash) * master).toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH); }
+    const logoW = Math.min(Math.round(VW * 0.62), 780), logoH = Math.round(logoW * 0.17);
+    if(t >= 1.0){
+      const slam = easeOut((t - 1.0) / 0.35);
+      const shake = t < 1.5 ? (1 - (t - 1.0) / 0.5) * 6 : 0;
       ctx.save();
-      ctx.globalAlpha = p * fade;
-      ctx.fillStyle = 'rgba(8,3,5,0.88)'; ctx.fillRect(x - 3, rowY - 3, bw + 6, bh + 30);
-      drawHeroTexture(h.def, x, rowY, bw, bh, now);
-      ctx.strokeStyle = isMe ? '#ffd568' : (side < 0 ? '#72e6a5' : '#ff8585'); ctx.lineWidth = isMe ? 3 : 2;
-      ctx.strokeRect(x - 3, rowY - 3, bw + 6, bh + 30);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Segoe UI, Arial'; ctx.textAlign = 'center';
-      ctx.fillText(isMe ? 'ТЫ • ' + h.def.name : h.def.name, x + bw / 2, rowY + bh + 17);
+      ctx.globalAlpha = clamp01((t - 1.0) / 0.25) * fade * master;
+      ctx.translate(Math.sin(t * 90) * shake, Math.cos(t * 77) * shake);
+      ctx.translate(cx, cy); ctx.scale(1 + 0.55 * (1 - slam), 1 + 0.55 * (1 - slam)); ctx.translate(-cx, -cy);
+      drawDotaSenseLogo(cx, cy - logoH / 2, logoW, logoH, now, true);
       ctx.restore();
-    });
-    place(mine, -1); place(foes, 1);
-    const labelA = clamp01((t - 2.3) / 0.5) * fade;
-    ctx.save();
-    ctx.globalAlpha = labelA; ctx.textAlign = 'center'; ctx.font = 'bold 15px Georgia, serif';
-    if('letterSpacing' in ctx) ctx.letterSpacing = '4px';
-    ctx.fillStyle = '#72e6a5'; ctx.fillText(myTeam === 0 ? 'СВЕТ' : 'ТЬМА', cx - 70 - (mine.length * (bw + gap) - gap) / 2, rowY - 14);
-    ctx.fillStyle = '#ff8585'; ctx.fillText(myTeam === 0 ? 'ТЬМА' : 'СВЕТ', cx + 70 + (foes.length * (bw + gap) - gap) / 2, rowY - 14);
-    ctx.restore();
-    const vp = easeOut((t - 2.6) / 0.4);
-    if(vp > 0){
+    }
+    if(t >= 1.9){
+      const a = clamp01((t - 1.9) / 0.5) * fade * master;
       ctx.save();
-      ctx.globalAlpha = vp * fade; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = '900 ' + Math.round(bh * 0.62) + 'px Georgia, serif';
-      ctx.lineWidth = 6; ctx.strokeStyle = '#2a0808'; ctx.strokeText('VS', cx, rowY + bh / 2 + 8);
-      const vg = ctx.createLinearGradient(0, rowY, 0, rowY + bh);
-      vg.addColorStop(0, '#fff1b8'); vg.addColorStop(1, '#c4761c');
-      ctx.fillStyle = vg; ctx.shadowColor = 'rgba(255,120,50,0.8)'; ctx.shadowBlur = 18;
-      ctx.fillText('VS', cx, rowY + bh / 2 + 8);
+      ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if('letterSpacing' in ctx) ctx.letterSpacing = '8px';
+      ctx.font = 'bold ' + Math.round(Math.max(13, Math.min(20, VW / 70))) + 'px Georgia, serif';
+      ctx.fillStyle = '#e8c984';
+      const subY = cy + logoH / 2 + 34;
+      ctx.fillText('АРЕНА ТРЁХ СИЛ', cx, subY);
+      ctx.font = 'bold 12px Consolas, monospace'; ctx.fillStyle = 'rgba(255,170,150,0.75)';
+      ctx.fillText('ВЕРСИЯ ' + GAME_VERSION, cx, subY + 28);
+      const lineW = 160 * easeOut((t - 1.9) / 0.6);
+      ctx.fillStyle = 'rgba(230,90,70,0.7)';
+      ctx.fillRect(cx - 190 - lineW, subY - 1, lineW, 2); ctx.fillRect(cx + 190, subY - 1, lineW, 2);
       ctx.restore();
     }
   }
 
-  /* девиз */
-  if(t >= 3.0){
+  /* ---- 2. сцены команд: Свет, затем Тьма ---- */
+  const sceneSwitch = INTRO_SCENES[1].start;
+  if(t >= sceneSwitch - INTRO_SCENE_FADE){            // тёмная подложка: сцены сменяются через чёрный кадр, а не накладываются
+    ctx.fillStyle = 'rgba(0,0,0,' + master.toFixed(3) + ')'; ctx.fillRect(0, 0, VW, VH);
+  }
+  for(let si = 0; si < INTRO_SCENES.length; si++){
+    const sc = INTRO_SCENES[si];
+    const u = t - sc.start;
+    if(u < 0) continue;
+    const next = INTRO_SCENES[si + 1];
+    let a = easeOut(u / (si ? 0.5 : 0.6));
+    if(next){
+      if(t >= next.start) continue;
+      a *= 1 - lineupEaseInOut((t - (next.start - INTRO_SCENE_FADE)) / INTRO_SCENE_FADE);
+    }
     ctx.save();
-    ctx.globalAlpha = clamp01((t - 3.0) / 0.5) * fade; ctx.textAlign = 'center';
-    if('letterSpacing' in ctx) ctx.letterSpacing = '3px';
-    ctx.font = 'bold 14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,240,199,0.8)';
-    ctx.fillText('ЗАЩИТИ СВОЙ ДРЕВНИЙ  •  УНИЧТОЖЬ ВРАЖЕСКИЙ', cx, VH * 0.9);
+    try { drawLineupScene(si, u, a * master); }
+    catch(err){ console.error('Заставка: ошибка сцены', err); }
     ctx.restore();
   }
 
-  /* кинематографичные чёрные полосы */
-  const bar = easeOut(t / 0.5) * (1 - easeInOut((t - 4.3) / 0.7));
-  const barH = VH * 0.11 * bar;
+  /* ---- финал: «ДА НАЧНЁТСЯ БИТВА» ---- */
+  const fT = t - 13.2;
+  if(fT > 0){
+    const fa = easeOut(fT / 0.5), ui2 = Math.max(0.72, Math.min(1.45, VH / 820));
+    if(!matchIntroFlags.finale){ matchIntroFlags.finale = true; playSynthSfx('ultimate'); }
+    ctx.save();
+    ctx.globalAlpha = master * fa * 0.45; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, VH);
+    ctx.globalAlpha = master * fa; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const fs = Math.round(Math.min(VW * 0.085, 92 * ui2)), sc3 = 1 + 0.25 * (1 - fa);
+    ctx.translate(VW / 2, VH * 0.46); ctx.scale(sc3, sc3);
+    if('letterSpacing' in ctx) ctx.letterSpacing = '6px';
+    ctx.font = 'italic 900 ' + fs + 'px "Segoe UI","Arial Black",sans-serif';
+    ctx.shadowColor = 'rgba(255,170,90,0.8)'; ctx.shadowBlur = 30;
+    ctx.lineWidth = Math.max(5, fs * 0.09); ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText('ДА НАЧНЁТСЯ БИТВА', 0, 0);
+    const fg2 = ctx.createLinearGradient(0, -fs / 2, 0, fs / 2);
+    fg2.addColorStop(0, '#fff6d6'); fg2.addColorStop(1, '#ffb347');
+    ctx.fillStyle = fg2; ctx.fillText('ДА НАЧНЁТСЯ БИТВА', 0, 0);
+    ctx.restore();
+  }
+
+  /* ---- 3. кинематографичные полосы и подсказка ---- */
+  const bar = easeOut(t / 0.5) * master;
+  const barH = VH * 0.1 * bar;
+  ctx.globalAlpha = 1;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, barH); ctx.fillRect(0, VH - barH, VW, barH);
-  ctx.fillStyle = 'rgba(230,90,70,0.75)'; ctx.fillRect(0, barH - 1, VW, 1.5); ctx.fillRect(0, VH - barH - 0.5, VW, 1.5);
+  const inLight = t >= INTRO_SCENES[1].start ? 1 : 0;
+  ctx.fillStyle = inLight ? 'rgba(255,106,94,0.75)' : 'rgba(114,230,165,0.75)';
+  if(t < INTRO_SCENES[0].start) ctx.fillStyle = 'rgba(230,90,70,0.75)';
+  ctx.fillRect(0, barH - 1, VW, 1.5); ctx.fillRect(0, VH - barH - 0.5, VW, 1.5);
+  if(t > 1.0 && barH > 8){
+    const ui = Math.max(0.72, Math.min(1.45, VH / 820));
+    ctx.save();
+    ctx.globalAlpha = 0.55 * master; ctx.textBaseline = 'middle';
+    ctx.font = 'bold ' + Math.round(11 * ui) + 'px Segoe UI, Arial';
+    if('letterSpacing' in ctx) ctx.letterSpacing = '2px';
+    ctx.textAlign = 'right'; ctx.fillStyle = '#fff';
+    ctx.fillText('ПРОБЕЛ / КЛИК — ПРОПУСТИТЬ', VW - 24, VH - barH / 2);
+    /* индикатор сцен слева */
+    ctx.textAlign = 'left';
+    INTRO_SCENES.forEach((sc, i) => {
+      const act = t >= sc.start && (i === INTRO_SCENES.length - 1 || t < INTRO_SCENES[i + 1].start);
+      ctx.fillStyle = act ? (i ? '#ff6a5e' : '#72e6a5') : 'rgba(255,255,255,0.35)';
+      ctx.fillText((i ? 'ТЬМА' : 'СВЕТ'), 24 + i * 90 * ui, VH - barH / 2);
+    });
+    ctx.restore();
+  }
   ctx.restore();
 }
 

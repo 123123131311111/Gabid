@@ -1779,6 +1779,14 @@ function onWorkerMsg(e){
   const d=e.data; if(!d) return;
   if(d.t==='meta'){ SPR_META[d.key]=d.m; META_PEND.delete(d.key); return; }
   if(d.t==='err'){ PEND.delete(d.key); META_PEND.delete(d.key); BAD.add(d.key); return; }
+  if(d.t==='stand'){
+    STAND_PEND.delete(d.key);
+    const res={data:new Uint8ClampedArray(d.data),glow:d.glow?new Uint8ClampedArray(d.glow):null,W:d.W,H:d.H};
+    const hi=toCanvas(res,'stand');
+    const cv=mkCanvas(d.W,d.H); cv.getContext('2d').drawImage(hi,0,0);
+    STAND[d.key]={canvas:cv,w:d.W,h:d.H,ax:d.W/2,ay:d.H*STAND_FOOT};
+    return;
+  }
   if(d.t==='spr'){
     PEND.delete(d.key);
     const m=SPR_META[d.mkey]; if(!m) return;
@@ -1896,6 +1904,37 @@ function battleSprite(def,radius,facing,time,anim,probe){
   g.drawImage(hi,0,0,m.W,m.H);
   s={canvas:cv,ax:m.ax,ay:m.ay,w:m.W,h:m.H,u:sprFrame};
   storeSprite(key,s); return s;
+}
+/* ---------- Кинематографическая заставка: боец «стоит» лицом к камере ----------
+   Крупный кадр (size×size) рисуется один раз в воркере и кэшируется. Поворот yaw: > 0 — боец
+   смотрит влево на экране, < 0 — вправо. Ноги всегда на линии ay = h * STAND_FOOT. */
+const STAND={}, STAND_PEND=new Set();
+const STAND_FOOT=.88;
+let standSyncFrame=-1;
+function standRaw(def,size,yaw){
+  const unit=.2*size, f=unit*9;
+  return render(def,{W:size,H:size,yaw:yaw||0,pitch:.1,t:.3,f,cx:size/2,cy:size*.62,pedestal:false,pose:{kind:'idle'}});
+}
+function stand(def,size,yaw){
+  if(typeof document==='undefined'||!def||!MODELS[def.id]) return null;
+  size=Math.round(size||480); yaw=Math.round((yaw||0)*100)/100;
+  const key='st|'+def.id+'|'+(def.skinId||'')+'|'+size+'|'+yaw;
+  if(STAND[key]) return STAND[key];
+  if(STAND_PEND.has(key)) return null;
+  const sd={id:def.id,skinId:def.skinId,color:def.color,color2:def.color2};
+  const wk=getWorker();
+  if(wk){
+    STAND_PEND.add(key);
+    wk.postMessage({t:'stand',key,def:sd,size,yaw});
+    return null;
+  }
+  /* запасной путь без Worker: не больше одного кадра за такт */
+  if(standSyncFrame===sprFrame) return null;
+  standSyncFrame=sprFrame;
+  const res=standRaw(sd,size,yaw);
+  const hi=toCanvas(res,'stand');
+  const cv=mkCanvas(res.W,res.H); cv.getContext('2d').drawImage(hi,0,0);
+  return STAND[key]={canvas:cv,w:res.W,h:res.H,ax:res.W/2,ay:res.H*STAND_FOOT};
 }
 /* Предварительный прогрев: в начале матча воркер заранее считает покой и ходьбу всех бойцов */
 const WARM=[];
@@ -2678,6 +2717,12 @@ if(typeof document==='undefined'&&typeof self!=='undefined'&&typeof importScript
       if(d.t==='meta'){
         const m=meta(d.def,d.radius);
         self.postMessage({t:'meta',key:d.key,m});
+      } else if(d.t==='stand'){
+        const res=standRaw(d.def,d.size,d.yaw);
+        const n=res.W*res.H*4;
+        const data=res.data.slice(0,n), glow=res.glow?res.glow.slice(0,n):null;
+        const tr=[data.buffer]; if(glow) tr.push(glow.buffer);
+        self.postMessage({t:'stand',key:d.key,W:res.W,H:res.H,data:data.buffer,glow:glow?glow.buffer:null},tr);
       } else if(d.t==='spr'){
         const m=meta(d.def,d.radius);
         const res=spriteRaw(d.def,m,d.animated,d.pose,d.fr,d.ang);
@@ -2689,7 +2734,7 @@ if(typeof document==='undefined'&&typeof self!=='undefined'&&typeof importScript
     }catch(err){ self.postMessage({t:'err',key:d.key,message:String(err&&err.message||err)}); }
   };
 }
-const API={draw,models:MODELS,monsterIds:MON_IDS,render,battleSprite,resetBudget,prewarm,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
+const API={draw,models:MODELS,monsterIds:MON_IDS,render,battleSprite,stand,resetBudget,prewarm,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
 (typeof window!=='undefined'?window:globalThis).Hero3D=API;
 if(typeof module!=='undefined') module.exports=API;
 })();
