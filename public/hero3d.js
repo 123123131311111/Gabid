@@ -38,13 +38,46 @@ function basisY(dir,hint){
   return [x,y,z];
 }
 
+/* ---------- 0.9.0: универсальные скины — перекраска любой модели ---------- */
+function rgb2hsl(c){
+  const r=c[0]/255,g=c[1]/255,b=c[2]/255, mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2;
+  let h=0,s=0;
+  if(mx!==mn){
+    const d=mx-mn; s=l>.5?d/(2-mx-mn):d/(mx+mn);
+    if(mx===r) h=(g-b)/d+(g<b?6:0); else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4;
+    h*=60;
+  }
+  return [h,s,l];
+}
+function hsl2rgb(h,s,l){
+  h=((h%360)+360)%360/360;
+  const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q;
+  const f=t=>{ t=(t+1)%1; return t<1/6?p+(q-p)*6*t:t<.5?q:t<2/3?p+(q-p)*(2/3-t)*6:p; };
+  return [Math.round(f(h+1/3)*255),Math.round(f(h)*255),Math.round(f(h-1/3)*255)];
+}
+const SKIN_TINTS={
+  /* Золотой Чемпион: тёплое золото, светлее и насыщеннее */
+  goldChampion:c=>{
+    const [h,s,l]=rgb2hsl(c);
+    const nl=Math.min(.9,l*1.08+.05);
+    return hsl2rgb(44+(h%30)*.15, Math.min(.95,Math.max(.55,s*.8+.28)), nl);
+  },
+  /* Фантом Пустоты: тёмно-фиолетовый корпус и ярко светящиеся акценты */
+  voidPhantom:c=>{
+    const [h,s,l]=rgb2hsl(c);
+    const nl=l>.72?Math.min(.9,l):l*.62;
+    return hsl2rgb(272+(h%40)*.2, Math.min(.85,Math.max(.4,s*.7+.22)), nl);
+  }
+};
+
 /* ---------- Сцена ---------- */
 class Scene{
-  constructor(){ this.faces=[]; this.pre=[]; this.sc=1; this.target=this.faces; }
+  constructor(){ this.faces=[]; this.pre=[]; this.sc=1; this.target=this.faces; this.tx=null; }
   face(pts,center,color,glow,nm,shine,vn){
     const k=this.sc;
     const P=pts.map(p=>[p[0]*k,p[1]*k,p[2]*k]);
-    const col=rgb(color);
+    let col=rgb(color);
+    if(this.tx) col=this.tx(col);
     if(shine==null){
       const mx=Math.max(col[0],col[1],col[2]), mn=Math.min(col[0],col[1],col[2]);
       shine=(mx>105 && (mx-mn)/mx<.22)?.6:.16;
@@ -1510,6 +1543,7 @@ function render(def,o){
   const S=new Scene();
   if(o.pedestal) drawPedestal(S,def,t);
   CUR_WALK=(o.pose&&o.pose.kind==='walk')?(o.pose.p||0)*Math.PI*2:null;
+  S.tx=(def&&def.skinId&&SKIN_TINTS[def.skinId])||null;
   (MODELS[def.id]||fallback)(S,def,t,o.pose);
   const walkBob=(CUR_WALK==null)?0:Math.abs(Math.sin(CUR_WALK))*.035;
   CUR_WALK=null;

@@ -592,13 +592,36 @@ let testHeroPickerOpen = false;
 let storeOpen = false;
 let storeTab = 'shop';
 let storeCategory = 'skins';
-let redReginaSkinOwned = false;
-let redReginaSkinEquipped = false;
+/* 0.9.0: список скинов магазина. heroId — скин только для одного героя, null — подходит всем. */
+const SKIN_DEFS = [
+  {id:'reginaRed', name:'КРАСНАЯ РИГИНА', heroId:'regina', accent:'#ff5968', border:'#b52d3c', previewHero:'regina', previewColor:'#5b101e', previewColor2:'#ff4058',
+   desc:'Алый боевой образ Ригины. Не меняет характеристики героя.', hint:'Будет виден, когда выбран герой Ригина.'},
+  {id:'goldChampion', name:'ЗОЛОТОЙ ЧЕМПИОН', heroId:null, accent:'#ffd34f', border:'#c9962a', previewHero:'shadow',
+   desc:'Парадный золотой образ: доспех, одежда и сияние любого героя становятся золотыми. Не меняет характеристики.', hint:'Виден на любом выбранном герое.'},
+  {id:'voidPhantom', name:'ФАНТОМ ПУСТОТЫ', heroId:null, accent:'#b07cff', border:'#6f45b8', previewHero:'shadow',
+   desc:'Тёмный образ из пустоты: фиолетовое тело и ярко светящиеся акценты у любого героя. Не меняет характеристики.', hint:'Виден на любом выбранном герое.'}
+];
+const SKIN_BY_ID = {};
+for(const sk of SKIN_DEFS) SKIN_BY_ID[sk.id] = sk;
+let skinsOwned = {};
+let skinEquippedId = null;
+let storeSelectedSkin = 0;
 try {
   const savedCosmetics = JSON.parse(localStorage.getItem('shadowRampageCosmetics') || '{}');
-  redReginaSkinOwned = savedCosmetics.redReginaOwned === true;
-  redReginaSkinEquipped = redReginaSkinOwned && savedCosmetics.redReginaEquipped === true;
+  if(savedCosmetics.redReginaOwned === true) skinsOwned.reginaRed = true;
+  if(savedCosmetics.skinsOwned && typeof savedCosmetics.skinsOwned === 'object'){
+    for(const sk of SKIN_DEFS) if(savedCosmetics.skinsOwned[sk.id] === true) skinsOwned[sk.id] = true;
+  }
+  if(savedCosmetics.redReginaEquipped === true && skinsOwned.reginaRed) skinEquippedId = 'reginaRed';
+  if(typeof savedCosmetics.skinEquipped === 'string' && skinsOwned[savedCosmetics.skinEquipped] && SKIN_BY_ID[savedCosmetics.skinEquipped]) skinEquippedId = savedCosmetics.skinEquipped;
 } catch(err) {}
+/* Скин, который реально применяется к данному герою (или null). */
+function activeSkinFor(heroId){
+  const sk = skinEquippedId && SKIN_BY_ID[skinEquippedId];
+  if(!sk || !skinsOwned[sk.id]) return null;
+  if(sk.heroId && sk.heroId !== heroId) return null;
+  return sk.id;
+}
 let storePhraseOwned = false;
 let storeChipOwned = false;
 let storeAudioOwned = false;
@@ -644,7 +667,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.8.9';
+const GAME_VERSION = '0.9.0';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -731,7 +754,14 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.8.9', title:'РОШАН', changes:[
+  const sections = [{version:'0.9.0', title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ', changes:[
+    'Новый предмет «Валакинсенс» (1900 монет): пассивно +15 к восстановлению здоровья в секунду. Активный: на 3 сек. +50% сопротивления урону и +100 к скорости передвижения. КД 20 сек.',
+    'Новый предмет «Торированная бошка» (1660 монет): бросается в ближайшего врага (сначала в бойцов), оглушает его на 4 сек. и наносит 225 урона каждую секунду оглушения. Дальность 700, КД 20 сек.',
+    'Новый предмет «Киска дианы» (2200 монет): пассивный круг радиусом 380 вокруг героя — враги внутри наносят на 9% меньше урона. Активный: на 5 сек. враги в круге получают по 100 урона в секунду. КД 30 сек.',
+    'В магазине скинов появились два новых бесплатных скина для любого героя: «Золотой Чемпион» и «Фантом Пустоты». Скины видны в бою, в меню и на портретах и не меняют характеристики.',
+    'Магазин и инвентарь скинов переделаны в список карточек: можно получить несколько скинов и выбрать, какой надет.'
+  ]},
+  {version:'0.8.9', title:'РОШАН', changes:[
     'На реке появилось логово Рошана. Босс появляется на 3-й минуте игры и защищает своё логово.',
     'За убийство Рошана: +1500 монет и Аэгис — предмет возрождения на 1 минуту. Если носитель умирает, Аэгис исчезает, а он тут же возрождается на месте.',
     'Рошан возвращается через 5 минут после смерти. Его логово и метка видны на миникарте.',
@@ -1011,6 +1041,24 @@ SHOP_ITEMS.disperser = {
   speed:30, manaBurn:250, burnDamageRatio:0.6, slow:0.5, slowDuration:4, hasteSpeed:180, hasteDuration:4, cooldown:14, castRange:650
 };
 SHOP_ITEM_IDS.push('kayaSange','windWaker','holyLocket','nullifier','disperser');
+
+/* ===== 0.9.0: три новых предмета (цены ровно как указаны — добавлены после множителя 0.93) ===== */
+SHOP_ITEMS.valakinsens = {
+  name:'Валакинсенс', icon:'✚', cost:1900, color:'#5fe0a0', active:true,
+  desc:'Пассивно: +15 к восстановлению здоровья в секунду. Активный: на 3 сек. даёт +50% сопротивления урону и +100 к скорости передвижения. КД 20 сек.',
+  hpRegen:15, activeDuration:3, cooldown:20, damageResistance:0.50, moveSpeed:100
+};
+SHOP_ITEMS.thoredHead = {
+  name:'Торированная бошка', icon:'☠', cost:1660, color:'#ff9a4d', active:true,
+  desc:'Активный: бросается в ближайшего врага (сначала в бойцов) и оглушает его на 4 сек., нанося 225 урона каждую секунду оглушения. Дальность 700. КД 20 сек.',
+  cooldown:20, stunDuration:4, tickDamage:225, tickInterval:1, castRange:700
+};
+SHOP_ITEMS.dianaKitty = {
+  name:'Киска дианы', icon:'❀', cost:2200, color:'#ff8fcf', active:true,
+  desc:'Пассивно: вокруг героя постоянно действует круг радиусом 380 — враги внутри наносят на 9% меньше урона. Активный: на 5 сек. враги в этом круге получают по 100 урона каждую секунду. КД 30 сек.',
+  auraRadius:380, damageReduction:0.09, activeDuration:5, cooldown:30, burstDamage:100, tickInterval:1
+};
+SHOP_ITEM_IDS.push('valakinsens','thoredHead','dianaKitty');
 const SHOP_ITEM_VIEWS = SHOP_ITEM_IDS.map(id => ({...SHOP_ITEMS[id], id}));
 
 /* Общие помощники для новых предметов. */
@@ -1019,7 +1067,7 @@ function healAmpOf(unit){ return heroHasItem(unit,'holyLocket') ? 1 + SHOP_ITEMS
 function statusResistOf(unit){ return heroHasItem(unit,'kayaSange') ? SHOP_ITEMS.kayaSange.statusResist : 0; }
 const POSITIVE_BUFF_TYPES = new Set(['armor','shardArmor','spd','as','dmg','haste','regen','hpregen','shardShield','shardBlade','shardSpell','juvsyutGuard','dawnShardShield','tribuShield','mageReflect','bladeFury','bloodrage','enchantTotem','ilyaAura','exileRage','reginaUnleash','electricOverload']);
 const NEGATIVE_BUFF_TYPES = new Set(['burning','poison','vaspPoison','yosypPoison','yosypDrain','fear','shardMark']);
-const NULLIFY_BLOCKED_ITEMS = new Set(['bkb','zamist','superBoots','mantledSteel','timurPillow','windWaker']);
+const NULLIFY_BLOCKED_ITEMS = new Set(['bkb','zamist','superBoots','mantledSteel','timurPillow','windWaker','valakinsens']);
 /* Срывает положительные эффекты и защитные предметы (Нуллификатор, Ураган). */
 function purgePositiveEffects(unit){
   if(!unit) return;
@@ -2027,19 +2075,20 @@ function unlockStorePhrase(id){
   if(id==='shovel') storeShovelOwned=true;
 }
 
-function saveReginaSkinState(){
+function saveSkinState(){
   try {
     localStorage.setItem('shadowRampageCosmetics',JSON.stringify({
-      redReginaOwned:redReginaSkinOwned,redReginaEquipped:redReginaSkinEquipped
+      skinsOwned:skinsOwned, skinEquipped:skinEquippedId,
+      redReginaOwned:!!skinsOwned.reginaRed, redReginaEquipped:skinEquippedId==='reginaRed'
     }));
   } catch(err) {}
 }
 
-function setReginaSkinEquipped(equipped){
-  if(!redReginaSkinOwned) return;
-  redReginaSkinEquipped=equipped;
-  if(playerHero && playerHero.def.id==='regina') playerHero.skinId=equipped?'reginaRed':null;
-  saveReginaSkinState();
+function setSkinEquipped(skinId, equipped){
+  if(!skinsOwned[skinId]) return;
+  skinEquippedId = equipped ? skinId : (skinEquippedId === skinId ? null : skinEquippedId);
+  if(playerHero) playerHero.skinId = activeSkinFor(playerHero.def.id);
+  saveSkinState();
 }
 
 function updatePhraseWheelSelection(){
@@ -2326,6 +2375,14 @@ function applyDamage(target, amount, source){
   if(!(source && source.attack) && target.def && target.def.id === 'savely' && hasScepter(target)) amount *= 0.70;
   const zamist=target.inventory&&target.inventory.find(item=>item&&item.id==='zamist');
   if(zamist&&zamist.activeTimer>0) amount*=1-SHOP_ITEMS.zamist.damageResistance;
+  const valakinsens=target.inventory&&target.inventory.find(item=>item&&item.id==='valakinsens');
+  if(valakinsens&&valakinsens.activeTimer>0) amount*=1-SHOP_ITEMS.valakinsens.damageResistance;
+  /* Киска дианы: враги внутри круга союзного носителя наносят на 9% меньше урона */
+  if(source && amount>0){
+    const kittyAttacker = (source.x!==undefined && source.hp!==undefined) ? source : source.source;
+    if(kittyAttacker && kittyAttacker.team!==undefined && kittyAttacker.team!==target.team && kittyAuraCovers(kittyAttacker, target.team))
+      amount*=1-SHOP_ITEMS.dianaKitty.damageReduction;
+  }
   if(source && source.attack && attackResistance) amount *= 1 - attackResistance;
   const shardShield = target.buffs && target.buffs.some(buff => buff.type === 'shardShield');
   if(source && source.attack && shardShield) amount *= 0.65;
@@ -3287,6 +3344,41 @@ function performInventoryItemActivation(hero, index){
     fxRing(hero.x,hero.y,100,'#ed3d4e',0.65);
     return true;
   }
+  if(item.id === 'valakinsens'){
+    if(item.cooldown > 0){ flashMsg(hero, 'Валакинсенс на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    item.cooldown = SHOP_ITEMS.valakinsens.cooldown;
+    item.activeTimer = SHOP_ITEMS.valakinsens.activeDuration;
+    addText(hero.x, hero.y - 56, 'ВАЛАКИНСЕНС: ЗАЩИТА И СКОРОСТЬ', '#5fe0a0', 1.1, 16);
+    fxRing(hero.x, hero.y, 100, '#5fe0a0', 0.6);
+    fxRing(hero.x, hero.y, 60, '#d6ffe9', 0.4);
+    spawnParticles(hero.x, hero.y, '#9dffc9', 14, 1);
+    return true;
+  }
+  if(item.id === 'thoredHead'){
+    const cfg = SHOP_ITEMS.thoredHead;
+    if(item.cooldown > 0){ flashMsg(hero, 'Торированная бошка на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    const target = thoredPickTarget(hero);
+    if(!target){ flashMsg(hero, 'Нет врагов рядом'); return false; }
+    item.cooldown = cfg.cooldown;
+    target.stunTimer = Math.max(target.stunTimer || 0, cfg.stunDuration);
+    target.thoredDot = {src:hero, next:cfg.tickInterval, ticks:0, total:Math.round(cfg.stunDuration / cfg.tickInterval)};
+    addText(target.x, target.y - 64, 'ТОРИРОВАННАЯ БОШКА!', '#ff9a4d', 1.2, 17);
+    fxBeam(hero.x, hero.y, target.x, target.y, '#ff9a4d', 0.35);
+    fxRing(target.x, target.y, 90, '#ff9a4d', 0.6);
+    spawnParticles(target.x, target.y, '#ffd0a0', 16, 1.1);
+    return true;
+  }
+  if(item.id === 'dianaKitty'){
+    const cfg = SHOP_ITEMS.dianaKitty;
+    if(item.cooldown > 0){ flashMsg(hero, 'Киска дианы на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    item.cooldown = cfg.cooldown;
+    item.activeTimer = cfg.activeDuration;
+    item.kittyTick = 0;
+    addText(hero.x, hero.y - 56, 'КИСКА ДИАНЫ', '#ff8fcf', 1.1, 16);
+    fxRing(hero.x, hero.y, cfg.auraRadius, '#ff8fcf', 0.7);
+    fxRing(hero.x, hero.y, cfg.auraRadius * 0.6, '#ffd0ec', 0.5);
+    return true;
+  }
   if(item.id === 'windWaker'){
     const cfg = SHOP_ITEMS.windWaker;
     if(item.cooldown > 0){ flashMsg(hero, 'Вейкер Ветра на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
@@ -4160,6 +4252,9 @@ const GUIDE_ITEM_WHY = {
   "kayaSange": "Здоровье, мана, +18% урона способностей и сопротивление оглушениям.",
   "bkb": "БКБ: на 10 сек. режет урон атак на 60% и снимает оглушение.",
   "zamist": "Замисть: +65% сопротивления урону, урон и скорость на 10 сек.",
+  "valakinsens": "+15 к регенерации HP; актив: +50% сопротивления и +100 скорости на 3 сек.",
+  "thoredHead": "Бросается в ближайшего врага: стан 4 сек. и 225 урона каждую секунду.",
+  "dianaKitty": "Круг -9% урона врагов вокруг героя; актив: 100 урона/сек. в круге 5 сек.",
   "manaHooves": "+800 маны — для тех, кто живёт на способностях.",
   "manaTome": "+10% к восстановлению маны — дёшево и полезно в начале.",
   "blink": "Блинк: рывок на 500 — войти в драку или сбежать.",
@@ -4280,6 +4375,40 @@ function tickDianaAura(hero){
   }
 }
 
+/* 0.9.0: Киска дианы — пассивный круг вокруг героя и активный урон по кругу. */
+function kittyAuraCovers(attacker, team){
+  const cfg = SHOP_ITEMS.dianaKitty;
+  for(const h of heroes){
+    if(h.dead || h.team !== team || !heroHasItem(h, 'dianaKitty')) continue;
+    if(Math.hypot(attacker.x-h.x, attacker.y-h.y) <= cfg.auraRadius + (attacker.radius||0)) return true;
+  }
+  return false;
+}
+function tickDianaKitty(hero){
+  const cfg = SHOP_ITEMS.dianaKitty;
+  const dmg = cfg.burstDamage * cfg.tickInterval;
+  for(const u of units){
+    if(u.dead || u.team === hero.team || isBuilding(u)) continue;
+    if(Math.hypot(u.x-hero.x, u.y-hero.y) > cfg.auraRadius + (u.radius||0)) continue;
+    applyDamage(u, dmg, {team:hero.team, source:hero, trueDamage:true, skipAbilityScaling:true});
+    if(!perfLite()) fxHit(u.x, u.y, '#ff8fcf');
+  }
+}
+/* Торированная бошка: ближайший враг — сначала боец, иначе любой не-строение. */
+function thoredPickTarget(hero){
+  const range = SHOP_ITEMS.thoredHead.castRange;
+  let best = null, bestScore = Infinity;
+  for(const u of units){
+    if(u.dead || u.team === hero.team || isBuilding(u) || isStructure(u) || u.isRoshan || u.invulnerable || u.windTimer > 0) continue;
+    const d = Math.hypot(u.x-hero.x, u.y-hero.y);
+    if(d > range + (u.radius||0)) continue;
+    const isFighter = u.type === 'hero' && !u.isIllusion;
+    const score = d + (isFighter ? 0 : 100000);
+    if(score < bestScore){ bestScore = score; best = u; }
+  }
+  return best;
+}
+
 /* =========================================================
    UNIT
    ========================================================= */
@@ -4335,6 +4464,8 @@ class Unit {
     if(eggGolly&&eggGolly.activeTimer>0) speed+=SHOP_ITEMS.eggGolly.moveSpeed;
     const zamist=this.inventory&&this.inventory.find(item=>item&&item.id==='zamist');
     if(zamist&&zamist.activeTimer>0) speed+=SHOP_ITEMS.zamist.moveSpeed;
+    const valakinsensItem=this.inventory&&this.inventory.find(item=>item&&item.id==='valakinsens');
+    if(valakinsensItem&&valakinsensItem.activeTimer>0) speed+=SHOP_ITEMS.valakinsens.moveSpeed;
     if(heroHasItem(this,'disperser')) speed+=SHOP_ITEMS.disperser.speed;
     if(this.buffs.some(buff=>buff.type==='haste')) speed+=180;
     if(this.def&&this.def.id==='malit'&&this.skills&&this.skills[1]&&this.skills[1].level>0) speed*=1.18;
@@ -4372,6 +4503,20 @@ class Unit {
     if(this.nullifyTimer>0){
       this.nullifyTimer=Math.max(0,this.nullifyTimer-dt);
       purgePositiveEffects(this);
+    }
+    if(this.thoredDot){
+      const dot=this.thoredDot;
+      if(this.dead){ this.thoredDot=null; }
+      else {
+        dot.next-=dt;
+        while(dot && dot.next<=0 && dot.ticks<dot.total){
+          dot.next+=SHOP_ITEMS.thoredHead.tickInterval; dot.ticks++;
+          applyDamage(this, SHOP_ITEMS.thoredHead.tickDamage, {team:dot.src.team, source:dot.src, magic:true, trueDamage:true, skipAbilityScaling:true});
+          fxHit(this.x,this.y,'#ff9a4d'); addText(this.x,this.y-this.radius-18,'-'+SHOP_ITEMS.thoredHead.tickDamage,'#ff9a4d',0.7,14);
+          if(this.dead){ break; }
+        }
+        if(this.dead || dot.ticks>=dot.total) this.thoredDot=null;
+      }
     }
     if(this.stunTimer>0) this.stunTimer-=dt;
     if(this.stunTimer>0 && !this.stunSoundActive){ playHeroSfx('stun'); this.stunSoundActive=true; }
@@ -7978,6 +8123,13 @@ class Hero extends Unit {
           }
         }
       }
+      if(item.id === 'dianaKitty' && item.activeTimer > 0 && !this.dead){
+        item.kittyTick = (item.kittyTick || 0) - dt;
+        if(item.kittyTick <= 0){
+          item.kittyTick = SHOP_ITEMS.dianaKitty.tickInterval;
+          tickDianaKitty(this);
+        }
+      }
       if(item.id === 'dianaPants' && item.auraOn && !this.dead){
         item.auraTimer = (item.auraTimer || 0) - dt;
         if(item.auraTimer <= 0){
@@ -7996,6 +8148,7 @@ class Hero extends Unit {
 
     let regen = this.hpRegen;
     for(const b of this.buffs) if(b.type === 'hpregen') regen += b.val;
+    if(heroHasItem(this,'valakinsens')) regen += SHOP_ITEMS.valakinsens.hpRegen;
     if(this.buffs.some(b=>b.type==='regen')) regen += this.maxHp*0.04;
     this.hp = Math.min(this.maxHp, this.hp + regen*dt*healAmpOf(this));
 
@@ -8344,7 +8497,7 @@ function startGame(playerIndex, draftPicks=null){
 
   playerHero = new Hero(HERO_DEFS[playerIndex], 0);
   playerHero.isPlayer = true;
-  if(redReginaSkinEquipped && playerHero.def.id==='regina') playerHero.skinId='reginaRed';
+  playerHero.skinId = activeSkinFor(playerHero.def.id);
   enemyHero  = new Hero(HERO_DEFS[enemyIndex], 1);
   const allyHero = new Hero(HERO_DEFS[allyIndex], 0);
   const allyHero2 = new Hero(HERO_DEFS[allyIndex2], 0);
@@ -8445,7 +8598,7 @@ function startTestMode(playerIndex){
 
   playerHero = new Hero(HERO_DEFS[playerIndex], 0);
   playerHero.isPlayer = true;
-  if(redReginaSkinEquipped && playerHero.def.id==='regina') playerHero.skinId='reginaRed';
+  playerHero.skinId = activeSkinFor(playerHero.def.id);
   enemyHero = null;
   playerHero.x = WORLD/2;
   playerHero.y = WORLD/2;
@@ -11509,7 +11662,7 @@ function drawUnit(u){
     ctx.restore();
   }
   if(u.type === 'hero' && !perfLite()){
-    const heroAccent = u.skinId === 'reginaRed' ? '#ff344f' : (u.def.color2 || col);
+    const heroAccent = u.skinId === 'reginaRed' ? '#ff344f' : (u.skinId === 'goldChampion' ? '#ffd34f' : (u.skinId === 'voidPhantom' ? '#b07cff' : (u.def.color2 || col)));
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = heroAccent;
@@ -11578,7 +11731,12 @@ function drawUnit(u){
     }
     if(perfLite()) anim3d = null;      /* супер низкая: без анимаций моделей — статичные спрайты */
     if(u.bikeTimer > 0 && u.def.id === 'mo3gi') anim3d = null;   /* на байке боец сидит, не шагает */
-    hero3dSpr = Hero3D.battleSprite(u.def, u.radius, fa, gameTime, anim3d);
+    let spriteDef = u.def;
+    if(u.skinId && u.skinId !== u.def.skinId && SKIN_BY_ID[u.skinId]){
+      if(!u._skinDefCache || u._skinDefCache.skinId !== u.skinId) u._skinDefCache = {...u.def, skinId:u.skinId};
+      spriteDef = u._skinDefCache;
+    }
+    hero3dSpr = Hero3D.battleSprite(spriteDef, u.radius, fa, gameTime, anim3d);
     if(hero3dSpr){
       const footY = u.radius*0.7;
       // 0.8.7: мягкая тень под ногами — боец «стоит» на земле, а не парит
@@ -13096,6 +13254,21 @@ function drawUnit(u){
   }
   if(FX_3D && !perfLite() && (u.type==='hero'||u.type==='neutral'||u.type==='creep'||u.type==='tower'||u.type==='ancient')) draw3DLighting(u);
   ctx.restore();
+  const kittyItem = u.inventory && u.inventory.find(i => i && i.id === 'dianaKitty');
+  if(kittyItem && !u.dead){
+    const kr = SHOP_ITEMS.dianaKitty.auraRadius, on = kittyItem.activeTimer > 0;
+    const kp = 0.5 + 0.5*Math.sin(gameTime*(on?7:2.5));
+    ctx.save();
+    const kg = ctx.createRadialGradient(u.x,u.y,kr*0.25,u.x,u.y,kr);
+    kg.addColorStop(0,'rgba(255,143,207,0)');
+    kg.addColorStop(1,'rgba(255,143,207,'+(on ? 0.22+kp*0.12 : 0.05+kp*0.03)+')');
+    ctx.fillStyle = kg; ctx.beginPath(); ctx.arc(u.x,u.y,kr,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,170,220,'+(on ? 0.85 : 0.32+kp*0.12)+')';
+    ctx.lineWidth = on ? 3 : 1.5; ctx.setLineDash(on ? [] : [10,12]);
+    ctx.lineDashOffset = -gameTime*20;
+    ctx.beginPath(); ctx.arc(u.x,u.y,kr,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
   const dianaAura = u.inventory && u.inventory.find(i => i && i.id === 'dianaPants' && i.auraOn);
   if(dianaAura && !u.dead){
     const auraR = SHOP_ITEMS.dianaPants.auraRadius;
@@ -14734,6 +14907,51 @@ function drawItemIcon(item, x, y, size){
       ctx.beginPath(); ctx.moveTo(endX-direction*size*.15,y-size*.13); ctx.lineTo(endX,y); ctx.lineTo(endX-direction*size*.15,y+size*.13); ctx.stroke();
     }
     ctx.restore();
+  } else if(item.id === 'valakinsens'){
+    ctx.save();
+    ctx.shadowColor='#5fe0a0'; ctx.shadowBlur=14;
+    const g=ctx.createLinearGradient(-size*.3,-size*.4,size*.3,size*.4);
+    g.addColorStop(0,'#e6fff2'); g.addColorStop(.4,'#4fd698'); g.addColorStop(1,'#0e5a3c');
+    ctx.fillStyle=g; ctx.strokeStyle='#c9ffe3'; ctx.lineWidth=Math.max(1.5,size*.045); ctx.lineJoin='round';
+    const a=size*.14, b=size*.4;
+    ctx.beginPath();
+    ctx.moveTo(-a,-b); ctx.lineTo(a,-b); ctx.lineTo(a,-a); ctx.lineTo(b,-a); ctx.lineTo(b,a); ctx.lineTo(a,a);
+    ctx.lineTo(a,b); ctx.lineTo(-a,b); ctx.lineTo(-a,a); ctx.lineTo(-b,a); ctx.lineTo(-b,-a); ctx.lineTo(-a,-a); ctx.closePath();
+    ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=Math.max(1,size*.03); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-size*.5,size*.02); ctx.lineTo(-size*.3,size*.02); ctx.lineTo(-size*.22,-size*.1); ctx.lineTo(-size*.12,size*.14); ctx.lineTo(-size*.05,size*.02); ctx.stroke();
+    ctx.restore();
+  } else if(item.id === 'thoredHead'){
+    ctx.save();
+    ctx.shadowColor='#ff9a4d'; ctx.shadowBlur=12;
+    const hg=ctx.createRadialGradient(-size*.1,-size*.12,size*.04,0,0,size*.42);
+    hg.addColorStop(0,'#ffe3c2'); hg.addColorStop(.55,'#e8935a'); hg.addColorStop(1,'#7a3418');
+    ctx.fillStyle=hg; ctx.strokeStyle='#ffd0a0'; ctx.lineWidth=Math.max(1.5,size*.045);
+    ctx.beginPath(); ctx.ellipse(0,size*.04,size*.3,size*.34,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    /* рога-шлем */
+    ctx.fillStyle='#d9dde3';
+    for(const d of [-1,1]){ ctx.beginPath(); ctx.moveTo(d*size*.24,-size*.14); ctx.quadraticCurveTo(d*size*.46,-size*.2,d*size*.4,-size*.44); ctx.quadraticCurveTo(d*size*.3,-size*.28,d*size*.14,-size*.26); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#2a1208';
+    for(const d of [-1,1]){ ctx.beginPath(); ctx.arc(d*size*.12,size*.0,size*.045,0,Math.PI*2); ctx.fill(); }
+    /* молния через лицо */
+    ctx.fillStyle='#fff27a'; ctx.strokeStyle='#b88a00'; ctx.lineWidth=Math.max(1,size*.025);
+    ctx.beginPath(); ctx.moveTo(size*.04,-size*.16); ctx.lineTo(-size*.1,size*.1); ctx.lineTo(-size*.01,size*.1); ctx.lineTo(-size*.06,size*.36); ctx.lineTo(size*.12,size*.04); ctx.lineTo(size*.03,size*.04); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  } else if(item.id === 'dianaKitty'){
+    ctx.save();
+    ctx.shadowColor='#ff8fcf'; ctx.shadowBlur=12;
+    const cg=ctx.createRadialGradient(-size*.1,-size*.1,size*.04,0,size*.04,size*.42);
+    cg.addColorStop(0,'#fff0fa'); cg.addColorStop(.5,'#ff9fd6'); cg.addColorStop(1,'#8a2a6a');
+    ctx.fillStyle=cg; ctx.strokeStyle='#ffd6ee'; ctx.lineWidth=Math.max(1.5,size*.045); ctx.lineJoin='round';
+    for(const d of [-1,1]){ ctx.beginPath(); ctx.moveTo(d*size*.34,-size*.04); ctx.lineTo(d*size*.3,-size*.42); ctx.lineTo(d*size*.08,-size*.2); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    ctx.beginPath(); ctx.ellipse(0,size*.06,size*.36,size*.3,0,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.fillStyle='#3a0f2c';
+    for(const d of [-1,1]){ ctx.beginPath(); ctx.ellipse(d*size*.14,size*.02,size*.04,size*.065,0,0,Math.PI*2); ctx.fill(); }
+    ctx.fillStyle='#ff5aa8'; ctx.beginPath(); ctx.moveTo(-size*.04,size*.1); ctx.lineTo(size*.04,size*.1); ctx.lineTo(0,size*.15); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=Math.max(1,size*.025); ctx.lineCap='round';
+    for(const d of [-1,1]) for(const k of [-1,0,1]){ ctx.beginPath(); ctx.moveTo(d*size*.12,size*.14+k*size*.03); ctx.lineTo(d*size*.46,size*.1+k*size*.08); ctx.stroke(); }
+    ctx.restore();
   } else {
     const seed = Array.from(String(item.id || '')).reduce((sum, char) => sum + char.charCodeAt(0), 0);
     ctx.save();
@@ -16100,6 +16318,32 @@ function menuGfxSegments(layout){
   return PERF_NAMES.map((name,index)=>({index,name,x:g.x+index*(w+gap),y:top,w,h}));
 }
 function menuStoreRect(){ if(menuWide()) return DS_OFFSCREEN; return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
+/* 0.9.0: карточки скинов (магазин и инвентарь) */
+function skinPreviewDef(sk){
+  const base=HERO_DEFS.find(h=>h.id===(sk.previewHero||'shadow'))||HERO_DEFS[0];
+  return sk.previewColor ? {...base,color:sk.previewColor,color2:sk.previewColor2||base.color2,skinId:sk.id} : {...base,skinId:sk.id};
+}
+function drawSkinCards(layout,list,mode){
+  list.forEach((sk,index)=>{
+    const card=layout.skinCards[index]; if(!card) return;
+    const selected=SKIN_DEFS[storeSelectedSkin]===sk;
+    const owned=!!skinsOwned[sk.id], equipped=skinEquippedId===sk.id;
+    ctx.fillStyle='rgba(24,16,25,0.96)'; ctx.fillRect(card.x,card.y,card.w,card.h);
+    ctx.strokeStyle=equipped?'#72e6a5':sk.border; ctx.lineWidth=selected?3.5:1.5; ctx.strokeRect(card.x,card.y,card.w,card.h);
+    if(selected){ ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(card.x,card.y,card.w,card.h); }
+    const texW=Math.min(84,card.w*0.24);
+    drawHeroTexture(skinPreviewDef(sk),card.x+8,card.y+4,texW,card.h-8,performance.now()/1000);
+    const dx=card.x+texW+18, dw=card.x+card.w-dx-10;
+    ctx.textAlign='left'; ctx.fillStyle=sk.accent; ctx.font='bold '+Math.min(16,Math.max(12,dw/12))+'px Segoe UI, Arial';
+    ctx.fillText(sk.name,dx,card.y+22);
+    ctx.fillStyle='rgba(255,240,235,0.72)'; ctx.font='12px Segoe UI, Arial';
+    const lines=wrapMenuText(mode==='inventory'?sk.hint:sk.desc,dw,'12px Segoe UI, Arial').slice(0,card.h>=80?3:2);
+    lines.forEach((line,li)=>ctx.fillText(line,dx,card.y+40+li*15));
+    ctx.font='bold 12px Segoe UI, Arial';
+    if(mode==='inventory'){ ctx.fillStyle=equipped?'#72e6a5':'rgba(255,255,255,0.6)'; ctx.fillText(equipped?'СКИН ПРИМЕНЁН':'ГОТОВ К ПРИМЕНЕНИЮ',dx,card.y+card.h-8); }
+    else { ctx.fillStyle=owned?'#72e6a5':'#78e6a8'; ctx.fillText(owned?'ПОЛУЧЕНО':'БЕСПЛАТНО',dx,card.y+card.h-8); }
+  });
+}
 function storePanelLayout(){
   const width=Math.max(0,Math.min(660,VW-24)), height=Math.max(0,Math.min(560,VH-24));
   const panel={x:(VW-width)/2,y:(VH-height)/2,w:width,h:height};
@@ -16122,12 +16366,18 @@ function storePanelLayout(){
   return {
     panel,tabs,categories,phraseCards,
     skinCard:{x:panel.x+24,y:panel.y+166,w:width-48,h:Math.max(72,height-270)},
+    skinCards:(()=>{
+      const gap=8, top=panel.y+166, avail=Math.max(60,height-166-112);
+      const h=Math.max(46,Math.floor((avail-gap*(SKIN_DEFS.length-1))/SKIN_DEFS.length));
+      return SKIN_DEFS.map((sk,index)=>({x:panel.x+24,y:top+index*(h+gap),w:width-48,h}));
+    })(),
     action:{x:panel.x+24,y:panel.y+height-104,w:width-48,h:42},
     close:{x:panel.x+24,y:panel.y+height-54,w:width-48,h:40}
   };
 }
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.9.0',title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ',description:'Три новых предмета — Валакинсенс, Торированная бошка и Киска дианы, а в магазине скинов появились два новых образа: Золотой Чемпион и Фантом Пустоты.',compactDescription:'3 предмета и 2 новых скина.'},
   {version:'0.8.3',title:'ЛЮБИМЫЙ БОЕЦ И ОПТИМИЗАЦИЯ',description:'Любимого героя можно поставить в центр меню. Новый красно-чёрный экран загрузки, новый фон выбора режима, река без деревьев и серьёзная оптимизация: игра стала заметно меньше лагать.',compactDescription:'Любимый боец в меню, новая загрузка, оптимизация.'},
   {version:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',description:'Иконки героев заменены на новые 3D-модельки везде: меню, выбор бойцов, матч. Над героями в бою показывается имя, у кнопки «Играть» теперь 4x4, а музыка меню стала богаче.',compactDescription:'3D-иконки, имена над героями, 4x4, новая музыка.'},
   {version:'0.8.1',title:'АНИМАЦИИ БОЙЦОВ',description:'Все герои теперь ходят, бьют и колдуют: у каждого своя анимация автоатаки, способностей и ультимейта, а оружие движется вместе с руками.',compactDescription:'Анимации ходьбы, атак и ультов у всех героев.'},
@@ -16312,15 +16562,27 @@ function handleMenuClick(mx, my){
         for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
           if(inside(layout.phraseCards[index])){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
         }
-      } else if(inside(layout.action)){
-        redReginaSkinOwned=true;
-        saveReginaSkinState();
-        storeTab='inventory';
-        return;
+      } else {
+        for(let index=0;index<SKIN_DEFS.length;index++){
+          if(inside(layout.skinCards[index])){storeSelectedSkin=index;return;}
+        }
+        if(inside(layout.action)){
+          const sk=SKIN_DEFS[storeSelectedSkin];
+          if(sk && !skinsOwned[sk.id]){ skinsOwned[sk.id]=true; saveSkinState(); }
+          return;
+        }
       }
-    } else if(inside(layout.action)){
-      if(redReginaSkinOwned) setReginaSkinEquipped(!redReginaSkinEquipped);
-      else { storeTab='shop'; storeCategory='skins'; }
+    } else {
+      const ownedList=SKIN_DEFS.filter(sk=>skinsOwned[sk.id]);
+      for(let index=0;index<ownedList.length;index++){
+        if(inside(layout.skinCards[index])){storeSelectedSkin=SKIN_DEFS.indexOf(ownedList[index]);return;}
+      }
+      if(inside(layout.action)){
+        if(ownedList.length){
+          const sk=ownedList.includes(SKIN_DEFS[storeSelectedSkin])?SKIN_DEFS[storeSelectedSkin]:ownedList[0];
+          setSkinEquipped(sk.id, skinEquippedId!==sk.id);
+        } else { storeTab='shop'; storeCategory='skins'; }
+      }
     }
     return;
   }
@@ -16925,18 +17187,9 @@ function drawStorePanel(){
     drawMenuButton(layout.categories.skins,'СКИНЫ',{active:storeCategory==='skins'});
     drawMenuButton(layout.categories.phrases,'ФРАЗЫ',{active:storeCategory==='phrases'});
     if(storeCategory==='skins'){
-      const card=layout.skinCard, regina=HERO_DEFS.find(hero=>hero.id==='regina');
-      ctx.fillStyle='rgba(24,16,25,0.96)'; ctx.fillRect(card.x,card.y,card.w,card.h);
-      ctx.strokeStyle='#b52d3c'; ctx.lineWidth=2; ctx.strokeRect(card.x,card.y,card.w,card.h);
-      if(regina) drawHeroTexture({...regina,color:'#5b101e',color2:'#ff4058',skinId:'reginaRed'},card.x+12,card.y+12,Math.min(120,card.w*0.34),card.h-24,performance.now()/1000);
-      const detailsX=card.x+Math.min(150,card.w*0.42), detailsWidth=card.x+card.w-detailsX-10;
-      ctx.textAlign='left'; ctx.fillStyle='#ff5968'; ctx.font='bold '+Math.min(18,Math.max(13,detailsWidth/9))+'px Segoe UI, Arial';
-      ctx.fillText('КРАСНАЯ РИГИНА',detailsX,card.y+42);
-      ctx.fillStyle='rgba(255,240,235,0.76)'; ctx.font='13px Segoe UI, Arial';
-      wrapMenuText('Алый боевой образ Ригины. Не меняет характеристики героя.',detailsWidth,'13px Segoe UI, Arial').slice(0,3)
-        .forEach((line,index)=>ctx.fillText(line,detailsX,card.y+72+index*18));
-      ctx.fillStyle='#78e6a8'; ctx.font='bold 13px Segoe UI, Arial'; ctx.fillText('БЕСПЛАТНО',detailsX,card.y+card.h-22);
-      drawMenuButton(layout.action,redReginaSkinOwned?'ПОЛУЧЕНО • В ИНВЕНТАРЕ':'ЗАБРАТЬ БЕСПЛАТНО',{primary:!redReginaSkinOwned});
+      drawSkinCards(layout,SKIN_DEFS,'shop');
+      const sk=SKIN_DEFS[storeSelectedSkin]||SKIN_DEFS[0];
+      drawMenuButton(layout.action,skinsOwned[sk.id]?'ПОЛУЧЕНО • В ИНВЕНТАРЕ':'ЗАБРАТЬ БЕСПЛАТНО',{primary:!skinsOwned[sk.id]});
     } else {
       STORE_PHRASE_CARDS.forEach((card,index)=>{
         const rect=layout.phraseCards[index], owned=isStorePhraseOwned(card.id);
@@ -16948,20 +17201,12 @@ function drawStorePanel(){
         ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 10px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'БЕСПЛАТНО',rect.x+8,rect.y+rect.h-8);
       });
     }
-  } else if(redReginaSkinOwned){
-    const card=layout.skinCard, regina=HERO_DEFS.find(hero=>hero.id==='regina');
-    ctx.fillStyle='rgba(24,16,25,0.96)'; ctx.fillRect(card.x,card.y,card.w,card.h);
-    ctx.strokeStyle=redReginaSkinEquipped?'#72e6a5':'#b52d3c'; ctx.lineWidth=2; ctx.strokeRect(card.x,card.y,card.w,card.h);
-    if(regina) drawHeroTexture({...regina,color:'#5b101e',color2:'#ff4058',skinId:'reginaRed'},card.x+12,card.y+12,Math.min(120,card.w*0.34),card.h-24,performance.now()/1000);
-    const detailsX=card.x+Math.min(150,card.w*0.42), detailsWidth=card.x+card.w-detailsX-10;
-    ctx.textAlign='left'; ctx.fillStyle='#ff5968'; ctx.font='bold '+Math.min(18,Math.max(13,detailsWidth/9))+'px Segoe UI, Arial';
-    ctx.fillText('КРАСНАЯ РИГИНА',detailsX,card.y+42);
-    ctx.fillStyle=redReginaSkinEquipped?'#72e6a5':'rgba(255,240,235,0.7)'; ctx.font='13px Segoe UI, Arial';
-    ctx.fillText(redReginaSkinEquipped?'СКИН ПРИМЕНЁН':'ГОТОВ К ПРИМЕНЕНИЮ',detailsX,card.y+70);
-    ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='12px Segoe UI, Arial';
-    wrapMenuText('Будет виден, когда выбран герой Ригина.',detailsWidth,'12px Segoe UI, Arial').slice(0,2)
-      .forEach((line,index)=>ctx.fillText(line,detailsX,card.y+94+index*16));
-    drawMenuButton(layout.action,redReginaSkinEquipped?'СНЯТЬ СКИН':'ПРИМЕНИТЬ СКИН',{primary:!redReginaSkinEquipped});
+  } else if(SKIN_DEFS.some(sk=>skinsOwned[sk.id])){
+    const ownedList=SKIN_DEFS.filter(sk=>skinsOwned[sk.id]);
+    if(!ownedList.includes(SKIN_DEFS[storeSelectedSkin])) storeSelectedSkin=SKIN_DEFS.indexOf(ownedList[0]);
+    drawSkinCards(layout,ownedList,'inventory');
+    const sel=SKIN_DEFS[storeSelectedSkin];
+    drawMenuButton(layout.action,skinEquippedId===sel.id?'СНЯТЬ СКИН':'ПРИМЕНИТЬ СКИН',{primary:skinEquippedId!==sel.id});
   } else {
     ctx.textAlign='center'; ctx.fillStyle='#dce5ef'; ctx.font='bold 17px Segoe UI, Arial';
     ctx.fillText('ИНВЕНТАРЬ ПОКА ПУСТ',VW/2,panel.y+panel.h*0.58);
@@ -18608,6 +18853,8 @@ function drawDotaSenseHome(){
 
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
+    {tag:'0.9.0',title:'Новые скины в магазине',art:'hero',hero:'Шадоу',action:'store',kind:'магазин'},
+    {tag:'0.9.0',title:'Киска дианы: новый предмет',art:'item',itemId:'dianaKitty',action:'store',kind:'магазин'},
     {tag:'ФРАЗА',title:'Лопата челлендж',art:'shovel',action:'store',kind:'новая фраза'},
     {tag:'0.8.3',title:'Любимый боец в меню',art:'hero',hero:'Пиромант',action:'changelog',kind:'обновление'},
     {tag:'0.8.2',title:'Новые иконки бойцов',art:'hero',hero:'Вождь',action:'changelog',kind:'обновление'},
