@@ -644,7 +644,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.8.8';
+const GAME_VERSION = '0.8.9';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -731,7 +731,13 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.8.8', title:'ВАСПАССИР', changes:[
+  const sections = [{version:'0.8.9', title:'РОШАН', changes:[
+    'На реке появилось логово Рошана. Босс появляется на 3-й минуте игры и защищает своё логово.',
+    'За убийство Рошана: +1500 монет и Аэгис — предмет возрождения на 1 минуту. Если носитель умирает, Аэгис исчезает, а он тут же возрождается на месте.',
+    'Рошан возвращается через 5 минут после смерти. Его логово и метка видны на миникарте.',
+    'Пассивные навыки теперь выделены в панели: штриховка, пунктирная рамка и значок «ПАССИВ» — сразу видно, что их нельзя активировать.',
+  ]},
+  {version:'0.8.8', title:'ВАСПАССИР', changes:[
     'Новый герой — Васпассир: худой лысый зелёный гоблин с огромными ушами и зелёным посохом с кристаллом.',
     'Пассивка «Лихорадка»: 3 уровня, +20 к скорости атаки за каждый уровень.',
     'Гранаты: 6 зелёных гранат вокруг героя. Взрыв отравляет врагов и оглушает ровно на 2.5 секунды.',
@@ -2282,6 +2288,13 @@ const SCEPTER_UPGRADES = {
 
 function applyDamage(target, amount, source){
   if(!target || target.dead) return;
+  /* 0.8.8: копии Васпассира умирают ровно с двух ударов */
+  if(target.summonKind==='vaspCopy' && amount>0 && source && source.team!==target.team){
+    target.vaspHitsTaken=(target.vaspHitsTaken||0)+1;
+    fxHit(target.x,target.y,'#ff8a8a');
+    if(target.vaspHitsTaken>=2){ target.hp=0; killUnit(target,source); }
+    return;
+  }
   const sourceHero = source && source.coins !== undefined
     ? source
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
@@ -2492,6 +2505,7 @@ function abilityDamage(source, amount){
 
 function killUnit(u, source){
   if(u.dead) return;
+  if(u.type==='hero' && u.aegisTimer>0){ aegisRevive(u); return; }
   u.dead = true; u.hp = 0;
   if(u.ballState) u.ballState = null;
   if(u === playerHero && playerIsChip()) playChipVoice('death');
@@ -2503,14 +2517,20 @@ function killUnit(u, source){
   const rewardHero = source && source.coins !== undefined
     ? source
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
-  if(u.type === 'neutral') u.respawnTimer = 30;
+  if(u.type === 'neutral') u.respawnTimer = u.isRoshan ? ROSHAN_RESPAWN : 30;
   if(rewardHero && rewardHero.team !== u.team){
     const bountyMul = gameModeCfg().creepBountyMul;
-    const reward = u.type === 'neutral' ? Math.round(70*bountyMul) : (u.type === 'creep' ? Math.round(60*bountyMul) : (u.type === 'hero' ? 200 : 0));
+    const reward = u.isRoshan ? ROSHAN_REWARD : u.type === 'neutral' ? Math.round(70*bountyMul) : (u.type === 'creep' ? Math.round(60*bountyMul) : (u.type === 'hero' ? 200 : 0));
     if(reward){
       rewardHero.coins += reward;
       if(rewardHero === playerHero) addText(u.x, u.y - u.radius - 24, '+' + reward + ' монет', '#ffd54f', 1.1, 14);
       if(rewardHero === playerHero) playAbilitySound('coin');
+    }
+    if(u.isRoshan && rewardHero.type==='hero'){
+      rewardHero.aegisTimer = AEGIS_TIME;
+      addText(rewardHero.x, rewardHero.y-100, 'АЭГИС ПОЛУЧЕН (1:00)', '#ffd54f', 2.0, 20);
+      fxRing(rewardHero.x,rewardHero.y,170,'#ffd54f',1.0);
+      killStreakBanner={text:'РОШАН УБИТ — '+(rewardHero.team===0?'ВАША КОМАНДА':'ВРАГИ')+' ПОЛУЧАЕТ АЭГИС',color:'#ffd54f',t:3.4,scale:1.05};
     }
   }
   if(rewardHero && rewardHero.def && rewardHero.def.id === 'shadow' &&
@@ -4706,6 +4726,65 @@ class NeutralCreep extends Unit {
   }
 }
 
+/* === 0.8.9: РОШАН — босс в логове на реке, Аэгис === */
+const ROSHAN_SPAWN_TIME = 180, ROSHAN_RESPAWN = 300, ROSHAN_REWARD = 1500, AEGIS_TIME = 60;
+let roshanUnit = null, roshanLair = null, roshanSpawned = false;
+function getRoshanLair(){
+  if(roshanLair) return roshanLair;
+  /* точка на реке (диагональ карты) дальше всего от линий, баз и лагерей */
+  let best={x:WORLD/2,y:WORLD/2,score:-1};
+  for(let t=0.3;t<=0.7;t+=0.01){
+    const x=90+(WORLD-180)*t, y=90+(WORLD-180)*t;
+    let d=1e9;
+    for(const lane of LANES) for(let i=1;i<lane.length;i++) d=Math.min(d,pointSegmentDistance(x,y,lane[i-1].x,lane[i-1].y,lane[i].x,lane[i].y));
+    for(const base of BASES) d=Math.min(d,Math.hypot(x-base.x,y-base.y)-500);
+    for(const camp of NEUTRAL_CAMPS) d=Math.min(d,Math.hypot(x-camp[0].x,y-camp[0].y)+120);
+    if(d>best.score) best={x,y,score:d};
+  }
+  roshanLair={x:best.x,y:best.y};
+  return roshanLair;
+}
+function spawnRoshan(){
+  const lair=getRoshanLair();
+  const r=new NeutralCreep(lair.x,lair.y,'roshan');
+  r.radius=54; r.speed=105; r.maxHp=r.hp=6500; r.dmg=120; r.atkRange=150; r.atkTime=1.5; r.armor=12;
+  r.xpValue=600; r.vision=700; r.aggroRange=360; r.hpRegen=6; r.isRoshan=true;
+  units.push(r); roshanUnit=r; roshanSpawned=true;
+  killStreakBanner={text:'РОШАН ПОЯВИЛСЯ',color:'#ffb347',t:3.2,scale:1.1};
+  addText(lair.x,lair.y-110,'РОШАН','#ffb347',2.0,24);
+  fxRing(lair.x,lair.y,260,'#ff8a3d',1.2);
+  spawnParticles(lair.x,lair.y,'#ffb347',40,1.4);
+}
+function aegisRevive(h){
+  h.aegisTimer=0; h.dead=false; h.hp=h.maxHp; h.mp=Math.max(h.mp||0,(h.maxMp||0)*0.5);
+  h.stunTimer=0; h.silenceTimer=0; h.slowT=0; h.slow=0;
+  h.buffs=h.buffs.filter(b=>!NEGATIVE_BUFF_TYPES.has(b.type));
+  h.invulnerableTimer=Math.max(h.invulnerableTimer||0,0);
+  addText(h.x,h.y-90,'АЭГИС — ВОЗРОЖДЕНИЕ!','#ffd54f',1.8,20);
+  fxRing(h.x,h.y,200,'#ffd54f',0.9); fxRing(h.x,h.y,110,'#fff4c2',0.6);
+  spawnParticles(h.x,h.y,'#ffe27a',50,1.5);
+}
+function updateRoshan(dt){
+  if(gameTime<2){ roshanSpawned=false; roshanUnit=null; }
+  if(roshanUnit && !units.includes(roshanUnit)) roshanUnit=null;
+  if(!roshanSpawned && !roshanUnit && gameTime>=ROSHAN_SPAWN_TIME) spawnRoshan();
+  const r=roshanUnit;
+  if(r && r.dead){
+    r.respawnTimer-=dt;
+    if(r.respawnTimer<=0){
+      r.dead=false; r.hp=r.maxHp; r.x=r.homeX; r.y=r.homeY; r.attackTarget=null; r.moveTarget=null;
+      killStreakBanner={text:'РОШАН ВОЗВРАТИЛСЯ',color:'#ffb347',t:3.2,scale:1.1};
+      fxRing(r.x,r.y,260,'#ff8a3d',1.2);
+    }
+  }
+  for(const h of heroes){
+    if(h.aegisTimer>0){
+      h.aegisTimer-=dt;
+      if(h.aegisTimer<=0){ h.aegisTimer=0; addText(h.x,h.y-80,'АЭГИС ИСЧЕЗ','#ccb36a',1.2,15); }
+    }
+  }
+}
+
 const NEUTRAL_CAMPS = [
   [{x:1100,y:1100},{x:1170,y:1170},{x:1030,y:1170},{x:1100,y:1240}],
   [{x:2500,y:2500},{x:2570,y:2570},{x:2430,y:2570},{x:2500,y:2640}],
@@ -5046,9 +5125,9 @@ function vaspCopyHit(copy, t){
   if(copy.vaspOnHit==='stun'){
     if((copy.vaspIcd.get(t)||0) <= gameTime){ copy.vaspIcd.set(t,gameTime+3); vaspStun(t,0.8+lvl*0.15); fxRing(t.x,t.y,50,'#fff06a',0.3); }
   } else if(copy.vaspOnHit==='poison'){
-    vaspApplyPoison(t,copy.owner,8+lvl*5,4);
+    vaspApplyPoison(t,copy.owner,(8+lvl*5)/3,4);
   } else if(copy.vaspOnHit==='chain'){
-    vaspChainLightning(copy,t,copy.dmg*0.6+20*lvl,3);
+    vaspChainLightning(copy,t,(copy.dmg*0.6+20*lvl)/3,3);
   }
 }
 function vaspSpawnCopy(hero, variantId, o){
@@ -6326,7 +6405,7 @@ const SKILLS = {
     desc:'Создаёт 2 копии Васпассира: оранжевую — ближнего боя, и голубую — дальнего боя.',
     cast(h,x,y,lvl){
       const life=14+lvl*2+(hasScepter(h)?4:0);
-      const hp=300+lvl*140, dmg=h.getDamage()*(0.35+lvl*0.1);
+      const hp=300+lvl*140, dmg=h.getDamage()*(0.35+lvl*0.1)/3;
       vaspSpawnCopy(h,'vaspassirOrange',{melee:true,hp,dmg,life,angle:0});
       vaspSpawnCopy(h,'vaspassirCyan',{melee:false,hp:hp*0.75,dmg,life,angle:Math.PI});
       addText(h.x,h.y-80,'ДВОЙНИКИ','#ffb04a',1.3,17);
@@ -6339,7 +6418,7 @@ const SKILLS = {
     desc:'Призывает 6 копий: 2 оглушающих (жёлтые), 2 отравляющих (фиолетовые) и 2 бьющих молнией с цепочкой (синие).',
     cast(h,x,y,lvl){
       const life=14+lvl*2;
-      const hp=420+lvl*160, dmg=h.getDamage()*(0.45+lvl*0.1);
+      const hp=420+lvl*160, dmg=h.getDamage()*(0.45+lvl*0.1)/3;
       const plan=[['vaspassirYellow','stun'],['vaspassirYellow','stun'],['vaspassirPurple','poison'],['vaspassirPurple','poison'],['vaspassirBlue','chain'],['vaspassirBlue','chain']];
       if(hasScepter(h)){ plan.push(['vaspassirBlue','chain'],['vaspassirBlue','chain']); }
       plan.forEach((pl,i)=>{
@@ -9346,8 +9425,9 @@ function update(dt){
   }
   updateBaseRooms(dt);
   updateMo3giMines(dt);
+  updateRoshan(dt);
   for(const u of units){
-    if(u.type === 'neutral' && u.dead){
+    if(u.type === 'neutral' && u.dead && !u.isRoshan){
       u.respawnTimer -= dt;
       if(u.respawnTimer <= 0){
         u.dead = false; u.hp = u.maxHp; u.x = u.homeX; u.y = u.homeY;
@@ -10530,6 +10610,28 @@ function drawTerrain(){
     ctx.restore();
   }
 
+  /* 0.8.9: логово Рошана — каменная яма с костями и рунами на реке */
+  { const L=getRoshanLair();
+    ctx.save(); ctx.translate(L.x,L.y);
+    const rim=ctx.createRadialGradient(0,0,90,0,0,200);
+    rim.addColorStop(0,'rgba(10,6,8,0.95)'); rim.addColorStop(0.7,'rgba(40,30,28,0.9)'); rim.addColorStop(1,'rgba(40,30,28,0)');
+    ctx.fillStyle=rim; ctx.beginPath(); ctx.ellipse(0,0,200,170,0,0,Math.PI*2); ctx.fill();
+    const pit=ctx.createRadialGradient(0,0,10,0,0,130);
+    pit.addColorStop(0,'#050304'); pit.addColorStop(1,'#241816');
+    ctx.fillStyle=pit; ctx.strokeStyle='#6e5e50'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.ellipse(0,0,135,112,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='rgba(255,140,60,0.55)'; ctx.lineWidth=3; ctx.setLineDash([10,12]);
+    ctx.beginPath(); ctx.ellipse(0,0,165,138,0,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    for(let i=0;i<16;i++){ const a=i*Math.PI/8, rx=Math.cos(a)*158, ry=Math.sin(a)*132, rs=14+(i%3)*7;
+      ctx.fillStyle=i%2?'#5a4e44':'#463b34'; ctx.strokeStyle='#1c1410'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(rx,ry,rs,rs*0.7,a,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+    for(let i=0;i<8;i++){ const a=i*Math.PI/4+0.2, rx=Math.cos(a)*172, ry=Math.sin(a)*145;
+      ctx.fillStyle='#ff9a4d'; ctx.font='bold 16px serif'; ctx.textAlign='center'; ctx.fillText('ᛟ',rx,ry+5); }
+    ctx.fillStyle='#e8dcc0'; ctx.strokeStyle='#7a6c58'; ctx.lineWidth=1.5;
+    for(const b of [[-60,40,0.6],[50,52,-0.3],[-30,-55,1.2],[70,-30,0.2]]){ ctx.save(); ctx.translate(b[0],b[1]); ctx.rotate(b[2]);
+      ctx.fillRect(-16,-3,32,6); ctx.beginPath(); ctx.arc(-16,0,5,0,Math.PI*2); ctx.arc(16,0,5,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+    ctx.restore(); }
+
   for(const camp of NEUTRAL_CAMPS){
     const center = camp[0];
     ctx.save();
@@ -10869,7 +10971,60 @@ function drawForestCreepBody(u, col){
   ctx.strokeStyle=col; ctx.lineWidth=2; ctx.globalAlpha=0.55;
   ctx.beginPath(); ctx.arc(0,0,u.radius+3,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
 }
+function drawRoshanBody(u){
+  const R=u.radius, t=gameTime;
+  ctx.save();
+  ctx.fillStyle='#ffb347'; ctx.font='bold 15px Georgia, serif'; ctx.textAlign='center';
+  ctx.shadowColor='#000'; ctx.shadowBlur=6; ctx.fillText('РОШАН',0,-R-52); ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0,R*0.8,R*1.25,R*0.45,0,0,Math.PI*2); ctx.fill();
+  ctx.rotate(u.facing||0);
+  const breathe=1+Math.sin(t*2)*0.02;
+  /* задние лапы и хвост */
+  ctx.fillStyle='#4a3a30';
+  for(const sy of [-1,1]){ ctx.beginPath(); ctx.ellipse(-R*0.75,sy*R*0.7,R*0.38,R*0.24,0,0,Math.PI*2); ctx.fill(); }
+  ctx.strokeStyle='#4a3a30'; ctx.lineWidth=R*0.14; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-R*1.0,0); ctx.quadraticCurveTo(-R*1.7,Math.sin(t*3)*R*0.35,-R*1.9,Math.sin(t*3+1)*R*0.5); ctx.stroke();
+  /* туша */
+  const bg=ctx.createRadialGradient(-R*0.2,-R*0.2,R*0.1,0,0,R*1.3);
+  bg.addColorStop(0,'#8a6a52'); bg.addColorStop(1,'#3a2a22');
+  ctx.fillStyle=bg; ctx.strokeStyle='#1c1410'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.ellipse(0,0,R*1.1*breathe,R*0.95*breathe,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  /* каменные пластины на спине */
+  ctx.fillStyle='#6e625a';
+  for(let i=0;i<6;i++){ const a=-0.9+i*0.36; ctx.beginPath(); ctx.ellipse(-R*0.15+Math.cos(a)*R*0.15,Math.sin(a)*R*0.8,R*0.2,R*0.13,a,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+  /* передние лапы с когтями */
+  ctx.fillStyle='#5a4538';
+  for(const sy of [-1,1]){
+    ctx.beginPath(); ctx.ellipse(R*0.7,sy*R*0.85,R*0.42,R*0.26,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#e8dcc0';
+    for(let c=0;c<3;c++){ ctx.beginPath(); ctx.moveTo(R*1.0,sy*(R*0.85+(c-1)*R*0.12)); ctx.lineTo(R*1.28,sy*(R*0.85+(c-1)*R*0.16)); ctx.lineTo(R*1.0,sy*(R*0.85+(c-1)*R*0.12+R*0.06)); ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle='#5a4538';
+  }
+  /* грива */
+  for(let i=0;i<14;i++){
+    const a=0.5+i*(Math.PI*2-1)/13, wob=Math.sin(t*3+i)*R*0.05;
+    ctx.fillStyle=i%2?'#c0501c':'#ff8a3d';
+    ctx.beginPath(); ctx.moveTo(R*0.55+Math.cos(a-0.12)*R*0.5,Math.sin(a-0.12)*R*0.5);
+    ctx.lineTo(R*0.55+Math.cos(a)*(R*0.95+wob),Math.sin(a)*(R*0.95+wob));
+    ctx.lineTo(R*0.55+Math.cos(a+0.12)*R*0.5,Math.sin(a+0.12)*R*0.5); ctx.closePath(); ctx.fill();
+  }
+  /* голова */
+  const hg=ctx.createRadialGradient(R*0.9,-R*0.1,R*0.05,R*0.95,0,R*0.6);
+  hg.addColorStop(0,'#a07e62'); hg.addColorStop(1,'#4a3628');
+  ctx.fillStyle=hg; ctx.beginPath(); ctx.ellipse(R*1.0,0,R*0.6,R*0.5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  /* рога */
+  ctx.fillStyle='#efe3c8';
+  for(const sy of [-1,1]){ ctx.beginPath(); ctx.moveTo(R*0.8,sy*R*0.3); ctx.quadraticCurveTo(R*0.7,sy*R*0.9,R*1.15,sy*R*0.85); ctx.quadraticCurveTo(R*0.95,sy*R*0.55,R*0.95,sy*R*0.3); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  /* пасть и глаза */
+  ctx.fillStyle='#2a0a0a'; ctx.beginPath(); ctx.ellipse(R*1.45,0,R*0.2,R*0.22,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff'; for(const sy of [-1,1]){ ctx.beginPath(); ctx.moveTo(R*1.38,sy*R*0.1); ctx.lineTo(R*1.5,sy*R*0.18); ctx.lineTo(R*1.5,sy*R*0.06); ctx.closePath(); ctx.fill(); }
+  ctx.shadowColor='#ffd54f'; ctx.shadowBlur=14; ctx.fillStyle='#ffe066';
+  for(const sy of [-1,1]){ ctx.beginPath(); ctx.ellipse(R*1.15,sy*R*0.2,R*0.1,R*0.07,sy*0.4,0,Math.PI*2); ctx.fill(); }
+  ctx.restore();
+}
+
 function drawNeutralCreepBody(u, col){
+  if(u.isRoshan){ drawRoshanBody(u); return; }
   const scale=Math.max(0.72,u.radius/18);
   const palette=u.kind==='wolf'?['#b9c8d1','#637681']:
     u.kind==='satyr'?['#c7824f','#69402d']:
@@ -11451,7 +11606,7 @@ function drawUnit(u){
     }
   }
   /* 0.8.4: 3D-монстры для лайновых и лесных крипов */
-  if(!hero3dSpr && (u.type === 'creep' || u.type === 'neutral') && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
+  if(!hero3dSpr && !u.isRoshan && (u.type === 'creep' || u.type === 'neutral') && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
     const md = creepMonsterDef(u);
     if(md){
       let fa = u.facing || 0;
@@ -12994,7 +13149,17 @@ function drawUnit(u){
 }
 
 function drawHealthBar(u){
-  const w = u.type==='hero' ? 68 : (u.type==='ancient' ? 130 : 46);
+  if(u.type==='hero' && u.aegisTimer>0){
+    const pulse=0.55+0.25*Math.sin(gameTime*5);
+    ctx.save();
+    ctx.strokeStyle='rgba(255,213,84,'+pulse+')'; ctx.lineWidth=3; ctx.shadowColor='#ffd54f'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.ellipse(u.x,u.y+u.radius*0.7,u.radius*1.5,u.radius*0.75,0,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#ffd54f'; ctx.font='bold 12px Segoe UI, Arial'; ctx.textAlign='center';
+    ctx.fillText('★ АЭГИС '+Math.ceil(u.aegisTimer)+'с', u.x, u.y-u.radius-78-unitLabelLift(u));
+    ctx.restore();
+  }
+  const w = u.isRoshan ? 150 : u.type==='hero' ? 68 : (u.type==='ancient' ? 130 : 46);
   const h = u.type==='hero' ? 8 : 6;
   const x = u.x - w/2;
   const y = u.y - u.radius - (u.type==='hero' ? 26 : 18) - unitLabelLift(u);
@@ -13711,8 +13876,13 @@ function drawMinimap(){
     for(let i=1;i<lane.length;i++) ctx.lineTo(x0+lane[i].x*k, y0+lane[i].y*k);
     ctx.stroke();
   }
+  { const L=getRoshanLair();
+    ctx.strokeStyle='rgba(255,150,70,0.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x0+L.x*k,y0+L.y*k,7,0,Math.PI*2); ctx.stroke();
+    if(roshanUnit && !roshanUnit.dead){ ctx.fillStyle='#ff8a3d'; ctx.beginPath(); ctx.arc(x0+roshanUnit.x*k,y0+roshanUnit.y*k,4.5,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.2; ctx.stroke(); }
+  }
   for(const u of units){
     if(u.dead) continue;
+    if(u.isRoshan) continue;
     if(u.team !== 0 && !isVisibleToPlayer(u)) continue;
     const px = x0+u.x*k, py = y0+u.y*k;
     if(u.type === 'hero'){
@@ -14213,7 +14383,7 @@ function drawSkillTooltip(hero, skillIndex){
   ctx.textAlign = 'left';
   ctx.fillStyle = def.ult ? '#ffd568' : '#d9ecff';
   ctx.font = 'bold 16px Segoe UI, Arial';
-  ctx.fillText(def.name + '  [' + def.short + ']',x+16,y+25);
+  ctx.fillText(def.name + '  [' + def.short + ']' + (def.passive ? '  • ПАССИВНАЯ' : ''),x+16,y+25);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffe066';
   ctx.font = 'bold 12px Segoe UI, Arial';
@@ -15542,6 +15712,19 @@ function drawHUD(){
     ctx.font = 'bold 30px Segoe UI, Arial';
     ctx.textAlign = 'center';
     ctx.fillText(def.short, r.x + r.w/2, r.y + r.h/2 + 10);
+    if(def.passive){
+      /* 0.8.9: пассивка — штриховка, пунктирная рамка и значок: нажать нельзя */
+      ctx.save();
+      ctx.beginPath(); ctx.roundRect(r.x+2,r.y+2,r.w-4,r.h-4,5); ctx.clip();
+      ctx.strokeStyle='rgba(120,230,170,0.22)'; ctx.lineWidth=2;
+      for(let d=-r.h; d<r.w; d+=10){ ctx.beginPath(); ctx.moveTo(r.x+d,r.y+r.h); ctx.lineTo(r.x+d+r.h,r.y); ctx.stroke(); }
+      ctx.restore();
+      ctx.save(); ctx.setLineDash([5,4]); ctx.strokeStyle='#78e6aa'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.roundRect(r.x+1,r.y+1,r.w-2,r.h-2,6); ctx.stroke(); ctx.restore();
+      ctx.fillStyle='rgba(8,40,26,0.9)'; ctx.fillRect(r.x+8,r.y+5,r.w-16,13);
+      ctx.fillStyle='#8dffc0'; ctx.font='bold 10px Segoe UI, Arial'; ctx.textAlign='center';
+      ctx.fillText('ПАССИВ', r.x+r.w/2, r.y+15);
+    }
 
 
     if(s.level > 0 && manaVal > 0){
