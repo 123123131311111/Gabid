@@ -17822,17 +17822,17 @@ function dsNewsThumb(entry,x,y,size,now){
 }
 
 /* Оригинальный силуэт: капюшонный жнец-рыцарь с изогнутой глефой на фоне пламени */
-const dsArt={w:0,h:0,cv:null};
-function dsBuildWarrior(w,h){
+const dsArt={w:0,h:0,parts:null};
+function dsBuildWarrior(w,h,part){
   const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
   const g=cv.getContext('2d');
-  const u=h*0.0062, cx=w*0.6, gy=h*0.95;
+  const u=h*0.0062, cx=w*0.66, gy=h*0.95;
   const X=x=>cx+x*u, Y=y=>gy-y*u;
   const M=(x,y)=>g.moveTo(X(x),Y(y)), L=(x,y)=>g.lineTo(X(x),Y(y));
   const C=(a,b,c,d,e,f)=>g.bezierCurveTo(X(a),Y(b),X(c),Y(d),X(e),Y(f));
   const R=n=>dsHash(n*3.17+1.3);
   /* мазки пламени вокруг фигуры (кисть) */
-  g.save(); g.globalCompositeOperation='lighter'; g.lineCap='round';
+  if(part===0){ g.save(); g.globalCompositeOperation='lighter'; g.lineCap='round';
   for(let i=0;i<420;i++){
     const a=R(i), b=R(i+500), c=R(i+900);
     const x=(a-.5)*150*(0.35+0.65*b), y=-4+Math.pow(b,.8)*125;
@@ -17842,8 +17842,9 @@ function dsBuildWarrior(w,h){
     g.strokeStyle='rgba(255,'+Math.round(55+heat*150+R(i+8)*30)+','+Math.round(25+heat*40)+','+(.05+R(i+9)*.2)+')';
     g.beginPath(); g.moveTo(X(x),Y(y)); g.quadraticCurveTo(X(x)+sway*.5,Y(y)-len*.5,X(x)+sway,Y(y)-len); g.stroke();
   }
-  g.restore();
+  g.restore(); return cv; }
   /* рога */
+  if(part===1){
   g.fillStyle='#07020a';
   for(const sd of [-1,1]){
     g.beginPath(); M(sd*7,97); C(sd*15,100,sd*24,108,sd*22,121); C(sd*18,113,sd*12,107,sd*5,103); g.closePath(); g.fill();
@@ -17891,6 +17892,7 @@ function dsBuildWarrior(w,h){
   g.save(); g.shadowColor='rgba(255,70,30,.9)'; g.shadowBlur=u*4; g.lineWidth=u*.45; g.lineJoin='round';
   const rg=g.createLinearGradient(X(-45),0,X(50),0); rg.addColorStop(0,'rgba(255,70,40,.25)'); rg.addColorStop(.55,'rgba(255,110,60,.55)'); rg.addColorStop(1,'#ffe3b8');
   g.strokeStyle=rg; sil(); g.stroke(); g.restore();
+  return cv; }
   /* глефа: длинное древко и изогнутое лезвие */
   g.save(); g.lineCap='round';
   g.shadowColor='rgba(255,70,30,.8)'; g.shadowBlur=u*3;
@@ -17902,46 +17904,147 @@ function dsBuildWarrior(w,h){
   g.restore();
   return cv;
 }
+const dsSpin={key:'',frames:[],N:32};
+function dsSpinFrame(def,i){
+  const w=560,h=700;
+  try{
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    Hero3D.draw(cv.getContext('2d'),def,0,0,w,h,{yaw:-0.42+i/dsSpin.N*Math.PI*2,pitch:.2,zoom:1,t:.3,ss:1.5});
+    return cv;
+  }catch(err){ return null; }
+}
+/* Большая карточка любимого бойца: фон героя + вращающаяся 3D-модель */
+function dsDrawHeroCard(card,def,now){
+  const s=menuScale(), rad=Math.round(12*s);
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(card.x,card.y,card.w,card.h,rad); ctx.clip();
+  const c0=def?def.color:'#5a1a2a', c1=def?def.color2:'#ff9a6a';
+  const bg=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
+  bg.addColorStop(0,hexRgba(c0,.95)); bg.addColorStop(.6,hexRgba(c0,.5)); bg.addColorStop(1,'#07030a');
+  ctx.fillStyle=bg; ctx.fillRect(card.x,card.y,card.w,card.h);
+  ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1;
+  for(let i=-3;i<14;i++){ const x=card.x+i*card.w*.14+(now*5%(card.w*.14)); ctx.beginPath(); ctx.moveTo(x,card.y+card.h*.2); ctx.lineTo(x+card.w*.7,card.y); ctx.stroke(); }
+  if(!def){
+    dsTxt('Выбери любимого бойца',card.x+card.w/2,card.y+card.h/2,Math.round(15*s)+'px Segoe UI, Arial','rgba(255,230,200,.8)','center');
+    ctx.restore(); return;
+  }
+  const key=def.id+'|'+(def.skinId||'');
+  if(dsSpin.key!==key){ dsSpin.key=key; dsSpin.frames=new Array(dsSpin.N).fill(null); }
+  const H=Math.min(card.h*1.04,card.w*1.1/0.8), Wd=H*0.8, cx=card.x+card.w/2, gy=card.y+card.h*0.95;
+  ctx.globalCompositeOperation='lighter';
+  const aura=ctx.createRadialGradient(cx,gy-H*.5,6,cx,gy-H*.5,H*.8);
+  aura.addColorStop(0,hexRgba(c1,.5+.08*Math.sin(now*1.6))); aura.addColorStop(.5,hexRgba(c0,.25)); aura.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=aura; ctx.fillRect(card.x,card.y,card.w,card.h);
+  ctx.strokeStyle=hexRgba(c1,.8); ctx.lineWidth=2; ctx.setLineDash([10,14]); ctx.lineDashOffset=-now*30;
+  ctx.beginPath(); ctx.ellipse(cx,gy,Wd*.46,Wd*.13,0,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.globalCompositeOperation='source-over';
+  const N=dsSpin.N, idx=Math.floor(((now*0.12)%1)*N)%N;
+  let made=0; for(let k=0;k<N&&made<2;k++){ const j=(idx+k)%N; if(!dsSpin.frames[j]){ dsSpin.frames[j]=dsSpinFrame(def,j)||false; made++; } }
+  let fr=null; for(let k=0;k<N;k++){ const f=dsSpin.frames[(idx-k+N)%N]; if(f){ fr=f; break; } }
+  if(fr) ctx.drawImage(fr,cx-Wd/2,gy-H*.93+Math.sin(now*1.4)*card.h*.006,Wd,H);
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<22;i++){
+    const ph=(now*(.08+dsHash(i)*.08)+dsHash(i+2))%1, ang=i*2.4+now*.5;
+    ctx.globalAlpha=Math.sin(ph*Math.PI)*.85; ctx.fillStyle=i%3?hexRgba(c1,1):'#ffe0a0';
+    ctx.fillRect(cx+Math.cos(ang)*Wd*(.15+.35*dsHash(i+9)),gy-ph*H*.9,2.2,2.2);
+  }
+  ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+  const sh=ctx.createLinearGradient(0,card.y+card.h*.6,0,card.y+card.h); sh.addColorStop(0,'rgba(0,0,0,0)'); sh.addColorStop(1,'rgba(0,0,0,.7)');
+  ctx.fillStyle=sh; ctx.fillRect(card.x,card.y+card.h*.6,card.w,card.h*.4);
+  ctx.shadowColor='rgba(0,0,0,.9)'; ctx.shadowBlur=10;
+  dsTxt(def.name,card.x+Math.round(16*s),card.y+card.h-Math.round(46*s),'bold '+Math.round(44*s)+'px Georgia, serif','#fff','left');
+  dsTxt(def.title,card.x+Math.round(17*s),card.y+card.h-Math.round(18*s),Math.round(14*s)+'px Segoe UI, Arial','rgba(255,240,220,.85)','left');
+  ctx.restore();
+  ctx.save(); ctx.strokeStyle=hexRgba(c1,.55); ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(card.x+1,card.y+1,card.w-2,card.h-2,rad); ctx.stroke(); ctx.restore();
+}
 function dsDrawWarriorArt(now){
-  if(!dsArt.cv||dsArt.w!==VW||dsArt.h!==VH){ dsArt.cv=dsBuildWarrior(VW,VH); dsArt.w=VW; dsArt.h=VH; }
-  const u=VH*0.0062, cx=VW*0.6, gy=VH*0.95;
+  if(!dsArt.parts||dsArt.w!==VW||dsArt.h!==VH){ dsArt.parts=[0,1,2].map(p=>dsBuildWarrior(VW,VH,p)); dsArt.w=VW; dsArt.h=VH; }
+  const u=VH*0.0062, cx=VW*0.66, gy=VH*0.95;
+  const breathe=Math.sin(now*1.1), sway=Math.sin(now*.55);
   ctx.save();
   ctx.globalCompositeOperation='lighter';
-  const sx=cx, sy=gy-u*84;
-  const sun=ctx.createRadialGradient(sx,sy,u*3,sx,sy,u*95);
+  const sx=cx, sy=gy-u*84, pul=.85+.15*Math.sin(now*1.7);
+  const sun=ctx.createRadialGradient(sx,sy,u*3,sx,sy,u*95*pul);
   sun.addColorStop(0,'rgba(255,235,190,1)'); sun.addColorStop(.12,'rgba(255,170,80,.95)'); sun.addColorStop(.4,'rgba(235,55,25,.6)'); sun.addColorStop(1,'rgba(120,10,5,0)');
   ctx.fillStyle=sun; ctx.fillRect(0,0,VW,VH);
-  /* лучи */
   for(let i=0;i<18;i++){
-    const a=i/18*Math.PI*2+now*.03, wd=.05+dsHash(i)*.05;
+    const a=i/18*Math.PI*2+now*.05, wd=.04+dsHash(i)*.05*(1+.3*Math.sin(now+i));
     const rgd=ctx.createRadialGradient(sx,sy,0,sx,sy,u*130);
-    rgd.addColorStop(0,'rgba(255,150,80,.2)'); rgd.addColorStop(1,'rgba(255,60,30,0)');
+    rgd.addColorStop(0,'rgba(255,150,80,.22)'); rgd.addColorStop(1,'rgba(255,60,30,0)');
     ctx.fillStyle=rgd; ctx.beginPath(); ctx.moveTo(sx,sy);
     ctx.lineTo(sx+Math.cos(a-wd)*u*140,sy+Math.sin(a-wd)*u*140); ctx.lineTo(sx+Math.cos(a+wd)*u*140,sy+Math.sin(a+wd)*u*140); ctx.closePath(); ctx.fill();
   }
+  /* вращающиеся руны-кольца вокруг демона */
+  for(let r=0;r<2;r++){
+    const rad=u*(r?62:76), dir=r?-1:1;
+    ctx.strokeStyle='rgba(255,140,80,'+(r?.35:.5)+')'; ctx.lineWidth=Math.max(1,u*.25);
+    ctx.setLineDash([u*3,u*2.4]); ctx.lineDashOffset=-now*u*dir*5;
+    ctx.beginPath(); ctx.arc(sx,sy,rad,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    for(let k=0;k<12;k++){
+      const a=k/12*Math.PI*2+now*.25*dir, rx=sx+Math.cos(a)*rad, ry=sy+Math.sin(a)*rad;
+      ctx.fillStyle='rgba(255,190,120,'+(.5+.4*Math.sin(now*2+k))+')';
+      ctx.save(); ctx.translate(rx,ry); ctx.rotate(a+Math.PI/2); ctx.fillRect(-u*.3,-u*1.6,u*.6,u*3.2); ctx.fillRect(-u*1.2,-u*.3,u*2.4,u*.6); ctx.restore();
+    }
+  }
+  /* пламя за спиной */
   for(let i=0;i<34;i++){
     const bx=cx+(i/33-.5)*150*u+Math.sin(now*.8+i)*u*2;
-    const h=(25+dsHash(i)*60+Math.sin(now*2.2+i*1.7)*9)*u, w=(5+dsHash(i+9)*7)*u;
+    const h=(25+dsHash(i)*60+Math.sin(now*2.2+i*1.7)*11)*u, w=(5+dsHash(i+9)*7)*u;
     const fg=ctx.createLinearGradient(0,gy,0,gy-h);
     fg.addColorStop(0,'rgba(255,215,110,.6)'); fg.addColorStop(.4,'rgba(245,75,28,.45)'); fg.addColorStop(1,'rgba(150,15,8,0)');
     ctx.fillStyle=fg; ctx.beginPath(); ctx.moveTo(bx-w,gy);
     ctx.quadraticCurveTo(bx-w*.4,gy-h*.5,bx+Math.sin(now*3+i)*w*.6,gy-h);
     ctx.quadraticCurveTo(bx+w*.5,gy-h*.45,bx+w,gy); ctx.closePath(); ctx.fill();
   }
+  /* мазки пламени — дышат */
+  ctx.globalAlpha=.75+.25*Math.sin(now*2.1);
+  ctx.save(); ctx.translate(cx,gy); ctx.scale(1+.012*Math.sin(now*1.5),1+.03*Math.sin(now*1.9)); ctx.translate(-cx,-gy);
+  ctx.drawImage(dsArt.parts[0],0,0); ctx.restore();
+  ctx.globalAlpha=1;
   ctx.globalCompositeOperation='source-over';
-  ctx.drawImage(dsArt.cv,0,0);
-  /* живые языки пламени перед фигурой */
+  /* тело: дыхание и покачивание */
+  ctx.save(); ctx.translate(cx,gy); ctx.rotate(sway*.006); ctx.scale(1,1+breathe*.006); ctx.translate(-cx,-gy);
+  ctx.drawImage(dsArt.parts[1],0,0);
+  /* пульсирующие глаза */
   ctx.globalCompositeOperation='lighter';
+  for(const sd of [-1,1]){
+    const ex=cx+sd*3.6*u, ey=gy-89.6*u, er=u*(5+2.5*Math.sin(now*3+sd));
+    const eg=ctx.createRadialGradient(ex,ey,0,ex,ey,er); eg.addColorStop(0,'rgba(255,230,160,.9)'); eg.addColorStop(1,'rgba(255,90,30,0)');
+    ctx.fillStyle=eg; ctx.fillRect(ex-er,ey-er,er*2,er*2);
+  }
+  ctx.restore();
+  /* глефа: качается сильнее */
+  ctx.globalCompositeOperation='source-over';
+  ctx.save(); ctx.translate(cx+36*u,gy+3*u); ctx.rotate(Math.sin(now*.7)*.012); ctx.translate(-(cx+36*u),-(gy+3*u));
+  ctx.drawImage(dsArt.parts[2],0,0);
+  ctx.globalCompositeOperation='lighter';
+  const bx=cx-56*u, by=gy-96*u, bgl=ctx.createRadialGradient(bx,by,0,bx,by,u*22);
+  bgl.addColorStop(0,'rgba(255,170,90,'+(.35+.2*Math.sin(now*2.4))+')'); bgl.addColorStop(1,'rgba(255,60,20,0)');
+  ctx.fillStyle=bgl; ctx.fillRect(bx-u*22,by-u*22,u*44,u*44);
+  ctx.restore();
+  /* спиральные искры вокруг демона */
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<46;i++){
+    const ph=(now*(.07+dsHash(i)*.06)+dsHash(i+3))%1, ang=i*2.1+now*(.6+dsHash(i+5)*.5);
+    const rad=u*(18+dsHash(i+9)*50)*(1-ph*.3);
+    ctx.globalAlpha=Math.sin(ph*Math.PI)*.9; ctx.fillStyle=i%3?'#ff8a4a':'#ffe0a0';
+    const sz=1.2+dsHash(i+11)*2.4; ctx.fillRect(cx+Math.cos(ang)*rad,gy-ph*u*110+Math.sin(ang)*rad*.2,sz,sz);
+  }
+  ctx.globalAlpha=1;
+  /* языки пламени перед фигурой */
   for(let i=0;i<16;i++){
-    const bx=cx+(i/15-.5)*120*u, h=(10+dsHash(i+40)*22+Math.sin(now*3+i)*5)*u, w=(3+dsHash(i+60)*4)*u;
+    const fx=cx+(i/15-.5)*120*u, h=(10+dsHash(i+40)*22+Math.sin(now*3+i)*5)*u, w=(3+dsHash(i+60)*4)*u;
     const fg=ctx.createLinearGradient(0,gy,0,gy-h);
     fg.addColorStop(0,'rgba(255,140,60,.28)'); fg.addColorStop(1,'rgba(240,60,20,0)');
-    ctx.fillStyle=fg; ctx.beginPath(); ctx.moveTo(bx-w,gy); ctx.quadraticCurveTo(bx,gy-h*.6,bx+Math.sin(now*4+i)*w,gy-h); ctx.quadraticCurveTo(bx+w*.3,gy-h*.4,bx+w,gy); ctx.fill();
+    ctx.fillStyle=fg; ctx.beginPath(); ctx.moveTo(fx-w,gy); ctx.quadraticCurveTo(fx,gy-h*.6,fx+Math.sin(now*4+i)*w,gy-h); ctx.quadraticCurveTo(fx+w*.3,gy-h*.4,fx+w,gy); ctx.fill();
   }
   ctx.globalCompositeOperation='source-over';
   const gr=ctx.createLinearGradient(0,gy-u*5,0,VH);
   gr.addColorStop(0,'rgba(5,1,2,0)'); gr.addColorStop(.4,'rgba(5,1,2,.95)'); gr.addColorStop(1,'#030102');
   ctx.fillStyle=gr; ctx.fillRect(0,gy-u*5,VW,VH-(gy-u*5));
+  /* редкая вспышка молнии на фоне */
+  const fl=Math.max(0,Math.sin(now*.9)*Math.sin(now*2.3+1)); const flash=fl>.93?(fl-.93)*9:0;
+  if(flash>0){ ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(255,90,60,'+(flash*.25)+')'; ctx.fillRect(0,0,VW,VH); }
   ctx.restore();
 }
 
@@ -18040,7 +18143,7 @@ function drawDotaSenseHome(){
     ctx.fillStyle=off?'#d46b62':'#63e4a4'; ctx.beginPath(); ctx.arc(rx-w-Math.round(9*s),barH/2+1,3.2*s,0,Math.PI*2); ctx.fill(); }
 
   /* ---------- ЛЕВАЯ КОЛОНКА ---------- */
-  const colX=Math.round(18*s), colW=Math.round(292*s);
+  const colX=Math.round(18*s), colW=Math.round(340*s);
   let y=barH+Math.round(16*s);
 
   /* профиль */
@@ -18065,40 +18168,11 @@ function drawDotaSenseHome(){
   }
   y+=profH+Math.round(4*s);
 
-  /* карточка любимого бойца */
   const favDef=getFavoriteHeroDef();
-  const availForCard=VH-y-Math.round(330*s);
-  const cardH=Math.max(Math.round(96*s),Math.min(Math.round(190*s),availForCard));
+  const rowsMin=2, newsBlockMin=Math.round(26*s)+rowsMin*Math.round(44*s)+Math.round(28*s)+Math.round(18*s);
+  const cardH=Math.max(Math.round(120*s),Math.min(Math.round(620*s),VH-y-Math.round(26*s)-Math.round(16*s)-newsBlockMin));
   const card={x:colX,y,w:colW,h:cardH};
-  { ctx.save(); ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
-    const c0=favDef?favDef.color:'#7a1a1a', c1=favDef?favDef.color2:'#ff8a5a';
-    const cg=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
-    cg.addColorStop(0,hexRgba(c0,.9)); cg.addColorStop(1,'#080406');
-    ctx.fillStyle=cg; ctx.fillRect(card.x,card.y,card.w,card.h);
-    ctx.globalCompositeOperation='lighter';
-    const gl=ctx.createRadialGradient(card.x+card.w*.62,card.y+card.h*.45,2,card.x+card.w*.62,card.y+card.h*.45,card.h*.9);
-    gl.addColorStop(0,hexRgba(c1,.55)); gl.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=gl; ctx.fillRect(card.x,card.y,card.w,card.h);
-    ctx.globalCompositeOperation='source-over';
-    if(favDef){
-      const ph=card.h*1.02, pw=ph*.92;
-      drawHeroTexture(favDef,card.x+card.w*.64-pw/2,card.y+card.h-ph+2,pw,ph,now);
-    } else {
-      dsTxt('Выбери любимого',card.x+card.w/2,card.y+card.h*.42,F(15,'bold '),'rgba(255,230,200,.85)','center');
-      dsTxt('бойца в разделе «Бойцы»',card.x+card.w/2,card.y+card.h*.42+Math.round(20*s),F(13),'rgba(255,230,200,.6)','center');
-    }
-    const sh=ctx.createLinearGradient(0,card.y+card.h*.45,0,card.y+card.h);
-    sh.addColorStop(0,'rgba(0,0,0,0)'); sh.addColorStop(1,'rgba(0,0,0,.8)');
-    ctx.fillStyle=sh; ctx.fillRect(card.x,card.y,card.w,card.h);
-    if(favDef){
-      ctx.shadowColor='rgba(0,0,0,.95)'; ctx.shadowBlur=8;
-      dsTxt(favDef.name,card.x+Math.round(12*s),card.y+card.h-Math.round(38*s),'bold '+Math.round(32*s)+'px Georgia, serif','#fff','left');
-      dsTxt(favDef.title,card.x+Math.round(13*s),card.y+card.h-Math.round(14*s),F(12),'rgba(255,240,220,.8)','left');
-      ctx.shadowBlur=0;
-    }
-    ctx.restore();
-    ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1; ctx.strokeRect(card.x+.5,card.y+.5,card.w-1,card.h-1);
-  }
+  dsDrawHeroCard(card,favDef,now); dsRegister(card,favDef?'favHero':'fighters','herocard');
   y+=cardH;
   const strip={x:colX,y,w:colW,h:Math.round(26*s)};
   { const hov=dsInside(strip);
@@ -18198,7 +18272,7 @@ function drawDotaSenseHome(){
     ctx.fillStyle=sg; ctx.fillRect(playR.x,playR.y,playR.w,playR.h);
     ctx.restore();
     ctx.save(); ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=6;
-    dsTxt('PLAY',playR.x+playR.w/2,playR.y+playR.h*.44,'bold '+Math.round(34*s)+'px Georgia, serif','#fff','center',4*s);
+    dsTxt('ИГРАТЬ',playR.x+playR.w/2,playR.y+playR.h*.44,'bold '+Math.round(34*s)+'px Georgia, serif','#fff','center',4*s);
     ctx.restore();
     dsTxt(modes.find(m=>m.id===dsPlayMode).t+' · 4 НА 4',playR.x+playR.w/2,playR.y+playR.h*.80,F(11,'bold '),'rgba(235,255,220,.85)','center',1.2);
   }
