@@ -2,9 +2,9 @@
 "use strict";
 
 /* ===== 0.8.3: адаптивное качество графики ===== */
-let perfLevel = 0;                      /* 0 — высокое, 1 — среднее, 2 — низкое */
-try { const sv = parseInt(localStorage.getItem('dota-sens-perf'), 10); if(sv >= 0 && sv <= 2) perfLevel = sv; } catch(err) {}
-window.__perfShadow = [1, 0.5, 0][perfLevel];
+let perfLevel = 0;                      /* 0 — высокое, 1 — среднее, 2 — низкое, 3 — супер низкое */
+try { const sv = parseInt(localStorage.getItem('dota-sens-perf'), 10); if(sv >= 0 && sv <= 3) perfLevel = sv; } catch(err) {}
+window.__perfShadow = [1, 0.5, 0, 0][perfLevel];
 if(perfLevel >= 1 && document.body) document.body.classList.add('perf-low');
 (function(){
   /* shadowBlur — самая дорогая операция canvas. Масштабируем её по уровню качества. */
@@ -23,21 +23,29 @@ if(perfLevel >= 1 && document.body) document.body.classList.add('perf-low');
 const TERRAIN_MARGIN = 96;
 let terrainCamX = 0, terrainCamY = 0;
 let perfNoticeText = '', perfNoticeUntil = 0, perfLastCheck = 0, perfFrameCount = 0;
-const PERF_NAMES = ['Высокая', 'Средняя', 'Низкая'];
+const PERF_NAMES = ['Высокая', 'Средняя', 'Низкая', 'Супер низкая'];
+/* Супер низкая: рендер в половинном разрешении (мыльно, зато без лагов) и режим «лайт» для эффектов */
+function perfLite(){ return perfLevel >= 3; }
+let appliedRenderScale = 1;
+/* в меню разрешение полное (текст читаем), мыло включается только в матче */
+function perfRenderScale(){ return (perfLevel >= 3 && gameState !== 'menu') ? 0.5 : 1; }
 function setPerfLevel(level, silent){
-  perfLevel = clamp(level, 0, 2);
-  window.__perfShadow = [1, 0.5, 0][perfLevel];
+  const prevScale = perfRenderScale();
+  perfLevel = clamp(level, 0, 3);
+  window.__perfShadow = [1, 0.5, 0, 0][perfLevel];
   try { localStorage.setItem('dota-sens-perf', String(perfLevel)); } catch(err) {}
   terrainFrameValid = false;
   if(document.body) document.body.classList.toggle('perf-low', perfLevel >= 1);
+  if(perfLevel < 3){ particles.length = Math.min(particles.length, particleCap()); grassBends.length = 0; }
+  if(prevScale !== perfRenderScale()){ try { resize(); } catch(err) {} }
   if(!silent){
-    perfNoticeText = 'Графика: ' + PERF_NAMES[perfLevel] + (perfLevel > 0 ? ' — для плавности. F8 — сменить' : '');
+    perfNoticeText = 'Графика: ' + PERF_NAMES[perfLevel] + (perfLevel > 0 ? ' — для плавности. F8 — сменить (или в Настройках)' : '');
     perfNoticeUntil = performance.now() + 4500;
   }
 }
-function terrainRefreshEvery(){ return perfLevel === 0 ? 3 : (perfLevel === 1 ? 4 : 6); }
-function particleCap(){ return perfLevel === 0 ? 900 : (perfLevel === 1 ? 520 : 260); }
-function fxCap(){ return perfLevel === 0 ? 220 : (perfLevel === 1 ? 150 : 90); }
+function terrainRefreshEvery(){ return perfLevel === 0 ? 3 : (perfLevel === 1 ? 4 : (perfLevel === 2 ? 6 : 12)); }
+function particleCap(){ return perfLevel === 0 ? 900 : (perfLevel === 1 ? 520 : (perfLevel === 2 ? 260 : 70)); }
+function fxCap(){ return perfLevel === 0 ? 220 : (perfLevel === 1 ? 150 : (perfLevel === 2 ? 90 : 28)); }
 function perfSample(now){
   if(gameState !== 'playing' || gameTime < 4){ perfLastCheck = 0; perfFrameCount = 0; return; }
   if(!perfLastCheck){ perfLastCheck = now; perfFrameCount = 0; return; }
@@ -50,7 +58,7 @@ function perfSample(now){
   if(fps < 40 && perfLevel < 2) setPerfLevel(perfLevel + 1);
 }
 window.addEventListener('keydown', e => {
-  if(e.key === 'F8'){ e.preventDefault(); setPerfLevel((perfLevel + 1) % 3); }
+  if(e.key === 'F8'){ e.preventDefault(); setPerfLevel((perfLevel + 1) % 4); }
 });
 
 const clamp = (v,a,b) => v<a?a:(v>b?b:v);
@@ -548,6 +556,7 @@ function updateIdleVoice(){
   if(gameState !== 'playing') return;
   if(gameTime - Math.max(lastFightTime, lastIdleVoiceTime) < IDLE_VOICE_SECONDS) return;
   lastIdleVoiceTime = gameTime;
+  if(playerIsGolly() && !playerHero.dead) playGollyVoice('idle');
   if(!heroes.some(h => h && h.def && h.def.id === 'grisha')) return;   // Гриша должен быть в матче
   playKillSfx('grisha');
 }
@@ -742,7 +751,7 @@ const CHANGELOG = (() => {
     'Новый экран загрузки в красно-чёрном стиле: эмблема DOTA SENSE 3, рунная печать, полоса прогресса, подсказки и номер версии.',
     'Новый фон экрана «Выбор режима»: алая арена с лучами света, печатью и тлеющими искрами.',
     'Из реки убраны все деревья — раньше они росли прямо в воде.',
-    'Оптимизация: рельеф карты кэшируется и обновляется реже, лимиты частиц и эффектов, адаптивное качество. Если FPS падает ниже 40, игра сама снижает графику (в матче клавиша F8 переключает уровень вручную).'
+    'Оптимизация: рельеф карты кэшируется и обновляется реже, лимиты частиц и эффектов, адаптивное качество. Если FPS падает ниже 40, игра сама снижает графику. Уровень графики (высокая, средняя, низкая, супер низкая) выбирается в Настройках или клавишей F8 в матче.'
   ]},{version:'0.8.2', title:'НОВЫЕ ИКОНКИ БОЙЦОВ', changes:[
     'Старые 2D-иконки героев заменены на новые 3D-модельки: в меню бойцов, на стадии выбора, в лобби и во время матча.',
     'Над каждым героем в бою теперь написано его имя — над подписью линии и уровнем.',
@@ -1595,6 +1604,68 @@ function playKillSfx(kind, opts={}){
   };
   if(delay > 30) setTimeout(go, delay); else go();
 }
+/* ===== Голос бойца Голли (звучит, когда игрок играет за Голли) ===== */
+const GOLLY_VOICE_SRC = {
+  move:'./sounds/golly-move.mp3',            // 1: клик «идти» (в начале катки и примерно раз в 50 кликов)
+  steal:'./sounds/golly-steal.mp3',          // 2: сломал башню / украл килл
+  death:'./sounds/golly-death.mp3',          // 3: смерть
+  deathTower:'./sounds/golly-death-tower.mp3', // 4: смерть от башни или крипа
+  bigDamage:'./sounds/golly-bigdamage.mp3',  // 5: большой урон
+  idle:'./sounds/golly-idle.mp3',            // 6: 30 секунд тишины
+  kill:'./sounds/golly-kill.mp3'             // 7: убил противника
+};
+const GOLLY_VOICE_PRIORITY = {move:1, idle:1, bigDamage:2, kill:3, steal:3, death:5, deathTower:5};
+const GOLLY_VOICE_COOLDOWN = {move:10, idle:0, bigDamage:25, kill:0, steal:0, death:0, deathTower:0};
+const gollyVoiceCache = {};
+const gollyVoiceLastAt = {};
+let gollyVoiceCurrent = null, gollyVoiceCurrentKind = null;
+let gollyMoveClicks = 0, gollyMoveFirstDone = false, gollyDmgWindow = {t:0, sum:0};
+function playerIsGolly(){
+  return !!(playerHero && playerHero.def && playerHero.def.id === 'golly');
+}
+function playGollyVoice(kind){
+  if(!ANNOUNCER.enabled || !playerIsGolly() || !GOLLY_VOICE_SRC[kind]) return;
+  const now = performance.now();
+  if(now - (gollyVoiceLastAt[kind] || -1e9) < (GOLLY_VOICE_COOLDOWN[kind] || 0) * 1000) return;
+  const cur = gollyVoiceCurrent;
+  if(cur && !cur.ended && !cur.paused){
+    // новая реплика перебивает старую только если она важнее или такой же важности
+    if((GOLLY_VOICE_PRIORITY[kind] || 1) < (GOLLY_VOICE_PRIORITY[gollyVoiceCurrentKind] || 1)) return;
+    try { cur.pause(); } catch(err) {}
+  }
+  try {
+    const a = (gollyVoiceCache[kind] ||= new Audio(GOLLY_VOICE_SRC[kind])).cloneNode(true);
+    a.volume = 1;
+    gollyVoiceCurrent = a; gollyVoiceCurrentKind = kind; gollyVoiceLastAt[kind] = now;
+    const pr = a.play();
+    if(pr && pr.catch) pr.catch(() => {});
+  } catch(err) {}
+}
+function resetGollyVoiceState(){
+  gollyMoveClicks = 0; gollyMoveFirstDone = false; gollyDmgWindow = {t:0, sum:0};
+  for(const k in gollyVoiceLastAt) delete gollyVoiceLastAt[k];
+  if(gollyVoiceCurrent){ try { gollyVoiceCurrent.pause(); } catch(err) {} }
+  gollyVoiceCurrent = null; gollyVoiceCurrentKind = null;
+}
+/* Клик «идти»: первый клик в катке всегда, дальше — примерно каждый 50-й (случайно) */
+function gollyOnMoveClick(){
+  if(!playerIsGolly()) return;
+  gollyMoveClicks++;
+  if(!gollyMoveFirstDone){ gollyMoveFirstDone = true; playGollyVoice('move'); return; }
+  if(Math.random() < 1/50) playGollyVoice('move');
+}
+/* Большой урон: один удар от 22% макс. HP или 35% макс. HP суммарно за 2 секунды */
+function gollyOnDamaged(target, dmg, source){
+  if(target !== playerHero || !playerIsGolly() || target.dead) return;
+  if(!(source && source.team !== undefined && source.team !== target.team)) return;
+  const nowMs = performance.now();
+  if(nowMs - gollyDmgWindow.t > 2000) gollyDmgWindow = {t:nowMs, sum:0};
+  gollyDmgWindow.sum += dmg;
+  if(dmg >= target.maxHp * 0.22 || gollyDmgWindow.sum >= target.maxHp * 0.35){
+    gollyDmgWindow = {t:nowMs, sum:0};
+    playGollyVoice('bigDamage');
+  }
+}
 function playRampageVoice(){ playKillSfx('rampage'); }
 function playRampageSynth(){
   try {
@@ -2334,6 +2405,7 @@ function applyDamage(target, amount, source){
   if(sourceHero && sourceHero.type === 'hero') sourceHero.combatTimer = 3.2;
   addText(target.x + rnd(-12,12), target.y - target.radius - 6,
           Math.round(dmg), target.type==='hero' ? '#ff5555' : '#ffd24a', 0.8, 15);
+  if(target.hp > 0) gollyOnDamaged(target, dmg, source);
   if(target.hp <= 0) killUnit(target, source);
 }
 
@@ -2377,6 +2449,12 @@ function abilityDamage(source, amount){
 function killUnit(u, source){
   if(u.dead) return;
   u.dead = true; u.hp = 0;
+  if(u.ballState) u.ballState = null;
+  if(u === playerHero && playerIsGolly()){
+    const killerType = source && (source.type || (source.source && source.source.type));
+    const byStructureOrCreep = killerType === 'tower' || killerType === 'barracks' || killerType === 'creep' || killerType === 'neutral';
+    playGollyVoice(byStructureOrCreep ? 'deathTower' : 'death');
+  }
   const rewardHero = source && source.coins !== undefined
     ? source
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
@@ -2439,6 +2517,15 @@ function killUnit(u, source){
     }
     /* Фраза Гриши после убийства героя — слышат ВСЕ игроки (играется после голоса диктора) */
     if(rewardHero.def && rewardHero.def.id === 'grisha') playKillSfx('grisha');
+    if(rewardHero === playerHero && playerIsGolly()){
+      /* Кража килла: добивал Голли, а основной урон по цели нанёс кто-то другой из его команды */
+      let golDmg = 0, otherMax = 0;
+      for(const [helper, damage] of u.damageContributors){
+        if(helper === rewardHero) golDmg = damage;
+        else if(helper.team === rewardHero.team) otherMax = Math.max(otherMax, damage);
+      }
+      playGollyVoice(otherMax > golDmg && otherMax >= u.maxHp * 0.3 ? 'steal' : 'kill');
+    }
     if(rewardHero === playerHero){
       killStreakBanner = {text:streak, color:rewardHero.killStreak >= 2 ? '#ff3b30' : '#ff8b78', t:2.6, scale:rewardHero.killStreak >= 2 ? 1.18 : 1};
       spawnParticles(playerHero.x, playerHero.y, '#ff3b30', rewardHero.killStreak >= 2 ? 42 : 24, rewardHero.killStreak >= 2 ? 1.5 : 1);
@@ -2447,6 +2534,7 @@ function killUnit(u, source){
     addText(rewardHero.x, rewardHero.y - 88, streak, rewardHero.killStreak >= 2 ? '#ff3b30' : '#ff7b7b', 1.8, rewardHero.killStreak >= 2 ? 26 : 20);
   }
   if(u.type === 'tower' || u.type === 'barracks'){
+    if(u.type === 'tower' && rewardHero === playerHero && playerIsGolly() && rewardHero.team !== u.team) playGollyVoice('steal');
     addText(u.x, u.y - 70, u.type === 'tower' ? 'БАШНЯ РАЗРУШЕНА!' : 'КАЗАРМЫ РАЗРУШЕНЫ!', '#ffd54f', 1.8, 20);
     if(playerHero) announce(u.team === playerHero.team ? 'Your tower has fallen!' : 'Enemy tower has been destroyed!', {interrupt:true});
   }
@@ -2501,6 +2589,7 @@ function addText(x,y,str,color,life,size){
   texts.push({x,y,str,color,life:life||0.9,t:0,size:size||14});
 }
 function spawnParticles(x,y,color,count=16,spread=1){
+  if(perfLite()){ count = Math.ceil(count*0.25); if(count <= 0) return; }
   if(particles.length > particleCap()) particles.splice(0, particles.length - particleCap());
   for(let i=0;i<count;i++){
     const angle = Math.random()*Math.PI*2;
@@ -2513,6 +2602,7 @@ function spawnParticles(x,y,color,count=16,spread=1){
   }
 }
 function spawnFootstepDust(x,y,color){
+  if(perfLite()) return;
   if(particles.length > particleCap()) particles.splice(0, particles.length - particleCap());
   const n = 2+Math.floor(Math.random()*2);
   for(let i=0;i<n;i++){
@@ -2527,6 +2617,7 @@ function spawnFootstepDust(x,y,color){
   }
 }
 function spawnGrassBend(x,y,angle){
+  if(perfLite()) return;
   if(grassBends.length > 260) grassBends.splice(0, grassBends.length - 260);
   grassBends.push({
     x, y, angle: angle + rnd(-0.3,0.3),
@@ -2534,6 +2625,7 @@ function spawnGrassBend(x,y,angle){
   });
 }
 function spawnRadialBlades(x,y,r,color,count=24){
+  if(perfLite()){ count = Math.min(count, 4); }
   if(particles.length > particleCap()) particles.splice(0, particles.length - particleCap());
   for(let i=0;i<count;i++){
     const angle = i*Math.PI*2/count + rnd(-0.04,0.04);
@@ -2561,6 +2653,7 @@ function fxMark(x,y,r,color,delay){
 function fxHit(x,y,color){
   const impactColor = color || '#ffffff';
   fxs.push({type:'hit',x,y,r:18,t:0,life:0.3,color:impactColor});
+  if(perfLite()) return;
   spawnParticles(x,y,impactColor,16,0.7);
   spawnRadialBlades(x,y,28,impactColor,8);
 }
@@ -2568,6 +2661,7 @@ function fxHit(x,y,color){
    вращающаяся звезда из лучей, двойная ударная волна и искры-звёздочки.
    Цвет скила не меняется — взрыв рисуется в его цвете с белым ядром. */
 function fxArcaneBurst(x,y,r,color,life,delay){
+  if(perfLite()){ if(!(delay>0)) fxs.push({type:'ring',x,y,r,t:0,life:life||0.4,color}); return; }
   if(fxs.length > fxCap()) fxs.splice(0, fxs.length - fxCap());
   const L = life || 0.8;
   const d = delay || 0;
@@ -2589,6 +2683,7 @@ function fxBeam(x1,y1,x2,y2,color,life){
    от центра, поверх тлеющего пятна выжженной земли. Используется для
    мощных ударных ультимейтов по земле (например Echo Slam у Шмедика). */
 function spawnGroundCrack(x,y,radius,color,life){
+  if(perfLite()) return;
   const rays = 9 + Math.round(radius/55);
   const cracks = [];
   for(let i=0;i<rays;i++){
@@ -4878,30 +4973,181 @@ function applyElectricOverload(hero, target){
   }
 }
 
-function castBallLightning(hero, x, y){
-  const requestedDistance=Math.min(1800,Math.hypot(x-hero.x,y-hero.y));
-  const initial=25+hero.maxMp*0.075;
-  if(hero.mp<initial){ flashMsg(hero,'Мало маны для Ball Lightning'); return; }
-  const costPer100=10+hero.maxMp*0.0075;
-  const affordableDistance=(hero.mp-initial)/costPer100*100;
-  const distance=Math.min(requestedDistance,affordableDistance);
-  const cost=initial+distance/100*costPer100;
-  hero.mp-=cost;
-  const startX=hero.x, startY=hero.y;
-  const directionDistance=Math.hypot(x-startX,y-startY)||1;
-  const targetX=startX+(x-startX)/directionDistance*distance;
-  const targetY=startY+(y-startY)/directionDistance*distance;
-  const steps=Math.max(1,Math.ceil(distance/55));
-  for(let i=1;i<=steps;i++){
-    const px=startX+(targetX-startX)*i/steps, py=startY+(targetY-startY)*i/steps;
+/* ===== Ball Lightning (электрический Гоша) — как Storm Spirit из Dota 2 =====
+   • НЕТ перезарядки. Единственная цена — мана: стартовая за запуск + за каждые 100 ед. полёта.
+   • Герой реально летит шаром (а не телепортируется), тратя ману каждый кадр.
+   • Мана кончилась или долетел — приземляется, и ульту можно нажать снова сразу же.
+   • Повторное нажатие в полёте перенаправляет шар (платится только стартовая цена). */
+const BALL_BASE_SPEED = 950;
+function ballLightningCosts(hero){
+  return { initial: 25 + hero.maxMp*0.075, per100: 10 + hero.maxMp*0.0075 };
+}
+function ballLightningLevel(hero){
+  const sk = hero.skills && hero.skills.find(item => item.id === 'ballLightning');
+  return Math.max(1, (sk && sk.level) || 1);
+}
+/* дрожащая синяя молния между двумя точками (для следа шара) */
+function ballBoltPoints(x1,y1,x2,y2,jitter){
+  const len = Math.hypot(x2-x1,y2-y1) || 1;
+  const nx = -(y2-y1)/len, ny = (x2-x1)/len;
+  const n = Math.max(3, Math.round(len/16));
+  const pts = [{x:x1,y:y1}];
+  for(let i=1;i<n;i++){
+    const t = i/n, off = rnd(-jitter,jitter);
+    pts.push({x:x1+(x2-x1)*t+nx*off, y:y1+(y2-y1)*t+ny*off});
+  }
+  pts.push({x:x2,y:y2});
+  return pts;
+}
+function fxBallBolt(x1,y1,x2,y2,life){
+  if(fxs.length > fxCap()) fxs.splice(0, fxs.length - fxCap());
+  fxs.push({
+    type:'ballBolt', x:(x1+x2)/2, y:(y1+y2)/2, r:Math.hypot(x2-x1,y2-y1)/2+60,
+    t:0, life:life||0.4, color:'#2f8bff',
+    main:ballBoltPoints(x1,y1,x2,y2,15),
+    forks:[ballBoltPoints(x1,y1,x2,y2,26), ballBoltPoints(x1,y1,x2,y2,26)]
+  });
+}
+function endBallLightning(hero, silent){
+  const st = hero.ballState;
+  if(!st) return;
+  hero.ballState = null;
+  hero.moving = false;
+  if(silent) return;
+  fxRing(hero.x,hero.y,120,'#3a9bff',0.5);
+  fxArcaneBurst(hero.x,hero.y,110,'#4aa8ff',0.55);
+  spawnParticles(hero.x,hero.y,'#bfe6ff',22,1.2);
+  spawnParticles(hero.x,hero.y,'#2f7bff',16,0.9);
+}
+function advanceBallLightning(hero, dt){
+  const st = hero.ballState;
+  if(!st) return;
+  if(hero.dead || hero.stunTimer > 0){ endBallLightning(hero); return; }
+  const costs = ballLightningCosts(hero);
+  const dx = st.tx-hero.x, dy = st.ty-hero.y;
+  const remaining = Math.hypot(dx,dy);
+  let step = Math.min(remaining, st.speed*dt);
+  /* мана за каждый метр полёта: если не хватает — летим ровно на сколько хватило и приземляемся */
+  const stepCost = step/100*costs.per100;
+  let outOfMana = false;
+  if(stepCost > hero.mp){
+    step = hero.mp/costs.per100*100;
+    hero.mp = 0;
+    outOfMana = true;
+  } else {
+    hero.mp -= stepCost;
+  }
+  if(step > 0 && remaining > 0){
+    const ox = hero.x, oy = hero.y;
+    hero.x = clamp(ox + dx/remaining*step, 60, WORLD-60);
+    hero.y = clamp(oy + dy/remaining*step, 60, WORLD-60);
+    hero.facing = Math.atan2(dy,dx);
+    st.travelled += step;
+    st.sinceBolt += step;
+    /* урон по пути: каждого врага — не чаще раза в 110 ед. полёта */
     for(const unit of units){
       if(unit.dead||unit.team===hero.team||unit.team===2||isStructure(unit)) continue;
-      if(Math.hypot(unit.x-px,unit.y-py)<85) applyDamage(unit,abilityDamage(hero,90),hero);
+      if(Math.hypot(unit.x-hero.x,unit.y-hero.y) < 90+unit.radius){
+        const last = st.hits.get(unit);
+        if(last === undefined || st.travelled-last >= 110){
+          st.hits.set(unit, st.travelled);
+          applyDamage(unit, abilityDamage(hero, 55+25*st.level), hero);
+          fxHit(unit.x,unit.y,'#7fc8ff');
+        }
+      }
     }
-    if(i%2===0) fxRing(px,py,48,'#7feaff',0.2);
+    if(st.sinceBolt >= 55 || Math.random() < dt*10){
+      fxBallBolt(st.lastX,st.lastY,hero.x,hero.y,0.45);
+      st.lastX = hero.x; st.lastY = hero.y; st.sinceBolt = 0;
+      if(particles.length < particleCap()) particles.push({
+        x:hero.x+rnd(-12,12), y:hero.y+rnd(-12,12), vx:rnd(-60,60), vy:rnd(-60,60),
+        color:Math.random()<0.5?'#7fc8ff':'#ffffff', size:rnd(2,5), t:0, life:rnd(0.3,0.7),
+        gravity:0, drag:0.9, spark:true
+      });
+    }
   }
-  hero.x=clamp(targetX,60,WORLD-60); hero.y=clamp(targetY,60,WORLD-60); hero.moveTarget=null;
-  fxBeam(startX,startY,hero.x,hero.y,'#7feaff',0.4);
+  if(outOfMana || remaining-step <= 4){
+    if(st.lastX !== hero.x || st.lastY !== hero.y) fxBallBolt(st.lastX,st.lastY,hero.x,hero.y,0.45);
+    endBallLightning(hero);
+    if(outOfMana) addText(hero.x,hero.y-70,'МАНА КОНЧИЛАСЬ','#7fc8ff',0.9,14);
+  }
+}
+function castBallLightning(hero, x, y){
+  const costs = ballLightningCosts(hero);
+  if(hero.mp < costs.initial){ flashMsg(hero,'Мало маны для Ball Lightning'); return false; }
+  const level = ballLightningLevel(hero);
+  const dist = Math.hypot(x-hero.x, y-hero.y);
+  if(dist < 20){ return false; }
+  hero.mp -= costs.initial;
+  const direction = Math.atan2(y-hero.y, x-hero.x);
+  const wasFlying = !!hero.ballState;
+  const carriedHits = wasFlying ? hero.ballState.hits : new Map();
+  hero.ballState = {
+    tx: clamp(x,60,WORLD-60), ty: clamp(y,60,WORLD-60),
+    speed: BALL_BASE_SPEED + 250*level, level,
+    travelled: wasFlying ? hero.ballState.travelled : 0, sinceBolt:0,
+    lastX: hero.x, lastY: hero.y, hits: carriedHits
+  };
+  hero.moveTarget = null; hero.attackTarget = null; hero.isAttacking = false;
+  hero.facing = direction;
+  /* вспышка старта: синий разряд и кольца */
+  fxRing(hero.x,hero.y,100,'#3a9bff',0.45);
+  fxArcaneBurst(hero.x,hero.y,95,'#4aa8ff',0.5);
+  spawnParticles(hero.x,hero.y,'#bfe6ff',18,1.1);
+  return true;
+}
+
+/* Отрисовка шара вместо модели героя: синее ядро, дуги молний, искры */
+function drawBallLightningOrb(u){
+  const T = gameTime;
+  const R = u.radius*1.15;
+  ctx.save();
+  ctx.translate(u.x, u.y);
+  ctx.globalCompositeOperation = 'lighter';
+  /* большое мягкое свечение */
+  const halo = ctx.createRadialGradient(0,0,R*0.2,0,0,R*3.1);
+  halo.addColorStop(0,'rgba(120,200,255,0.55)');
+  halo.addColorStop(0.45,'rgba(40,120,255,0.22)');
+  halo.addColorStop(1,'rgba(20,70,255,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(0,0,R*3.1,0,Math.PI*2); ctx.fill();
+  /* вращающиеся дуги молний вокруг шара */
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for(let i=0;i<7;i++){
+    const base = T*(5+i*0.7) + i*2.4;
+    const len = R*(1.9+0.9*Math.sin(T*9+i*1.7));
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    const segs = 5;
+    for(let sgm=1; sgm<=segs; sgm++){
+      const tt = sgm/segs;
+      const a = base + Math.sin(T*23+i*5+sgm*2.3)*0.55;
+      ctx.lineTo(Math.cos(a)*len*tt, Math.sin(a)*len*tt);
+    }
+    ctx.shadowColor = '#2f8bff'; ctx.shadowBlur = 18;
+    ctx.strokeStyle = 'rgba(70,150,255,0.85)'; ctx.lineWidth = 3.2;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(235,248,255,0.95)'; ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  /* ядро */
+  ctx.globalCompositeOperation = 'source-over';
+  const core = ctx.createRadialGradient(0,0,0,0,0,R*1.05);
+  core.addColorStop(0,'#ffffff');
+  core.addColorStop(0.35,'#bfe6ff');
+  core.addColorStop(0.75,'#3f95ff');
+  core.addColorStop(1,'rgba(30,90,255,0.35)');
+  ctx.shadowColor = '#4aa8ff'; ctx.shadowBlur = 30;
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(0,0,R*(1+Math.sin(T*30)*0.05),0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  /* кольца вокруг ядра */
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = 'rgba(150,215,255,0.8)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(0,0,R*1.45,R*0.55,T*6,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0,0,R*1.45,R*0.55,-T*4.5+1.2,0,Math.PI*2); ctx.stroke();
+  ctx.restore();
 }
 
 const SKILLS = {
@@ -4946,9 +5192,9 @@ const SKILLS = {
   },
   ballLightning: {
     name:'Ball Lightning', short:'R', type:'point', maxLevel:3,
-    cd:[0,55,48,42], mana:[0,0,0,0], range:1800, ult:true,
-    desc:'Несётся к цели, расходуя 25 + 7.5% маны и 10 + 0.75% маны за каждые 100 единиц пути.',
-    cast(h,x,y){ castBallLightning(h,x,y); }
+    cd:[0,0,0,0], mana:[0,0,0,0], range:1800, ult:true,
+    desc:'Без перезарядки, как у Storm Spirit. Герой летит шаром молнии и тратит ману: 25 + 7.5% макс. маны за запуск и 10 + 0.75% за каждые 100 ед. пути. Мана кончилась или герой долетел — можно сразу жать снова; повторное нажатие в полёте меняет направление.',
+    cast(h,x,y){ return castBallLightning(h,x,y); }
   },
   ilyaPull: {
     name:'Жирный крюк', short:'Q', type:'point', maxLevel:4,
@@ -5746,14 +5992,14 @@ const MO3GI_SKILLS = {
     }
   },
   mo3giBike: {
-    name:'Зелёный байк', short:'R', type:'self', maxLevel:3,
+    name:'Военный байк', short:'R', type:'self', maxLevel:3,
     cd:[0,60,60,60], mana:[0,0,0,0], ult:true,
-    desc:'15 секунд мчится на зелёном байке: наносит урон и оглушает при контакте, получает щит и не может стрелять.',
+    desc:'15 секунд мчится на военном байке: давит вражеских крипов и лесных (мгновенная смерть), наносит урон и оглушает героев при контакте, получает щит и не может стрелять.',
     cast(h){
       if(h.bikeSpeedBoost) h.speed-=h.bikeSpeedBoost;
       h.bikeSpeedBoost=260; h.speed+=h.bikeSpeedBoost;
       h.bikeTimer=15; h.bikeHitTimer=0; h.bikeShieldTimer=15; h.attackTarget=null;
-      addText(h.x,h.y-72,'ЗЕЛЁНЫЙ БАЙК — 15 СЕКУНД','#8dffad',1.3,18);
+      addText(h.x,h.y-72,'ВОЕННЫЙ БАЙК — 15 СЕКУНД','#8dffad',1.3,18);
       fxRing(h.x,h.y,120,'#65ff9a',0.75); spawnParticles(h.x,h.y,'#b9ffd0',36,1.4);
     }
   }
@@ -6778,6 +7024,7 @@ class Hero extends Unit {
     }
     this.omnislashWasActive=!!omnislash;
     if(this.arcMotion){
+      if(this.ballState) endBallLightning(this, true);
       advanceArcMotion(this, dt);
       return;
     }
@@ -6857,12 +7104,32 @@ class Hero extends Unit {
     tickRupture(this, dt);
     resolveBaseWalls(this);
     if(!this.isPlayer) this.autoLevelSkills();
+    if(this.ballState){
+      advanceBallLightning(this, dt);
+      if(this.ballState) return;
+    }
     this.updateAI(dt);
     this.updateMove(dt);
     if(this.bikeTimer>0){
       this.bikeTimer=Math.max(0,this.bikeTimer-dt);
       this.bikeShieldTimer=this.bikeTimer;
       this.bikeHitTimer-=dt;
+      /* ДАВИМ крипов и лесных: любой вражеский крип/нейтрал под колёсами гибнет сразу */
+      for(const unit of units){
+        if(unit.dead||unit.team===this.team) continue;
+        if(unit.type!=='creep' && unit.type!=='neutral') continue;
+        if(Math.hypot(unit.x-this.x,unit.y-this.y) < this.radius+unit.radius+14){
+          const ux=unit.x, uy=unit.y;
+          applyDamage(unit, unit.maxHp*5+2000, this);
+          fxHit(ux,uy,'#d9ff9a');
+          fxRing(ux,uy,46,'#8dffad',0.3);
+          spawnParticles(ux,uy,'#b9d86a',10,0.9);
+          addText(ux,uy-unit.radius-20,'РАЗДАВЛЕН','#c8ff9d',0.8,13);
+        }
+      }
+      if(!perfLite() && this.moving && Math.random() < dt*22){
+        spawnParticles(this.x-Math.cos(this.facing||0)*26,this.y+this.radius*0.6,'#b8a77a',2,0.35);
+      }
       if(this.bikeHitTimer<=0){
         this.bikeHitTimer=0.42;
         for(const unit of units){
@@ -7120,7 +7387,7 @@ function startGame(playerIndex, draftPicks=null){
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
-  gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
+  resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
    barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
   structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
   structureProgress=[createStructureProgress(),createStructureProgress()];
@@ -7241,7 +7508,7 @@ function startTestMode(playerIndex){
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; runes=[]; mo3giMines=[]; grassBends=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
-  gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
+  resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
   barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
   structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=0;
   structureProgress=[createStructureProgress(),createStructureProgress()];
@@ -7795,7 +8062,8 @@ function updateEnemyAI(h, dt){
     if(target){
       const d=Math.hypot(target.x-h.x,target.y-h.y);
       h.attackTarget=target; h.moveTarget=null;
-      if(h.skills[3].level>0 && h.skills[3].cd<=0 && d>280 && h.mp>120) castSkill(h,3,target.x,target.y);
+      if(h.ballState){ /* летит шаром */ }
+      else if(h.skills[3].level>0 && h.skills[3].cd<=0 && d>280 && h.mp>h.maxMp*0.45){ const bd=Math.max(1,d); castSkill(h,3,target.x-(target.x-h.x)/bd*110,target.y-(target.y-h.y)/bd*110); }
       else if(h.skills[2].level>0 && h.skills[2].cd<=0 && d<260) castSkill(h,2,h.x,h.y);
       else if(h.skills[1].level>0 && h.skills[1].cd<=0 && d<700) castSkill(h,1,target.x,target.y);
       else if(h.skills[0].level>0 && h.skills[0].cd<=0 && d<900) castSkill(h,0,target.x,target.y);
@@ -8679,6 +8947,7 @@ canvas.addEventListener('mousedown', e => {
     } else {
       control.attackTarget = null;
       control.moveTarget = {x:w.x, y:w.y};
+      if(control === playerHero) gollyOnMoveClick();
       if(typeof window.__shadowOnlineClearTarget === 'function') window.__shadowOnlineClearTarget();
       fxRing(w.x, w.y, 26, '#7fffa0', 0.35);
     }
@@ -8951,7 +9220,7 @@ function drawTerrain(){
 
   /* Два независимых текущих слоя ряби/бликов поверх воды — разная скорость,
      направление и масштаб не дают реке казаться одним и тем же куском текстуры. */
-  const canScrollPatterns = !!(waterPatternA && waterPatternA.setTransform);
+  const canScrollPatterns = !perfLite() && !!(waterPatternA && waterPatternA.setTransform);
   if(canScrollPatterns){
     const mA = new DOMMatrix();
     mA.translateSelf((gameTime*30)%256, (-gameTime*16)%256);
@@ -9799,6 +10068,111 @@ function draw3DExtrude(u){
   ctx.restore();
 }
 
+/* ===== Военный байк Мо3ги (оливковый, как армейский KLR650 USMC) ===== */
+function drawMilitaryBike(u, footY){
+  /* направление: байк смотрит вправо/влево по движению */
+  const fc = Math.cos(u.facing || 0);
+  if(fc > 0.12) u.bikeDir = 1; else if(fc < -0.12) u.bikeDir = -1;
+  const dir = u.bikeDir || 1;
+  /* колёса крутятся от реально пройденного пути */
+  if(u.bikeLastX !== undefined){
+    const dd = Math.hypot(u.x-u.bikeLastX, u.y-u.bikeLastY);
+    u.bikeOdo = (u.bikeOdo || 0) + dd;
+  }
+  u.bikeLastX = u.x; u.bikeLastY = u.y;
+  const spin = (u.bikeOdo || 0) / 17 * dir;
+  const sc = u.radius / 22;
+  const R = 17;                                    /* радиус колеса в юнитах эскиза */
+  const bob = u.moving ? Math.sin(gameTime*28)*0.8 : 0;
+  ctx.save();
+  ctx.translate(0, footY + bob*sc);
+  ctx.scale(dir*sc, sc);
+  const OLIVE = '#6f7f4a', OLIVE_L = '#8d9d62', OLIVE_D = '#4c5a33', BLACK = '#1b1c1a';
+  /* тень под байком */
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath(); ctx.ellipse(0, 1, 62, 8, 0, 0, Math.PI*2); ctx.fill();
+  /* колесо: шина с шипами, оливковый обод, спицы */
+  const wheel = (cx) => {
+    ctx.save(); ctx.translate(cx, -R);
+    ctx.fillStyle = BLACK; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#34362f'; ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    for(let i=0;i<18;i++){ const a=i*Math.PI/9+spin; ctx.moveTo(Math.cos(a)*(R-0.5),Math.sin(a)*(R-0.5)); ctx.lineTo(Math.cos(a)*(R+1.8),Math.sin(a)*(R+1.8)); }
+    ctx.stroke();
+    ctx.fillStyle = OLIVE_D; ctx.beginPath(); ctx.arc(0,0,R-4.5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#5a6a3a'; ctx.beginPath(); ctx.arc(0,0,R-6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#a7b27a'; ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    for(let i=0;i<12;i++){ const a=i*Math.PI/6+spin; ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*(R-6),Math.sin(a)*(R-6)); }
+    ctx.stroke();
+    ctx.fillStyle = '#2b2f24'; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  };
+  wheel(-37);
+  /* задняя вилка / маятник */
+  ctx.strokeStyle = OLIVE_D; ctx.lineWidth = 3.2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-37,-R); ctx.lineTo(-8,-10); ctx.stroke();
+  /* выхлоп */
+  ctx.fillStyle = BLACK; ctx.strokeStyle = '#3a3c36'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(-46,-21,22,7,3); ctx.fill(); ctx.stroke();
+  /* двигатель */
+  ctx.fillStyle = '#3d4234';
+  ctx.beginPath(); ctx.roundRect(-14,-20,26,17,3); ctx.fill();
+  ctx.fillStyle = '#565c48'; ctx.fillRect(-10,-22,8,6); ctx.fillRect(2,-23,8,7);
+  ctx.strokeStyle = '#25271f'; ctx.lineWidth = 1;
+  for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(-9+i*5.5,-20); ctx.lineTo(-9+i*5.5,-4); ctx.stroke(); }
+  ctx.fillStyle = '#6d7260'; ctx.beginPath(); ctx.arc(2,-9,5,0,Math.PI*2); ctx.fill();
+  /* рама */
+  ctx.strokeStyle = OLIVE_D; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-14,-14); ctx.lineTo(-30,-26); ctx.moveTo(10,-4); ctx.lineTo(22,-33); ctx.stroke();
+  /* заднее боковое оперение */
+  ctx.fillStyle = OLIVE; ctx.strokeStyle = OLIVE_D; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-50,-26); ctx.lineTo(-12,-22); ctx.lineTo(-10,-11); ctx.lineTo(-20,-9); ctx.lineTo(-42,-17); ctx.closePath(); ctx.fill(); ctx.stroke();
+  /* багажная рамка */
+  ctx.strokeStyle = OLIVE_L; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-54,-29); ctx.lineTo(-40,-29); ctx.lineTo(-34,-33); ctx.moveTo(-54,-29); ctx.lineTo(-52,-20); ctx.stroke();
+  /* стоп-сигнал */
+  ctx.fillStyle = '#d93a2e'; ctx.fillRect(-56,-24,4,5);
+  ctx.fillStyle = '#ff9c2a'; ctx.fillRect(-55,-19,3,3);
+  /* сиденье */
+  ctx.fillStyle = '#17181a';
+  ctx.beginPath(); ctx.moveTo(-50,-31); ctx.lineTo(-12,-30); ctx.quadraticCurveTo(-4,-30,-2,-25); ctx.lineTo(-8,-24); ctx.lineTo(-48,-25); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#2a2c2e'; ctx.fillRect(-40,-30,18,2);
+  /* большой топливный бак */
+  const tank = ctx.createLinearGradient(0,-40,0,-12);
+  tank.addColorStop(0,OLIVE_L); tank.addColorStop(1,OLIVE);
+  ctx.fillStyle = tank; ctx.strokeStyle = OLIVE_D; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(-8,-31); ctx.quadraticCurveTo(10,-42,30,-36); ctx.quadraticCurveTo(36,-30,32,-22);
+  ctx.quadraticCurveTo(24,-12,10,-12); ctx.quadraticCurveTo(-6,-14,-8,-24); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.beginPath(); ctx.ellipse(10,-33,13,3,-0.12,0,Math.PI*2); ctx.fill();
+  /* надписи как на оригинале */
+  ctx.save(); ctx.fillStyle = '#23281a'; ctx.font = 'bold 6.2px Arial, sans-serif'; ctx.textAlign = 'center';
+  ctx.translate(14,-21); ctx.rotate(0.13); ctx.scale(1,1);
+  ctx.fillText('JP8/DIESEL',0,0); ctx.restore();
+  ctx.fillStyle = '#2d3321'; ctx.font = 'bold 5px Arial, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('USMC',-30,-14);
+  /* передняя вилка */
+  ctx.strokeStyle = '#2a2d24'; ctx.lineWidth = 3.4;
+  ctx.beginPath(); ctx.moveTo(38,-R); ctx.lineTo(25,-41); ctx.stroke();
+  ctx.strokeStyle = '#8b917c'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(35.5,-24); ctx.lineTo(29,-37); ctx.stroke();
+  wheel(38);
+  /* переднее крыло */
+  ctx.fillStyle = OLIVE; ctx.strokeStyle = OLIVE_D; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(24,-30); ctx.quadraticCurveTo(46,-36,56,-22); ctx.lineTo(54,-20); ctx.quadraticCurveTo(44,-29,28,-27); ctx.closePath(); ctx.fill(); ctx.stroke();
+  /* обтекатель фары + оранжевый поворотник */
+  ctx.fillStyle = OLIVE_L;
+  ctx.beginPath(); ctx.moveTo(22,-38); ctx.quadraticCurveTo(31,-46,38,-39); ctx.lineTo(33,-33); ctx.lineTo(24,-33); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffb12e'; ctx.fillRect(34,-37,3,3);
+  /* руль, зеркало */
+  ctx.strokeStyle = '#1c1d1b'; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.moveTo(22,-43); ctx.lineTo(15,-45); ctx.stroke();
+  ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(20,-44); ctx.lineTo(18,-54); ctx.stroke();
+  ctx.fillStyle = '#2a2d24'; ctx.fillRect(14,-58,6,5);
+  ctx.restore();
+  return dir;
+}
+
 function drawUnit(u){
   if(u.dead) return;
   if(u.invisible) return;
@@ -9806,6 +10180,11 @@ function drawUnit(u){
   if(isEnemy && !isVisibleToPlayer(u) && !u.arcMotion) return;
 
   const col = TEAM_COL[u.team];
+  if(u.ballState && u.type === 'hero' && !portraitRenderMode){
+    drawBallLightningOrb(u);
+    drawHealthBar(u);
+    return;
+  }
   const arcProgress = u.arcMotion ? clamp(u.arcMotion.t/u.arcMotion.duration,0,1) : 0;
   const arcLift = u.arcMotion ? Math.sin(arcProgress*Math.PI) * u.arcMotion.height : 0;
   const windLift = u.windTimer > 0 ? Math.min(1, (SHOP_ITEMS.windWaker.duration - u.windTimer + 0.12) / 0.3) * (38 + Math.sin(gameTime*6)*5) : 0;
@@ -9859,7 +10238,7 @@ function drawUnit(u){
     ctx.beginPath(); ctx.arc(24,0,7+Math.sin(gameTime*28)*2,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  if(u.type === 'hero'){
+  if(u.type === 'hero' && !perfLite()){
     const heroAccent = u.skinId === 'reginaRed' ? '#ff344f' : (u.def.color2 || col);
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
     ctx.globalAlpha = 0.18;
@@ -9894,7 +10273,7 @@ function drawUnit(u){
   ctx.beginPath();
   ctx.ellipse(0, u.radius*0.75, u.radius*0.95, u.radius*0.45, 0, 0, Math.PI*2);
   ctx.fill();
-  if(FX_3D){ draw3DShadow(u); if(u.type==='tower'||u.type==='ancient'||u.type==='barracks') draw3DExtrude(u); }
+  if(FX_3D && !perfLite()){ draw3DShadow(u); if(u.type==='tower'||u.type==='ancient'||u.type==='barracks') draw3DExtrude(u); }
 
   if(walkableUnit && u.moving){
     const facing = u.facing || 0;
@@ -9927,6 +10306,8 @@ function drawUnit(u){
       if(!anim3d && u.isAttacking) anim3d = {kind:'attack', p:Math.min(1,u.attackAnimProgress)};
       if(!anim3d && u.moving && !u.isAttacking) anim3d = {kind:'walk', p:(u.walkPhase||0)%1};
     }
+    if(perfLite()) anim3d = null;      /* супер низкая: без анимаций моделей — статичные спрайты */
+    if(u.bikeTimer > 0 && u.def.id === 'mo3gi') anim3d = null;   /* на байке боец сидит, не шагает */
     hero3dSpr = Hero3D.battleSprite(u.def, u.radius, fa, gameTime, anim3d);
     if(hero3dSpr){
       const footY = u.radius*0.7;
@@ -9946,6 +10327,10 @@ function drawUnit(u){
       if(u.isAttacking){
         const lunge = Math.sin(Math.min(1,u.attackAnimProgress)*Math.PI) * u.radius*(anim3d ? 0.12 : 0.28);
         lx = Math.cos(fa)*lunge; ly = Math.sin(fa)*lunge*0.6;
+      }
+      if(u.bikeTimer > 0 && u.def.id === 'mo3gi'){
+        const bd = drawMilitaryBike(u, footY);       /* байк рисуется под всадником */
+        ly -= u.radius*0.7; lx -= bd*u.radius*0.95;
       }
       ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax + lx, footY - hero3dSpr.ay + ly);
     }
@@ -11420,7 +11805,7 @@ function drawUnit(u){
     }
     ctx.restore();
   }
-  if(FX_3D && (u.type==='hero'||u.type==='neutral'||u.type==='creep'||u.type==='tower'||u.type==='ancient')) draw3DLighting(u);
+  if(FX_3D && !perfLite() && (u.type==='hero'||u.type==='neutral'||u.type==='creep'||u.type==='tower'||u.type==='ancient')) draw3DLighting(u);
   ctx.restore();
   const dianaAura = u.inventory && u.inventory.find(i => i && i.id === 'dianaPants' && i.auraOn);
   if(dianaAura && !u.dead){
@@ -11739,6 +12124,7 @@ function drawWorldObjects(){
     const fxX=Number.isFinite(f.x)?f.x:f.x1, fxY=Number.isFinite(f.y)?f.y:f.y1;
     if(!isWorldPointVisible(fxX,fxY,Math.max(180,f.r||0))) continue;
     if(f.t<0) continue;
+    if(perfLite() && (f.type === 'arcane' || f.type === 'skillBurst' || f.type === 'groundCrack')) continue;
     const k = f.t/f.life;
     ctx.save();
     if(f.type === 'ring'){
@@ -11894,16 +12280,131 @@ function drawWorldObjects(){
       ctx.shadowBlur = 0;
       ctx.restore();
     } else if(f.type === 'mark'){
-      ctx.globalAlpha = 0.22 + Math.sin(f.t*22)*0.12;
-      ctx.fillStyle = f.color;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.fill();
-      ctx.globalAlpha = 0.95;
-      ctx.strokeStyle = f.color; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.stroke();
-      ctx.globalAlpha = 0.7;
-      ctx.setLineDash([18, 12]);
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r*(1-f.t/f.life), -gameTime*2, Math.PI*2-gameTime*2); ctx.stroke();
+      /* Метка зоны удара: рунический круг с вращающимися кольцами, радар-разверткой
+         и заполнением, которое растёт до момента удара. Цвет — цвет скила. */
+      const col = f.color;
+      const R0 = f.r;
+      const appear = Math.min(1, f.t/0.18);
+      const ease = 1-Math.pow(1-appear,3);
+      const R = R0*(0.72+0.28*ease);
+      const warn = k>0.82 ? (0.5+0.5*Math.sin(f.t*34)) : 0;          // мигание перед самым ударом
+      const T = gameTime;
+      ctx.translate(f.x,f.y);
+      ctx.globalAlpha = ease;
+      /* подложка */
+      ctx.globalCompositeOperation = 'lighter';
+      const bgG = ctx.createRadialGradient(0,0,R*0.1,0,0,R);
+      bgG.addColorStop(0,'rgba(255,255,255,0.02)');
+      bgG.addColorStop(0.7,col); bgG.addColorStop(1,col);
+      ctx.globalAlpha = ease*(0.07+0.05*k);
+      ctx.fillStyle = bgG; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
+      /* растущее заполнение — сколько осталось до удара */
+      const fillR = R*Math.min(1,k);
+      if(fillR>2){
+        const fg = ctx.createRadialGradient(0,0,0,0,0,fillR);
+        fg.addColorStop(0,'rgba(255,255,255,0.9)'); fg.addColorStop(0.35,col); fg.addColorStop(1,col);
+        ctx.globalAlpha = ease*(0.16+0.22*k+0.2*warn);
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(0,0,fillR,0,Math.PI*2); ctx.fill();
+        ctx.globalAlpha = ease*(0.55+0.3*warn);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+        ctx.shadowColor = col; ctx.shadowBlur = 18;
+        ctx.beginPath(); ctx.arc(0,0,fillR,0,Math.PI*2); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      /* радар-развёртка */
+      ctx.save(); ctx.rotate(T*1.9);
+      const sw = ctx.createLinearGradient(0,0,R,0);
+      sw.addColorStop(0,'rgba(255,255,255,0)'); sw.addColorStop(1,col);
+      ctx.globalAlpha = ease*0.34;
+      ctx.fillStyle = sw;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R*0.97,-0.95,0); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.globalCompositeOperation = 'source-over';
+      /* лучи-спицы */
+      ctx.strokeStyle = col; ctx.lineWidth = 1;
+      ctx.globalAlpha = ease*0.22;
+      const spokes = 8;
+      for(let i=0;i<spokes;i++){
+        const an = i*Math.PI*2/spokes + T*0.25;
+        ctx.beginPath(); ctx.moveTo(Math.cos(an)*R*0.22,Math.sin(an)*R*0.22); ctx.lineTo(Math.cos(an)*R*0.78,Math.sin(an)*R*0.78); ctx.stroke();
+      }
+      /* внешнее кольцо со свечением */
+      ctx.shadowColor = col; ctx.shadowBlur = 16+14*warn;
+      ctx.globalAlpha = ease*(0.85+0.15*warn);
+      ctx.strokeStyle = col; ctx.lineWidth = 3+2.5*warn;
+      ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = ease*0.8; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(0,0,R-4,0,Math.PI*2); ctx.stroke();
+      /* засечки по краю (медленно вращаются) */
+      const ticks = Math.max(24,Math.round(R/6));
+      ctx.save(); ctx.rotate(T*0.35);
+      ctx.strokeStyle = col; ctx.globalAlpha = ease*0.9;
+      for(let i=0;i<ticks;i++){
+        const an = i*Math.PI*2/ticks, long = i%4===0;
+        const r1 = R-(long?16:9), r2 = R-3;
+        ctx.lineWidth = long?2.2:1.2;
+        ctx.beginPath(); ctx.moveTo(Math.cos(an)*r1,Math.sin(an)*r1); ctx.lineTo(Math.cos(an)*r2,Math.sin(an)*r2); ctx.stroke();
+      }
+      ctx.restore();
+      /* внутреннее рунное кольцо — обратное вращение, дуги и треугольники */
+      const rr = R*0.8;
+      ctx.save(); ctx.rotate(-T*0.9);
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.globalAlpha = ease*0.8;
+      ctx.shadowColor = col; ctx.shadowBlur = 10;
+      for(let i=0;i<4;i++){
+        ctx.beginPath(); ctx.arc(0,0,rr,i*Math.PI/2+0.12,i*Math.PI/2+Math.PI/2-0.38); ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff'; ctx.globalAlpha = ease*0.9;
+      for(let i=0;i<4;i++){
+        const an = i*Math.PI/2+Math.PI/4-0.12, g = 7+R*0.012;
+        ctx.save(); ctx.rotate(an); ctx.translate(rr,0);
+        ctx.beginPath(); ctx.moveTo(g,0); ctx.lineTo(-g*0.7,-g*0.8); ctx.lineTo(-g*0.7,g*0.8); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+      /* тонкое пунктирное кольцо */
+      ctx.save(); ctx.rotate(T*0.6);
+      ctx.setLineDash([R*0.045,R*0.05]); ctx.globalAlpha = ease*0.55;
+      ctx.strokeStyle = col; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(0,0,R*0.58,0,Math.PI*2); ctx.stroke();
       ctx.setLineDash([]);
+      ctx.restore();
+      /* искры, стягивающиеся к центру */
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = '#ffffff'; ctx.shadowColor = col; ctx.shadowBlur = 8;
+      for(let i=0;i<14;i++){
+        const ph = (T*0.55 + i/14)%1;
+        const an = i*2.399 + T*0.7;
+        const dist = R*(0.95-ph*0.85);
+        const z = (1.6+2.2*((i*7)%5)/5)*(1-ph*0.5);
+        const sx = Math.cos(an)*dist, sy = Math.sin(an)*dist;
+        ctx.globalAlpha = ease*Math.sin(ph*Math.PI)*0.9;
+        ctx.beginPath(); ctx.moveTo(sx,sy-z*2); ctx.lineTo(sx+z*0.6,sy); ctx.lineTo(sx,sy+z*2); ctx.lineTo(sx-z*0.6,sy); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(sx-z*2,sy); ctx.lineTo(sx,sy+z*0.6); ctx.lineTo(sx+z*2,sy); ctx.lineTo(sx,sy-z*0.6); ctx.closePath(); ctx.fill();
+      }
+      /* центр: пульсирующий кристалл-прицел */
+      ctx.shadowBlur = 14; ctx.globalAlpha = ease*(0.55+0.35*Math.sin(T*6));
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8;
+      const cs = 9+4*k;
+      ctx.beginPath(); ctx.moveTo(-cs,0); ctx.lineTo(-cs*0.35,0); ctx.moveTo(cs,0); ctx.lineTo(cs*0.35,0);
+      ctx.moveTo(0,-cs); ctx.lineTo(0,-cs*0.35); ctx.moveTo(0,cs); ctx.lineTo(0,cs*0.35); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,0,cs*0.2,0,Math.PI*2); ctx.fill();
+    } else if(f.type === 'ballBolt'){
+      /* синяя молния следа Ball Lightning */
+      const fade = 1-k;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const trace = pts => { ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.stroke(); };
+      ctx.globalAlpha = fade*0.55; ctx.strokeStyle = '#1f6bff'; ctx.shadowColor = '#2f8bff'; ctx.shadowBlur = 30;
+      ctx.lineWidth = 22*fade+4; trace(f.main);
+      ctx.shadowBlur = 14; ctx.globalAlpha = fade*0.8; ctx.strokeStyle = '#5fb0ff';
+      ctx.lineWidth = 8*fade+1.5; trace(f.main);
+      ctx.globalAlpha = fade*0.55; ctx.lineWidth = 2.2;
+      if(!perfLite()) for(const fk of f.forks) trace(fk);
+      ctx.shadowBlur = 0; ctx.globalAlpha = fade; ctx.strokeStyle = '#f2faff';
+      ctx.lineWidth = 3*fade+0.8; trace(f.main);
     } else if(f.type === 'beam'){
       /* ЛУЧ */
       ctx.globalAlpha = 1-k;
@@ -14262,18 +14763,23 @@ function menuSettingsLayout(panel){
   const gap=VW<600?8:16;
   const rowWidth=(panel.w-72-gap*(columns-1))/columns;
   return {
-    music:{x:panel.x+36,y:panel.y+(compact?72:142),w:panel.w-72,h:48},
-    touch:{x:panel.x+36,y:panel.y+(compact?126:202),w:panel.w-72,h:48},
-    bindTitleY:panel.y+(compact?184:282),
-    bindHintY:panel.y+(compact?202:302),
+    music:{x:panel.x+36,y:panel.y+(compact?56:92),w:panel.w-72,h:compact?44:48},
+    touch:{x:panel.x+36,y:panel.y+(compact?104:146),w:panel.w-72,h:compact?44:48},
+    gfx:{x:panel.x+36,y:panel.y+(compact?152:200),w:panel.w-72,h:compact?52:60},
+    bindTitleY:panel.y+(compact?222:282),
+    bindHintY:panel.y+(compact?238:302),
     columns,
     rows:Array.from({length:6},(_,index)=>({
       x:panel.x+36+(index%columns)*(rowWidth+gap),
-      y:panel.y+(compact?210:316)+Math.floor(index/columns)*(compact?34:52),
+      y:panel.y+(compact?244:316)+Math.floor(index/columns)*(compact?34:52),
       w:rowWidth,h:compact?30:44
     })),
     close:{x:panel.x+(panel.w-180)/2,y:panel.y+panel.h-58,w:180,h:44}
   };
+}
+function menuGfxSegments(layout){
+  const g=layout.gfx, gap=6, top=g.y+22, h=g.h-26, w=(g.w-gap*3)/4;
+  return PERF_NAMES.map((name,index)=>({index,name,x:g.x+index*(w+gap),y:top,w,h}));
 }
 function menuStoreRect(){ if(menuWide()) return menuNavRect(2); return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
 function storePanelLayout(){
@@ -14456,6 +14962,9 @@ function handleMenuClick(mx, my){
       setMusicEnabled(!musicEnabled);
     } else if(mx>=touchToggle.x && mx<=touchToggle.x+touchToggle.w && my>=touchToggle.y && my<=touchToggle.y+touchToggle.h){
       setTouchControlsEnabled(!touchControlsEnabled);
+    } else if(menuGfxSegments(layout).some(seg=>mx>=seg.x&&mx<=seg.x+seg.w&&my>=seg.y&&my<=seg.y+seg.h)){
+      const seg=menuGfxSegments(layout).find(seg=>mx>=seg.x&&mx<=seg.x+seg.w&&my>=seg.y&&my<=seg.y+seg.h);
+      setPerfLevel(seg.index,true);
     } else {
       for(let index=0;index<6;index++){
         const row=layout.rows[index];
@@ -16716,6 +17225,22 @@ function drawMenu(){
     ctx.fillStyle='#f9e6bd';
     ctx.beginPath(); ctx.arc(touchSwitchX+(touchControlsEnabled?22:10),touchSwitchY+10,7,0,Math.PI*2); ctx.fill();
 
+    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.font='bold 14px Segoe UI, Arial';
+    ctx.fillText('ГРАФИКА',layout.gfx.x+2,layout.gfx.y+14);
+    ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.font='12px Segoe UI, Arial';
+    ctx.fillText('(в матче — F8)',layout.gfx.x+84,layout.gfx.y+14);
+    for(const seg of menuGfxSegments(layout)){
+      const on=perfLevel===seg.index;
+      const hov=mouse.x>=seg.x&&mouse.x<=seg.x+seg.w&&mouse.y>=seg.y&&mouse.y<=seg.y+seg.h;
+      ctx.fillStyle=on?'rgba(201,77,53,0.75)':(hov?'rgba(139,44,35,0.44)':'rgba(255,255,255,0.06)');
+      ctx.beginPath(); ctx.roundRect(seg.x,seg.y,seg.w,seg.h,7); ctx.fill();
+      ctx.strokeStyle=on?'#ffd568':(hov?'#d7b36a':'rgba(255,255,255,0.25)');
+      ctx.lineWidth=on?2:1.2; ctx.stroke();
+      ctx.fillStyle=on?'#fff':'rgba(255,255,255,0.75)';
+      ctx.font=(on?'bold ':'')+(seg.w<92?'10':'12')+'px Segoe UI, Arial'; ctx.textAlign='center';
+      const label=seg.index===3&&seg.w<92?'СУПЕР НИЗК.':seg.name.toUpperCase();
+      ctx.fillText(label,seg.x+seg.w/2,seg.y+seg.h/2+4);
+    }
     ctx.textAlign='left'; ctx.fillStyle='#fff1d0'; ctx.font='bold 15px Segoe UI, Arial';
     ctx.fillText('БИНДЫ ПРЕДМЕТОВ',panel.x+36,layout.bindTitleY);
     ctx.fillStyle='rgba(255,255,255,0.52)'; ctx.font='12px Segoe UI, Arial';
@@ -16932,7 +17457,7 @@ function drawMatchIntro(){
 
   const cx = VW / 2, cy = VH * 0.46;
   ctx.save();
-  ctx.setTransform(1,0,0,1,0,0);
+  ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0);
   ctx.globalAlpha = 1;
   ctx.fillStyle = 'rgba(10,2,5,' + veil.toFixed(3) + ')';
   ctx.fillRect(0, 0, VW, VH);
@@ -17119,8 +17644,10 @@ function loop(now){
     lastTime = now;
     if(dt > 0.1) dt = 0.1;
     perfSample(now);
+    if(perfRenderScale() !== appliedRenderScale) resize();
 
-    ctx.setTransform(1,0,0,1,0,0);
+    ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0);
+    ctx.imageSmoothingEnabled = true;
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     ctx.filter = 'none';
@@ -17179,7 +17706,7 @@ function loop(now){
         terrainFrameValid = true;
       }
       ctx.save();
-      ctx.setTransform(1,0,0,1,0,0);
+      ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0);
       ctx.drawImage(terrainFrameCanvas, Math.round(terrainCamX - cam.x - TERRAIN_MARGIN), Math.round(terrainCamY - cam.y - TERRAIN_MARGIN));
       ctx.restore();
       drawItemRangePreview();
@@ -17207,7 +17734,7 @@ function loop(now){
   } catch(err) {
     /* Один повреждённый эффект/ассет не должен отменять следующий кадр. */
     console.error('Ошибка игрового кадра:', err);
-    ctx.setTransform(1,0,0,1,0,0);
+    ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     ctx.filter = 'none';
@@ -17233,8 +17760,11 @@ function updateMenuHover(){
 }
 
 function resize(){
-  VW = canvas.width  = window.innerWidth;
-  VH = canvas.height = window.innerHeight;
+  VW = window.innerWidth;
+  VH = window.innerHeight;
+  appliedRenderScale = perfRenderScale();
+  canvas.width  = Math.max(1, Math.round(VW * appliedRenderScale));
+  canvas.height = Math.max(1, Math.round(VH * appliedRenderScale));
   fogCanvas.width  = VW;
   fogCanvas.height = VH;
   terrainFrameCanvas.width = VW + TERRAIN_MARGIN*2;
