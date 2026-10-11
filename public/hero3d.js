@@ -2413,6 +2413,51 @@ autoAnim('savely',    {walkArm:.1, att:'punch',  hit:.5, casts:['guard','raise',
 autoAnim('juggernaut',{walkArm:.1, att:'slashR', hit:.5, casts:['whirl','lup','sweep','flurry'], rings:[0,3], ringR:1.35, hands:'R', trailOff:[0,.9,.2], col:['#ffe7a2','#ffffff']});
 autoAnim('sniper',    {walkArm:.05,att:'recoil', hit:.4, ranged:1, casts:['throw','recoil','aim','bigrecoil'], rings:[2], ringR:1.2, hands:'R', trail:'none', col:['#ffd27a','#fff3c4']});
 
+/* ---------- 0.8.8: Васпассир — худой лысый зелёный гоблин с огромными ушами и зелёным посохом с кристаллом ---------- */
+const VASP_PAL={
+  vaspassir:      {skin:'#6fbf4a',dark:'#3f7a2a',cloth:'#5a4426',cloth2:'#3a2c18',crystal:'#8dff5a',glow:'#c9ffa0',eye:'#ffe14a',scale:1},
+  vaspassirOrange:{skin:'#e8892f',dark:'#a85a14',cloth:'#6a3a1a',cloth2:'#3a1e0c',crystal:'#ffb04a',glow:'#ffe0a0',eye:'#fff2a0',scale:.9},
+  vaspassirCyan:  {skin:'#59b8ee',dark:'#2a78a8',cloth:'#24506a',cloth2:'#12303f',crystal:'#8fe8ff',glow:'#d8f8ff',eye:'#ffffff',scale:.9},
+  vaspassirYellow:{skin:'#e8d23a',dark:'#a89212',cloth:'#6a5a1a',cloth2:'#3a300c',crystal:'#fff06a',glow:'#fffbc0',eye:'#ffffff',scale:.9},
+  vaspassirPurple:{skin:'#a86be0',dark:'#6a3aa0',cloth:'#4a2a6a',cloth2:'#281640',crystal:'#d9a0ff',glow:'#f0d8ff',eye:'#fff0a0',scale:.9},
+  vaspassirBlue:  {skin:'#4a6fe8',dark:'#2a3fa8',cloth:'#2a3a72',cloth2:'#141c3a',crystal:'#7aa0ff',glow:'#d0e0ff',eye:'#ffffff',scale:.9}
+};
+function vaspModel(P){
+  return (S,d,t)=>{
+    S.sc=P.scale;
+    man(S,{face:true,bulk:.72,cloth:P.cloth,arm:P.skin,forearm:P.skin,glove:P.skin,legs:P.cloth2,skin:P.skin,
+      armR:[.5,1.35,.6],armL:[-.46,1.0,.2],headY:1.95,headW:1.05,belt:P.cloth2,trim:P.dark,boots:P.cloth2,
+      fo:{eye:P.eye}});
+    /* лысая макушка-блик и тонкий нос */
+    S.ell([0,2.2,.0],[.2,.1,.2],P.skin,{rings:5,seg:10,shine:.55});
+    S.cone([0,1.93,.26],[0,1.88,.46],.05,P.dark,{seg:6});
+    /* огромные уши — широкие лопасти, торчащие в стороны и назад */
+    for(const s of [-1,1]){
+      S.tube([s*.26,1.98,0],[s*.78,2.28,-.12],.085,.02,P.skin,{seg:8});
+      S.ell([s*.58,2.17,-.07],[.2,.3,.05],P.skin,{rings:6,seg:10,rot:[0,0,s*.7]});
+      S.ell([s*.56,2.15,-.04],[.12,.2,.03],P.dark,{rings:5,seg:8,rot:[0,0,s*.7]});
+    }
+    /* тряпичная жилетка и шнуры */
+    S.ell([0,1.42,.1],[.3,.36,.2],P.cloth2,{rings:6,seg:12});
+    for(let i=0;i<4;i++) S.box([-.1+i*.07,1.18,.2],[.025,.12,.02],P.dark);
+    /* зелёные гранаты на поясе */
+    for(const s of [-1,1]) S.ell([s*.3,.98,.22],[.07,.09,.07],'#58b83a',{rings:5,seg:8,shine:.6});
+    const _h=hmark(S);
+    /* посох с кристаллом в правой руке */
+    S.tube([.5,.1,.62],[.5,2.55,.62],.045,.04,P.dark,{seg:8,shine:.4});
+    for(const y of [.5,1.0,1.5]) S.ring([.5,y,.62],.07,.025,P.cloth2,{n:10,axis:'y'});
+    S.tube([.5,2.5,.62],[.34,2.78,.62],.04,.03,P.dark,{seg:6});
+    S.tube([.5,2.5,.62],[.66,2.78,.62],.04,.03,P.dark,{seg:6});
+    S.ell([.5,2.78,.62],[.13,.2,.13],P.crystal,{glow:1,rings:6,seg:10,shine:.9});
+    S.ell([.48,2.82,.66],[.04,.07,.04],P.glow,{glow:1,rings:4,seg:6});
+    hold(S,_h,'R');
+  };
+}
+for(const id in VASP_PAL) MODELS[id]=vaspModel(VASP_PAL[id]);
+for(const id in VASP_PAL){
+  autoAnim(id,{walkArm:.1,att:'slashR',hit:.5,casts:['raise','throw','clap','raise'],rings:[1,2,3],ringR:1.3,hands:'R',trailOff:[0,2.5,.6],col:[VASP_PAL[id].crystal,VASP_PAL[id].glow]});
+}
+
 /* =========================================================
    0.8.4 — 3D-монстры для крипов (5 вариантов).
    Лайновые крипы получают случайного монстра из пяти,

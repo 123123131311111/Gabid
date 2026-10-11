@@ -644,7 +644,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.8.7';
+const GAME_VERSION = '0.8.8';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -731,7 +731,15 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.8.7', title:'КРАСИВЫЕ БОЙЦЫ', changes:[
+  const sections = [{version:'0.8.8', title:'ВАСПАССИР', changes:[
+    'Новый герой — Васпассир: худой лысый зелёный гоблин с огромными ушами и зелёным посохом с кристаллом.',
+    'Пассивка «Лихорадка»: 3 уровня, +20 к скорости атаки за каждый уровень.',
+    'Гранаты: 6 зелёных гранат вокруг героя. Взрыв отравляет врагов и оглушает ровно на 2.5 секунды.',
+    'Копии: две копии Васпассира — ближнего (оранжевая) и дальнего (голубая) боя.',
+    'Ультимейт «Шабаш Васпассиров»: 6 копий — 2 оглушающих (жёлтые), 2 отравляющих (фиолетовые), 2 бьющих цепной молнией (синие).',
+    'Новая 3D-модель с анимациями ходьбы, атаки и заклинаний; описание улучшения под Скипетром.',
+  ]},
+  {version:'0.8.7', title:'КРАСИВЫЕ БОЙЦЫ', changes:[
     'Исправлен баг: при входе в бой на секунду мелькали старые плоские 2D-текстуры бойцов. Пока 3D-модель считается, теперь видны только мягкая тень и кольцо команды.',
     'Старые 2D-картинки Шадоу, Джаггернаута и Снайпера полностью удалены из игры.',
     '3D-текстуры стали гладкими: убрано мелкое зерно и крап, оставлены мягкие широкие переходы тона.',
@@ -1004,7 +1012,7 @@ function heroHasItem(unit, id){ return !!(unit && unit.inventory && unit.invento
 function healAmpOf(unit){ return heroHasItem(unit,'holyLocket') ? 1 + SHOP_ITEMS.holyLocket.healAmp : 1; }
 function statusResistOf(unit){ return heroHasItem(unit,'kayaSange') ? SHOP_ITEMS.kayaSange.statusResist : 0; }
 const POSITIVE_BUFF_TYPES = new Set(['armor','shardArmor','spd','as','dmg','haste','regen','hpregen','shardShield','shardBlade','shardSpell','juvsyutGuard','dawnShardShield','tribuShield','mageReflect','bladeFury','bloodrage','enchantTotem','ilyaAura','exileRage','reginaUnleash','electricOverload']);
-const NEGATIVE_BUFF_TYPES = new Set(['burning','poison','yosypPoison','yosypDrain','fear','shardMark']);
+const NEGATIVE_BUFF_TYPES = new Set(['burning','poison','vaspPoison','yosypPoison','yosypDrain','fear','shardMark']);
 const NULLIFY_BLOCKED_ITEMS = new Set(['bkb','zamist','superBoots','mantledSteel','timurPillow','windWaker']);
 /* Срывает положительные эффекты и защитные предметы (Нуллификатор, Ураган). */
 function purgePositiveEffects(unit){
@@ -2267,6 +2275,7 @@ const SCEPTER_UPGRADES = {
   exileKnight:'Рывок шире, Гнев бога длится дольше',
   tribupainer:'Поджигающие пули сильнее, ульта получает второй импульс',
   regina:'Dispose бросает дальше, Rebound усиливает удар, Unleash даёт больше зарядов и расширяет финальную волну',
+  vaspassir:'Гранаты летят дальше и оглушают на 2.5 с, копии живут дольше, ульта призывает +2 молниеносные копии',
   earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области',
   savely:'Форма Трансформера длится дольше, уворот срабатывает на каждом третьем ударе и Савелий получает +30% сопротивления магии'
 };
@@ -4094,6 +4103,27 @@ const HERO_GUIDES = {
       "Бейте с максимальной дистанции и отходите, когда враг подбегает.",
       "Assassinate попадает только по видимой цели — не стреляйте вслепую."
     ]
+  },
+  "vaspassir": {
+    "role": "Васпассир: гоблин-ядовар, контроль и призыв",
+    "style": "Хрупкий, но быстро бьёт и контролирует: гранаты оглушают толпу, копии давят числом.",
+    "skills": [
+      1,
+      0,
+      2
+    ],
+    "skillNote": "Лихорадка (Q) — пассивная скорость атаки. Гранаты (W) — яд и стан 2.5 с. Двойники (E) — две копии. Шабаш (R) — 6 копий.",
+    "build": [
+      "pt",
+      "semenHead",
+      "kinglandia",
+      "satanic",
+      "bkb"
+    ],
+    "tips": [
+      "Кидайте гранаты, когда враги рядом: стан 2.5 с хватает, чтобы добить.",
+      "Ульту используйте в начале драки — копии оглушают, травят и бьют цепной молнией."
+    ]
   }
 };
 /* ==== HERO_GUIDES:END ==== */
@@ -4272,7 +4302,7 @@ class Unit {
     return range;
   }
   getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
-  getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
+  getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
   getSpeed(){
     let speed=this.speed;
     if(this.inventory && this.inventory.some(item=>item&&item.id==='joelBoots')) speed+=SHOP_ITEMS.joelBoots.speed;
@@ -4466,11 +4496,12 @@ class Unit {
             }
           }
           const shotColor = this.def && this.def.id === 'arcady' ? '#ff6b35' :
-            (this.def && this.def.id === 'sniper' ? '#ffe0a0' :
+            (this.def && this.def.id === 'sniper' ? '#ffe0a0' : (this.def && this.def.id === 'vaspassir' ? '#8dff5a' :
             (this.def && this.def.id === 'shadow' ? '#ff5a1f' :
-            (this.team===0 ? '#a8ffb0' : '#ffb0a8')));
+            (this.team===0 ? '#a8ffb0' : '#ffb0a8'))));
           const projectile=spawnProjectile(this.x, this.y, t, shotDamage, shotSource, 1100,
             shotColor, this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : (this.def && this.def.id === 'shadow' ? 10 : 7)));
+          if(this.summonKind==='vaspCopy'){ projectile.vaspCopy=this; projectile.color=this.vaspOnHit==='chain'?'#9fc0ff':(this.vaspOnHit==='poison'?'#d9a0ff':(this.vaspOnHit==='stun'?'#fff06a':'#8fe8ff')); }
           projectile.headshot=!!shotSource.headshot;
           projectile.headshotSlow=shotSource.headshotSlow || 0;
           projectile.headshotAttackSlow=shotSource.headshotAttackSlow || 0;
@@ -4534,6 +4565,7 @@ class Unit {
           }
           if(this.def && this.def.id === 'electricGosha') applyElectricOverload(this, t);
           if(this.owner && this.owner.def && this.owner.def.id === 'illusionist' && this.owner.isPlayer && Math.random() < 0.15) spawnPassiveIllusion(this.owner, t);
+          if(this.vaspOnHit!==undefined && this.summonKind==='vaspCopy') vaspCopyHit(this,t);
           fxHit(t.x, t.y, '#ffdd88');
         }
       }
@@ -4546,6 +4578,11 @@ class Unit {
     if(burning){
       burning.tick=(burning.tick||0)+dt;
       if(burning.tick>=1){ burning.tick-=1; applyDamage(this,burning.damage||25,burning.source||{team:1-this.team}); }
+    }
+    const vpoison=this.buffs.find(buff=>buff.type==='vaspPoison');
+    if(vpoison){
+      vpoison.tick=(vpoison.tick||0)+dt;
+      if(vpoison.tick>=1){ vpoison.tick-=1; applyDamage(this,vpoison.damage,{team:vpoison.source?vpoison.source.team:1-this.team,source:vpoison.source,magic:true}); }
     }
     const aura = this.buffs.find(buff => buff.type === 'ilyaAura');
     if(aura){
@@ -4972,6 +5009,60 @@ function spawnGollyGolems(hero){
   }
   fxRing(hero.x,hero.y,120,'#b9efff',0.8);
   addText(hero.x, hero.y-80, 'ЛЕДЯНЫЕ ГОЛЕМЫ x' + spawned.length, '#b9efff', 1.4, 18);
+}
+
+/* === 0.8.8 Васпассир: копии, яд, оглушение, цепная молния === */
+function vaspApplyPoison(target, source, dps, time){
+  if(!target || target.dead || isBuilding(target)) return;
+  target.buffs = target.buffs.filter(b => b.type !== 'vaspPoison');
+  target.addBuff({type:'vaspPoison', damage:dps, t:time, source, tick:0});
+  addText(target.x,target.y-target.radius-26,'ЯД','#8dff5a',0.6,12);
+}
+function vaspStun(target, time){
+  if(!target || target.dead || isBuilding(target)) return;
+  target.stunTimer = Math.max(target.stunTimer||0, time);
+  addText(target.x,target.y-target.radius-40,'СТАН','#ffe14a',0.7,13);
+}
+function vaspChainLightning(src, first, dmg, jumps){
+  const hit=new Set(); let cur=first, from={x:src.x,y:src.y}, d=dmg;
+  for(let i=0;i<=jumps && cur;i++){
+    hit.add(cur);
+    fxBeam(from.x,from.y,cur.x,cur.y,'#9fc0ff',0.25);
+    spawnParticles(cur.x,cur.y,'#cfe0ff',8,0.5);
+    applyDamage(cur,d,{team:src.team,source:src.owner||src,magic:true});
+    from={x:cur.x,y:cur.y}; d*=0.8;
+    let next=null,best=420;
+    for(const u of units){
+      if(u.dead||hit.has(u)||u.team===src.team||u.team===2||isBuilding(u)) continue;
+      const dist=Math.hypot(u.x-from.x,u.y-from.y);
+      if(dist<best){best=dist;next=u;}
+    }
+    cur=next;
+  }
+}
+function vaspCopyHit(copy, t){
+  if(!t || t.dead) return;
+  const lvl=copy.vaspLvl||1;
+  if(copy.vaspOnHit==='stun'){
+    if((copy.vaspIcd.get(t)||0) <= gameTime){ copy.vaspIcd.set(t,gameTime+3); vaspStun(t,0.8+lvl*0.15); fxRing(t.x,t.y,50,'#fff06a',0.3); }
+  } else if(copy.vaspOnHit==='poison'){
+    vaspApplyPoison(t,copy.owner,8+lvl*5,4);
+  } else if(copy.vaspOnHit==='chain'){
+    vaspChainLightning(copy,t,copy.dmg*0.6+20*lvl,3);
+  }
+}
+function vaspSpawnCopy(hero, variantId, o){
+  const angle=o.angle||0, dist=(o.radius||70);
+  const def=Object.assign({},hero.def,{id:variantId});
+  const c=new TimedSummon(hero, clamp(hero.x+Math.cos(angle)*dist,60,WORLD-60), clamp(hero.y+Math.sin(angle)*dist,60,WORLD-60), {
+    kind:'vaspCopy', life:o.life||14, hp:o.hp, dmg:o.dmg, radius:Math.max(16,hero.radius*0.9), speed:hero.getSpeed()*1.05,
+    atkRange:o.melee?150:520, atkTime:Math.max(0.55,hero.getAttackTime()), armor:hero.getArmor(), copyColor:hero.def.color, copyDef:def
+  });
+  c.vaspOnHit=o.onHit||null; c.vaspLvl=o.lvl||1; c.vaspIcd=new Map(); c.vaspVariant=variantId; c.vaspMelee=!!o.melee;
+  c.ranged=!o.melee;
+  units.push(c);
+  fxRing(c.x,c.y,50,'#d8ffb0',0.4);
+  return c;
 }
 
 function spawnSteelCopies(hero){
@@ -6197,6 +6288,66 @@ const SKILLS = {
       addText(h.x,h.y-82,'OMNISLASH','#fff2a8',1.45,20);
       fxRing(h.x,h.y,150,'#ffe066',0.7);
       return true;
+    }
+  },
+
+  /* === ВАСПАССИР (0.8.8) === */
+  vaspPassive: {
+    name:'Лихорадка', short:'Q', type:'self', passive:true, maxLevel:3,
+    cd:[0,0,0,0], mana:[0,0,0,0],
+    desc:'Пассивно: +20 к скорости атаки за каждый уровень умения (до +60).',
+    cast(){}
+  },
+  vaspGrenades: {
+    name:'Гранаты', short:'W', type:'self', maxLevel:4,
+    cd:[0,20,18,16,14], mana:[0,90,100,110,120],
+    desc:'Раскидывает вокруг героя 6 зелёных гранат. Через секунду они взрываются: враги получают урон, отравление (периодический урон) и оглушение ровно на 2.5 секунды.',
+    cast(h,x,y,lvl){
+      const scepter=hasScepter(h);
+      const ring=(scepter?250:200), rad=(scepter?165:145);
+      const rot=Math.random()*Math.PI*2;
+      for(let i=0;i<6;i++){
+        const a=rot+i*Math.PI/3;
+        const gx=clamp(h.x+Math.cos(a)*ring,60,WORLD-60), gy=clamp(h.y+Math.sin(a)*ring,60,WORLD-60);
+        aoes.push({x:gx,y:gy,radius:rad,dmg:abilityDamage(h,30+22*lvl),manaDmg:0,team:h.team,source:h,
+          delay:1.0,t:0,color:'#7dff4a',applied:false,life:1.4,dead:false,
+          vaspGrenade:true,poisonDps:12+7*lvl,poisonTime:4,stunTime:2.5});
+        fxMark(gx,gy,rad,'#7dff4a',1.0);
+        spawnParticles(gx,gy,'#8dff5a',8,0.4);
+        fxBeam(h.x,h.y,gx,gy,'#9dff6a',0.25);
+      }
+      addText(h.x,h.y-80,'ГРАНАТЫ!','#9dff6a',1.2,17);
+      fxRing(h.x,h.y,ring,'#7dff4a',0.6);
+    }
+  },
+  vaspCopies: {
+    name:'Двойники', short:'E', type:'self', maxLevel:4,
+    cd:[0,45,40,35,30], mana:[0,120,130,140,150],
+    desc:'Создаёт 2 копии Васпассира: оранжевую — ближнего боя, и голубую — дальнего боя.',
+    cast(h,x,y,lvl){
+      const life=14+lvl*2+(hasScepter(h)?4:0);
+      const hp=300+lvl*140, dmg=h.getDamage()*(0.35+lvl*0.1);
+      vaspSpawnCopy(h,'vaspassirOrange',{melee:true,hp,dmg,life,angle:0});
+      vaspSpawnCopy(h,'vaspassirCyan',{melee:false,hp:hp*0.75,dmg,life,angle:Math.PI});
+      addText(h.x,h.y-80,'ДВОЙНИКИ','#ffb04a',1.3,17);
+      fxRing(h.x,h.y,130,'#8fe8ff',0.6);
+    }
+  },
+  vaspUltimate: {
+    name:'Шабаш Васпассиров', short:'R', type:'self', maxLevel:3, ult:true,
+    cd:[0,110,95,80], mana:[0,200,260,320],
+    desc:'Призывает 6 копий: 2 оглушающих (жёлтые), 2 отравляющих (фиолетовые) и 2 бьющих молнией с цепочкой (синие).',
+    cast(h,x,y,lvl){
+      const life=14+lvl*2;
+      const hp=420+lvl*160, dmg=h.getDamage()*(0.45+lvl*0.1);
+      const plan=[['vaspassirYellow','stun'],['vaspassirYellow','stun'],['vaspassirPurple','poison'],['vaspassirPurple','poison'],['vaspassirBlue','chain'],['vaspassirBlue','chain']];
+      if(hasScepter(h)){ plan.push(['vaspassirBlue','chain'],['vaspassirBlue','chain']); }
+      plan.forEach((pl,i)=>{
+        vaspSpawnCopy(h,pl[0],{melee:i%2===0,hp,dmg,life,angle:i*Math.PI*2/plan.length,onHit:pl[1],lvl,radius:90});
+      });
+      addText(h.x,h.y-90,'ШАБАШ ВАСПАССИРОВ','#d9a0ff',1.5,19);
+      fxRing(h.x,h.y,220,'#d9a0ff',0.8); fxRing(h.x,h.y,140,'#fff06a',0.6);
+      spawnParticles(h.x,h.y,'#d9a0ff',40,1.2);
     }
   },
 
@@ -7437,6 +7588,16 @@ const HERO_DEFS = [
     vision:1250, hpRegen:1.6, mpRegen:2.4,
     skills:['sniperShrapnel','sniperHeadshot','sniperTakeAim','sniperAssassinate'],
     weapon:{type:'sniperRifle',color:'#d9b079',size:1.0,followFacing:true}
+  },
+  {
+    id:'vaspassir', name:'Васпассир', title:'Гоблин-ядовар',
+    color:'#6fbf4a', color2:'#c9ffa0',
+    baseHp:620, hpPerLvl:70, baseMp:340, mpPerLvl:42,
+    baseDmg:62, dmgPerLvl:6.4, speed:162,
+    atkRange:480, atkTime:1.25, baseArmor:2, armorPerLvl:0.4,
+    vision:1100, hpRegen:1.8, mpRegen:2.5,
+    skills:['vaspPassive','vaspGrenades','vaspCopies','vaspUltimate'],
+    weapon:{type:'staff',color:'#3f7a2a',size:1.0,followFacing:true}
   }
 ];
 
@@ -7449,7 +7610,7 @@ const HERO_STAT_BALANCE = {
   yosyp:[860,102,70,7.8,0.98],
   dawnMaiden:[1080,137,72,3,0.92], exileKnight:[900,112,90,3.7,0.92], juvsyut:[970,128,68,3.2,0.95],
   chip:[760,90,58,3.3,1.03], savely:[970,116,80,3.4,0.94], juggernaut:[930,110,78,3,0.94],
-  earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04]
+  earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04], vaspassir:[560,64,62,3.4,1.04]
 };
 
 for(const def of HERO_DEFS){
@@ -7827,6 +7988,7 @@ function gainXp(hero, amount){ if(hero && !hero.dead) hero.gainXp(amount); }
 function skillFxColor(hero, skillId){
   if(/juggernaut|bladeFury|healingWard|bladeDance|omnislash/.test(skillId)) return '#ffe066';
   if(/sniper|shrapnel|headshot|takeAim|assassinate/.test(skillId)) return '#ffd27a';
+  if(/vasp/.test(skillId)) return '#8dff5a';
   if(/mo3gi|drone|mine|bike/.test(skillId)) return '#7dffb0';
   if(/juvsyut|fat|belly|feast/.test(skillId)) return '#f2a36f';
   if(/chip|crown|coin|throne|royal/.test(skillId)) return '#ffd568';
@@ -9046,6 +9208,22 @@ function updateEnemyAI(h, dt){
     return;
   }
 
+  /* === ВАСПАССИР === */
+  if(h.def.id === 'vaspassir'){
+    if(target){
+      const d=Math.hypot(target.x-h.x,target.y-h.y);
+      h.attackTarget=target; h.moveTarget=null;
+      if(h.skills[3].level>0 && h.skills[3].cd<=0 && d<700) castSkill(h,3,h.x,h.y);
+      else if(h.skills[1].level>0 && h.skills[1].cd<=0 && d<320) castSkill(h,1,h.x,h.y);
+      else if(h.skills[2].level>0 && h.skills[2].cd<=0 && d<650) castSkill(h,2,h.x,h.y);
+    } else {
+      h.attackTarget=null;
+      const goal=botLaneObjective(h);
+      h.moveTarget={x:goal.x+rnd(-100,100),y:goal.y+rnd(-100,100)};
+    }
+    return;
+  }
+
   /* === СНАЙПЕР === */
   if(h.def.id === 'sniper'){
     if(target){
@@ -9253,6 +9431,7 @@ function update(dt){
       const scepterOwner=attackOwner && attackOwner.def && attackOwner.def.id==='tribupainer' ? attackOwner : null;
       applyDamage(p.target, p.dmg * (scepterOwner && hasScepter(scepterOwner) ? 1.2 : 1), p.source || {team:p.team});
       if(attackOwner && attackOwner.def && attackOwner.def.id==='grisha') grishaHitSparkle(p.target.x,p.target.y);
+      if(p.vaspCopy && !p.target.dead) vaspCopyHit(p.vaspCopy,p.target);
       if(p.headshot && !p.target.dead){
         const slowDuration=p.headshotSlowDuration || 0.85;
         p.target.slow=Math.max(p.target.slow||0,p.headshotSlow||0.25);
@@ -9360,6 +9539,11 @@ function update(dt){
         if(u.team===a.team||u.dead) continue;
         if(Math.hypot(u.x-a.x, u.y-a.y) < a.radius + u.radius){
           applyDamage(u, a.dmg, a.source || {team:a.team});
+          if(a.vaspGrenade && !u.dead && !isStructure(u)){
+            u.stunTimer = Math.max(u.stunTimer||0, a.stunTime);
+            vaspApplyPoison(u, a.source, a.poisonDps, a.poisonTime);
+            addText(u.x,u.y-u.radius-40,'СТАН 2.5','#ffe14a',0.8,13);
+          }
           if(a.silenceDuration && !isStructure(u)) u.silenceTimer=Math.max(u.silenceTimer,a.silenceDuration);
           if(a.manaDmg && u.maxMp && !isStructure(u)){
             u.mp = Math.max(0,u.mp-a.manaDmg);
@@ -11297,6 +11481,25 @@ function drawUnit(u){
         ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
         ctx.restore();
       }
+    }
+  }
+  /* 0.8.8: копии Васпассира — та же 3D-модель в цвете копии (оранжевая/голубая/жёлтая/фиолетовая/синяя) */
+  if(!hero3dSpr && u.type === 'summon' && u.summonKind === 'vaspCopy' && u.copyDef && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite && Hero3D.has(u.copyDef.id)){
+    let fa = u.facing || 0;
+    if(u.isAttacking && u.attackTarget && u.attackTarget.alive) fa = Math.atan2(u.attackTarget.y-u.y, u.attackTarget.x-u.x);
+    let anim3d = null;
+    if(!perfLite() && Hero3D.hasAnim && Hero3D.hasAnim(u.copyDef.id)){
+      if(u.isAttacking) anim3d = {kind:'attack', p:Math.min(1,u.attackAnimProgress)};
+      else if(u.moving) anim3d = {kind:'walk', p:(u.walkPhase||0)%1};
+    }
+    hero3dSpr = Hero3D.battleSprite(u.copyDef, u.radius, fa, gameTime, anim3d);
+    if(hero3dSpr){
+      const footY = u.radius*0.7;
+      ctx.save();
+      ctx.globalAlpha=0.5; ctx.strokeStyle=Hero3D.models && u.copyDef ? '#ffffff' : '#fff'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(0,footY,u.radius*1.05,u.radius*0.52,0,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
     }
   }
   /* 0.8.6: боевой дрон Мо3ги — настоящая 3D-модель FPV-дрона с боеприпасом (вместо плоского значка) */
@@ -16934,7 +17137,7 @@ async function accountRecordResult(won, matchId, ranked, stats){
 const AVATAR_DEFS = [
   {id:'pyro'},{id:'warlord'},{id:'grisha'},{id:'golly'},{id:'sasych'},
   {id:'ilya'},{id:'malit'},{id:'arcady'},{id:'illusionist'},{id:'shadow'},
-  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'chip'},{id:'savely'},
+  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'vaspassir'},{id:'chip'},{id:'savely'},
   {id:'shovel', name:'Лопата', c1:'#3a2415', c2:'#d7b36a'},
   {id:'tower',  name:'Башня',  c1:'#102a4a', c2:'#8be9fd'},
   {id:'ancient',name:'Древний',c1:'#3c1010', c2:'#ff6b57'},
@@ -18067,6 +18270,8 @@ function dsCleanBackdrop(now){
     ctx.fillRect(x,y,1.5+dsHash(i+7)*1.5,1.5+dsHash(i+7)*1.5);
   }
   ctx.restore();
+  dsHexGrid(now,.05);
+  dsRuneRing(VW*.7,VH*.62,Math.min(VW,VH)*.5,now,.1);
   dsDrawWarriorArt(now);
   const v=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.35,VW/2,VH/2,Math.max(VW,VH)*.8);
   v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.65)');
@@ -18084,8 +18289,25 @@ function drawDotaSenseHome(){
   const bg=ctx.createLinearGradient(0,0,0,barH);
   bg.addColorStop(0,'rgba(28,20,22,.97)'); bg.addColorStop(1,'rgba(8,5,7,.97)');
   ctx.fillStyle=bg; ctx.fillRect(0,0,VW,barH);
-  ctx.fillStyle='rgba(168,45,38,.7)'; ctx.fillRect(0,barH-1,VW,1);
   ctx.fillStyle='rgba(255,255,255,.05)'; ctx.fillRect(0,0,VW,1);
+  /* 0.8.8: золотая окантовка панели с мерцающим бегущим бликом и ромбами-орнаментом */
+  const edge=ctx.createLinearGradient(0,0,VW,0);
+  edge.addColorStop(0,'rgba(120,30,26,.9)'); edge.addColorStop(.25,'rgba(232,168,90,.95)'); edge.addColorStop(.5,'rgba(255,120,70,.9)'); edge.addColorStop(.75,'rgba(232,168,90,.95)'); edge.addColorStop(1,'rgba(120,30,26,.9)');
+  ctx.fillStyle=edge; ctx.fillRect(0,barH-2,VW,2);
+  const sweepX=((now*.12)%1.4-.2)*VW;
+  const sw=ctx.createLinearGradient(sweepX-180*s,0,sweepX+180*s,0);
+  sw.addColorStop(0,'rgba(255,240,200,0)'); sw.addColorStop(.5,'rgba(255,240,200,.85)'); sw.addColorStop(1,'rgba(255,240,200,0)');
+  ctx.fillStyle=sw; ctx.fillRect(0,barH-2,VW,2);
+  const glowB=ctx.createLinearGradient(0,barH,0,barH+Math.round(14*s));
+  glowB.addColorStop(0,'rgba(230,90,50,.22)'); glowB.addColorStop(1,'rgba(230,90,50,0)');
+  ctx.fillStyle=glowB; ctx.fillRect(0,barH,VW,Math.round(14*s));
+  ctx.fillStyle='#ffd27a';
+  for(const dx of [.5]){ const ox=VW*dx, oy=barH-1;
+    ctx.beginPath(); ctx.moveTo(ox,oy-5*s); ctx.lineTo(ox+7*s,oy); ctx.lineTo(ox,oy+5*s); ctx.lineTo(ox-7*s,oy); ctx.closePath(); ctx.fill(); }
+  /* лёгкие искры внутри панели */
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<14;i++){ const ph=(now*.08+dsHash(i+200))%1; ctx.globalAlpha=Math.sin(ph*Math.PI)*.6;
+    ctx.fillStyle=i%3?'#ff8a55':'#ffd27a'; ctx.fillRect(VW*ph,barH*dsHash(i+210),1.6,1.6); }
   ctx.restore();
 
   const gear=menuSettingsRect();
@@ -18118,8 +18340,23 @@ function drawDotaSenseHome(){
     const r={x:nx-8*s,y:0,w:w+16*s,h:barH};
     const hov=dsInside(r);
     dsRegister(r,it.a,'nav'+i);
-    dsTxt(it.t,nx,navCy+1,navFont,hov?'#fff2d0':'#b9ada3','left',navSp);
-    if(hov){ ctx.fillStyle='#e65a46'; ctx.fillRect(nx,barH-3,w,2); }
+    if(hov){
+      const hg=ctx.createLinearGradient(0,0,0,barH);
+      hg.addColorStop(0,'rgba(230,90,70,0)'); hg.addColorStop(1,'rgba(230,90,70,.30)');
+      ctx.fillStyle=hg; ctx.fillRect(r.x,0,r.w,barH);
+    }
+    ctx.save(); if(hov){ ctx.shadowColor='#ff8a55'; ctx.shadowBlur=12*s; }
+    dsTxt(it.t,nx,navCy+1,navFont,hov?'#fff2d0':'#c9bdb0','left',navSp);
+    ctx.restore();
+    if(hov){
+      const ug=ctx.createLinearGradient(nx,0,nx+w,0);
+      ug.addColorStop(0,'rgba(255,138,85,0)'); ug.addColorStop(.5,'#ffd27a'); ug.addColorStop(1,'rgba(255,138,85,0)');
+      ctx.fillStyle=ug; ctx.fillRect(nx-6*s,barH-4,w+12*s,2);
+    }
+    if(i<navItems.length-1){
+      const sx=nx+w+navGap/2; ctx.fillStyle='rgba(232,168,90,.45)';
+      ctx.beginPath(); ctx.moveTo(sx,navCy-4*s); ctx.lineTo(sx+3*s,navCy); ctx.lineTo(sx,navCy+4*s); ctx.lineTo(sx-3*s,navCy); ctx.closePath(); ctx.fill();
+    }
     nx+=w+navGap;
   });
 
@@ -18346,134 +18583,88 @@ function drawModeBackdrop(now){
   ctx.restore();
 }
 
-function drawMenuGenericBackdrop(now){
-  const g = ctx.createLinearGradient(0,0,VW,VH);
-  g.addColorStop(0, '#07141a');
-  g.addColorStop(0.42, '#15121a');
-  g.addColorStop(1, '#2a0e13');
-  ctx.fillStyle = g;
-  ctx.fillRect(0,0,VW,VH);
-  drawCosmicBackdrop(now);
-
-  // Медленно движущиеся туманные пятна создают глубину без картинок и загрузок.
-  ctx.save();
-  for(let i=0;i<7;i++){
-    const px = VW*(0.08 + i*0.15) + Math.sin(now*0.16+i*1.7)*70;
-    const py = VH*(0.18 + (i%3)*0.32) + Math.cos(now*0.13+i)*40;
-    const glow = ctx.createRadialGradient(px,py,0,px,py,Math.min(VW,VH)*0.32);
-    glow.addColorStop(0, i%3===0 ? 'rgba(54,177,164,0.12)' : (i%2 ? 'rgba(172,42,30,0.14)' : 'rgba(210,154,63,0.10)'));
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(px-Math.min(VW,VH)*0.32,py-Math.min(VW,VH)*0.32,Math.min(VW,VH)*0.64,Math.min(VW,VH)*0.64);
+/* 0.8.8: новый фон меню — тёмный пурпурно-багровый градиент, северное сияние, руническое кольцо, шестигранная сетка, искры */
+function dsRuneRing(cx,cy,R,now,alpha){
+  ctx.save(); ctx.translate(cx,cy); ctx.globalAlpha=alpha; ctx.lineWidth=1.5;
+  ctx.strokeStyle='#e8a85a';
+  for(let k=0;k<3;k++){
+    const r=R*(1-k*.16);
+    ctx.save(); ctx.rotate(now*(k%2?-.05:.04)+k);
+    ctx.setLineDash(k===1?[2,10]:(k===2?[26,14,4,14]:[]));
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke(); ctx.restore();
   }
-  ctx.restore();
-
-  ctx.save();
-  for(let i=0;i<32;i++){
-    const phase=(now*0.055+i/32)%1;
-    const x=(i*173+phase*VW*0.32)%VW;
-    const y=(i*97+Math.sin(now*0.24+i*1.8)*VH*0.08+VH*phase*0.2)%VH;
-    const glow=i%4===0?'rgba(112,232,213,0.42)':'rgba(255,177,91,0.4)';
-    ctx.globalAlpha=0.25+0.35*Math.sin(phase*Math.PI);
-    ctx.fillStyle=glow;
-    ctx.beginPath(); ctx.arc(x,y,i%5===0?2:1,0,Math.PI*2); ctx.fill();
-  }
-  ctx.restore();
-
-  ctx.save();
-  ctx.lineCap='round';
-  for(let i=0;i<18;i++){
-    const phase=(now*0.075+i/18)%1;
-    const x=(i*251+Math.sin(now*0.32+i*1.4)*42+VW*phase*0.18)%VW;
-    const y=VH*(1-phase);
-    const length=7+(i%4)*3;
-    ctx.globalAlpha=0.16+0.35*Math.sin(phase*Math.PI);
-    ctx.strokeStyle=i%4===0?'#8be9fd':'#ffb75d';
-    ctx.lineWidth=i%5===0?2:1;
-    ctx.shadowColor=ctx.strokeStyle;
-    ctx.shadowBlur=8;
-    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-2,y+length); ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.save();
-  ctx.lineWidth=1;
-  for(let i=0;i<6;i++){
-    const phase=now*0.12+i*0.83;
-    const y=VH*(0.16+i*0.13)+Math.sin(phase)*24;
-    ctx.globalAlpha=0.045+(i%2)*0.018;
-    ctx.strokeStyle=i%3===0?'#8be9fd':(i%2?'#ff8b55':'#e3bd70');
-    ctx.shadowColor=ctx.strokeStyle;
-    ctx.shadowBlur=14;
-    ctx.beginPath();
-    ctx.moveTo(-20,y);
-    ctx.bezierCurveTo(VW*0.25,y+Math.sin(phase+1)*68,VW*0.68,y-Math.cos(phase)*52,VW+20,y+Math.sin(phase*0.7)*34);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalAlpha = 0.13;
-  ctx.strokeStyle = '#d5ad69';
-  ctx.lineWidth = 1;
-  for(let x=-VH; x<VW+VH; x+=58){
-    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x+VH,VH); ctx.stroke();
-  }
-  for(let y=0; y<VH; y+=58){
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(VW,y); ctx.stroke();
-  }
-  ctx.restore();
-
-  // Декоративное кольцо и руны вокруг центрального блока.
-  ctx.save();
-  ctx.translate(VW/2, VH/2-30);
-  ctx.rotate(now*0.025);
-  ctx.globalAlpha = 0.30;
-  ctx.strokeStyle='#d6a85c'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(0,0,Math.min(VW,VH)*0.39,0,Math.PI*2); ctx.stroke();
-  ctx.globalAlpha = 0.13;
-  ctx.lineWidth=1;
-  ctx.beginPath(); ctx.arc(0,0,Math.min(VW,VH)*0.45,0,Math.PI*2); ctx.stroke();
-  ctx.globalAlpha=0.10;
-  ctx.setLineDash([3,15]);
-  ctx.beginPath(); ctx.ellipse(0,0,Math.min(VW,VH)*0.34,Math.min(VW,VH)*0.16,Math.PI/3,0,Math.PI*2); ctx.stroke();
   ctx.setLineDash([]);
+  ctx.save(); ctx.rotate(now*.03);
   for(let i=0;i<12;i++){
-    const a=i*Math.PI/6, r=Math.min(VW,VH)*0.39;
-    ctx.fillStyle=i%3===0 ? '#d6a85c' : '#7e2927';
-    ctx.fillRect(Math.cos(a)*r-2,Math.sin(a)*r-2,4,4);
+    const a=i*Math.PI/6; ctx.save(); ctx.rotate(a); ctx.translate(R*1.06,0);
+    ctx.fillStyle='#ffd27a'; ctx.beginPath(); ctx.moveTo(0,-7); ctx.lineTo(5,0); ctx.lineTo(0,7); ctx.lineTo(-5,0); ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  ctx.restore();
+  ctx.restore();
+}
+function dsHexGrid(now,alpha){
+  const size=46, h=size*Math.sqrt(3)/2;
+  ctx.save(); ctx.strokeStyle='rgba(232,168,90,'+alpha+')'; ctx.lineWidth=1;
+  for(let row=-1;row<VH/h+1;row++){
+    for(let col=-1;col<VW/(size*1.5)+1;col++){
+      const x=col*size*1.5, y=row*h*2+(col%2?h:0);
+      const pulse=.4+.6*Math.max(0,Math.sin(now*.6+col*.5+row*.7));
+      ctx.globalAlpha=pulse*.55;
+      ctx.beginPath();
+      for(let k=0;k<6;k++){ const ang=k*Math.PI/3; const px=x+Math.cos(ang)*size*.5, py=y+Math.sin(ang)*size*.5; k?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+      ctx.closePath(); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+function drawMenuGenericBackdrop(now){
+  const g=ctx.createLinearGradient(0,0,VW*.4,VH);
+  g.addColorStop(0,'#0a0614'); g.addColorStop(.45,'#1a0a16'); g.addColorStop(1,'#10060a');
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+
+  /* северное сияние: медленные цветные полосы */
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  const bands=[['rgba(140,60,220,','.28',.22],['rgba(220,70,40,','.26',.5],['rgba(240,170,70,','.18',.78],['rgba(60,180,200,','.16',.35]];
+  bands.forEach((bd,i)=>{
+    const cx=VW*(.2+i*.22+Math.sin(now*.12+i*1.9)*.06), cy=VH*(bd[2]+Math.cos(now*.1+i)*.05);
+    const rg=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(VW,VH)*.45);
+    rg.addColorStop(0,bd[0]+bd[1]+')'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=rg; ctx.fillRect(0,0,VW,VH);
+  });
+  ctx.restore();
+
+  dsHexGrid(now,.16);
+
+  /* два огромных рунных кольца за сценой */
+  dsRuneRing(VW*.72,VH*.58,Math.min(VW,VH)*.52,now,.13);
+  dsRuneRing(VW*.18,VH*.9,Math.min(VW,VH)*.3,-now,.08);
+
+  /* лучи света сверху */
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<5;i++){
+    const x=VW*(.15+i*.2)+Math.sin(now*.2+i*2)*40, w=VW*.07;
+    const lg=ctx.createLinearGradient(0,0,0,VH*.8);
+    lg.addColorStop(0,'rgba(255,190,110,'+(.07+.03*Math.sin(now*.5+i))+')'); lg.addColorStop(1,'rgba(255,190,110,0)');
+    ctx.fillStyle=lg; ctx.beginPath(); ctx.moveTo(x-w*.2,0); ctx.lineTo(x+w*.2,0); ctx.lineTo(x+w*1.6,VH*.8); ctx.lineTo(x-w*1.2,VH*.8); ctx.closePath(); ctx.fill();
   }
   ctx.restore();
 
-  // Дальние цитадели добавляют фону силуэт карты, не мешая центральному меню.
-  ctx.save();
-  const fortressScale=Math.min(1,Math.max(0.58,Math.min(VW,VH)/760));
-  for(const side of [-1,1]){
-    ctx.save();
-    ctx.translate(VW/2+side*Math.min(VW*0.39,430),VH*0.52);
-    ctx.scale(side*fortressScale,fortressScale);
-    ctx.globalAlpha=0.18;
-    ctx.fillStyle='#080e16'; ctx.strokeStyle='#c29c5a'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(-78,112); ctx.lineTo(-68,-8); ctx.lineTo(-47,-32);
-    ctx.lineTo(-31,-8); ctx.lineTo(-24,-70); ctx.lineTo(0,-98); ctx.lineTo(24,-70);
-    ctx.lineTo(31,-8); ctx.lineTo(47,-32); ctx.lineTo(68,-8); ctx.lineTo(78,112); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-    ctx.globalAlpha=0.12; ctx.fillStyle='#d0ad6e';
-    ctx.fillRect(-8,-56,16,22); ctx.fillRect(-53,5,12,25); ctx.fillRect(41,5,12,25);
-    ctx.globalAlpha=0.24; ctx.strokeStyle='#a74436'; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.moveTo(0,-97); ctx.lineTo(0,-130); ctx.stroke();
-    ctx.fillStyle='#a74436'; ctx.beginPath(); ctx.moveTo(1,-129); ctx.lineTo(34,-119); ctx.lineTo(1,-108); ctx.closePath(); ctx.fill();
-    ctx.restore();
+  /* летящие искры и угольки */
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<60;i++){
+    const ph=(now*(.025+dsHash(i)*.05)+dsHash(i+40))%1;
+    const x=VW*dsHash(i+90)+Math.sin(now*.7+i)*18, y=VH*(1.05-ph*1.2);
+    const sz=1+dsHash(i+5)*2.4;
+    ctx.globalAlpha=Math.sin(ph*Math.PI)*.85;
+    ctx.fillStyle=i%5===0?'#8ff0e0':(i%3===0?'#ffd27a':'#ff7a45');
+    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(x,y,sz,0,Math.PI*2); ctx.fill();
   }
   ctx.restore();
 
-  // Затемнение по краям, чтобы заголовок и кнопки читались как игровой интерфейс.
-  const vignette = ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*0.2,VW/2,VH/2,Math.max(VW,VH)*0.72);
-  vignette.addColorStop(0,'rgba(0,0,0,0)');
-  vignette.addColorStop(1,'rgba(0,0,0,0.70)');
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0,0,VW,VH);
-
+  const v=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.3,VW/2,VH/2,Math.max(VW,VH)*.78);
+  v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.7)');
+  ctx.fillStyle=v; ctx.fillRect(0,0,VW,VH);
 }
 
 function drawMenu(){
