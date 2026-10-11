@@ -655,3 +655,7 @@ canvas {
   .lobby-actions { grid-template-columns: 1fr; }
   .lobby-panel { padding: 18px 14px; }
 }
+
+/* 0.8.8: новое главное меню в стиле Dota 2 рисуется на canvas — прячем старые HTML-кнопки */
+body.ds-home #online-counter,
+body.ds-home #leaderboard-open { display: none !important; }

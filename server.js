@@ -116,7 +116,8 @@ function spawnPlayer(member){
     moveTarget:null, keys:Object.create(null), speed:210, cooldown:0,
     attackTargetId:null, attackRange:210,
     clientDriven:false,lastClientPositionAt:0,
-    respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0, damageVersion:0, lastStatsSequence:0};
+    respawnX:spawn.x, respawnY:spawn.y, respawnTimer:0, damageVersion:0, lastStatsSequence:0,
+    kills:0, deaths:0, assists:0, dmgLog:Object.create(null), lastAnimAt:0};
 }
 function startRoom(room){
   if(!room || room.started) return false;
@@ -137,6 +138,9 @@ function startRoom(room){
   room.started = true;
   room.state = Object.create(null);
   room.towers = Object.create(null);
+  /* All Pick и рейтинг: строения прочнее, чтобы матч шёл дольше (Турбо без изменений) */
+  const structHpMul = room.settings.ruleset === 'allpick' ? 2.5 : 1;
+  const towerHp = Math.round(6000 * structHpMul);
   for(const spot of TOWER_SPOTS){
     const towerId = makeTowerId(spot.team, spot.lane, spot.tier, false);
     const position = mapPoint(spot.x,spot.y);
@@ -145,8 +149,8 @@ function startRoom(room){
       team: spot.team,
       x: position.x,
       y: position.y,
-      hp: 6000,
-      maxHp: 6000,
+      hp: towerHp,
+      maxHp: towerHp,
       atkRange: 560,
       dmg: 82,
       atkTime: 1.05,
@@ -158,7 +162,7 @@ function startRoom(room){
       facing: 0
     };
   }
-  const ancientHp = Math.round(43200 * 1.08);
+  const ancientHp = Math.round(43200 * 1.08 * structHpMul);
   room.towers[makeTowerId(0, null, null, true)] = {id:makeTowerId(0, null, null, true),team:0,x:BASES[0].x,y:BASES[0].y,hp:ancientHp,maxHp:ancientHp,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
   room.towers[makeTowerId(1, null, null, true)] = {id:makeTowerId(1, null, null, true),team:1,x:BASES[1].x,y:BASES[1].y,hp:ancientHp,maxHp:ancientHp,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
@@ -174,6 +178,7 @@ function gameState(room){
       id:player.id, slot:player.slot, team:player.team, bot:player.bot, heroId:player.heroId,
       x:player.x, y:player.y, angle:player.angle, hp:player.hp, maxHp:player.maxHp,
       gold:player.gold, alive:player.alive, respawnTimer:player.respawnTimer,
+      kills:player.kills||0, deaths:player.deaths||0, assists:player.assists||0,
       damageVersion:player.damageVersion
     })),
     towers:Object.values(room.towers || {}).map(tower => ({
@@ -276,6 +281,30 @@ function handleInput(socket, input){
     room.bullets.push({id:nextBulletId++,x:player.x,y:player.y,team:player.team,angle:player.angle,life:1.4,owner:player.id});
   }
 }
+/* Единственное место, где игрок «умирает»: тут считаются смерти, убийства и помощь.
+   Раньше смерти считали и клиент, и сервер сразу в нескольких местах — отсюда лишние смерти и пропавшие киллы. */
+function killPlayer(room, victim, opts={}){
+  if(!room || !victim || !victim.alive) return false;
+  victim.alive = false;
+  victim.hp = 0;
+  victim.respawnTimer = opts.respawn || 8;
+  victim.deaths = (victim.deaths || 0) + 1;
+  const now = Date.now();
+  let killer = opts.killerId ? room.state[opts.killerId] : null;
+  if(killer && (killer.id === victim.id || killer.team === victim.team)) killer = null;
+  if(killer) killer.kills = (killer.kills || 0) + 1;
+  const assistIds = [];
+  for(const [attackerId, entry] of Object.entries(victim.dmgLog || {})){
+    const helper = room.state[attackerId];
+    if(!helper || helper.team === victim.team || (killer && helper.id === killer.id)) continue;
+    if(now - entry.t > 10000 || entry.amount < victim.maxHp * 0.2) continue;
+    helper.assists = (helper.assists || 0) + 1;
+    assistIds.push(helper.id);
+  }
+  victim.dmgLog = Object.create(null);
+  io.to(room.id).emit('heroKill', {victimId:victim.id, killerId:killer ? killer.id : null, assistIds});
+  return true;
+}
 function handlePlayerStats(socket, stats){
   const room = roomOf(socket); const player = room?.state?.[socket.id];
   if(!room || !player || !stats) return;
@@ -287,8 +316,8 @@ function handlePlayerStats(socket, stats){
   if(Number.isFinite(stats.hp)) player.hp = clamp(stats.hp,0,player.maxHp);
   if(stats.alive === false || player.hp <= 0){
     if(player.alive){
-      player.alive = false;
-      player.respawnTimer = clamp(Number(stats.respawnTimer) || 8,0,60);
+      const reported = Number(stats.respawnTimer);
+      killPlayer(room, player, {respawn: reported >= 3 ? Math.min(reported,60) : 8});
       player.damageVersion++;
       emitPlayerVitals(room,player);
     }
@@ -312,10 +341,24 @@ function handlePlayerDamage(socket, data){
   }
   const target = room?.state?.[data?.targetId];
   if(!attacker || !target || !attacker.alive || !target.alive || attacker.team === target.team || !Number.isFinite(data.amount)) return;
-  target.hp = Math.max(0,target.hp-clamp(data.amount,0,5000));
+  const dealt = clamp(data.amount,0,5000);
+  target.hp = Math.max(0,target.hp-dealt);
   target.damageVersion++;
-  if(target.hp === 0){ target.alive = false; target.respawnTimer = 8; }
+  const logEntry = target.dmgLog[attacker.id] || (target.dmgLog[attacker.id] = {t:0, amount:0});
+  if(Date.now() - logEntry.t > 10000) logEntry.amount = 0;
+  logEntry.t = Date.now(); logEntry.amount += dealt;
+  if(target.hp === 0) killPlayer(room, target, {killerId:attacker.id, respawn:8});
   emitPlayerVitals(room,target);
+}
+/* Анимации (атака) других игроков: клиент хозяина героя шлёт событие, сервер раздаёт остальным. */
+function handlePlayerAnim(src, data){
+  const room = roomOf(src);
+  const player = room?.state?.[src.id];
+  if(!room || !player || !player.alive || !data || data.kind !== 'attack' || !Number.isFinite(data.angle)) return;
+  const now = Date.now();
+  if(now - (player.lastAnimAt || 0) < 80) return;
+  player.lastAnimAt = now;
+  src.to(room.id).emit('playerAnim', {id:player.id, kind:'attack', angle:data.angle});
 }
 function handlePlayerSkill(socket,data){
   const room=roomOf(socket);
@@ -446,11 +489,7 @@ function tickTowerCombat(room, dt){
 
     target.hp = Math.max(0, target.hp - tower.dmg);
     target.damageVersion = (target.damageVersion || 0) + 1;
-    if(target.hp <= 0){
-      target.hp = 0;
-      target.alive = false;
-      target.respawnTimer = 8;
-    }
+    if(target.hp <= 0) killPlayer(room, target, {respawn:8});
     emitPlayerVitals(room, target);
 
     if(tower.id && tower.id.startsWith('ancient:') && !tower.alive){
@@ -469,6 +508,7 @@ function tickRoom(room, dt){
       player.respawnTimer = Math.max(0, (player.respawnTimer || 0) - dt);
       if(player.respawnTimer > 0) continue;
       player.alive = true;
+      player.dmgLog = Object.create(null);
       player.hp = player.maxHp;
       player.x = player.respawnX;
       player.y = player.respawnY;
@@ -515,7 +555,7 @@ function tickRoom(room, dt){
     const hit = Object.values(room.state).find(player => player.alive && player.team !== bullet.team && Math.hypot(player.x-bullet.x,player.y-bullet.y) < 28);
     if(hit){
       hit.hp = Math.max(0, hit.hp-80);
-      if(hit.hp === 0){ hit.alive = false; hit.respawnTimer = 5; }
+      if(hit.hp === 0) killPlayer(room, hit, {respawn:5});
       hit.damageVersion++;
       emitPlayerVitals(room,hit);
       room.bullets.splice(i,1);
@@ -646,11 +686,13 @@ io.on('connection', socket => {
     else if(msg.type === 'stats') handlePlayerStats(proxy, msg.payload);
     else if(msg.type === 'damage') handlePlayerDamage(proxy, msg.payload);
     else if(msg.type === 'snapshot') handlePlayerSnapshot(proxy, msg.payload);
+    else if(msg.type === 'anim') handlePlayerAnim(proxy, msg.payload);
   });
   socket.on('playerInput', input => handleInput(socket, input));
   socket.on('playerStats', stats => handlePlayerStats(socket, stats));
   socket.on('playerDamage', data => handlePlayerDamage(socket, data));
   socket.on('playerSkill', data => handlePlayerSkill(socket,data));
+  socket.on('playerAnim', data => handlePlayerAnim(socket,data));
   socket.on('playerSnapshot', data => handlePlayerSnapshot(socket,data));
   socket.on('disconnect', () => {
     emitOnlineCount();

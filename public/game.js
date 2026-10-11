@@ -508,10 +508,13 @@ const LANE_NAMES = ['МИД', 'ВЕРХ', 'НИЗ'];
 let MID_PUSH_TIME = 300;
 /* Режимы игры против ботов: turbo — как раньше, allpick — медленная экономика и долгая лайн-фаза */
 const GAME_MODES = {
-  turbo:   {name:'ТУРБО',    coinsPerSec:3, creepBountyMul:1,   xpMul:1,   midPushTime:300},
-  allpick: {name:'ALL PICK', coinsPerSec:1, creepBountyMul:0.5, xpMul:0.6, midPushTime:600}
+  turbo:   {name:'ТУРБО',    coinsPerSec:3, creepBountyMul:1,   xpMul:1,   midPushTime:300, structHpMul:1},
+  /* structHpMul — множитель HP башен/казарм/трона (All Pick и рейтинг: матч идёт дольше, трон не падает на 10-й минуте) */
+  allpick: {name:'ALL PICK', coinsPerSec:1, creepBountyMul:0.5, xpMul:0.6, midPushTime:600, structHpMul:2.5}
 };
 let gameMode = 'turbo';
+/* true во время онлайн-матча: возрождение и счёт убийств/смертей ведёт сервер, а не локальная симуляция */
+let onlineMatchActive = false;
 function gameModeCfg(){ return GAME_MODES[gameMode] || GAME_MODES.turbo; }
 const BOT_FARM_PHASE_TIME = 180;
 const BOT_SCENARIO_NAMES = [
@@ -885,7 +888,7 @@ function changelogContentHeight(){
   return CHANGELOG.reduce((height, section) => height + 36 + section.changes.length * 62, 0);
 }
 const SHOP_ITEMS = {
-  mango: {name:'Манго', icon:'◆', cost:70, desc:'Активный: восстанавливает 100 маны. Не расходуется — можно использовать повторно.', color:'#72e6a5', active:true},
+  mango: {name:'Манго', icon:'◆', cost:70, desc:'Активный расходуемый предмет: восстанавливает 100 маны. Одноразовый — после использования исчезает.', color:'#72e6a5', active:true},
   joelBoots: {name:'Сапог Джоэла', icon:'▲', cost:500, desc:'Пассивно: +45 к скорости передвижения.', color:'#e7c77a', speed:45, active:false},
   tango: {name:'Танго', icon:'♣', cost:90, desc:'Активный расходуемый предмет: съедает ближайшее дерево и восстанавливает 90 HP.', color:'#79d46c', active:true},
   fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +100 к обычным атакам и к урону способностей.', color:'#ff8d8d', damage:100, active:false},
@@ -911,7 +914,7 @@ const SHOP_ITEMS = {
   ,dagonEmpire: {name:'Дагонская империя', icon:'⚡', cost:1100, desc:'Активный: наносит выбранному вражескому бойцу 1200 магического урона. КД 10 сек.', color:'#ff4f8b', cooldown:10, damage:1200, active:true}
   ,timurPillow: {name:'Подушка тимура', icon:'☁', cost:200, desc:'Активный расходуемый предмет: лечит 600 HP за 10 секунд. Любой урон врага сразу прерывает лечение.', color:'#9ed8ff', active:true}
   ,brainEye: {name:'Оторванный Глаз Мозгов', icon:'◉', cost:1900, desc:'Пассивно: +210 к дальности атаки героя.', color:'#ff8fd8', attackRange:210, active:false}
-  ,brainAss: {name:'Срака мо3гов', icon:'✹', cost:3300, desc:'Активный: на 2 секунды даёт +350 к скорости атаки и +250 к урону. КД 24 секунды.', color:'#ff638d', activeDuration:2, attackSpeed:3.5, damage:250, cooldown:24, active:true}
+  ,brainAss: {name:'Срака мо3гов', icon:'✹', cost:2050, desc:'Активный: на 2 секунды даёт +350 к скорости атаки и +250 к урону. КД 24 секунды.', color:'#ff638d', activeDuration:2, attackSpeed:3.5, damage:250, cooldown:24, active:true}
   ,aghanimScepter: {name:'Аганим Скептер', icon:'✹', cost:2000, desc:'Пассивно: улучшает уникальную механику героя — дополнительные снаряды, заряды, радиус или урон зависят от героя.', color:'#b992ff', active:false}
 };
 const SHOP_ITEM_IDS = [
@@ -935,7 +938,7 @@ SHOP_ITEMS.dagonEmpire.damage = 1200;
 SHOP_ITEMS.timurPillow.cost = 200;
 SHOP_ITEMS.tornBrainHand.cost = 1300;
 SHOP_ITEMS.tornBrainHand.cooldown = 12;
-SHOP_ITEMS.brainAss.cost = 3300;
+SHOP_ITEMS.brainAss.cost = 2050;
 /* Новые предметы добавлены ПОСЛЕ множителя 0.93, поэтому цена в магазине ровно такая, как указана. */
 SHOP_ITEMS.dianaPants = {
   name:'Трусы Дианы', icon:'♡', cost:3500, color:'#ff6fb0', active:true,
@@ -954,7 +957,7 @@ SHOP_ITEMS.eggGolly = {
 };
 SHOP_ITEMS.eggGolly.cost = 1800;
 SHOP_ITEMS.zamist = {
-  name:'Замисть', icon:'⇄', cost:2900, color:'#ed3d4e', active:true,
+  name:'Замисть', icon:'⇄', cost:1900, color:'#ed3d4e', active:true,
   desc:'Активный: на 10 секунд даёт +65% сопротивления урону, +100 к урону и +50 к скорости. КД 30 сек.',
   activeDuration:10, cooldown:30, damage:100, moveSpeed:50, damageResistance:0.65
 };
@@ -969,12 +972,12 @@ SHOP_ITEM_IDS.push('semenHead');
 
 /* ===== Пять новых предметов: Кая и Санга, Вейкер Ветра, Святой медальон, Нуллификатор, Диспёрсер ===== */
 SHOP_ITEMS.kayaSange = {
-  name:'Кая и Санга', icon:'❖', cost:3400, color:'#7fb8ff', active:false,
+  name:'Кая и Санга', icon:'❖', cost:1700, color:'#7fb8ff', active:false,
   desc:'Пассивно: +450 к максимальному и текущему здоровью, +350 к максимальной и текущей мане, +18% к урону способностей и 25% сопротивления эффектам — оглушение, замедление и безмолвие на вас длятся на 25% меньше.',
   hp:450, maxMp:350, spellAmp:0.18, statusResist:0.25
 };
 SHOP_ITEMS.windWaker = {
-  name:'Вейкер Ветра', icon:'≋', cost:3900, color:'#7fe9d4', active:true,
+  name:'Вейкер Ветра', icon:'≋', cost:600, color:'#7fe9d4', active:true,
   desc:'Активный: поднимает в ураган вас или выбранного союзника на 2,5 сек. и снимает с него вредные эффекты. В урагане боец неуязвим и свободно летает над деревьями, но не может атаковать и применять способности. Дальность 700. КД 22 сек.',
   cooldown:22, duration:2.5, castRange:700
 };
@@ -984,12 +987,12 @@ SHOP_ITEMS.holyLocket = {
   healAmp:0.30, maxCharges:20, chargeInterval:4, hpPerCharge:30, mpPerCharge:15, cooldown:4, castRange:700
 };
 SHOP_ITEMS.nullifier = {
-  name:'Нуллификатор', icon:'⊘', cost:3600, color:'#b07cff', active:true,
+  name:'Нуллификатор', icon:'⊘', cost:2000, color:'#b07cff', active:true,
   desc:'Активный: на 5 сек. вешает на вражеского бойца печать пустоты — срывает с него все положительные эффекты сразу и продолжает срывать новые каждый кадр. Пока печать действует, у цели не работают БКБ, Замисть, Супер сапог, Мантированная сталь, Подушка Тимура и Вейкер Ветра. Дальность 700. КД 16 сек.',
   cooldown:16, duration:5, castRange:700
 };
 SHOP_ITEMS.disperser = {
-  name:'Диспёрсер', icon:'✣', cost:3100, color:'#6fe0ff', active:true,
+  name:'Диспёрсер', icon:'✣', cost:2500, color:'#6fe0ff', active:true,
   desc:'Пассивно: +30 к скорости передвижения. Активный на врага: сжигает 250 маны, наносит магический урон, равный 60% сожжённой маны, и замедляет на 50% на 4 сек. На союзника или себя: снимает оглушение, замедление, безмолвие и вредные эффекты и даёт +180 к скорости на 4 сек. Дальность 650. КД 14 сек.',
   speed:30, manaBurn:250, burnDamageRatio:0.6, slow:0.5, slowDuration:4, hasteSpeed:180, hasteDuration:4, cooldown:14, castRange:650
 };
@@ -1642,6 +1645,7 @@ function playGollyVoice(kind){
   } catch(err) {}
 }
 function resetGollyVoiceState(){
+  resetChipVoiceState();
   gollyMoveClicks = 0; gollyMoveFirstDone = false; gollyDmgWindow = {t:0, sum:0};
   for(const k in gollyVoiceLastAt) delete gollyVoiceLastAt[k];
   if(gollyVoiceCurrent){ try { gollyVoiceCurrent.pause(); } catch(err) {} }
@@ -1665,6 +1669,37 @@ function gollyOnDamaged(target, dmg, source){
     gollyDmgWindow = {t:nowMs, sum:0};
     playGollyVoice('bigDamage');
   }
+}
+/* ===== Голос бойца Чипа (звучит, когда игрок играет за Чипа) ===== */
+const CHIP_VOICE_SRC = {
+  kill:'./sounds/chip-kill.mp3',   // 1: убил героя противника
+  win:'./sounds/chip-win.mp3',     // 2: сломан трон — победа
+  death:'./sounds/chip-death.mp3'  // 3: смерть
+};
+const CHIP_VOICE_PRIORITY = {kill:3, death:5, win:9};
+const chipVoiceCache = {};
+let chipVoiceCurrent = null, chipVoiceCurrentKind = null;
+function playerIsChip(){
+  return !!(playerHero && playerHero.def && playerHero.def.id === 'chip');
+}
+function playChipVoice(kind){
+  if(!ANNOUNCER.enabled || !playerIsChip() || !CHIP_VOICE_SRC[kind]) return;
+  const cur = chipVoiceCurrent;
+  if(cur && !cur.ended && !cur.paused){
+    if((CHIP_VOICE_PRIORITY[kind] || 1) < (CHIP_VOICE_PRIORITY[chipVoiceCurrentKind] || 1)) return;
+    try { cur.pause(); } catch(err) {}
+  }
+  try {
+    const a = (chipVoiceCache[kind] ||= new Audio(CHIP_VOICE_SRC[kind])).cloneNode(true);
+    a.volume = 1;
+    chipVoiceCurrent = a; chipVoiceCurrentKind = kind;
+    const pr = a.play();
+    if(pr && pr.catch) pr.catch(() => {});
+  } catch(err) {}
+}
+function resetChipVoiceState(){
+  if(chipVoiceCurrent){ try { chipVoiceCurrent.pause(); } catch(err) {} }
+  chipVoiceCurrent = null; chipVoiceCurrentKind = null;
 }
 function playRampageVoice(){ playKillSfx('rampage'); }
 function playRampageSynth(){
@@ -2450,6 +2485,7 @@ function killUnit(u, source){
   if(u.dead) return;
   u.dead = true; u.hp = 0;
   if(u.ballState) u.ballState = null;
+  if(u === playerHero && playerIsChip()) playChipVoice('death');
   if(u === playerHero && playerIsGolly()){
     const killerType = source && (source.type || (source.source && source.source.type));
     const byStructureOrCreep = killerType === 'tower' || killerType === 'barracks' || killerType === 'creep' || killerType === 'neutral';
@@ -2517,6 +2553,7 @@ function killUnit(u, source){
     }
     /* Фраза Гриши после убийства героя — слышат ВСЕ игроки (играется после голоса диктора) */
     if(rewardHero.def && rewardHero.def.id === 'grisha') playKillSfx('grisha');
+    if(rewardHero === playerHero && playerIsChip()) playChipVoice('kill');
     if(rewardHero === playerHero && playerIsGolly()){
       /* Кража килла: добивал Голли, а основной урон по цели нанёс кто-то другой из его команды */
       let golDmg = 0, otherMax = 0;
@@ -2761,6 +2798,25 @@ function projectileHeading(projectile){
   if(projectile.target) return Math.atan2(projectile.target.y-projectile.y, projectile.target.x-projectile.x);
   return 0;
 }
+/* 4-конечная звёздочка-блик */
+function drawSparkle4(x,y,sz,color){
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x,y-sz);
+  ctx.quadraticCurveTo(x+sz*0.12,y-sz*0.12,x+sz,y);
+  ctx.quadraticCurveTo(x+sz*0.12,y+sz*0.12,x,y+sz);
+  ctx.quadraticCurveTo(x-sz*0.12,y+sz*0.12,x-sz,y);
+  ctx.quadraticCurveTo(x-sz*0.12,y-sz*0.12,x,y-sz);
+  ctx.fill();
+}
+/* Попадание атаки Гриши: разноцветные искры и расходящиеся кольца */
+function grishaHitSparkle(x,y){
+  spawnParticles(x,y,'#9eeaff',6,0.7);
+  spawnParticles(x,y,'#fff1a8',6,0.7);
+  spawnParticles(x,y,'#d99cff',6,0.7);
+  fxRing(x,y,46,'#e8d4ff',0.35);
+  fxRing(x,y,78,'#9eeaff',0.5);
+}
 function drawThemedProjectile(projectile){
   const owner = projectileOwner(projectile);
   const id = owner && owner.def ? owner.def.id : '';
@@ -2796,14 +2852,39 @@ function drawThemedProjectile(projectile){
     ctx.strokeStyle = '#ff7a32'; ctx.lineWidth = Math.max(2,r*0.22);
     ctx.beginPath(); ctx.moveTo(-r*1.9,-r*0.35); ctx.lineTo(-r*3.4,-r*0.95); ctx.moveTo(-r*1.9,r*0.35); ctx.lineTo(-r*3.4,r*0.95); ctx.stroke();
   } else if(id === 'grisha'){
+    /* Снаряд Гриши: комета из трёх цветных спиралей, светящееся ядро, рунный ромб и мерцающие звёздочки */
+    const cols = ['#9eeaff','#fff1a8','#d99cff'];
+    ctx.globalCompositeOperation = 'lighter';
+    for(let i=0;i<3;i++){
+      const ph = i*Math.PI*2/3 + gameTime*9;
+      ctx.strokeStyle = cols[i]; ctx.lineWidth = Math.max(1.5, r*0.3); ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      for(let k=0;k<=10;k++){
+        const x = -k*r*0.62, w = Math.sin(ph - k*0.55) * r*(0.5 + k*0.07);
+        if(k) ctx.lineTo(x,w); else ctx.moveTo(x,w);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    const core = ctx.createRadialGradient(0,0,0,0,0,r*2.3);
+    core.addColorStop(0,'rgba(255,255,255,0.95)');
+    core.addColorStop(0.35,'rgba(215,181,255,0.7)');
+    core.addColorStop(1,'rgba(180,120,255,0)');
+    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0,0,r*2.3,0,Math.PI*2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.save();
     ctx.rotate(gameTime*4.5);
     ctx.fillStyle = '#d7b5ff';
     ctx.beginPath(); ctx.moveTo(r*1.9,0); ctx.lineTo(0,-r*1.15); ctx.lineTo(-r*1.05,0); ctx.lineTo(0,r*1.15); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#fff4ff'; ctx.beginPath(); ctx.arc(0,0,r*0.35,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1,r*0.12); ctx.stroke();
+    ctx.fillStyle = '#fff4ff'; ctx.beginPath(); ctx.arc(0,0,r*0.38,0,Math.PI*2); ctx.fill();
+    ctx.restore();
     for(let i=0;i<3;i++){
       const a = i*Math.PI*2/3 + gameTime*5;
-      ctx.fillStyle = [ '#9eeaff','#fff1a8','#d99cff' ][i];
+      ctx.fillStyle = cols[i];
       ctx.beginPath(); ctx.arc(Math.cos(a)*r*1.55,Math.sin(a)*r*1.55,r*0.36,0,Math.PI*2); ctx.fill();
+      const tw = 0.5 + 0.5*Math.sin(gameTime*12 + i*2.1);
+      drawSparkle4(Math.cos(a+0.9)*r*2.3, Math.sin(a+0.9)*r*2.3, r*(0.35 + 0.5*tw), '#ffffff');
     }
   } else if(id === 'golly'){
     ctx.fillStyle = '#82dcff';
@@ -3405,7 +3486,12 @@ function performInventoryItemActivation(hero, index){
     return true;
   }
   if(item.id === 'mango'){
+    if(hero.mp >= hero.maxMp - 0.5){
+      if(hero === playerHero) flashMsg(hero, 'Мана уже полная');
+      return false;
+    }
     hero.mp = Math.min(hero.maxMp, hero.mp + 100);
+    hero.inventory[index] = null;        /* расходуемый: съел — предмет исчез, как Танго */
     addText(hero.x, hero.y - 56, '+100 МАНЫ', '#72e6a5', 1.0, 16);
     fxRing(hero.x, hero.y, 72, '#72e6a5', 0.45);
     return true;
@@ -3481,39 +3567,615 @@ function confirmShopPurchase(id){
   buyShopItem(id);
 }
 
-function buyBotItem(hero){
-  const bootsIndex = hero.inventory.findIndex(i => i && i.id === 'joelBoots');
-  const fangsIndex = hero.inventory.findIndex(i => i && i.id === 'fangs');
-  const ptOwned = hero.inventory.some(i => i && i.id === 'pt');
-  const starterId = ptOwned ? null : fangsIndex < 0 ? 'fangs' : bootsIndex < 0 ? 'joelBoots' : null;
-  if(starterId){
-    const item = SHOP_ITEMS[starterId];
-    const slot = hero.inventory.findIndex(i => !i);
-    if(slot >= 0 && hero.coins >= item.cost){
-      hero.coins -= item.cost;
-      hero.inventory[slot] = createInventoryItem(starterId);
-      applyItemStats(hero, starterId);
-    }
-    return;
+/* ==== HERO_GUIDES:BEGIN (сгенерировано gen_guides.py) ==== */
+const HERO_GUIDES = {
+  "pyro": {
+    "role": "Дальнобойный маг-нюкер",
+    "style": "Стреляет огнём издалека и добивает метеором. Хрупкий — держите дистанцию и не лезьте первым.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Огненный шар (Q) качайте первым: им вы фармите и бьёте. Затем Волна пламени (W), потом Блинк (E). Метеор (R) — как только откроется.",
+    "build": [
+      "manaTome",
+      "pt",
+      "dagonEmpire",
+      "enemy302",
+      "kayaSange",
+      "aghanimScepter"
+    ],
+    "tips": [
+      "Начинайте драку с огненного шара, а Волной пламени отгоняйте тех, кто подбежал вплотную.",
+      "Блинк — это ваша страховка: если у врагов есть оглушение, держите его в запасе."
+    ]
+  },
+  "warlord": {
+    "role": "Бронированный боец-инициатор",
+    "style": "Крепкий ближний боец с лечением. Входит в драку рывком и держит натиск за счёт Боевого клича.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Рассекающий удар (Q) — основной урон по области. Боевой клич (W) лечит и даёт броню. Рывок (E) — для входа в бой. Шторм клинков (R) — вкладывайте сразу.",
+    "build": [
+      "pt",
+      "evsyutin",
+      "bkb",
+      "satanic",
+      "arcadiaScar",
+      "kinglandia"
+    ],
+    "tips": [
+      "Рывок помогает догнать убегающих и подобраться к дальнобойным бойцам.",
+      "Когда здоровье падает ниже половины — включайте Боевой клич, он и лечит, и укрепляет броню."
+    ]
+  },
+  "grisha": {
+    "role": "Универсальный маг трёх стихий",
+    "style": "Меняет комбинации орбов и бьёт заклинанием по 3 орбам. Сложный, но очень гибкий боец.",
+    "skills": [
+      2,
+      1,
+      0
+    ],
+    "skillNote": "Сначала Экзорт (E) и Векс (W) до 2 уровня — урон и скорость. Потом Квас (Q) для лечения. Призыв (R) — при первой возможности.",
+    "build": [
+      "manaTome",
+      "manaHooves",
+      "blink",
+      "kayaSange",
+      "enemy302",
+      "aghanimScepter"
+    ],
+    "tips": [
+      "Не забывайте крутить орбы перед боем: готовая комбинация решает драку.",
+      "Мана — ваша жизнь: поэтому в сборке сразу идут предметы на ману."
+    ]
+  },
+  "golly": {
+    "role": "Повелитель льда: контроль и урон",
+    "style": "Дальнобойный боец, который замораживает и отбрасывает врагов, а в бою призывает ледяных големов.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Кристалл (Q) — заморозка, качайте первым. Орда кристаллов (W) отбрасывает врагов. Ледяное сердце (E) делает прочнее. Големы (R) — как только откроются.",
+    "build": [
+      "manaTome",
+      "pt",
+      "disperser",
+      "blink",
+      "kayaSange",
+      "enemy302"
+    ],
+    "tips": [
+      "Заморозьте цель кристаллом и сразу бейте обычными атаками.",
+      "Красный режим (F) — для рывка в драку или быстрого отхода."
+    ]
+  },
+  "sasych": {
+    "role": "Кровавый охотник: ближний убийца",
+    "style": "Быстро бьёт и разгоняется от раненых врагов. Ульта Разрыв не даёт цели свободно бегать.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Bloodrage (Q) — скорость атаки. Blood Rite (W) запрещает способности врагов. Thirst (E) — пассивная скорость. Rupture (R) — как откроется.",
+    "build": [
+      "pt",
+      "satanic",
+      "bkb",
+      "arcadiaScar",
+      "tornBrainHand",
+      "gur"
+    ],
+    "tips": [
+      "Выбирайте раненых врагов: Thirst делает вас быстрее именно рядом с ними.",
+      "Rupture накладывайте на убегающих — пока они бегут, они получают урон."
+    ]
+  },
+  "ilya": {
+    "role": "Танк с аурой",
+    "style": "Огромное здоровье и броня. Притягивает врагов крюком и душит аурой. Медленный — берите сапоги.",
+    "skills": [
+      0,
+      2,
+      1
+    ],
+    "skillNote": "Жирный крюк (Q) тянет врага к вам. Удар брюхом (E) оглушает. Ядовитая аура (W) тратит ваше здоровье — вкладывайтесь в неё позже. Пир (R) — как откроется.",
+    "build": [
+      "evsyutin",
+      "joelBoots",
+      "bkb",
+      "girfsyutin",
+      "ilyaHair",
+      "kayaSange"
+    ],
+    "tips": [
+      "Притяните самого опасного врага к союзникам и держите оглушением.",
+      "Ауру включайте только в драке — она тратит здоровье."
+    ]
+  },
+  "malit": {
+    "role": "Тяжёлый ближний боец",
+    "style": "Разгоняется пассивно, оглушает рюкзаком и подкидывает врагов. Лазерный круг решает драки в тесноте.",
+    "skills": [
+      1,
+      0,
+      2
+    ],
+    "skillNote": "Тяжёлый разгон (W) — одно очко, берите на первом уровне. Далее Рюкзак (Q) и Подброс (E). Лазерный круг (R) — сразу.",
+    "build": [
+      "pt",
+      "satanic",
+      "bkb",
+      "brainAss",
+      "gur",
+      "kinglandia"
+    ],
+    "tips": [
+      "Рюкзак — оглушение для входа, Подброс — для добивания.",
+      "Лазерный круг эффективнее всего, когда рядом несколько врагов."
+    ]
+  },
+  "arcady": {
+    "role": "Огненный стрелок",
+    "style": "Дальнобойный урон шарами и динамитом. С ростом скорости атаки превращается в смертоносного стрелка.",
+    "skills": [
+      0,
+      2,
+      1
+    ],
+    "skillNote": "Огненные шары (Q) — основной урон. Огненная стойка (E) растит скорость атаки. Молотов (W) — для зоны. Динамит (R) — как откроется.",
+    "build": [
+      "pt",
+      "brainEye",
+      "arcadiaScar",
+      "manaHooves",
+      "bkb",
+      "satanic"
+    ],
+    "tips": [
+      "Стойте позади союзников и стреляйте шарами издалека.",
+      "Молотов ставьте на проходе: враги, вышедшие из огня, ещё долго горят."
+    ]
+  },
+  "illusionist": {
+    "role": "Иллюзионист: урон за счёт копий",
+    "style": "Создаёт двойников и меняется с ними местами. Хорош в долгих драках, где копии бьют вместе с вами.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Двойник (Q) — основа. Рокировка (W) спасает от смерти. Фантом (E) — пассивные иллюзии. Гранд-финал (R) — как откроется.",
+    "build": [
+      "pt",
+      "aghanimHead",
+      "mantledSteel",
+      "bkb",
+      "satanic",
+      "kinglandia"
+    ],
+    "tips": [
+      "Если здоровье мало — меняйтесь местами с двойником (W) и уходите.",
+      "Мантированная сталь удваивает пользу копий: враги не знают, кого бить."
+    ]
+  },
+  "shadow": {
+    "role": "Повелитель душ: быстрый маг",
+    "style": "Очень быстрый, с тремя «койлами» разной дальности. Реквием добивает целые группы.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Ближний койл (Q) — короткая перезарядка, качайте первым. Средний (W), дальний (E) — следом. Реквием душ (R) — сразу, как откроется.",
+    "build": [
+      "pt",
+      "manaHooves",
+      "dagonEmpire",
+      "blink",
+      "satanic",
+      "bkb"
+    ],
+    "tips": [
+      "Копите души: Реквием лучше всего работает, когда душ накоплено достаточно.",
+      "Ваша скорость — оружие: подбегайте, бейте койлом и отходите."
+    ]
+  },
+  "electricGosha": {
+    "role": "Электрический боец-манёвр",
+    "style": "Подвижный маг: ставит копии, затягивает врагов и перелетает шаром молнии.",
+    "skills": [
+      0,
+      2,
+      1
+    ],
+    "skillNote": "Static Remnant (Q) — основа. Overload (E) усиливает атаки. Electric Vortex (W) затягивает врага. Ball Lightning (R) — как откроется.",
+    "build": [
+      "pt",
+      "manaHooves",
+      "kayaSange",
+      "blink",
+      "bkb",
+      "mantledSteel"
+    ],
+    "tips": [
+      "Следите за маной: Ball Lightning расходует её на перелёт.",
+      "Затягивайте вихрем одиночную цель и добивайте её."
+    ]
+  },
+  "mo3gi": {
+    "role": "Военный инженер",
+    "style": "Дальнобойный боец с дронами и минами. Ставит ловушки и держит дистанцию.",
+    "skills": [
+      0,
+      2,
+      1
+    ],
+    "skillNote": "Боевой дрон (Q) — основной урон. Скрытые мины (E) — контроль зон. Дар с небес (W) — для команды, тратит ваше здоровье.",
+    "build": [
+      "pt",
+      "brainEye",
+      "semenHead",
+      "manaHooves",
+      "bkb",
+      "kinglandia"
+    ],
+    "tips": [
+      "Мины ставьте на тропах, по которым идут враги.",
+      "Дрон направляйте на самого опасного вражеского бойца."
+    ]
+  },
+  "tribupainer": {
+    "role": "Дробовик: поздняя игра",
+    "style": "Слабоват в начале, но очень сильно растёт. Невидимость и мощный взрыв делают его охотником.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Поджигающие пули (Q) — основной урон. Щит дробовика (W) — для выживания. Тихий охотник (E) — для засад. Взрыв (R) — как откроется.",
+    "build": [
+      "pt",
+      "brainEye",
+      "kinglandia",
+      "satanic",
+      "bkb",
+      "munition"
+    ],
+    "tips": [
+      "Фармите спокойно: сила приходит позже, не рвитесь в ранние драки.",
+      "Невидимость используйте для подхода к цели."
+    ]
+  },
+  "mageHunter": {
+    "role": "Охотник на магов: быстрый carry",
+    "style": "Очень быстрый ближний боец. Выжигает ману и добивает магов.",
+    "skills": [
+      1,
+      0,
+      2
+    ],
+    "skillNote": "Мерцание (W) — для подхода и ухода. Выжигание маны (Q) — пассивно. Щит отражения (E) спасает от заклинаний. Пустой резерв (R) — как откроется.",
+    "build": [
+      "pt",
+      "arcadiaScar",
+      "satanic",
+      "kinglandia",
+      "bkb",
+      "gur"
+    ],
+    "tips": [
+      "Первыми выбирайте вражеских магов — Выжигание маны превращает их в простых бойцов.",
+      "Щит отражения включайте, когда видите заклинание в вашу сторону."
+    ]
+  },
+  "regina": {
+    "role": "Героиня натиска",
+    "style": "Подбрасывает и оглушает. В ульте получает ускорение и превращается в мясорубку.",
+    "skills": [
+      1,
+      0
+    ],
+    "skillNote": "Rebound (W) — прыжок с оглушением, качайте первым. Dispose (Q) — подброс. Unleash (R) — как откроется.",
+    "build": [
+      "pt",
+      "brainAss",
+      "satanic",
+      "bkb",
+      "tornBrainHand",
+      "kinglandia"
+    ],
+    "tips": [
+      "Rebound — это и вход, и отход: прыгайте через врага.",
+      "Unleash включайте в самом начале драки, пока ульта работает 14 секунд."
+    ]
+  },
+  "yosyp": {
+    "role": "Зелёный токсик",
+    "style": "Отравляет врагов атаками, оглушает лужами и высасывает здоровье лучом.",
+    "skills": [
+      1,
+      0
+    ],
+    "skillNote": "Четыре лужи (W) — основа контроля. Блювака (Q) — пассивный яд. Зелёный отсос (R) — как откроется.",
+    "build": [
+      "evsyutin",
+      "pt",
+      "satanic",
+      "bkb",
+      "ilyaHair",
+      "girfsyutin"
+    ],
+    "tips": [
+      "Лужи кидайте под ноги, когда враги подошли вплотную.",
+      "Отсос тянет жизнь 12 секунд — ставьте на самого опасного врага."
+    ]
+  },
+  "dawnMaiden": {
+    "role": "Рассветная дева: танк и инициатор",
+    "style": "Очень прочная, оглушает молотом и поддерживает команду глобальной ультой.",
+    "skills": [
+      1,
+      0,
+      2
+    ],
+    "skillNote": "Небесный молот (W) — оглушение и вход. Разрушитель звёзд (Q) — урон по области. Сияние (E) — лечение союзников. Солнечный страж (R) — как откроется.",
+    "build": [
+      "evsyutin",
+      "pt",
+      "bkb",
+      "girfsyutin",
+      "zamist",
+      "kayaSange"
+    ],
+    "tips": [
+      "Входите в бой первой: у вас здоровья больше, чем у остальных.",
+      "Ульта работает на любом конце карты рядом с союзником — используйте её для спасения башни или трона."
+    ]
+  },
+  "exileKnight": {
+    "role": "Рыцарь-изгнанник: ближний carry",
+    "style": "Тяжёлый боец с оглушающей рукавицей. Гнев бога даёт огромный урон.",
+    "skills": [
+      2,
+      0,
+      1
+    ],
+    "skillNote": "Боевой клич (E) — бафф на 9 секунд, качайте первым. Бросок рукавицы (Q) — оглушение. Раскол брони (W) — пассивно. Гнев бога (R) — как откроется.",
+    "build": [
+      "pt",
+      "brainAss",
+      "satanic",
+      "bkb",
+      "semenHead",
+      "kinglandia"
+    ],
+    "tips": [
+      "Рукавицей оглушайте, потом включайте Клич и Гнев бога.",
+      "Держите Гнев бога на ключевую драку, а не на крипов."
+    ]
+  },
+  "juvsyut": {
+    "role": "Жирный громила",
+    "style": "Толстый боец, который растёт, поедая лесных крипов. Толкает в цель и оглушает.",
+    "skills": [
+      0,
+      2,
+      1
+    ],
+    "skillNote": "Жирный толчок (Q) — вход. Разбег (E) — скорость и урон. Сало-щит (W) — защита. Большой обед (R) — как откроется, ешьте лесных крипов.",
+    "build": [
+      "pt",
+      "evsyutin",
+      "satanic",
+      "bkb",
+      "girfsyutin",
+      "gur"
+    ],
+    "tips": [
+      "Большой обед даёт постоянное здоровье и урон — поэтому заглядывайте в лес.",
+      "Сало-щит включайте, когда по вам бьют несколько врагов."
+    ]
+  },
+  "chip": {
+    "role": "Король золотой арены",
+    "style": "Дальнобойный боец с контролем: приказ замедляет и заглушает, монета бьёт по скорости атаки.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Королевский приказ (Q) — контроль. Корона власти (W) — защита и лечение. Монета судьбы (E) — урон. Тронный переворот (R) — как откроется.",
+    "build": [
+      "pt",
+      "manaTome",
+      "dagonEmpire",
+      "kayaSange",
+      "enemy302",
+      "blink"
+    ],
+    "tips": [
+      "Приказ ставьте на того, кто бежит на вас: замедление и тишина дают время на отход.",
+      "Тронный переворот — это вход в драку или спасение: используйте с умом."
+    ]
+  },
+  "savely": {
+    "role": "Савелий: толстый трансформер",
+    "style": "Крепкий боец. Каждая 4-я атака по нему гарантированно промахивается. Превращается в робота для боя.",
+    "skills": [
+      0,
+      2,
+      1
+    ],
+    "skillNote": "Ловкий уворот (Q) — одно очко, берите сразу. Форма Трансформера (E) — главный бафф. Звонкий клич (W) — урон по области. Яростный рёв (R) — как откроется.",
+    "build": [
+      "pt",
+      "evsyutin",
+      "satanic",
+      "bkb",
+      "zamist",
+      "kinglandia"
+    ],
+    "tips": [
+      "Включайте Форму Трансформера в начале драки.",
+      "Рёв заставляет врагов разбегаться — отлично для защиты союзников."
+    ]
+  },
+  "juggernaut": {
+    "role": "Джаггернаут: классический carry",
+    "style": "Быстрый и стойкий. Blade Fury даёт иммунитет к магии, а Omnislash добивает.",
+    "skills": [
+      0,
+      2,
+      1
+    ],
+    "skillNote": "Blade Fury (Q) — основа. Blade Dance (E) — критические удары. Healing Ward (W) — лечение рядом. Omnislash (R) — как откроется.",
+    "build": [
+      "pt",
+      "arcadiaScar",
+      "bkb",
+      "satanic",
+      "tornBrainHand",
+      "kinglandia"
+    ],
+    "tips": [
+      "Blade Fury спасает от вражеских заклинаний — включайте при магическом уроне.",
+      "Omnislash держите для добивания, а не для фарма."
+    ]
+  },
+  "earthshaker": {
+    "role": "Шмедик: инициатор",
+    "style": "Разламывает землю, оглушает и превращает любую заклинательную способность в волну урона.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Fissure (Q) — оглушающий разлом. Enchant Totem (W) — урон и оглушение. Aftershock (E) — пассивно. Echo Slam (R) — как откроется.",
+    "build": [
+      "joelBoots",
+      "evsyutin",
+      "blink",
+      "bkb",
+      "kayaSange",
+      "girfsyutin"
+    ],
+    "tips": [
+      "Fissure перекрывает проход — зажимайте врагов у стены.",
+      "Echo Slam бьёт сильнее, чем больше врагов рядом: входите в центр группы."
+    ]
+  },
+  "sniper": {
+    "role": "Снайпер: дальний carry",
+    "style": "Огромная дальность и урон, но очень мало здоровья. Держитесь позади команды.",
+    "skills": [
+      1,
+      0,
+      2
+    ],
+    "skillNote": "Headshot (W) — пассивный урон. Shrapnel (Q) — замедление. Take Aim (E) — дальность. Assassinate (R) — как откроется.",
+    "build": [
+      "pt",
+      "brainEye",
+      "semenHead",
+      "kinglandia",
+      "satanic",
+      "bkb"
+    ],
+    "tips": [
+      "Бейте с максимальной дистанции и отходите, когда враг подбегает.",
+      "Assassinate попадает только по видимой цели — не стреляйте вслепую."
+    ]
   }
-  if(!ptOwned && bootsIndex >= 0 && fangsIndex >= 0 && hero.coins >= SHOP_ITEMS.pt.cost){
-    hero.coins -= SHOP_ITEMS.pt.cost;
-    hero.inventory[bootsIndex] = createInventoryItem('pt');
-    hero.inventory[fangsIndex] = null;
-    applyItemStats(hero, 'pt');
-    return;
-  }
-  if(!ptOwned) return;
-  const priority = ['munition','mantledSteel','aghanimHead'];
-  const remaining = ['bkb','blink','evsyutin','manaHooves','superBoots','ilyaHair','enemy302','tornBrainHand','hatchet','satanic','arcadiaScar','kinglandia','semenHead','gur','brainEye','aghanimScepter','brainAss','kayaSange','disperser'];
-  const owned = new Set(hero.inventory.filter(Boolean).map(item => item.id));
-  const id = [...priority,...remaining].find(itemId => !owned.has(itemId) && SHOP_ITEMS[itemId] &&
-    hero.coins >= SHOP_ITEMS[itemId].cost && hero.inventory.some(item => !item));
-  if(!id) return;
+};
+/* ==== HERO_GUIDES:END ==== */
+const GUIDE_ITEM_WHY = {
+  "pt": "Сапог Джоэла + Клыки Васьки: урон, скорость и скорость атаки сразу. Собирается из двух частей.",
+  "joelBoots": "+45 к скорости — догонять и убегать.",
+  "fangs": "+100 к урону атак и способностей.",
+  "semenHead": "+290 урона за 1200 — самый выгодный предмет на урон.",
+  "kinglandia": "+650 к урону атак — главный предмет поздней игры для атакующих бойцов.",
+  "hatchet": "Дешёвый урон и срубание деревьев.",
+  "evsyutin": "+500 к здоровью — первая защита.",
+  "satanic": "+660 здоровья и вампиризм 25%: даёт выжить в долгой драке.",
+  "girfsyutin": "+1800 здоровья — для танков и инициаторов.",
+  "kayaSange": "Здоровье, мана, +18% урона способностей и сопротивление оглушениям.",
+  "bkb": "БКБ: на 10 сек. режет урон атак на 60% и снимает оглушение.",
+  "zamist": "Замисть: +65% сопротивления урону, урон и скорость на 10 сек.",
+  "manaHooves": "+800 маны — для тех, кто живёт на способностях.",
+  "manaTome": "+10% к восстановлению маны — дёшево и полезно в начале.",
+  "blink": "Блинк: рывок на 500 — войти в драку или сбежать.",
+  "eggGolly": "+250 скорости на 2 сек. для рывка или отхода.",
+  "superBoots": "+70 скорости и ускорение на 6 сек.",
+  "disperser": "+30 скорости; жжёт ману врага и замедляет его.",
+  "aghanimHead": "Активный: +180 урона, +100 скорости и скорость атаки на 10 сек.",
+  "arcadiaScar": "Активный: +250 урона и утроенная скорость атаки на 7 сек.",
+  "brainAss": "Активный: короткий, но очень мощный разгон атак и урона.",
+  "munition": "Активный: резкое ускорение атак на 3 сек.",
+  "mantledSteel": "Три копии героя на 7 сек. — отвлекают и добавляют урон.",
+  "ilyaHair": "Оглушает цель на 4 сек. + урон и защита от атак.",
+  "gur": "Подбрасывает врага и усиливает героя на 12 сек.",
+  "dagonEmpire": "1200 магического урона каждые 10 сек. — отлично добивает.",
+  "tornBrainHand": "Телепорт к врагу + 350 урона: догнать и добить.",
+  "enemy302": "-30% к перезарядке способностей.",
+  "brainEye": "+210 к дальности атаки — для дальнобойных.",
+  "aghanimScepter": "Усиливает уникальную механику героя."
+};
+
+/* ================================================================
+   ЗАКУП БОТОВ — строго по гайду своего бойца (HERO_GUIDES[id].build).
+   Предметы покупаются по порядку: пока не куплен текущий пункт гайда,
+   бот копит монеты именно на него и ничего «левого» не берёт.
+   «ПТ» собирается из Сапога Джоэла и Клыков Васьки, как в магазине.
+   ================================================================ */
+const BOT_DEFAULT_BUILD = ['pt','satanic','bkb','kinglandia','evsyutin','arcadiaScar'];
+
+function botBuildFor(hero){
+  const guide = hero && hero.def ? HERO_GUIDES[hero.def.id] : null;
+  return guide ? guide.build : BOT_DEFAULT_BUILD;
+}
+
+function botBuyItemById(hero, id){
+  const item = SHOP_ITEMS[id];
+  if(!item || hero.coins < item.cost) return false;
   const slot = hero.inventory.findIndex(i => !i);
-  hero.coins -= SHOP_ITEMS[id].cost;
+  if(slot < 0) return false;
+  hero.coins -= item.cost;
   hero.inventory[slot] = createInventoryItem(id);
   applyItemStats(hero, id);
+  return true;
+}
+
+function buyBotItem(hero){
+  const owned = new Set(hero.inventory.filter(Boolean).map(item => item.id));
+  for(const id of botBuildFor(hero)){
+    if(owned.has(id)) continue;
+    if(id === 'pt'){
+      const bootsIndex = hero.inventory.findIndex(i => i && i.id === 'joelBoots');
+      const fangsIndex = hero.inventory.findIndex(i => i && i.id === 'fangs');
+      if(bootsIndex >= 0 && fangsIndex >= 0){
+        if(hero.coins >= SHOP_ITEMS.pt.cost){
+          hero.coins -= SHOP_ITEMS.pt.cost;
+          hero.inventory[bootsIndex] = createInventoryItem('pt');
+          hero.inventory[fangsIndex] = null;
+          applyItemStats(hero, 'pt');
+        }
+        return;
+      }
+      botBuyItemById(hero, fangsIndex < 0 ? 'fangs' : 'joelBoots');
+      return;
+    }
+    botBuyItemById(hero, id);
+    return;
+  }
 }
 
 function createInventoryItem(id){
@@ -4351,11 +5013,12 @@ function spawnPassiveIllusion(hero, target){
 
 class Tower extends Unit {
   constructor(team, x, y, base, lane=null, tier=1){
-    const ancientHp = Math.round(43200 * 1.08);
+    const hpMul = gameModeCfg().structHpMul || 1;
+    const ancientHp = Math.round(43200 * 1.08 * hpMul);
     super({
       x, y, team,
       radius: base?46:(tier===1?19:22), speed:0,
-      hp: base?ancientHp:6000,
+      hp: base?ancientHp:Math.round(6000 * hpMul),
       dmg: base?220:82,
       atkRange: base?850:(tier===1?560:680),
       atkTime: base?0.8:1.05,
@@ -4384,7 +5047,7 @@ class Tower extends Unit {
 
 class Barracks extends Unit {
   constructor(team, lane, x, y){
-    super({x,y,team,radius:34,speed:0,hp:2800,dmg:0,atkRange:0,armor:14,vision:850,type:'barracks',xpValue:260});
+    super({x,y,team,radius:34,speed:0,hp:Math.round(2800 * (gameModeCfg().structHpMul || 1)),dmg:0,atkRange:0,armor:14,vision:850,type:'barracks',xpValue:260});
     this.lane = lane;
     this.spawnTimer = 5 + lane*2;
   }
@@ -6939,36 +7602,47 @@ class Hero extends Unit {
   }
   autoLevelSkills(){
     if(this.skillPoints <= 0) return;
+    const guide = HERO_GUIDES[this.def.id];
+    const order = guide && guide.skills ? guide.skills : [0,1,2];
 
     if(this.def.id === 'grisha'){
-      /* 1) Орбы до 2 уровня каждый */
-      for(let i=0;i<3;i++){
-        if(this.skills[i].level < 2 && this.canLevelSkill(i)){
+      /* 1) Орбы до 2 уровня в порядке гайда */
+      for(const i of order){
+        if(i < 3 && this.skills[i].level < 2 && this.canLevelSkill(i)){
           this.levelSkill(i); return;
         }
       }
-      /* 3) Докачиваем всё остальное */
+      /* 2) Докачиваем всё остальное */
       for(let i=0;i<4;i++){
         if(this.canLevelSkill(i)){ this.levelSkill(i); return; }
       }
       return;
     }
 
-    if(this.level >= 6 && this.canLevelSkill(3)){ this.levelSkill(3); return; }
-    let bestI=-1, bestLvl=99;
-    for(let i=0;i<3;i++){
-      if(this.canLevelSkill(i) && this.skills[i].level < bestLvl){
-        bestLvl = this.skills[i].level; bestI = i;
-      }
+    /* Ульта — как только доступна */
+    for(let i=0;i<this.skills.length;i++){
+      const s = this.skills[i];
+      if(s && s.def && s.def.ult && this.canLevelSkill(i)){ this.levelSkill(i); return; }
     }
-    if(bestI >= 0) this.levelSkill(bestI);
+    /* Сначала по очку в каждый навык гайда (в порядке приоритета)… */
+    for(const i of order){
+      if(this.skills[i] && this.skills[i].level === 0 && this.canLevelSkill(i)){ this.levelSkill(i); return; }
+    }
+    /* …затем докачиваем по приоритету гайда. */
+    for(const i of order){
+      if(this.canLevelSkill(i)){ this.levelSkill(i); return; }
+    }
+    for(let i=0;i<this.skills.length;i++){
+      if(this.canLevelSkill(i)){ this.levelSkill(i); return; }
+    }
   }
   update(dt){
     if(this.dead){
       for(const s of this.skills) if(s.cd > 0) s.cd = Math.max(0, s.cd - dt);
       for(const key of Object.keys(this.spellCooldowns)) this.spellCooldowns[key] = Math.max(0, this.spellCooldowns[key] - dt);
       this.respawnTimer = Math.max(0,this.respawnTimer-dt);
-      if(this.respawnTimer <= 0){
+      /* Онлайн: герой возрождается только по команде сервера (иначе мгновенный респавн и двойной счёт смертей) */
+      if(this.respawnTimer <= 0 && (!onlineMatchActive || this.onlineRespawnOk)){
         this.dead = false;
         this.hp = this.maxHp; this.mp = this.maxMp;
         { const respawnAt = spawnPoint(this.team); this.x = respawnAt.x; this.y = respawnAt.y; }
@@ -6983,7 +7657,7 @@ class Hero extends Unit {
         if(this.bikeSpeedBoost){ this.speed-=this.bikeSpeedBoost; this.bikeSpeedBoost=0; }
         if(controlledUnit===this) controlledUnit=playerHero;
         if(this.def.id === 'grisha') applyOrbBuffs(this);
-        this.deaths++;
+        if(!onlineMatchActive) this.deaths++;
         fxRing(this.x, this.y, 160, '#ffffff', 0.9);
       }
       return;
@@ -7818,6 +8492,280 @@ function recoverStuckBot(h){
   h.moveTarget={x:waypoint.x+rnd(-180,180),y:waypoint.y+rnd(-180,180)};
 }
 
+/* ================================================================
+   ТАКТИКА БОТОВ
+   Приоритеты (сверху вниз):
+   1) «Гонка тронов»: наш трон ломают, но мы уже на базе врага и бьём его
+      трон — продолжаем пушить, не отвлекаясь на защиту.
+   2) Низкое HP — отступить на фонтан, отхилиться и вернуться в бой.
+   3) Защита трона (высший приоритет вне гонки): бросаем все дела и бежим
+      бить тех, кто ломает наш трон.
+   4) Вражеский боец в зоне видимости — оценка шансов: вступить в бой или отступить.
+   ================================================================ */
+const BOT_HEAL_ENTER = 0.32;        /* уйти на фонтан при HP ниже 32% */
+const BOT_HEAL_EXIT = 0.9;          /* вернуться в бой при HP от 90% */
+const BOT_HEAL_ENTER_ALARM = 0.2;   /* когда трон в опасности — уходим только совсем раненые */
+const BOT_HEAL_EXIT_ALARM = 0.5;    /* и возвращаемся быстрее */
+const BOT_ENGAGE_ODDS = 0.85;       /* вступить в бой, если наши силы >= 85% от вражеских */
+const BOT_DISENGAGE_ODDS = 0.6;     /* уже в бою — отступить только если шансы упали ниже 60% */
+const THRONE_DANGER_RADIUS = 1300;  /* враги в этом радиусе от трона — угроза */
+const THRONE_HERO_RADIUS = 950;     /* вражеский герой так близко к трону — тревога */
+const THRONE_FAR_DEFENDERS = 2600;  /* при «просто герой рядом» домой идут только бойцы ближе этого */
+const THRONE_HIT_MEMORY = 6;        /* сколько секунд помним, что трон били */
+const THRONE_RACE_RADIUS = 1500;    /* «на базе врага» = ближе 1500 к его трону */
+
+const botWorld = {t:-1, hp:[0,0], hitAt:[-999,-999], st:[null,null]};
+
+/* Один раз за кадр собираем состояние обоих тронов: кто бьёт, кто рядом. */
+function botWorldRefresh(){
+  if(botWorld.t === gameTime) return botWorld;
+  if(gameTime < botWorld.t){ botWorld.hp = [0,0]; botWorld.hitAt = [-999,-999]; } /* новая партия */
+  botWorld.t = gameTime;
+  for(let team = 0; team < 2; team++){
+    const anc = units.find(u => u.type === 'ancient' && u.team === team && !u.dead) || null;
+    if(anc){
+      if(botWorld.hp[team] > 0 && anc.hp < botWorld.hp[team] - 0.5) botWorld.hitAt[team] = gameTime;
+      botWorld.hp[team] = anc.hp;
+    } else botWorld.hp[team] = 0;
+    botWorld.st[team] = {anc, hit:false, heroNear:false, enemies:[],
+      recentHit: gameTime - botWorld.hitAt[team] < THRONE_HIT_MEMORY};
+  }
+  for(const u of units){
+    if(u.dead || u.isIllusion || (u.team !== 0 && u.team !== 1)) continue;
+    if(u.type !== 'hero' && u.type !== 'creep') continue;
+    const st = botWorld.st[1 - u.team];      /* трон противника этого юнита */
+    if(!st.anc) continue;
+    const d = Math.hypot(u.x - st.anc.x, u.y - st.anc.y);
+    const attacking = u.attackTarget === st.anc;
+    if(attacking) st.hit = true;
+    if(d <= THRONE_DANGER_RADIUS || attacking){
+      st.enemies.push(u);
+      if(u.type === 'hero' && d <= THRONE_HERO_RADIUS) st.heroNear = true;
+    }
+  }
+  for(const st of botWorld.st) st.hit = st.hit || st.recentHit;
+  return botWorld;
+}
+
+/* Грубая «боевая мощь» бойца: живучесть x урон в секунду (с учётом готовых умений). */
+function botUnitPower(u){
+  const armor = u.getArmor ? u.getArmor() : (u.armor || 0);
+  const eff = Math.max(1, u.hp) * (1 + Math.max(0, armor) * 0.05);
+  const dmg = u.getDamage ? u.getDamage() : (u.dmg || 50);
+  let ready = 0;
+  if(u.skills) for(const s of u.skills){ if(s && s.level > 0 && s.cd <= 0 && !(s.def && s.def.passive)) ready++; }
+  const dps = dmg / Math.max(0.35, u.atkTime || 1) * (1 + ready * 0.12);
+  return Math.sqrt(eff * dps) * (u.stunTimer > 0 ? 0.5 : 1);
+}
+
+/* Шансы в драке: сила нашей группы / сила вражеской (башни и трон считаются тоже). */
+function botFightOdds(h, enemy){
+  const cx = (h.x + enemy.x) / 2, cy = (h.y + enemy.y) / 2;
+  let ally = botUnitPower(h), foe = 0;
+  for(const u of units){
+    if(u.dead || u === h || u.team === 2) continue;
+    if(u.type === 'hero' && !u.isIllusion){
+      if(Math.hypot(u.x - cx, u.y - cy) > 900) continue;
+      if(u.team === h.team) ally += botUnitPower(u); else foe += botUnitPower(u);
+    } else if(isStructure(u)){
+      const reach = (u.atkRange || 600) + 90;
+      if(Math.hypot(u.x - h.x, u.y - h.y) > reach && Math.hypot(u.x - enemy.x, u.y - enemy.y) > reach) continue;
+      const power = u.type === 'ancient' ? 640 : 340;
+      if(u.team === h.team) ally += power * 0.8; else foe += power;
+    }
+  }
+  return ally / Math.max(1, foe);
+}
+
+/* Ближайший видимый вражеский боец (раненых предпочитаем). */
+function botPickVisibleEnemy(h){
+  let best = null, bestScore = Infinity;
+  for(const u of heroes){
+    if(!u || u.dead || u.team === h.team || u.isIllusion || u.invulnerable || u.windTimer > 0) continue;
+    const d = Math.hypot(u.x - h.x, u.y - h.y);
+    if(d > h.vision) continue;
+    const score = d + (u.hp / Math.max(1, u.maxHp)) * 250;
+    if(score < bestScore){ bestScore = score; best = u; }
+  }
+  return best;
+}
+
+/* Куда отойти от драки: ближайшая своя башня «позади» нас, иначе фонтан. */
+function botSafePoint(h, from){
+  const fountain = spawnRoomCenter(h.team);
+  const dFrom = Math.hypot(h.x - from.x, h.y - from.y);
+  let best = null, bd = Infinity;
+  for(const u of units){
+    if(u.dead || u.team !== h.team || !isStructure(u)) continue;
+    if(Math.hypot(u.x - from.x, u.y - from.y) <= dFrom) continue;
+    const d = Math.hypot(u.x - h.x, u.y - h.y);
+    if(d < bd){ bd = d; best = u; }
+  }
+  if(!best) return fountain;
+  const dx = fountain.x - best.x, dy = fountain.y - best.y, dl = Math.hypot(dx, dy) || 1;
+  return {x: best.x + dx / dl * 140, y: best.y + dy / dl * 140};
+}
+
+function botItemReady(h, id){
+  const idx = h.inventory.findIndex(i => i && i.id === id);
+  if(idx < 0) return -1;
+  const item = h.inventory[idx];
+  if(item.cooldown > 0) return -1;
+  const cost = getActivationManaCost(item);
+  if(cost > 0 && h.mp < cost) return -1;
+  return idx;
+}
+
+/* Предметы «по курсору» боту нужны с точкой: временно подставляем её вместо мыши. */
+function botItemAt(h, id, x, y){
+  const idx = botItemReady(h, id);
+  if(idx < 0) return false;
+  const sx = mouse.wx, sy = mouse.wy;
+  mouse.wx = x; mouse.wy = y;
+  let ok = false;
+  try{ ok = useInventoryItem(h, idx); } finally { mouse.wx = sx; mouse.wy = sy; }
+  return ok;
+}
+
+/* Умения и предметы для побега: блинк-способности, Блинк, Супер сапог, Яйцо-голли. */
+function botEscapeSkills(h, enemy, goal){
+  if(!enemy || (h.stunTimer || 0) > 0) return;
+  if(Math.hypot(enemy.x - h.x, enemy.y - h.y) > 700) return;
+  const dx = goal.x - h.x, dy = goal.y - h.y, dl = Math.hypot(dx, dy) || 1;
+  const ux = dx / dl, uy = dy / dl;
+  if(h.def.id === 'pyro' && h.skills[2] && h.skills[2].level > 0 && h.skills[2].cd <= 0 &&
+     castSkill(h, 2, h.x + ux * 450, h.y + uy * 450)) return;
+  if(h.def.id === 'mageHunter' && h.skills[1] && h.skills[1].level > 0 && h.skills[1].cd <= 0 &&
+     castSkill(h, 1, h.x + ux * 600, h.y + uy * 600)) return;
+  if(botItemAt(h, 'blink', h.x + ux * 480, h.y + uy * 480)) return;
+  for(const id of ['superBoots', 'eggGolly']){
+    const idx = botItemReady(h, id);
+    if(idx >= 0){ useInventoryItem(h, idx); return; }
+  }
+}
+
+/* Боевые предметы: атакующие баффы, оглушения, добивание. Один предмет за вызов. */
+function botExtraItems(h){
+  if(h.dead || (h.stunTimer || 0) > 0 || h.windTimer > 0) return;
+  const t = h.attackTarget && !h.attackTarget.dead && h.attackTarget.team !== h.team && h.attackTarget.team !== 2
+    ? h.attackTarget : null;
+  const foe = t && t.type === 'hero' ? t : null;
+  if(!foe) return;
+  const d = Math.hypot(foe.x - h.x, foe.y - h.y);
+  const reach = h.getAttackRange() + foe.radius;
+  if(d <= reach + 160){
+    for(const id of ['arcadiaScar', 'brainAss', 'zamist']){
+      const idx = botItemReady(h, id);
+      if(idx >= 0){ useInventoryItem(h, idx); return; }
+    }
+  }
+  if(d <= 650 && botItemAt(h, 'dagonEmpire', foe.x, foe.y)) return;
+  if(d <= 550 && !(foe.stunTimer > 0) && botItemAt(h, 'ilyaHair', foe.x, foe.y)) return;
+  if(d <= 450 && botItemAt(h, 'gur', foe.x, foe.y)) return;
+  if(d <= 650 && (d > 280 || foe.hp < foe.maxHp * 0.45) && botItemAt(h, 'tornBrainHand', foe.x, foe.y)) return;
+  if(d <= 600 && (foe.mp || 0) > 100 && botItemAt(h, 'disperser', foe.x, foe.y)) return;
+  if(d <= 650 && foe.hp > foe.maxHp * 0.5 && botItemAt(h, 'nullifier', foe.x, foe.y)) return;
+  if(d > reach + 120 && d < 900 && foe.hp < foe.maxHp * 0.6){
+    for(const id of ['superBoots', 'eggGolly']){
+      const idx = botItemReady(h, id);
+      if(idx >= 0){ useInventoryItem(h, idx); return; }
+    }
+  }
+}
+
+/* Главная тактика бота. Возвращает {handled, target}:
+   handled — бот уже получил приказ (идёт лечиться/отходит/бежит к трону),
+   target  — принудительная цель (боец, враг у трона или вражеский трон в гонке). */
+function botTacticalLayer(h){
+  const res = {handled:false, target:null};
+  const world = botWorldRefresh();
+  const myThr = world.st[h.team], foeThr = world.st[1 - h.team];
+  const hpPct = h.hp / Math.max(1, h.maxHp);
+  const fountain = spawnRoomCenter(h.team);
+
+  /* 1. Гонка тронов: на базе врага и его трон можно бить — бьём, защиту игнорируем. */
+  const foeAnc = foeThr && foeThr.anc;
+  if(foeAnc && myThr.hit && foeThr.hit &&
+     Math.hypot(h.x - foeAnc.x, h.y - foeAnc.y) <= THRONE_RACE_RADIUS &&
+     canDamageStructure(foeAnc, null, true)){
+    h.botHeal = false;
+    res.target = foeAnc;
+    return res;
+  }
+
+  const alarm = myThr.hit || myThr.heroNear;
+
+  /* 2. Лечение на фонтане. */
+  if(h.botHeal){
+    const exitHp = alarm ? BOT_HEAL_EXIT_ALARM : BOT_HEAL_EXIT;
+    if(hpPct >= exitHp || gameTime - (h.botHealSince || gameTime) > 40) h.botHeal = false;
+  } else if(hpPct < (alarm ? BOT_HEAL_ENTER_ALARM : BOT_HEAL_ENTER)){
+    h.botHeal = true;
+    h.botHealSince = gameTime;
+    h.botHealPoint = {x: fountain.x + rnd(-60, 60), y: fountain.y + rnd(-60, 60)};
+  }
+  if(h.botHeal){
+    const close = botPickVisibleEnemy(h);
+    /* Добить почти мёртвого врага, который стоит вплотную, — выгоднее, чем бежать. */
+    if(close && close.hp < close.maxHp * 0.2 && close.hp < h.hp * 0.5 &&
+       Math.hypot(close.x - h.x, close.y - h.y) < 300){
+      res.target = close;
+      return res;
+    }
+    const p = h.botHealPoint || fountain;
+    h.attackTarget = null;
+    h.moveTarget = {x:p.x, y:p.y};
+    h.laneState = 'retreat';
+    botEscapeSkills(h, close, p);
+    res.handled = true;
+    return res;
+  }
+
+  /* 3. Защита трона. */
+  const anc = myThr.anc;
+  if(anc && (myThr.hit || (myThr.heroNear && Math.hypot(h.x - anc.x, h.y - anc.y) < THRONE_FAR_DEFENDERS))){
+    let pick = null, bestScore = Infinity;
+    for(const u of myThr.enemies){
+      if(u.dead) continue;
+      const score = Math.hypot(u.x - h.x, u.y - h.y) - (u.type === 'hero' ? 500 : 0);
+      if(score < bestScore){ bestScore = score; pick = u; }
+    }
+    if(pick){ res.target = pick; return res; }
+    const dx = fountain.x - anc.x, dy = fountain.y - anc.y, dl = Math.hypot(dx, dy) || 1;
+    h.attackTarget = null;
+    h.moveTarget = {x: anc.x + dx / dl * 220, y: anc.y + dy / dl * 220};
+    h.laneState = 'defend';
+    res.handled = true;
+    return res;
+  }
+
+  /* 4. Вражеский боец в зоне видимости: бой или отступление по шансам. */
+  const enemy = botPickVisibleEnemy(h);
+  if(enemy){
+    const odds = botFightOdds(h, enemy);
+    const need = (h.botFightUntil || 0) > gameTime ? BOT_DISENGAGE_ODDS : BOT_ENGAGE_ODDS;
+    const lowFoe = enemy.hp < enemy.maxHp * 0.3;
+    const cornered = Math.hypot(enemy.x - h.x, enemy.y - h.y) < 320 && (enemy.speed || 0) >= (h.speed || 0) * 0.95;
+    if(odds >= need || (lowFoe && odds >= need * 0.7) || cornered){
+      h.botFightUntil = gameTime + 2.5;
+      res.target = enemy;
+      return res;
+    }
+    h.botAvoidUntil = gameTime + 3;
+  }
+  if((h.botAvoidUntil || 0) > gameTime){
+    const from = enemy || {x:h.x, y:h.y};
+    const safe = botSafePoint(h, from);
+    h.attackTarget = null;
+    h.moveTarget = {x:safe.x, y:safe.y};
+    h.laneState = 'retreat';
+    botEscapeSkills(h, enemy, safe);
+    res.handled = true;
+    return res;
+  }
+  return res;
+}
+
 function updateEnemyAI(h, dt){
   h.aiTimer -= dt;
   h.laneTimer = Math.max(0, (h.laneTimer || 0) - dt);
@@ -7856,6 +8804,8 @@ function updateEnemyAI(h, dt){
     if(itemIndex >= 0 && h.inventory[itemIndex].cooldown <= 0 && botTarget &&
        botTargetDistance <= h.getAttackRange() + botTarget.radius + 100) useInventoryItem(h,itemIndex);
   }
+  h.botItemT = (h.botItemT || 0) - dt;
+  if(h.botItemT <= 0){ h.botItemT = 0.25; botExtraItems(h); }
   if(h.aiTimer > 0) return;
   h.aiTimer = 0.18;
   const scenarioDirective = botScenarioDirective(h);
@@ -7864,33 +8814,12 @@ function updateEnemyAI(h, dt){
     h.midPushAssignment = scenarioDirective.lane === 0;
   }
 
-  const base = spawnRoomCenter(h.team);
   const hpPct = h.hp / h.maxHp;
-  const nearBase = inSpawnRoom(h.x, h.y, h.team, 60);
-
-  /* Бот не бросает бой из-за низкого HP. На фонтан он уходит только
-     когда рядом уже нет вражеского героя и закончился короткий combat timer. */
-  const enemyHeroNearby = units.some(unit =>
-    unit.type === 'hero' && unit.team !== h.team && !unit.dead &&
-    Math.hypot(unit.x-h.x, unit.y-h.y) < 820
-  );
-  const beingTargeted = units.some(unit =>
-    !unit.dead && unit.attackTarget === h &&
-    Math.hypot(unit.x-h.x, unit.y-h.y) < 900
-  );
-  const inFight = (h.combatTimer || 0) > 0 || enemyHeroNearby || beingTargeted ||
-    (h.attackTarget && h.attackTarget.type === 'hero' && !h.attackTarget.dead &&
-     Math.hypot(h.attackTarget.x-h.x, h.attackTarget.y-h.y) < 950);
-  if(hpPct < 0.65 && !inFight &&
-     !inSpawnRoom(h.x, h.y, h.team, -40)){
-    h.moveTarget = {x:base.x + rnd(-60,60), y:base.y + rnd(-60,60)};
-    h.attackTarget = null;
-    if(h.def.id==='pyro' && h.skills[2].level>0 && h.skills[2].cd<=0 && hpPct<0.2){
-      castSkill(h, 2, base.x, base.y);
-    }
-    return;
-  }
-  if(h.def.id === 'juvsyut' && juvsyutBotThink(h, hpPct)) return;
+  /* Тактика: гонка тронов, отхил на фонтане, защита трона, оценка шансов в драке. */
+  const tac = botTacticalLayer(h);
+  if(tac.handled) return;
+  const forcedTarget = tac.target || null;
+  if(!forcedTarget && h.def.id === 'juvsyut' && juvsyutBotThink(h, hpPct)) return;
   if(hpPct < 0.65 && h.def.id === 'warlord' && h.skills[1].level > 0 && h.skills[1].cd <= 0){
     castSkill(h, 1, h.x, h.y);
   }
@@ -7900,7 +8829,7 @@ function updateEnemyAI(h, dt){
         Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
       .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0]
     : null;
-  if(!scenarioDirective && gameTime < BOT_FARM_PHASE_TIME && !farmPhaseEnemy){
+  if(!forcedTarget && !scenarioDirective && gameTime < BOT_FARM_PHASE_TIME && !farmPhaseEnemy){
     const farmLane = Number.isInteger(h.assignedLane) ? h.assignedLane : 0;
     const laneCreep = units
       .filter(unit => unit.type === 'creep' && unit.team !== h.team && !unit.dead &&
@@ -7920,7 +8849,7 @@ function updateEnemyAI(h, dt){
     h.moveTarget = {x:farmingWaypoint.x+rnd(-70,70),y:farmingWaypoint.y+rnd(-70,70)};
     return;
   }
-  if(scenarioDirective && scenarioDirective.passive){
+  if(!forcedTarget && scenarioDirective && scenarioDirective.passive){
     const defender = units.filter(unit => unit.type==='hero' && unit.team!==h.team && !unit.dead &&
       Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
       .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
@@ -7936,11 +8865,11 @@ function updateEnemyAI(h, dt){
     h.moveTarget={x:safePoint.x,y:safePoint.y};
     return;
   }
-  if(scenarioDirective && scenarioDirective.rune && runes.length){
+  if(!forcedTarget && scenarioDirective && scenarioDirective.rune && runes.length){
     const rune=runes.slice().sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
     if(Math.hypot(rune.x-h.x,rune.y-h.y)>48){ h.attackTarget=null; h.moveTarget={x:rune.x,y:rune.y}; return; }
   }
-  if(scenarioDirective && scenarioDirective.jungle && !farmPhaseEnemy && updateBotFarm(h)) return;
+  if(!forcedTarget && scenarioDirective && scenarioDirective.jungle && !farmPhaseEnemy && updateBotFarm(h)) return;
 
   const strategicLane = scenarioDirective ? scenarioDirective.lane :
     (gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0));
@@ -7964,10 +8893,10 @@ function updateEnemyAI(h, dt){
     h.laneState = 'lane';
     h.attackTarget=visibleEnemy;
     h.moveTarget=null;
-  } else if(gameTime < MID_PUSH_TIME && !getBotStructureObjective(h, strategicLane) &&
+  } else if(!forcedTarget && gameTime < MID_PUSH_TIME && !getBotStructureObjective(h, strategicLane) &&
             h.jungleTimer > 0 && updateBotFarm(h)){
     return;
-  } else if(gameTime < MID_PUSH_TIME && !visibleEnemy &&
+  } else if(!forcedTarget && gameTime < MID_PUSH_TIME && !visibleEnemy &&
             !getBotStructureObjective(h, strategicLane) &&
             h.laneTimer <= 0 && updateBotFarm(h)){
     h.jungleTimer = 18;
@@ -7985,12 +8914,13 @@ function updateEnemyAI(h, dt){
     Math.hypot(laneEnemy.x-h.x, laneEnemy.y-h.y) <= 260
       ? laneEnemy : null;
   /*
-   * Приоритет у бота теперь такой:
+   * Приоритет у бота теперь такой (выше — важнее):
+   * 0) тактический слой: гонка тронов / защита трона / бой по шансам;
    * 1) отбиться от героя, который уже рядом;
    * 2) добить ближайших крипов перед собой;
    * 3) идти по цепочке зданий: T1 -> T2 -> казармы -> трон.
    */
-  const target = urgentFight || nearbyCreep || structureTarget || laneEnemy || visibleEnemy || null;
+  const target = forcedTarget || urgentFight || nearbyCreep || structureTarget || laneEnemy || visibleEnemy || null;
 
   /* === САСЫЧ — АИ === */
   if(h.def.id === 'sasych'){
@@ -8322,6 +9252,7 @@ function update(dt){
       const attackOwner=p.source && (p.source.source || p.source);
       const scepterOwner=attackOwner && attackOwner.def && attackOwner.def.id==='tribupainer' ? attackOwner : null;
       applyDamage(p.target, p.dmg * (scepterOwner && hasScepter(scepterOwner) ? 1.2 : 1), p.source || {team:p.team});
+      if(attackOwner && attackOwner.def && attackOwner.def.id==='grisha') grishaHitSparkle(p.target.x,p.target.y);
       if(p.headshot && !p.target.dead){
         const slowDuration=p.headshotSlowDuration || 0.85;
         p.target.slow=Math.max(p.target.slow||0,p.headshotSlow||0.25);
@@ -14712,7 +15643,7 @@ function modeCardRects(){
 function drawModeSelect(){
   const info = {
     turbo:   {title:'ТУРБО',    tag:'БЫСТРАЯ ИГРА',  color:'#ff9d62', lines:['+3 монеты в секунду','Полная награда за крипов','Обычный опыт','Боты идут в мид с 5-й минуты']},
-    allpick: {title:'ALL PICK', tag:'КЛАССИКА',      color:'#8dd2ff', lines:['+1 монета в секунду','Крипы дают в 2 раза меньше монет','За героя — как обычно (200)','Опыт медленнее: уровни дольше','Боты дольше стоят на линиях (до 10-й минуты)']},
+    allpick: {title:'ALL PICK', tag:'КЛАССИКА',      color:'#8dd2ff', lines:['+1 монета в секунду','Крипы дают в 2 раза меньше монет','За героя — как обычно (200)','Опыт медленнее: уровни дольше','Боты дольше стоят на линиях (до 10-й минуты)','Башни, казармы и трон в 2.5 раза прочнее']},
     ranked:  {title:'РЕЙТИНГ',  tag:'ALL PICK 4 НА 4', color:'#ffd866', lines:['Правила All Pick, 4 на 4 с ботами','Победа: +'+RANKED_WIN_MMR+' MMR','Поражение: −'+RANKED_LOSS_MMR+' MMR',
       account.profile ? 'Твой ранг: '+accountRatingRank(account.profile.rating||0)+' · '+(account.profile.rating||0) : 'Нужен вход в аккаунт']}
   };
@@ -14744,13 +15675,14 @@ function drawModeSelect(){
   }
 }
 
+const DS_OFFSCREEN={x:-9999,y:-9999,w:1,h:1};
 function menuPlayRect(){
-  if(menuWide()){ const s=menuScale(); return {x:Math.round(44*s),y:Math.round(150*s),w:Math.round(360*s),h:Math.round(84*s)}; }
+  if(menuWide()) return DS_OFFSCREEN;
   return {x:VW/2-150,y:VW<820||VH<820?VH/2-122:VH/2-28,w:300,h:72};
 }
-function menuChangelogRect(){ if(menuWide()) return menuNavRect(1); return {x:VW/2-155,y:VW<820||VH<820?VH/2+28:VH/2+178,w:310,h:48}; }
+function menuChangelogRect(){ if(menuWide()) return DS_OFFSCREEN; return {x:VW/2-155,y:VW<820||VH<820?VH/2+28:VH/2+178,w:310,h:48}; }
 function menuSettingsRect(){
-  if(menuWide() && menuStage==='home'){ const s=menuScale(), size=Math.round(56*s); return {x:VW-Math.round(44*s)-size,y:Math.round(22*s),w:size,h:size}; }
+  if(menuWide() && menuStage==='home'){ const s=menuScale(), size=Math.round(32*s); return {x:Math.round(12*s),y:Math.round(7*s),w:size,h:size}; }
   return {x:VW-174,y:22,w:150,h:42};
 }
 function menuSettingsPanel(){
@@ -14781,7 +15713,7 @@ function menuGfxSegments(layout){
   const g=layout.gfx, gap=6, top=g.y+22, h=g.h-26, w=(g.w-gap*3)/4;
   return PERF_NAMES.map((name,index)=>({index,name,x:g.x+index*(w+gap),y:top,w,h}));
 }
-function menuStoreRect(){ if(menuWide()) return menuNavRect(2); return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
+function menuStoreRect(){ if(menuWide()) return DS_OFFSCREEN; return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
 function storePanelLayout(){
   const width=Math.max(0,Math.min(660,VW-24)), height=Math.max(0,Math.min(560,VH-24));
   const panel={x:(VW-width)/2,y:(VH-height)/2,w:width,h:height};
@@ -15028,6 +15960,8 @@ function handleMenuClick(mx, my){
         else if(hit.action==='leaderboard') window.openLeaderboard();
         else if(hit.action==='changelog'){ changelogOpen=true; changelogScroll=0; }
         else if(hit.action==='fighters'){ menuStage='heroes'; menuHeroPage=0; }
+        else if(hit.action==='play') dsStartPlay();
+        else if(hit.action==='setMode') dsSetPlayMode(hit.arg);
         else if(hit.action==='favHero'){ const fi=HERO_DEFS.findIndex(h=>h.id===favoriteHeroId); if(fi>=0){ selectedHeroIndex=fi; menuStage='heroDetail'; } }
         return;
       }
@@ -15045,6 +15979,8 @@ function handleMenuClick(mx, my){
     return;
   }
   if(menuStage === 'heroDetail'){
+    { const gb = menuGuideBtnRect();
+      if(mx>=gb.x && mx<=gb.x+gb.w && my>=gb.y && my<=gb.y+gb.h){ heroGuideOpen = !heroGuideOpen; return; } }
     const detailBack = menuDetailBackRect();
     const detailStart = menuDetailStartRect();
     if(mx>=detailBack.x && mx<=detailBack.x+detailBack.w && my>=detailBack.y && my<=detailBack.y+detailBack.h){
@@ -15145,7 +16081,74 @@ function menuCardRect(i){
 }
 function menuPreviousRect(){ return {x:VW/2-230,y:VH-68,w:92,h:38}; }
 function menuNextRect(){ return {x:VW/2+138,y:VH-68,w:92,h:38}; }
-function menuFightersRect(){ if(menuWide()) return menuNavRect(0); return {x:VW/2-155,y:VW<820||VH<820?VH/2-42:VH/2+62,w:310,h:54}; }
+function menuFightersRect(){ if(menuWide()) return DS_OFFSCREEN; return {x:VW/2-155,y:VW<820||VH<820?VH/2-42:VH/2+62,w:310,h:54}; }
+function menuGuideBtnRect(){
+  const compact = VW < 920;
+  const leftX = compact ? 28 : 64, portraitW = VW * .34;
+  const rightX = compact ? leftX + portraitW + 22 : VW * .43;
+  const rightW = VW - rightX - 54;
+  return {x:rightX + rightW - 178, y:150 - 16, w:178, h:30};
+}
+let heroGuideOpen = false, heroGuideHeroId = null;
+function guideItemCost(id){
+  const item = SHOP_ITEMS[id];
+  if(!item) return '?';
+  return id === 'pt' ? (item.totalCost || item.cost) : item.cost;
+}
+function drawHeroGuidePanel(def){
+  const guide = HERO_GUIDES[def.id];
+  if(!guide) return;
+  const compact = VW < 920;
+  const leftX = compact ? 28 : 64, portraitW = VW * .34;
+  const rightX = compact ? leftX + portraitW + 22 : VW * .43;
+  const rightW = VW - rightX - 54;
+  const rect = {x:rightX - 12, y:172, w:rightW + 24, h:VH - 92 - 172};
+  const x = rect.x + 18, w = rect.w - 36, bottom = rect.y + rect.h - 12;
+  ctx.save();
+  ctx.fillStyle = 'rgba(6,10,18,.97)'; ctx.beginPath(); ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 10); ctx.fill();
+  ctx.strokeStyle = def.color2; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = 'left';
+  let y = rect.y + 30;
+  const para = (text, font, color, lh, maxLines) => {
+    ctx.font = font; ctx.fillStyle = color;
+    for(const line of wrapMenuText(text, w, font).slice(0, maxLines)){
+      if(y > bottom) return;
+      ctx.fillText(line, x, y); y += lh;
+    }
+  };
+  const head = (text) => {
+    y += 6; if(y > bottom) return;
+    ctx.font = 'bold 13px Segoe UI, Arial'; ctx.fillStyle = '#d7b36a'; ctx.fillText(text, x, y); y += 18;
+  };
+  para('ГАЙД: ' + def.name + '  —  ' + guide.role, 'bold 17px Georgia, serif', '#ffd568', 22, 2);
+  para(guide.style, '13px Segoe UI, Arial', 'rgba(255,255,255,.82)', 17, 3);
+
+  head('ПРИОРИТЕТ ПРОКАЧКИ');
+  const order = guide.skills.map(i => {
+    const sk = SKILLS[def.skills[i]];
+    return sk ? sk.short + ' ' + sk.name : null;
+  }).filter(Boolean).join('  →  ');
+  para(order, 'bold 12px Segoe UI, Arial', '#8be9fd', 16, 2);
+  para(guide.skillNote, '12px Segoe UI, Arial', 'rgba(255,255,255,.72)', 15, 4);
+
+  head('ЗАКУП ПО ПОРЯДКУ  (боты покупают именно так)');
+  guide.build.forEach((id, index) => {
+    if(y > bottom) return;
+    const item = SHOP_ITEMS[id];
+    if(!item) return;
+    ctx.font = 'bold 12px Segoe UI, Arial'; ctx.fillStyle = item.color || '#fff';
+    ctx.fillText((index + 1) + '. ' + item.name + '  (' + guideItemCost(id) + ')', x, y);
+    ctx.font = '11px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,.58)';
+    const why = wrapMenuText(GUIDE_ITEM_WHY[id] || '', w - 12, '11px Segoe UI, Arial')[0] || '';
+    ctx.fillText(why, x + 12, y + 14);
+    y += 32;
+  });
+
+  head('СОВЕТЫ НОВИЧКУ');
+  guide.tips.forEach(tip => para('•  ' + tip, '12px Segoe UI, Arial', 'rgba(255,255,255,.78)', 15, 2));
+  ctx.restore();
+}
+
 function menuDetailBackRect(){ return {x:24,y:78,w:132,h:42}; }
 function menuDetailStartRect(){ return {x:VW-300,y:VH-76,w:260,h:50}; }
 function menuDetailTestRect(){ return {x:VW-300-276,y:VH-76,w:260,h:50}; }
@@ -15482,6 +16485,9 @@ function drawHeroDetail(def){
     ctx.fillStyle=stat[2]; ctx.font='bold 14px Consolas, monospace'; ctx.fillText(String(stat[1]),sx+82,sy);
   });
 
+  if(heroGuideHeroId !== def.id){ heroGuideHeroId = def.id; heroGuideOpen = false; }
+  if(heroGuideOpen) drawHeroGuidePanel(def);
+  if(HERO_GUIDES[def.id]) drawMenuButton(menuGuideBtnRect(), heroGuideOpen ? '✕  ЗАКРЫТЬ ГАЙД' : '📖  ГАЙД БОЙЦА', {radius:7, active:heroGuideOpen, fontSize:13});
   drawMenuButton(menuDetailBackRect(),'‹  К СПИСКУ',{radius:7});
   drawMenuButton(menuDetailTestRect(),'⚙  ТЕСТ-РЕЖИМ',{radius:8});
   drawMenuButton(menuDetailStartRect(),'✓  ВЫБРАТЬ И ИГРАТЬ',{primary:true,large:true,radius:8});
@@ -16651,7 +17657,7 @@ function getHomeHeroSprite(def, w, h){
   return cv;
 }
 function drawMenuFavoriteHero(now){
-  const R = Math.min(VW * 0.2, VH * 0.3), sx = VW * 0.37, sy = VH * 0.5;
+  const R = Math.min(VW * 0.2, VH * 0.3), sx = VW * 0.56, sy = VH * 0.54;
   const def = getFavoriteHeroDef();
   ctx.save();
   if(!def){
@@ -16730,233 +17736,486 @@ function drawMenuFavoriteHero(now){
   ctx.restore();
 }
 
+/* =========================================================
+   DOTA-2-STYLE ГЛАВНОЕ МЕНЮ (0.8.8)
+   Верхняя панель · профиль и новости слева · PLAY с выбором режима справа
+   ========================================================= */
+let dsPlayMode='turbo';
+try{ const v=localStorage.getItem('dsPlayMode'); if(v==='turbo'||v==='allpick'||v==='ranked') dsPlayMode=v; }catch(err){}
+function dsSetPlayMode(id){
+  dsPlayMode=id;
+  try{ localStorage.setItem('dsPlayMode',id); }catch(err){}
+}
+function dsStartPlay(){
+  if(dsPlayMode==='ranked'){
+    if(!account.token){ openAccountModal(); return; }
+    gameMode='allpick'; rankedOnlineMatch=true;
+  } else { gameMode=dsPlayMode; rankedOnlineMatch=false; }
+  beginDraft();
+}
+function dsLS(px){ if('letterSpacing' in ctx) ctx.letterSpacing=px+'px'; }
+function dsTxt(str,x,y,font,color,align,sp){
+  ctx.font=font; ctx.fillStyle=color; ctx.textAlign=align||'left'; ctx.textBaseline='middle';
+  dsLS(sp||0); ctx.fillText(str,x,y); dsLS(0);
+}
+function dsTxtW(str,font,sp){ ctx.font=font; dsLS(sp||0); const w=ctx.measureText(str).width; dsLS(0); return w; }
+function dsFit(str,maxW,font){
+  ctx.font=font; str=String(str);
+  if(ctx.measureText(str).width<=maxW) return str;
+  while(str.length>2 && ctx.measureText(str+'…').width>maxW) str=str.slice(0,-1);
+  return str+'…';
+}
+function dsInside(r){ return mouse.x>=r.x&&mouse.x<=r.x+r.w&&mouse.y>=r.y&&mouse.y<=r.y+r.h; }
+function dsRegister(r,action,key,arg){
+  menuHomeHits.push({x:r.x,y:r.y,w:r.w,h:r.h,action,arg});
+  menuButtonHitboxes.push({x:r.x,y:r.y,w:r.w,h:r.h,key:key||('ds:'+action+(arg||''))});
+}
+function dsMedal(cx,cy,r,label,tint){
+  ctx.save();
+  ctx.fillStyle='#7a4a1c';
+  for(const sd of [-1,1]){
+    ctx.beginPath(); ctx.moveTo(cx+sd*r*.55,cy-r*.25);
+    ctx.quadraticCurveTo(cx+sd*r*1.55,cy-r*1.0,cx+sd*r*1.4,cy+r*.15);
+    ctx.quadraticCurveTo(cx+sd*r*1.05,cy+r*.05,cx+sd*r*.6,cy+r*.4); ctx.closePath(); ctx.fill();
+  }
+  const g=ctx.createRadialGradient(cx,cy-r*.35,r*.1,cx,cy,r);
+  g.addColorStop(0,'#fff3d2'); g.addColorStop(.5,tint||'#e0a43a'); g.addColorStop(1,'#5e3210');
+  ctx.fillStyle=g; ctx.strokeStyle='#2c1308'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#190c0b'; ctx.beginPath(); ctx.arc(cx,cy,r*.6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=tint||'#ffd568'; ctx.font='bold '+Math.round(r*.9)+'px Segoe UI, Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('★',cx,cy+r*.05);
+  if(label!=null){
+    const fs=Math.max(8,Math.round(r*.52)); ctx.font='bold '+fs+'px Consolas, monospace';
+    const tw=Math.max(r*1.5,ctx.measureText(label).width+8), by=cy+r*.82;
+    ctx.fillStyle='#160a0c'; ctx.strokeStyle='#d9962f'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(cx-tw/2,by-fs*.65,tw,fs*1.3,3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#ffe9b8'; ctx.fillText(label,cx,by+.5);
+  }
+  ctx.restore();
+}
+function dsNewsThumb(entry,x,y,size,now){
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x,y,size,size); ctx.clip();
+  const tone=entry.art==='map'?['#3c6b3a','#12301f']:entry.art==='item'?['#4a1a34','#150c22']:entry.art==='allpick'?['#124462','#0a1626']:entry.art==='shovel'?['#4a3420','#160e0a']:['#4a1015','#120508'];
+  const bg=ctx.createLinearGradient(x,y,x+size,y+size); bg.addColorStop(0,tone[0]); bg.addColorStop(1,tone[1]);
+  ctx.fillStyle=bg; ctx.fillRect(x,y,size,size);
+  if(entry.art==='hero'){
+    const def=HERO_DEFS.find(d=>d.name===entry.hero)||HERO_DEFS[0];
+    drawHeroTexture(def,x-size*.05,y-size*.02,size*1.1,size*1.04,now);
+  } else if(entry.art==='item'){
+    const it=SHOP_ITEMS[entry.itemId];
+    if(it) drawItemIcon({id:entry.itemId,color:it.color,icon:it.icon},x+size/2,y+size/2,size*.92);
+  } else if(entry.art==='shovel'){
+    dsShovelGlyph(x+size/2,y+size/2,size*.8);
+  } else if(entry.art==='map'){
+    ctx.strokeStyle='#c4a46a'; ctx.lineWidth=size*.2; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x+size*.1,y+size*.9); ctx.lineTo(x+size*.5,y+size*.5); ctx.lineTo(x+size*.9,y+size*.1); ctx.stroke();
+    ctx.strokeStyle='#267f99'; ctx.lineWidth=size*.1;
+    ctx.beginPath(); ctx.moveTo(x+size*.1,y+size*.9); ctx.lineTo(x+size*.5,y+size*.5); ctx.lineTo(x+size*.9,y+size*.1); ctx.stroke();
+  } else {
+    ctx.fillStyle=entry.art==='allpick'?'#bfeaff':'#ff8fb8'; ctx.font='bold '+Math.round(size*.42)+'px Georgia, serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(entry.art==='allpick'?'AP':'♡',x+size/2,y+size/2+1);
+  }
+  ctx.restore();
+  ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1; ctx.strokeRect(x+.5,y+.5,size-1,size-1);
+}
+
+/* Оригинальный силуэт: капюшонный жнец-рыцарь с изогнутой глефой на фоне пламени */
+const dsArt={w:0,h:0,cv:null};
+function dsBuildWarrior(w,h){
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const g=cv.getContext('2d');
+  const u=h*0.0062, cx=w*0.6, gy=h*0.95;
+  const X=x=>cx+x*u, Y=y=>gy-y*u;
+  const M=(x,y)=>g.moveTo(X(x),Y(y)), L=(x,y)=>g.lineTo(X(x),Y(y));
+  const C=(a,b,c,d,e,f)=>g.bezierCurveTo(X(a),Y(b),X(c),Y(d),X(e),Y(f));
+  const R=n=>dsHash(n*3.17+1.3);
+  /* мазки пламени вокруг фигуры (кисть) */
+  g.save(); g.globalCompositeOperation='lighter'; g.lineCap='round';
+  for(let i=0;i<420;i++){
+    const a=R(i), b=R(i+500), c=R(i+900);
+    const x=(a-.5)*150*(0.35+0.65*b), y=-4+Math.pow(b,.8)*125;
+    const len=(10+c*38)*u, sway=(R(i+77)-.5)*16*u;
+    g.lineWidth=u*(.25+R(i+31)*1.3);
+    const heat=Math.max(0,1-y/110);
+    g.strokeStyle='rgba(255,'+Math.round(55+heat*150+R(i+8)*30)+','+Math.round(25+heat*40)+','+(.05+R(i+9)*.2)+')';
+    g.beginPath(); g.moveTo(X(x),Y(y)); g.quadraticCurveTo(X(x)+sway*.5,Y(y)-len*.5,X(x)+sway,Y(y)-len); g.stroke();
+  }
+  g.restore();
+  /* рога */
+  g.fillStyle='#07020a';
+  for(const sd of [-1,1]){
+    g.beginPath(); M(sd*7,97); C(sd*15,100,sd*24,108,sd*22,121); C(sd*18,113,sd*12,107,sd*5,103); g.closePath(); g.fill();
+  }
+  /* плащ-силуэт */
+  const sil=()=>{
+    g.beginPath(); M(2,108);
+    C(-5,102,-13,94,-14,85); C(-20,77,-25,65,-31,48); C(-39,30,-47,14,-52,0);
+    [[-44,6],[-37,-1],[-29,7],[-21,0],[-13,8],[-5,0],[3,7],[11,0],[19,8],[27,1],[35,7],[43,0],[54,3]].forEach(p=>L(p[0],p[1]));
+    C(47,18,39,34,31,50); C(27,62,23,72,17,82); C(15,93,9,102,2,108); g.closePath();
+  };
+  const body=g.createLinearGradient(0,Y(110),0,Y(0));
+  body.addColorStop(0,'#0c0409'); body.addColorStop(.6,'#13060a'); body.addColorStop(1,'#1d0808');
+  sil(); g.fillStyle=body; g.fill();
+  /* свет пламени на ткани и складки */
+  g.save(); sil(); g.clip();
+  let lg=g.createLinearGradient(X(-40),0,X(50),0); lg.addColorStop(0,'rgba(255,80,35,0)'); lg.addColorStop(.6,'rgba(255,80,35,.1)'); lg.addColorStop(1,'rgba(255,150,70,.6)');
+  g.fillStyle=lg; g.fillRect(0,0,w,h);
+  lg=g.createLinearGradient(0,Y(0),0,Y(60)); lg.addColorStop(0,'rgba(255,120,45,.55)'); lg.addColorStop(1,'rgba(255,60,25,0)');
+  g.fillStyle=lg; g.fillRect(0,0,w,h);
+  g.lineCap='round';
+  for(let i=0;i<26;i++){
+    const x0=(R(i+200)-.5)*34, top=30+R(i+240)*55, bx=x0*(1+(Y(0)-Y(top))/(u*70))*1.5;
+    g.lineWidth=u*(.25+R(i+260)*.9);
+    g.strokeStyle=i%3?'rgba(0,0,0,.55)':'rgba(255,110,60,.2)';
+    g.beginPath(); M(x0*.45,top); C(x0,top*.6,bx,top*.3,bx*1.05,2); g.stroke();
+  }
+  g.restore();
+  /* пустое лицо в капюшоне и глаза */
+  g.beginPath(); g.ellipse(X(0),Y(88),u*6,u*8.5,0,0,Math.PI*2); g.fillStyle='#000'; g.fill();
+  g.shadowColor='#ff7a2a'; g.shadowBlur=u*5; g.fillStyle='#fff0c0';
+  for(const sd of [-1,1]){ g.beginPath(); g.moveTo(X(sd*1.6),Y(89.4)); g.lineTo(X(sd*5),Y(90.8)); g.lineTo(X(sd*4.2),Y(88.4)); g.closePath(); g.fill(); }
+  g.shadowBlur=0;
+  /* пластинчатые наплечники */
+  for(const sd of [-1,1]) [[17,79,12,6.2,.5],[20,72,13,5.8,.42],[22,65,12,5,.34]].forEach((p,i)=>{
+    g.save(); g.beginPath(); g.ellipse(X(sd*p[0]),Y(p[1]),u*p[2],u*p[3],-sd*p[4],0,Math.PI*2);
+    const pg=g.createLinearGradient(X(sd*p[0]-10),Y(p[1]+6),X(sd*p[0]+10),Y(p[1]-6));
+    pg.addColorStop(0,'#1a0b10'); pg.addColorStop(1,sd>0?'#5a2118':'#241014'); g.fillStyle=pg; g.fill();
+    g.lineWidth=u*.35; g.strokeStyle=sd>0?'rgba(255,190,120,.85)':'rgba(255,90,50,.35)'; g.stroke(); g.restore();
+    /* шип */
+    g.beginPath(); M(sd*(p[0]+7),p[1]+3-i*.5); L(sd*(p[0]+17),p[1]+11-i*2); L(sd*(p[0]+10),p[1]-2); g.closePath(); g.fillStyle='#12060a'; g.fill();
+    g.strokeStyle=sd>0?'rgba(255,170,100,.8)':'rgba(255,90,50,.3)'; g.lineWidth=u*.3; g.stroke();
+  });
+  /* обводка контура: горячий край справа */
+  g.save(); g.shadowColor='rgba(255,70,30,.9)'; g.shadowBlur=u*4; g.lineWidth=u*.45; g.lineJoin='round';
+  const rg=g.createLinearGradient(X(-45),0,X(50),0); rg.addColorStop(0,'rgba(255,70,40,.25)'); rg.addColorStop(.55,'rgba(255,110,60,.55)'); rg.addColorStop(1,'#ffe3b8');
+  g.strokeStyle=rg; sil(); g.stroke(); g.restore();
+  /* глефа: длинное древко и изогнутое лезвие */
+  g.save(); g.lineCap='round';
+  g.shadowColor='rgba(255,70,30,.8)'; g.shadowBlur=u*3;
+  g.strokeStyle='#0a0408'; g.lineWidth=u*1.7; g.beginPath(); M(36,-3); L(-36,114); g.stroke();
+  g.strokeStyle='rgba(255,170,100,.7)'; g.lineWidth=u*.3; g.beginPath(); M(36.9,-3); L(-35.1,114); g.stroke();
+  g.beginPath(); M(-36,116); C(-60,120,-74,102,-66,82); C(-64,96,-52,106,-36,106); g.closePath();
+  const bl=g.createLinearGradient(X(-70),Y(110),X(-36),Y(90)); bl.addColorStop(0,'#2a0e12'); bl.addColorStop(1,'#a3402a');
+  g.fillStyle=bl; g.fill(); g.strokeStyle='#ffe0b0'; g.lineWidth=u*.45; g.stroke();
+  g.restore();
+  return cv;
+}
+function dsDrawWarriorArt(now){
+  if(!dsArt.cv||dsArt.w!==VW||dsArt.h!==VH){ dsArt.cv=dsBuildWarrior(VW,VH); dsArt.w=VW; dsArt.h=VH; }
+  const u=VH*0.0062, cx=VW*0.6, gy=VH*0.95;
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  const sx=cx, sy=gy-u*84;
+  const sun=ctx.createRadialGradient(sx,sy,u*3,sx,sy,u*95);
+  sun.addColorStop(0,'rgba(255,235,190,1)'); sun.addColorStop(.12,'rgba(255,170,80,.95)'); sun.addColorStop(.4,'rgba(235,55,25,.6)'); sun.addColorStop(1,'rgba(120,10,5,0)');
+  ctx.fillStyle=sun; ctx.fillRect(0,0,VW,VH);
+  /* лучи */
+  for(let i=0;i<18;i++){
+    const a=i/18*Math.PI*2+now*.03, wd=.05+dsHash(i)*.05;
+    const rgd=ctx.createRadialGradient(sx,sy,0,sx,sy,u*130);
+    rgd.addColorStop(0,'rgba(255,150,80,.2)'); rgd.addColorStop(1,'rgba(255,60,30,0)');
+    ctx.fillStyle=rgd; ctx.beginPath(); ctx.moveTo(sx,sy);
+    ctx.lineTo(sx+Math.cos(a-wd)*u*140,sy+Math.sin(a-wd)*u*140); ctx.lineTo(sx+Math.cos(a+wd)*u*140,sy+Math.sin(a+wd)*u*140); ctx.closePath(); ctx.fill();
+  }
+  for(let i=0;i<34;i++){
+    const bx=cx+(i/33-.5)*150*u+Math.sin(now*.8+i)*u*2;
+    const h=(25+dsHash(i)*60+Math.sin(now*2.2+i*1.7)*9)*u, w=(5+dsHash(i+9)*7)*u;
+    const fg=ctx.createLinearGradient(0,gy,0,gy-h);
+    fg.addColorStop(0,'rgba(255,215,110,.6)'); fg.addColorStop(.4,'rgba(245,75,28,.45)'); fg.addColorStop(1,'rgba(150,15,8,0)');
+    ctx.fillStyle=fg; ctx.beginPath(); ctx.moveTo(bx-w,gy);
+    ctx.quadraticCurveTo(bx-w*.4,gy-h*.5,bx+Math.sin(now*3+i)*w*.6,gy-h);
+    ctx.quadraticCurveTo(bx+w*.5,gy-h*.45,bx+w,gy); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';
+  ctx.drawImage(dsArt.cv,0,0);
+  /* живые языки пламени перед фигурой */
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<16;i++){
+    const bx=cx+(i/15-.5)*120*u, h=(10+dsHash(i+40)*22+Math.sin(now*3+i)*5)*u, w=(3+dsHash(i+60)*4)*u;
+    const fg=ctx.createLinearGradient(0,gy,0,gy-h);
+    fg.addColorStop(0,'rgba(255,140,60,.28)'); fg.addColorStop(1,'rgba(240,60,20,0)');
+    ctx.fillStyle=fg; ctx.beginPath(); ctx.moveTo(bx-w,gy); ctx.quadraticCurveTo(bx,gy-h*.6,bx+Math.sin(now*4+i)*w,gy-h); ctx.quadraticCurveTo(bx+w*.3,gy-h*.4,bx+w,gy); ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';
+  const gr=ctx.createLinearGradient(0,gy-u*5,0,VH);
+  gr.addColorStop(0,'rgba(5,1,2,0)'); gr.addColorStop(.4,'rgba(5,1,2,.95)'); gr.addColorStop(1,'#030102');
+  ctx.fillStyle=gr; ctx.fillRect(0,gy-u*5,VW,VH-(gy-u*5));
+  ctx.restore();
+}
+
+function dsCleanBackdrop(now){
+  const g=ctx.createLinearGradient(0,0,0,VH);
+  g.addColorStop(0,'#0b0507'); g.addColorStop(.55,'#1c0709'); g.addColorStop(1,'#050203');
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  const glows=[[.62,.78,.75,.32],[.85,.2,.55,.14],[.35,.35,.6,.1]];
+  glows.forEach((o,i)=>{
+    const cx=VW*(o[0]+Math.sin(now*.15+i*2)*.03), cy=VH*(o[1]+Math.cos(now*.12+i)*.03), r=Math.max(VW,VH)*o[2];
+    const rg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+    rg.addColorStop(0,'rgba(200,52,30,'+o[3]+')'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=rg; ctx.fillRect(0,0,VW,VH);
+  });
+  for(let i=0;i<34;i++){
+    const ph=(now*(.03+dsHash(i)*.04)+dsHash(i+50))%1;
+    const x=VW*dsHash(i+100)+Math.sin(now*.6+i)*14, y=VH*(1.05-ph*1.15);
+    ctx.globalAlpha=Math.sin(ph*Math.PI)*.8; ctx.fillStyle=i%4===0?'#ffd27a':'#ff6a3a';
+    ctx.fillRect(x,y,1.5+dsHash(i+7)*1.5,1.5+dsHash(i+7)*1.5);
+  }
+  ctx.restore();
+  dsDrawWarriorArt(now);
+  const v=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.35,VW/2,VH/2,Math.max(VW,VH)*.8);
+  v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.65)');
+  ctx.fillStyle=v; ctx.fillRect(0,0,VW,VH);
+}
+
 function drawDotaSenseHome(){
-  const s=menuScale(), m=Math.round(44*s);
-  drawMenuFavoriteHero(performance.now()/1000);
-  const hit=(r)=>mouse.x>=r.x&&mouse.x<=r.x+r.w&&mouse.y>=r.y&&mouse.y<=r.y+r.h;
-
-  /* --- ИГРАТЬ 4x4 --- */
-  const play=menuPlayRect();
-  { const tt=performance.now()/1000, pul=0.5+0.5*Math.sin(tt*2.2);
-    ctx.save(); ctx.shadowColor='rgba(255,90,60,'+(0.35+pul*0.35)+')'; ctx.shadowBlur=18+pul*20;
-    ctx.strokeStyle='rgba(255,140,100,'+(0.25+pul*0.3)+')'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.roundRect(play.x-3,play.y-3,play.w+6,play.h+6,13); ctx.stroke(); ctx.restore(); }
-  drawMenuButton(play,'ИГРАТЬ',{primary:true,large:true,fontSize:Math.round(34*s),radius:10});
-  { const tt=performance.now()/1000, sx=play.x+((tt*0.35)%1.6-0.3)*play.w;
-    ctx.save(); ctx.beginPath(); ctx.roundRect(play.x,play.y,play.w,play.h,10); ctx.clip();
-    const sg=ctx.createLinearGradient(sx-40,0,sx+40,0);
-    sg.addColorStop(0,'rgba(255,255,255,0)'); sg.addColorStop(.5,'rgba(255,230,200,0.22)'); sg.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=sg; ctx.fillRect(play.x,play.y,play.w,play.h); ctx.restore(); }
-  ctx.save();
-  ctx.fillStyle='rgba(255,236,200,0.9)'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif';
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.beginPath(); ctx.arc(play.x+play.h*0.55,play.y+play.h/2,play.h*0.34,0,Math.PI*2);
-  ctx.fillStyle='rgba(30,8,10,0.75)'; ctx.fill(); ctx.strokeStyle='#e8c9b0'; ctx.lineWidth=2; ctx.stroke();
-  ctx.fillStyle='#ffe6c2'; ctx.font='bold '+Math.round(26*s)+'px Segoe UI, Arial'; ctx.fillText('⚔',play.x+play.h*0.55,play.y+play.h/2+1);
-  const tab={x:play.x+play.w/2-Math.round(62*s),y:play.y+play.h-2,w:Math.round(124*s),h:Math.round(38*s)};
-  ctx.fillStyle='#2a1a1d'; ctx.strokeStyle='#8f3b34'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(tab.x,tab.y); ctx.lineTo(tab.x+tab.w,tab.y); ctx.lineTo(tab.x+tab.w-10,tab.y+tab.h); ctx.lineTo(tab.x+10,tab.y+tab.h); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(20*s)+'px Georgia, serif'; ctx.fillText('4x4',tab.x+tab.w/2,tab.y+tab.h/2+2);
-  ctx.restore();
-
-  /* --- левая колонка: новинки магазина --- */
-  const colX=play.x, colW=play.w;
-  const aY=tab.y+tab.h+Math.round(18*s);
-  const rowH=Math.round(66*s), aH=Math.round(40*s)+3*rowH+Math.round(20*s);
-  dsMetalPanel(colX,aY,colW,aH);
-  ctx.save();
-  ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(14*s)+'px Georgia, serif';
-  ctx.fillText('НОВИНКИ МАГАЗИНА',colX+Math.round(16*s),aY+Math.round(22*s));
-  const showcase=[
-    {id:'zamist',line:'Защита, урон и скорость на 10 секунд'},
-    {id:'disperser',line:'Очищение союзника или замедление врага'},
-    {id:'brainAss',line:'+350 скорости атаки и +250 урона'}
-  ];
-  showcase.forEach((entry,index)=>{
-    const def=SHOP_ITEMS[entry.id];
-    const ry=aY+Math.round(40*s)+index*rowH;
-    ctx.fillStyle='rgba(120,30,30,0.18)'; ctx.fillRect(colX+Math.round(10*s),ry,colW-Math.round(20*s),rowH-Math.round(6*s));
-    drawItemIcon({id:entry.id,color:def.color,icon:def.icon},colX+Math.round(44*s),ry+(rowH-6*s)/2,Math.round(46*s));
-    ctx.textAlign='left'; ctx.textBaseline='middle';
-    ctx.fillStyle='#f3e4c6'; ctx.font='bold '+Math.round(16*s)+'px Segoe UI, Arial';
-    ctx.fillText(def.name,colX+Math.round(80*s),ry+Math.round(17*s));
-    ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(13*s)+'px Consolas, monospace';
-    ctx.fillText('◆ '+def.cost.toLocaleString('ru-RU'),colX+Math.round(80*s),ry+Math.round(37*s));
-    ctx.fillStyle='rgba(235,225,215,0.6)'; ctx.font=Math.round(11*s)+'px Segoe UI, Arial';
-    ctx.fillText(entry.line,colX+Math.round(80*s),ry+Math.round(54*s));
-  });
-  ctx.restore();
-
-  /* --- левая колонка: лопата челлендж --- */
-  const bY=aY+aH+Math.round(14*s), bH=Math.round(92*s);
-  const challenge={x:colX,y:bY,w:colW,h:bH};
-  const chHover=hit(challenge);
-  dsMetalPanel(challenge.x,challenge.y,challenge.w,challenge.h,chHover?'#e65a46':'#7a2a2a');
-  menuHomeHits.push({x:challenge.x,y:challenge.y,w:challenge.w,h:challenge.h,action:'store'});
-  menuButtonHitboxes.push({x:challenge.x,y:challenge.y,w:challenge.w,h:challenge.h,key:'challenge'});
-  dsShovelGlyph(challenge.x+Math.round(46*s),challenge.y+challenge.h/2,Math.round(56*s));
-  ctx.save();
-  ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(11*s)+'px Consolas, monospace';
-  ctx.fillText('НОВАЯ ФРАЗА',challenge.x+Math.round(92*s),challenge.y+Math.round(22*s));
-  ctx.fillStyle='#fff0c7'; ctx.font='bold '+Math.round(19*s)+'px Georgia, serif';
-  ctx.fillText('ЛОПАТА ЧЕЛЛЕНДЖ',challenge.x+Math.round(92*s),challenge.y+Math.round(46*s));
-  ctx.fillStyle='rgba(235,225,215,0.65)'; ctx.font=Math.round(11*s)+'px Segoe UI, Arial';
-  ctx.fillText(isStorePhraseOwned('shovel')?'Получено • жми K в бою':'Забери бесплатно во вкладке «Фразы»',challenge.x+Math.round(92*s),challenge.y+Math.round(69*s));
-  ctx.restore();
-
-  /* --- профиль (клик открывает окно аккаунта) --- */
-  const gear=menuSettingsRect();
-  const profW=Math.round(260*s), profH=gear.h;
-  const prof={x:gear.x-Math.round(12*s)-profW,y:gear.y,w:profW,h:profH};
-  menuProfileRect=prof;
-  const profHover=hit(prof);
+  const s=menuScale(), now=performance.now()/1000;
+  const F=(px,w)=>(w||'')+Math.round(px*s)+'px Segoe UI, Arial';
+  const barH=Math.round(46*s);
   const pf=account.profile;
-  const frameColor=pf&&pf.frame==='legend'?'#ffd568':pf&&pf.frame==='dominion'?'#d797ff':pf&&pf.frame==='veteran'?'#67c9df':'#6b2a2a';
-  menuButtonHitboxes.push({x:prof.x,y:prof.y,w:prof.w,h:prof.h,key:'profile'});
-  dsMetalPanel(prof.x,prof.y,prof.w,prof.h,profHover?'#e65a46':frameColor);
-  const pNick=pf?pf.nick:'Гость', pLevel=pf?pf.level:0;
+
+  /* ---------- ВЕРХНЯЯ ПАНЕЛЬ ---------- */
   ctx.save();
-  const av=profH-Math.round(12*s);
-  ctx.fillStyle='#14090c'; ctx.strokeStyle=pf?frameColor:'#8f6a62'; ctx.lineWidth=2;
-  ctx.fillRect(prof.x+6,prof.y+6,av,av); ctx.strokeRect(prof.x+6,prof.y+6,av,av);
-  ctx.fillStyle='#d9d0bf'; ctx.font='bold '+Math.round(26*s)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  if(!(pf && pf.avatar && drawAvatarImage(pf.avatar,prof.x+6,prof.y+6,av))) ctx.fillText(pf?pNick.charAt(0).toUpperCase():'?',prof.x+6+av/2,prof.y+6+av/2+1);
-  const badgeW=Math.max(Math.round(28*s),Math.round((String(pLevel).length*8+12)*s));
-  ctx.fillStyle='#b4231f'; ctx.fillRect(prof.x+6+av/2-badgeW/2,prof.y+profH-Math.round(9*s),badgeW,Math.round(13*s));
-  ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(10*s)+'px Consolas, monospace'; ctx.fillText(String(pLevel),prof.x+6+av/2,prof.y+profH-Math.round(2.5*s));
-  ctx.textAlign='left';
-  const tx0=prof.x+av+Math.round(18*s), maxTextW=prof.x+prof.w-tx0-Math.round(26*s);
-  ctx.fillStyle='#e8c984'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial';
-  let shownNick=pNick; while(shownNick.length>3 && ctx.measureText(shownNick).width>maxTextW) shownNick=shownNick.slice(0,-1);
-  ctx.fillText(shownNick+(shownNick!==pNick?'…':''),tx0,prof.y+Math.round(15*s));
-  ctx.fillStyle=pf?frameColor:'rgba(255,200,170,0.75)'; ctx.font=Math.round(12*s)+'px Segoe UI, Arial';
-  ctx.fillText(pf?'✦ '+(pf.title||accountRank(pLevel)):'Нажми, чтобы войти',tx0,prof.y+Math.round(31*s));
-  ctx.fillStyle='#ffd568'; ctx.font='bold '+Math.round(12*s)+'px Consolas, monospace';
-  ctx.fillText(pf?'◆ Побед: '+pf.wins+'  Поражений: '+pf.losses:'Создай аккаунт',tx0,prof.y+Math.round(46*s));
-  ctx.textAlign='right'; ctx.fillStyle=profHover?'#ffd568':'rgba(255,240,199,0.45)'; ctx.font=Math.round(14*s)+'px Segoe UI, Arial';
-  ctx.fillText('✎',prof.x+prof.w-Math.round(10*s),prof.y+Math.round(16*s));
+  const bg=ctx.createLinearGradient(0,0,0,barH);
+  bg.addColorStop(0,'rgba(28,20,22,.97)'); bg.addColorStop(1,'rgba(8,5,7,.97)');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,VW,barH);
+  ctx.fillStyle='rgba(168,45,38,.7)'; ctx.fillRect(0,barH-1,VW,1);
+  ctx.fillStyle='rgba(255,255,255,.05)'; ctx.fillRect(0,0,VW,1);
   ctx.restore();
 
-  /* --- NEWS & EVENTS --- */
-  const nW=Math.round(300*s), nX=VW-m-nW, nY=Math.round(118*s), nH=VH-nY-Math.round(80*s);
-  dsMetalPanel(nX,nY,nW,nH);
+  const gear=menuSettingsRect();
+  drawMenuButton(gear,'⚙',{active:settingsOpen,large:true,fontSize:Math.round(18*s),radius:6});
+
+  /* логотип-вкладка */
+  const tabW=Math.round(104*s), tabX=gear.x+gear.w+Math.round(14*s), tabBottom=barH+Math.round(7*s);
   ctx.save();
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='#e65a46'; ctx.font='bold '+Math.round(17*s)+'px Georgia, serif';
-  ctx.fillText('NEWS & EVENTS',nX+nW/2,nY+Math.round(24*s));
-  ctx.fillStyle='rgba(230,90,70,0.4)'; ctx.fillRect(nX+Math.round(14*s),nY+Math.round(42*s),nW-Math.round(28*s),1);
-  const news=[
-    {tag:'0.8.3',title:'ЛЮБИМЫЙ БОЕЦ В МЕНЮ',art:'hero',hero:'Пиромант',action:'changelog'},
-    {tag:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',art:'hero',hero:'Вождь',action:'changelog'},
-    {tag:'0.8.1',title:'АНИМАЦИИ ВСЕХ БОЙЦОВ',art:'map',action:'changelog'},
-    {tag:'0.8.0',title:'ALL PICK: НОВЫЙ РЕЖИМ',art:'allpick',action:'changelog'},
-    {tag:'0.7.7',title:'ЗАМИСТЬ: НОВЫЙ АКТИВ',art:'item',item:'Замисть',itemId:'zamist',action:'store'},
-    {tag:'0.7.7',title:'ДИСПЁРСЕР: НОВЫЙ ПРЕДМЕТ',art:'item',item:'Диспёрсер',itemId:'disperser',action:'store'},
-    {tag:'0.7.5c',title:'СРАКА МО3ГОВ: НОВЫЙ АКТИВ',art:'item',item:'Срака мо3гов',itemId:'brainAss',action:'store'},
-    {tag:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',art:'heart',action:'account'}
+  const lg=ctx.createLinearGradient(0,0,0,tabBottom);
+  lg.addColorStop(0,'#d2402a'); lg.addColorStop(1,'#6a120f');
+  ctx.shadowColor='rgba(255,70,45,.55)'; ctx.shadowBlur=14*s;
+  ctx.fillStyle=lg; ctx.strokeStyle='#f0a07e'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(tabX,0); ctx.lineTo(tabX+tabW,0); ctx.lineTo(tabX+tabW-Math.round(12*s),tabBottom); ctx.lineTo(tabX+Math.round(12*s),tabBottom); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0; ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.save(); ctx.translate(tabX+tabW*.3,tabBottom/2); ctx.rotate(.5);
+  ctx.fillRect(-2*s,-15*s,4*s,30*s); ctx.restore();
+  dsTxt('DOTA',tabX+tabW*.42,tabBottom*.36,'bold '+Math.round(13*s)+'px Georgia, serif','#fff0d6','left',1);
+  dsTxt('SENSE',tabX+tabW*.42,tabBottom*.68,'bold '+Math.round(13*s)+'px Georgia, serif','#ffd7a0','left',1);
+  ctx.restore();
+
+  /* навигация */
+  const navFont='bold '+Math.round(14*s)+'px Trebuchet MS, Segoe UI, Arial', navSp=2.2*s;
+  const navItems=[
+    {t:'БОЙЦЫ',a:'fighters'},{t:'МАГАЗИН',a:'store'},{t:'ОБНОВЛЕНИЯ',a:'changelog'},
+    {t:'МИРОВОЙ ТОП',a:'leaderboard'},{t:'ПРОФИЛЬ',a:'account'}
   ];
-  const cGap=Math.round(10*s), cTop=nY+Math.round(52*s);
-  const cH=Math.floor((nH-Math.round(52*s)-Math.round(12*s)-cGap*(news.length-1))/news.length);
-  news.forEach((entry,index)=>{
-    const card={x:nX+Math.round(12*s),y:cTop+index*(cH+cGap),w:nW-Math.round(24*s),h:cH};
-    const hov=hit(card)&&entry.action;
-    ctx.save();
-    ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
-    const art=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
-    const artTone = entry.art === 'map' ? ['#315c36','#0d2825'] : entry.art === 'item' ? ['#42142c','#140d24'] : entry.art === 'bot' ? ['#16383c','#101426'] : entry.art === 'allpick' ? ['#0f3550','#0a1424'] : ['#3a0d12','#120508'];
-    art.addColorStop(0,artTone[0]); art.addColorStop(1,artTone[1]);
-    ctx.fillStyle=art; ctx.fillRect(card.x,card.y,card.w,card.h);
-    const gx=card.x+card.w*0.62, gy=card.y+card.h*0.42;
-    ctx.globalAlpha=0.9;
-    if(entry.art==='map'){
-      ctx.fillStyle='#4c793c'; ctx.fillRect(card.x,card.y,card.w,card.h);
-      ctx.strokeStyle='rgba(20,20,17,0.72)'; ctx.lineWidth=card.h*0.2; ctx.lineCap='round';
-      ctx.beginPath(); ctx.moveTo(card.x+card.w*.08,card.y+card.h*.9); ctx.lineTo(card.x+card.w*.45,card.y+card.h*.55); ctx.lineTo(card.x+card.w*.92,card.y+card.h*.1); ctx.stroke();
-      ctx.strokeStyle='#c4a46a'; ctx.lineWidth=card.h*0.24;
-      ctx.beginPath(); ctx.moveTo(card.x+card.w*.04,card.y+card.h*.92); ctx.lineTo(card.x+card.w*.48,card.y+card.h*.48); ctx.lineTo(card.x+card.w*.96,card.y+card.h*.04); ctx.stroke();
-      ctx.strokeStyle='#267f99'; ctx.lineWidth=card.h*0.16;
-      ctx.beginPath(); ctx.moveTo(card.x+card.w*.04,card.y+card.h*.92); ctx.lineTo(card.x+card.w*.48,card.y+card.h*.48); ctx.lineTo(card.x+card.w*.96,card.y+card.h*.04); ctx.stroke();
-      for(let tree=0;tree<8;tree++){
-        const tx=card.x+card.w*(.1+(tree*37%78)/100), ty=card.y+card.h*(.15+(tree*23%65)/100);
-        ctx.fillStyle=tree%2?'#234c31':'#5e9b4c';
-        ctx.beginPath(); ctx.arc(tx,ty,card.h*.055,0,Math.PI*2); ctx.fill();
-      }
-    } else if(entry.art==='unit' || entry.art==='hero'){
-      const heroDef=HERO_DEFS.find(def=>def.name===entry.hero) || HERO_DEFS[0];
-      drawHeroTexture(heroDef,card.x+card.w*.42,card.y-2,card.w*.59,card.h-24,performance.now()/1000);
-      ctx.globalAlpha=1;
-      ctx.fillStyle='rgba(0,0,0,.3)'; ctx.fillRect(card.x+card.w*.42,card.y,card.w*.59,card.h-24);
-      ctx.strokeStyle=heroDef.color2; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(gx,gy,card.h*.37,0,Math.PI*2); ctx.stroke();
-    } else if(entry.art==='item'){
-      for(let ray=0;ray<12;ray++){
-        const angle=ray*Math.PI/6+performance.now()/6000;
-        ctx.strokeStyle=ray%2?'rgba(255,192,207,.18)':'rgba(255,224,168,.3)';
-        ctx.lineWidth=ray%3===0?2:1;
-        ctx.beginPath(); ctx.moveTo(gx+Math.cos(angle)*card.h*.15,gy+Math.sin(angle)*card.h*.15);
-        ctx.lineTo(gx+Math.cos(angle)*card.h*.48,gy+Math.sin(angle)*card.h*.48); ctx.stroke();
-      }
-      const featuredItem=SHOP_ITEMS[entry.itemId] || Object.values(SHOP_ITEMS).find(item=>item.name===entry.item);
-      drawItemIcon({id:entry.itemId||'brainAss',color:featuredItem&&featuredItem.color},gx,gy,card.h*.75);
-    } else if(entry.art==='allpick'){
-      const nowT=performance.now()/1000;
-      const picks=[HERO_DEFS[2],HERO_DEFS[18]||HERO_DEFS[0],HERO_DEFS[9]||HERO_DEFS[1]];
-      const pw=card.w*0.2, ph=card.h-Math.round(40*s);
-      picks.forEach((def,k)=>{ if(def) drawHeroTexture(def,card.x+card.w*0.07+k*(pw+card.w*0.04),card.y+Math.round(24*s),pw,ph,nowT); });
-      ctx.globalAlpha=1; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.shadowColor='#6fd0ff'; ctx.shadowBlur=14;
-      ctx.fillStyle='#bfeaff'; ctx.font='bold '+Math.round(card.h*0.26)+'px Georgia, serif';
-      ctx.fillText('ALL',card.x+card.w*0.70,card.y+card.h*0.34); ctx.fillText('PICK',card.x+card.w*0.70,card.y+card.h*0.62);
-    } else if(entry.art==='bot'){
-      const colors=['#a7ff70','#ffd568','#ff638d'];
-      for(let mark=0;mark<3;mark++){
-        const px=gx+(mark-1)*card.h*.38;
-        ctx.fillStyle='rgba(8,12,18,.8)'; ctx.strokeStyle=colors[mark]; ctx.lineWidth=3;
-        ctx.beginPath(); ctx.arc(px,gy,card.h*.22,0,Math.PI*2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle=colors[mark]; ctx.beginPath(); ctx.arc(px,gy-card.h*.03,card.h*.07,0,Math.PI*2); ctx.fill();
-        ctx.fillRect(px-card.h*.12,gy+card.h*.07,card.h*.24,card.h*.1);
-      }
-    } else {
-      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.shadowColor='#ff3b2a'; ctx.shadowBlur=18;
-      if(entry.art==='3v3'){ ctx.fillStyle='#f0b040'; ctx.font='bold '+Math.round(card.h*0.5)+'px Georgia, serif'; ctx.fillText('3v3',gx,gy); }
-      else { ctx.fillStyle=entry.art==='heart'?'#ff6fb0':'#ff9a5c'; ctx.font='bold '+Math.round(card.h*0.55)+'px Segoe UI, Arial'; ctx.fillText(entry.art==='heart'?'♡':'♥',gx,gy); }
-    }
-    ctx.globalAlpha=1; ctx.shadowBlur=0;
-    ctx.fillStyle='rgba(8,3,5,0.82)'; ctx.fillRect(card.x,card.y+card.h-Math.round(30*s),card.w,Math.round(30*s));
-    ctx.textAlign='left'; ctx.textBaseline='middle';
-    ctx.fillStyle='#f3e4c6'; ctx.font='bold '+Math.round(11.5*s)+'px Segoe UI, Arial';
-    ctx.fillText(entry.title,card.x+Math.round(9*s),card.y+card.h-Math.round(15*s));
-    ctx.fillStyle='#a8231f'; ctx.fillRect(card.x,card.y,Math.round(72*s),Math.round(20*s));
-    ctx.fillStyle='#fff0e0'; ctx.font='bold '+Math.round(10.5*s)+'px Segoe UI, Arial';
-    ctx.fillText(entry.tag,card.x+Math.round(9*s),card.y+Math.round(10.5*s));
-    ctx.restore();
-    ctx.strokeStyle=hov?'#ff8a70':'rgba(150,50,45,0.7)'; ctx.lineWidth=hov?2.5:1.5;
-    ctx.strokeRect(card.x,card.y,card.w,card.h);
-    if(entry.action){
-      menuHomeHits.push({x:card.x,y:card.y,w:card.w,h:card.h,action:entry.action});
-      menuButtonHitboxes.push({x:card.x,y:card.y,w:card.w,h:card.h,key:'news'+index});
-    }
+  let nx=tabX+tabW+Math.round(46*s);
+  const navGap=Math.round(36*s), navCy=Math.round(barH/2);
+  navItems.forEach((it,i)=>{
+    const w=dsTxtW(it.t,navFont,navSp);
+    const r={x:nx-8*s,y:0,w:w+16*s,h:barH};
+    const hov=dsInside(r);
+    dsRegister(r,it.a,'nav'+i);
+    dsTxt(it.t,nx,navCy+1,navFont,hov?'#fff2d0':'#b9ada3','left',navSp);
+    if(hov){ ctx.fillStyle='#e65a46'; ctx.fillRect(nx,barH-3,w,2); }
+    nx+=w+navGap;
   });
-  ctx.restore();
 
-  /* --- нижняя панель навигации --- */
-  drawMenuButton(menuFightersRect(),'⚔  БОЙЦЫ',{active:true,redBlack:true,radius:8,large:true,fontSize:Math.round(16*s)});
-  drawMenuButton(menuChangelogRect(),'▣  ЧЕНДЖЛОГ',{redBlack:true,radius:8,large:true,fontSize:Math.round(16*s)});
-  drawMenuButton(menuStoreRect(),'▣  МАГАЗИН',{redBlack:true,radius:8,large:true,fontSize:Math.round(16*s)});
+  /* правая часть панели: онлайн · W-L · MMR */
+  const rankRating=pf&&Number.isFinite(pf.rating)?pf.rating:0;
+  let rx=VW-Math.round(18*s);
+  { const rw=Math.round(150*s), r={x:rx-rw,y:0,w:rw,h:barH};
+    const hov=dsInside(r); dsRegister(r,'account','mmr');
+    dsMedal(r.x+rw-Math.round(17*s),Math.round(barH*.5)-1,Math.round(13*s),pf?String(pf.level):null);
+    const tx=r.x+rw-Math.round(46*s);
+    dsTxt(pf?accountRatingRank(rankRating):'ГОСТЬ',tx,Math.round(barH*.34),F(11,'bold '),hov?'#fff0c7':'#e8c984','right',.5);
+    dsTxt(pf?rankRating.toLocaleString('ru-RU')+' MMR':'войти в аккаунт',tx,Math.round(barH*.68),F(12,'bold '),'#ffd568','right');
+    rx=r.x-Math.round(14*s); }
+  { const wl=(pf?pf.wins:0)+'W-'+(pf?pf.losses:0)+'L', f='bold '+Math.round(15*s)+'px Consolas, monospace', w=dsTxtW(wl,f,1);
+    dsTxt(wl,rx,barH/2+1,f,'#cfc6b8','right',1);
+    ctx.save(); ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(rx-w-Math.round(14*s),Math.round(barH*.28),1,Math.round(barH*.44)); ctx.restore();
+    rx=rx-w-Math.round(28*s); }
+  { const cEl=document.getElementById('online-counter'), txt=cEl?cEl.textContent:'Онлайн: —', off=cEl&&cEl.dataset.state==='offline';
+    const f=F(12,'bold '), w=dsTxtW(txt,f,0);
+    dsTxt(txt,rx,barH/2+1,f,off?'#c48a82':'#a9ecdc','right');
+    ctx.fillStyle=off?'#d46b62':'#63e4a4'; ctx.beginPath(); ctx.arc(rx-w-Math.round(9*s),barH/2+1,3.2*s,0,Math.PI*2); ctx.fill(); }
 
-  /* --- статус и версия --- */
+  /* ---------- ЛЕВАЯ КОЛОНКА ---------- */
+  const colX=Math.round(18*s), colW=Math.round(292*s);
+  let y=barH+Math.round(16*s);
+
+  /* профиль */
+  const profH=Math.round(60*s), prof={x:colX,y,w:colW,h:profH};
+  menuProfileRect=prof;
+  { const hov=dsInside(prof);
+    dsRegister(prof,'account','profile');
+    const pg=ctx.createLinearGradient(0,prof.y,0,prof.y+prof.h);
+    pg.addColorStop(0,hov?'rgba(46,30,32,.97)':'rgba(30,21,24,.95)'); pg.addColorStop(1,'rgba(10,7,9,.97)');
+    ctx.fillStyle=pg; ctx.fillRect(prof.x,prof.y,prof.w,prof.h);
+    ctx.fillStyle='rgba(168,45,38,.8)'; ctx.fillRect(prof.x,prof.y,2,prof.h);
+    const frameColor=pf&&pf.frame==='legend'?'#ffd568':pf&&pf.frame==='dominion'?'#d797ff':pf&&pf.frame==='veteran'?'#67c9df':'#6b2a2a';
+    const av=profH-Math.round(14*s), ax=prof.x+Math.round(10*s), ay=prof.y+Math.round(7*s);
+    ctx.fillStyle='#14090c'; ctx.fillRect(ax,ay,av,av);
+    ctx.strokeStyle=pf?frameColor:'#8f6a62'; ctx.lineWidth=2; ctx.strokeRect(ax,ay,av,av);
+    const nick=pf?pf.nick:'Гость';
+    if(!(pf&&pf.avatar&&drawAvatarImage(pf.avatar,ax,ay,av))) dsTxt(pf?nick.charAt(0).toUpperCase():'?',ax+av/2,ay+av/2+1,'bold '+Math.round(24*s)+'px Georgia, serif','#d9d0bf','center');
+    const tx=ax+av+Math.round(12*s), maxW=prof.x+prof.w-tx-Math.round(52*s);
+    dsTxt(dsFit(nick,maxW,F(20,'bold ')),tx,prof.y+Math.round(22*s),F(20,'bold '),'#f2ede4','left');
+    dsTxt(pf?(pf.title||accountRank(pf.level)):'Нажми, чтобы войти',tx,prof.y+Math.round(43*s),F(12),'#7f93a8','left');
+    dsMedal(prof.x+prof.w-Math.round(26*s),prof.y+Math.round(26*s),Math.round(15*s),pf?String(pf.level):null);
+  }
+  y+=profH+Math.round(4*s);
+
+  /* карточка любимого бойца */
+  const favDef=getFavoriteHeroDef();
+  const availForCard=VH-y-Math.round(330*s);
+  const cardH=Math.max(Math.round(96*s),Math.min(Math.round(190*s),availForCard));
+  const card={x:colX,y,w:colW,h:cardH};
+  { ctx.save(); ctx.beginPath(); ctx.rect(card.x,card.y,card.w,card.h); ctx.clip();
+    const c0=favDef?favDef.color:'#7a1a1a', c1=favDef?favDef.color2:'#ff8a5a';
+    const cg=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
+    cg.addColorStop(0,hexRgba(c0,.9)); cg.addColorStop(1,'#080406');
+    ctx.fillStyle=cg; ctx.fillRect(card.x,card.y,card.w,card.h);
+    ctx.globalCompositeOperation='lighter';
+    const gl=ctx.createRadialGradient(card.x+card.w*.62,card.y+card.h*.45,2,card.x+card.w*.62,card.y+card.h*.45,card.h*.9);
+    gl.addColorStop(0,hexRgba(c1,.55)); gl.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=gl; ctx.fillRect(card.x,card.y,card.w,card.h);
+    ctx.globalCompositeOperation='source-over';
+    if(favDef){
+      const ph=card.h*1.02, pw=ph*.92;
+      drawHeroTexture(favDef,card.x+card.w*.64-pw/2,card.y+card.h-ph+2,pw,ph,now);
+    } else {
+      dsTxt('Выбери любимого',card.x+card.w/2,card.y+card.h*.42,F(15,'bold '),'rgba(255,230,200,.85)','center');
+      dsTxt('бойца в разделе «Бойцы»',card.x+card.w/2,card.y+card.h*.42+Math.round(20*s),F(13),'rgba(255,230,200,.6)','center');
+    }
+    const sh=ctx.createLinearGradient(0,card.y+card.h*.45,0,card.y+card.h);
+    sh.addColorStop(0,'rgba(0,0,0,0)'); sh.addColorStop(1,'rgba(0,0,0,.8)');
+    ctx.fillStyle=sh; ctx.fillRect(card.x,card.y,card.w,card.h);
+    if(favDef){
+      ctx.shadowColor='rgba(0,0,0,.95)'; ctx.shadowBlur=8;
+      dsTxt(favDef.name,card.x+Math.round(12*s),card.y+card.h-Math.round(38*s),'bold '+Math.round(32*s)+'px Georgia, serif','#fff','left');
+      dsTxt(favDef.title,card.x+Math.round(13*s),card.y+card.h-Math.round(14*s),F(12),'rgba(255,240,220,.8)','left');
+      ctx.shadowBlur=0;
+    }
+    ctx.restore();
+    ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1; ctx.strokeRect(card.x+.5,card.y+.5,card.w-1,card.h-1);
+  }
+  y+=cardH;
+  const strip={x:colX,y,w:colW,h:Math.round(26*s)};
+  { const hov=dsInside(strip);
+    dsRegister(strip,favDef?'favHero':'fighters','favstrip');
+    ctx.fillStyle=hov?'#2a1a1d':'#150d10'; ctx.fillRect(strip.x,strip.y,strip.w,strip.h);
+    ctx.fillStyle='#b4231f'; ctx.fillRect(strip.x,strip.y,strip.w,1);
+    dsTxt('★',strip.x+Math.round(12*s),strip.y+strip.h/2+1,F(13),'#e65a46','left');
+    dsTxt('ЛЮБИМЫЙ БОЕЦ',strip.x+Math.round(30*s),strip.y+strip.h/2+1,F(11,'bold '),'#dcd2c4','left',1);
+    dsTxt(favDef?'Открыть':'Выбрать',strip.x+strip.w-Math.round(30*s),strip.y+strip.h/2+1,F(12,'bold '),hov?'#fff':'#e8c984','right');
+    dsTxt('›',strip.x+strip.w-Math.round(14*s),strip.y+strip.h/2,F(16,'bold '),'#e8c984','center');
+  }
+  y+=strip.h+Math.round(12*s);
+
+  /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
+  const news=[
+    {tag:'ФРАЗА',title:'Лопата челлендж',art:'shovel',action:'store',kind:'новая фраза'},
+    {tag:'0.8.3',title:'Любимый боец в меню',art:'hero',hero:'Пиромант',action:'changelog',kind:'обновление'},
+    {tag:'0.8.2',title:'Новые иконки бойцов',art:'hero',hero:'Вождь',action:'changelog',kind:'обновление'},
+    {tag:'0.8.1',title:'Анимации всех бойцов',art:'map',action:'changelog',kind:'обновление'},
+    {tag:'0.8.0',title:'All Pick: новый режим',art:'allpick',action:'changelog',kind:'обновление'},
+    {tag:'0.7.7',title:'Замисть: новый актив',art:'item',itemId:'zamist',action:'store',kind:'магазин'},
+    {tag:'0.7.7',title:'Диспёрсер: новый предмет',art:'item',itemId:'disperser',action:'store',kind:'магазин'},
+    {tag:'0.7.4b',title:'Карьера и история матчей',art:'heart',action:'account',kind:'профиль'}
+  ];
+  const hdrH=Math.round(26*s), rowH=Math.round(44*s), footH=Math.round(28*s), bottomPad=Math.round(18*s);
+  const maxRows=Math.max(1,Math.min(news.length,Math.floor((VH-y-hdrH-footH-bottomPad)/rowH)));
+  ctx.fillStyle='rgba(10,7,9,.86)'; ctx.fillRect(colX,y,colW,hdrH+maxRows*rowH+footH);
+  ctx.fillStyle='#e65a46'; ctx.beginPath(); ctx.moveTo(colX+Math.round(10*s),y+hdrH/2-3*s); ctx.lineTo(colX+Math.round(20*s),y+hdrH/2-3*s); ctx.lineTo(colX+Math.round(15*s),y+hdrH/2+4*s); ctx.closePath(); ctx.fill();
+  dsTxt('НОВОСТИ',colX+Math.round(28*s),y+hdrH/2+1,F(12,'bold '),'#e2d8c8','left',1.2);
+  dsTxt('('+news.length+')',colX+Math.round(28*s)+dsTxtW('НОВОСТИ',F(12,'bold '),1.2)+Math.round(6*s),y+hdrH/2+1,F(12,'bold '),'#8a7f78','left');
+  ctx.fillStyle='rgba(168,45,38,.45)'; ctx.fillRect(colX,y+hdrH-1,colW,1);
+  const listY=y+hdrH;
+  for(let i=0;i<maxRows;i++){
+    const e=news[i], r={x:colX,y:listY+i*rowH,w:colW,h:rowH};
+    const hov=dsInside(r);
+    dsRegister(r,e.action,'news'+i);
+    if(hov){ ctx.fillStyle='rgba(255,255,255,.07)'; ctx.fillRect(r.x,r.y,r.w,r.h); }
+    const th=Math.round(32*s);
+    dsNewsThumb(e,r.x+Math.round(10*s),r.y+(rowH-th)/2,th,now);
+    const tx=r.x+Math.round(10*s)+th+Math.round(10*s), maxW=r.x+r.w-tx-Math.round(28*s);
+    dsTxt(dsFit(e.title,maxW,F(14,'bold ')),tx,r.y+Math.round(16*s),F(14,'bold '),hov?'#fff':'#ece6da','left');
+    dsTxt(e.tag+' · '+e.kind,tx,r.y+Math.round(33*s),F(11),'#7f93a8','left');
+    ctx.fillStyle=e.action==='store'?'#e0a43a':e.action==='account'?'#67c9df':'#e65a46';
+    const bx=r.x+r.w-Math.round(18*s), by=r.y+(rowH-14*s)/2;
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+11*s,by); ctx.lineTo(bx+11*s,by+14*s); ctx.lineTo(bx+5.5*s,by+10*s); ctx.lineTo(bx,by+14*s); ctx.closePath(); ctx.fill();
+  }
+  const foot={x:colX,y:listY+maxRows*rowH,w:colW,h:footH};
+  { const hov=dsInside(foot); dsRegister(foot,'changelog','newsall');
+    ctx.fillStyle=hov?'#2a1a1d':'#150d10'; ctx.fillRect(foot.x,foot.y,foot.w,foot.h);
+    ctx.fillStyle='#b4231f'; ctx.fillRect(foot.x,foot.y,foot.w,1);
+    dsTxt('ВСЕ ОБНОВЛЕНИЯ',foot.x+Math.round(14*s),foot.y+foot.h/2+1,F(11,'bold '),hov?'#fff':'#dcd2c4','left',1);
+    dsTxt('›',foot.x+foot.w-Math.round(16*s),foot.y+foot.h/2,F(16,'bold '),'#e8c984','center'); }
+
+  /* ---------- PLAY (справа снизу) ---------- */
+  const pw=Math.round(340*s), px=VW-Math.round(30*s)-pw;
+  const onlineH=Math.round(34*s), playH=Math.round(66*s), tabsH=Math.round(36*s), descH=Math.round(22*s), g8=Math.round(8*s);
+  const onlineR={x:px,y:VH-Math.round(26*s)-onlineH,w:pw,h:onlineH};
+  const playR={x:px,y:onlineR.y-g8-playH,w:pw,h:playH};
+  const tabsY=playR.y-g8-tabsH;
+  const modes=[{id:'turbo',t:'ТУРБО'},{id:'allpick',t:'ALL PICK'},{id:'ranked',t:'РЕЙТИНГ'}];
+  const descs={
+    turbo:'+3 монеты в секунду · быстрая игра 4×4 с ботами',
+    allpick:'+1 монета в секунду · классика, долгая лайн-фаза',
+    ranked:pf?('Победа +'+RANKED_WIN_MMR+' / поражение −'+RANKED_LOSS_MMR+' MMR · '+accountRatingRank(rankRating)):'Рейтинговый режим · нужен вход в аккаунт'
+  };
   ctx.save();
-  ctx.textBaseline='middle';
-  const badge={x:VW-m-Math.round(130*s),y:VH-Math.round(62*s),w:Math.round(130*s),h:Math.round(36*s)};
-  dsMetalPanel(badge.x,badge.y,badge.w,badge.h,'#7a2a2a');
-  ctx.textAlign='left'; ctx.fillStyle='#e8c9b0'; ctx.font='bold '+Math.round(14*s)+'px Segoe UI, Arial';
-  ctx.fillText('ONLINE',badge.x+Math.round(16*s),badge.y+badge.h/2);
-  ctx.fillStyle=Math.sin(performance.now()/400)>0?'#ff4a3a':'#a8231f';
-  ctx.beginPath(); ctx.arc(badge.x+badge.w-Math.round(20*s),badge.y+badge.h/2,Math.round(5*s),0,Math.PI*2); ctx.fill();
-  ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.font=Math.round(11*s)+'px Consolas, monospace';
-  ctx.fillText('v'+GAME_VERSION,VW-m,VH-Math.round(14*s));
+  const pp=ctx.createLinearGradient(0,tabsY-descH-g8,0,VH);
+  pp.addColorStop(0,'rgba(0,0,0,0)'); pp.addColorStop(1,'rgba(0,0,0,.55)');
+  ctx.fillStyle=pp; ctx.fillRect(px-Math.round(30*s),tabsY-descH-g8-Math.round(20*s),pw+Math.round(60*s),VH);
   ctx.restore();
+  dsTxt(dsFit(descs[dsPlayMode],pw,F(12)),px+pw/2,tabsY-Math.round(12*s),F(12),'rgba(235,225,212,.8)','center');
+  const tabW2=Math.floor((pw-2*4*s)/3);
+  modes.forEach((m,i)=>{
+    const r={x:px+i*(tabW2+Math.round(4*s)),y:tabsY,w:tabW2,h:tabsH};
+    const sel=dsPlayMode===m.id, hov=dsInside(r);
+    dsRegister(r,'setMode','mode'+m.id,m.id);
+    const tg=ctx.createLinearGradient(0,r.y,0,r.y+r.h);
+    if(sel){ tg.addColorStop(0,'#c0432c'); tg.addColorStop(1,'#6e1b17'); }
+    else { tg.addColorStop(0,hov?'#352225':'#221719'); tg.addColorStop(1,'#0e0a0c'); }
+    ctx.fillStyle=tg; ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle=sel?'#f5c98c':(hov?'#a8574b':'#4a2a2a'); ctx.lineWidth=sel?2:1; ctx.strokeRect(r.x+.5,r.y+.5,r.w-1,r.h-1);
+    dsTxt(m.t,r.x+r.w/2,r.y+r.h/2+1,F(13,'bold '),sel?'#fff4dc':(hov?'#f0e6d6':'#a89c92'),'center',1);
+  });
+  /* PLAY */
+  { const hov=dsInside(playR), pul=.5+.5*Math.sin(now*2.4);
+    dsRegister(playR,'play','playbtn');
+    ctx.save();
+    ctx.shadowColor='rgba(120,230,70,'+(hov?.75:.28+pul*.22)+')'; ctx.shadowBlur=(hov?30:16)*s;
+    const g=ctx.createLinearGradient(0,playR.y,0,playR.y+playR.h);
+    g.addColorStop(0,hov?'#86d44a':'#6cb83a'); g.addColorStop(1,hov?'#3d8a24':'#2c6a1a');
+    ctx.fillStyle=g; ctx.fillRect(playR.x,playR.y,playR.w,playR.h); ctx.shadowBlur=0;
+    ctx.strokeStyle='#c8f59a'; ctx.lineWidth=2; ctx.strokeRect(playR.x+1,playR.y+1,playR.w-2,playR.h-2);
+    ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=1; ctx.strokeRect(playR.x+5,playR.y+5,playR.w-10,playR.h-10);
+    ctx.beginPath(); ctx.rect(playR.x,playR.y,playR.w,playR.h); ctx.clip();
+    const sx=playR.x+((now*.4)%1.6-.3)*playR.w, sg=ctx.createLinearGradient(sx-50,0,sx+50,0);
+    sg.addColorStop(0,'rgba(255,255,255,0)'); sg.addColorStop(.5,'rgba(255,255,255,.22)'); sg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=sg; ctx.fillRect(playR.x,playR.y,playR.w,playR.h);
+    ctx.restore();
+    ctx.save(); ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=6;
+    dsTxt('PLAY',playR.x+playR.w/2,playR.y+playR.h*.44,'bold '+Math.round(34*s)+'px Georgia, serif','#fff','center',4*s);
+    ctx.restore();
+    dsTxt(modes.find(m=>m.id===dsPlayMode).t+' · 4 НА 4',playR.x+playR.w/2,playR.y+playR.h*.80,F(11,'bold '),'rgba(235,255,220,.85)','center',1.2);
+  }
+  /* ОНЛАЙН */
+  { const hov=dsInside(onlineR);
+    dsRegister(onlineR,'online','onlinebtn');
+    const og=ctx.createLinearGradient(0,onlineR.y,0,onlineR.y+onlineR.h);
+    og.addColorStop(0,hov?'#3a2427':'#241a1c'); og.addColorStop(1,'#0e0a0c');
+    ctx.fillStyle=og; ctx.fillRect(onlineR.x,onlineR.y,onlineR.w,onlineR.h);
+    ctx.strokeStyle=hov?'#e3bd70':'rgba(215,179,106,.55)'; ctx.lineWidth=1.2; ctx.strokeRect(onlineR.x+.5,onlineR.y+.5,onlineR.w-1,onlineR.h-1);
+    ctx.fillStyle='#63e4a4'; ctx.beginPath(); ctx.arc(onlineR.x+Math.round(16*s),onlineR.y+onlineR.h/2,4*s,0,Math.PI*2); ctx.fill();
+    dsTxt('ОНЛАЙН 3 НА 3 · ЛОББИ',onlineR.x+onlineR.w/2,onlineR.y+onlineR.h/2+1,F(12,'bold '),hov?'#fff0c7':'#e8c984','center',1.2);
+  }
+
+  /* версия */
+  dsTxt('v'+GAME_VERSION,colX,VH-Math.round(8*s),Math.round(10*s)+'px Consolas, monospace','rgba(255,255,255,.35)','left');
+  ctx.textBaseline='alphabetic';
 }
 
 /* 0.8.3: новый фон экрана выбора режима — алая арена */
@@ -17147,13 +18406,15 @@ function drawMenu(){
   menuButtonHitboxes=[];
   prematchTime=0; resultAnnounced=false; firstBloodDone=false;
   const onlineEntry=onlineEntryElement;
-  const showOnlineEntry=menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
+  const showOnlineEntry=menuStage==='home'&&!menuWide()&&!settingsOpen&&!storeOpen&&!changelogOpen;
+  const dsHomeClass=gameState==='menu'&&menuStage==='home'&&menuWide();
+  if(document.body.classList.contains('ds-home')!==dsHomeClass) document.body.classList.toggle('ds-home',dsHomeClass);
   const hideOnlineEntry=!showOnlineEntry;
   if(onlineEntry.hidden!==hideOnlineEntry){
     onlineEntry.hidden=hideOnlineEntry;
     onlineEntry.style.display=hideOnlineEntry?'none':'flex';
   }
-  const wantOnlineTop=(menuWide() && menuStage==='home') ? (VH-80)+'px' : '';
+  const wantOnlineTop='';
   if(onlineEntry.style.top!==wantOnlineTop) onlineEntry.style.top=wantOnlineTop;
   menuHomeHits=[];
   const now = performance.now()/1000;
@@ -17161,10 +18422,10 @@ function drawMenu(){
   else if(menuStage!=='home') drawMenuGenericBackdrop(now);
 
   if(menuStage === 'home'){
-    drawDotaSenseBackdrop(now);
+    if(menuWide()) dsCleanBackdrop(now); else drawDotaSenseBackdrop(now);
     const logoScale=menuScale();
     const logoW=Math.min(Math.round(660*logoScale),VW-24), logoH=Math.round(Math.min(logoW*0.17,112*logoScale));
-    drawDotaSenseLogo(VW/2, menuWide()?Math.round(18*logoScale):70, logoW, logoH, now);
+    if(!menuWide()) drawDotaSenseLogo(VW/2, 70, logoW, logoH, now);
   } else {
     ctx.textAlign = 'center';
     ctx.font = 'bold 14px Segoe UI, Arial';
@@ -17173,7 +18434,7 @@ function drawMenu(){
   }
 
   const settingsButton = menuSettingsRect();
-  if(menuWide() && menuStage==='home') drawMenuButton(settingsButton,'⚙',{active:settingsOpen,large:true,fontSize:24,radius:8}); else drawMenuButton(settingsButton,'⚙  НАСТРОЙКИ',{active:settingsOpen});
+  if(menuWide() && menuStage==='home'){ if(settingsOpen||storeOpen||changelogOpen) drawMenuButton(settingsButton,'⚙',{active:settingsOpen,large:true,fontSize:18,radius:6}); } else drawMenuButton(settingsButton,'⚙  НАСТРОЙКИ',{active:settingsOpen});
 
   if(settingsOpen){
     const panel = menuSettingsPanel();
@@ -17584,6 +18845,7 @@ function drawOver(){
   if(!resultAnnounced){
     resultAnnounced = true;
     announce(winner === myTeam ? 'Victory!' : 'Defeat!', {interrupt:true, rate:0.8});
+    if(won && playerIsChip()) playChipVoice('win');
     if(!testMode) accountRecordResult(won, makeMatchId(), rankedOnlineMatch, currentMatchCareerStats());
     rankedOnlineMatch=false;
   }
@@ -17847,6 +19109,8 @@ requestAnimationFrame(loop);
     });
     socket.on('playerSnapshot', applyRemotePlayerSnapshot);
     socket.on('playerVitals', applyLocalVitals);
+    socket.on('heroKill', applyHeroKill);
+    socket.on('playerAnim', applyRemoteAnim);
     socket.on('playerSkill', applyRemoteSkill);
     socket.on('match:player-left', data => {
       addText(playerHero ? playerHero.x : WORLD/2, playerHero ? playerHero.y : WORLD/2, data.message, '#ffd568', 2, 16);
@@ -17900,6 +19164,7 @@ requestAnimationFrame(loop);
       originalStartGame(heroIndex, picks);
       orientOnlineMapForTeam(local.team);
       authoritativeMode = true;
+      onlineMatchActive = true;
       bindRosterHeroes();
       serverGameState = payload.state || null;
       const localState = serverGameState && serverGameState.players.find(player => player.id === onlineId);
@@ -17935,6 +19200,7 @@ requestAnimationFrame(loop);
       onlineId = null;
       onlineRoster = null;
       authoritativeMode = false;
+      onlineMatchActive = false;
       rankedOnlineMatch = false;
       gameState = 'menu';
       menuStage = 'home';
@@ -18048,16 +19314,24 @@ requestAnimationFrame(loop);
     for(const remote of serverGameState.players){
       const hero = remoteHeroes.get(remote.id);
       if(!hero) continue;
+      /* Убийства/смерти/помощь — единый счёт с сервера (для всех героев, включая ботов) */
+      if(Number.isFinite(remote.kills)) hero.kills = remote.kills;
+      if(Number.isFinite(remote.deaths)) hero.deaths = remote.deaths;
+      if(Number.isFinite(remote.assists)) hero.assists = remote.assists;
       if(hero.isHostedBot) continue;
       if(remote.id !== onlineId){
+        const prevX=hero.x, prevY=hero.y;
         const error=Math.hypot(remote.x-hero.x,remote.y-hero.y);
         if(error>260){ hero.x=remote.x; hero.y=remote.y; }
         else { hero.x+=(remote.x-hero.x)*blend; hero.y+=(remote.y-hero.y)*blend; }
+        updateRemoteWalkAnimation(hero, Math.hypot(hero.x-prevX,hero.y-prevY), error>260, dt);
       }
       hero.facing = remote.angle;
       if(remote.id === onlineId){
+        /* Не воскрешаем героя только потому, что сервер ещё «не знает» о его смерти:
+           возрождение приходит событием playerVitals с новой версией. */
         if(Number.isInteger(remote.damageVersion) && remote.damageVersion >= serverDamageVersion &&
-           (!remote.alive || hero.dead || remote.damageVersion > serverDamageVersion)) applyLocalVitals(remote);
+           (remote.damageVersion > serverDamageVersion || (!remote.alive && !hero.dead))) applyLocalVitals(remote);
       } else {
         hero.hp = remote.hp;
         hero.maxHp = remote.maxHp;
@@ -18154,7 +19428,7 @@ requestAnimationFrame(loop);
   const originalUpdate = update;
   update = function(){
     originalUpdate.apply(this, arguments);
-    if(authoritativeMode) applyAuthoritativeState(arguments[0]);
+    if(authoritativeMode){ applyAuthoritativeState(arguments[0]); sendAttackAnimations(); }
   };
 
   function sendInput(action){
@@ -18259,21 +19533,90 @@ requestAnimationFrame(loop);
     if(vitals.alive === false){
       if(!hero.dead){
         hero.dead = true;
-        hero.deaths++;
         hero.killStreak = 0;
         hero.spreeKills = 0;
         hero.lastHeroKillTime = -Infinity;
       }
+      hero.onlineDeathAcked = true; /* сервер подтвердил смерть — теперь можно ждать его команды на респавн */
       hero.hp = 0;
       hero.respawnTimer = Math.max(0,Number(vitals.respawnTimer)||0);
       return;
     }
     if(vitals.alive === true && hero.dead){
+      if(!hero.onlineDeathAcked){
+        /* Герой уже умер у нас (например, от крипов), а сервер ещё нет — это не респавн.
+           Сообщаем серверу о смерти (версия уже обновлена выше) и остаёмся мёртвыми. */
+        if(isLocal) sendPlayerStats();
+        return;
+      }
+      hero.onlineDeathAcked = false;
       hero.respawnTimer = 0;
-      hero.update(0);
+      hero.onlineRespawnOk = true;
+      try { hero.update(0); } finally { hero.onlineRespawnOk = false; }
     }
     if(Number.isFinite(vitals.hp)) hero.hp = vitals.hp;
     if(Number.isFinite(vitals.respawnTimer)) hero.respawnTimer = Math.max(0,vitals.respawnTimer);
+  }
+  /* Событие убийства от сервера: награда, звуки и баннеры (первая кровь, серии) как в обычной игре.
+     Сам счёт убийств/смертей/помощи приходит в gameState и перекрывает локальные значения. */
+  function applyHeroKill(event){
+    if(!authoritativeMode || !event) return;
+    const victim = remoteHeroes.get(event.victimId);
+    if(!victim || victim.dead) return;
+    const killer = event.killerId ? remoteHeroes.get(event.killerId) : null;
+    victim.damageContributors = new Map();
+    for(const id of event.assistIds || []){
+      const helper = remoteHeroes.get(id);
+      if(helper) victim.damageContributors.set(helper, victim.maxHp);
+    }
+    try { killUnit(victim, killer || null); } catch(error){ console.warn('Не удалось применить убийство:', error); }
+  }
+  /* Анимация ходьбы чужих героев: позиция ставится напрямую с сервера, поэтому «движение» считаем по смещению. */
+  function updateRemoteWalkAnimation(hero, moved, teleported, dt){
+    if(hero.dead || !(dt > 0)){ hero.moving = false; return; }
+    const speed = teleported ? 0 : moved / dt;
+    if(speed > 35) hero.remoteMoveHold = 0.15;
+    else hero.remoteMoveHold = Math.max(0, (hero.remoteMoveHold || 0) - dt);
+    hero.moving = hero.remoteMoveHold > 0 && !(hero.stunTimer > 0);
+    if(!hero.moving){ hero.footstepTimer = 0; return; }
+    const heroSpeed = Math.max(28, hero.getSpeed());
+    const shown = Math.min(speed, heroSpeed * 1.6);
+    hero.walkPhase += (shown / (heroSpeed * 0.62)) * dt;
+    hero.footstepTimer -= dt;
+    if(hero.footstepTimer <= 0){
+      hero.footstepTimer = clamp(46/(heroSpeed*0.62), 0.14, 0.42);
+      const footAngle = hero.facing + Math.PI/2 * (Math.sin(hero.walkPhase*Math.PI*2) > 0 ? 1 : -1);
+      const fx = hero.x + Math.cos(footAngle)*hero.radius*0.42 - Math.cos(hero.facing)*hero.radius*0.3;
+      const fy = hero.y + Math.sin(footAngle)*hero.radius*0.42 - Math.sin(hero.facing)*hero.radius*0.3 + hero.radius*0.55;
+      spawnFootstepDust(fx, fy, hero.footstepColor || 'rgba(196,182,140,0.55)');
+    }
+  }
+  /* Анимация атаки чужого героя по событию от сервера */
+  function applyRemoteAnim(event){
+    if(!authoritativeMode || !event || event.id === onlineId || event.kind !== 'attack') return;
+    const hero = remoteHeroes.get(event.id);
+    if(!hero || hero.dead || hero.isHostedBot || !Number.isFinite(event.angle)) return;
+    hero.facing = event.angle;
+    hero.attackAngle = event.angle;
+    hero.attackAnimProgress = 0;
+    hero.isAttacking = true;
+    if(playerHero && Math.hypot(hero.x-playerHero.x, hero.y-playerHero.y) < 1200) playHeroSfx('attack_' + (hero.def.id || 'default'));
+  }
+  /* Каждый клиент сообщает о замахе своего героя (и хост — о замахах своих ботов) */
+  function sendAttackAnimations(){
+    if(!socket || !socket.connected || !authoritativeMode) return;
+    if(playerHero){
+      const swinging = !!playerHero.isAttacking && !playerHero.dead;
+      if(swinging && !playerHero.sentAttackAnim) socket.emit('playerAnim',{kind:'attack',angle:playerHero.attackAngle ?? playerHero.facing});
+      playerHero.sentAttackAnim = swinging;
+    }
+    if(onlineHostId !== onlineId) return;
+    for(const [id,hero] of remoteHeroes){
+      if(!hero.isHostedBot) continue;
+      const swinging = !!hero.isAttacking && !hero.dead;
+      if(swinging && !hero.sentAttackAnim) socket.emit('botProxy',{botId:id,type:'anim',payload:{kind:'attack',angle:hero.attackAngle ?? hero.facing}});
+      hero.sentAttackAnim = swinging;
+    }
   }
   /* Хост считает ИИ ботов и шлёт серверу их позицию/здоровье от имени бота. */
   function sendHostedBots(){
@@ -18333,7 +19676,7 @@ requestAnimationFrame(loop);
     }
     const entry = onlineEntryElement;
     if(entry){
-      const visible=gameState==='menu'&&menuStage==='home'&&!settingsOpen&&!storeOpen&&!changelogOpen;
+      const visible=gameState==='menu'&&menuStage==='home'&&!menuWide()&&!settingsOpen&&!storeOpen&&!changelogOpen;
       entry.hidden=!visible;
       entry.style.display=visible?'block':'none';
     }

@@ -349,6 +349,17 @@ MODELS.warlord=(S,d,t)=>{
   hold(S,_h2,'L');
 };
 
+/* 3D-блик Гриши: три скрещённых луча — виден с любого ракурса */
+function grSpark(S,p,L,k,col){
+  if(k<.06) return; L*=k; const c=col||'#ffffff', w=L*.14;
+  for(const s of [-1,1]){
+    S.cone(p,add(p,[s*L,0,0]),w,c,{glow:1,seg:4});
+    S.cone(p,add(p,[0,s*L*1.35,0]),w,c,{glow:1,seg:4});
+    S.cone(p,add(p,[0,0,s*L]),w,c,{glow:1,seg:4});
+  }
+  G(S,p,L*.2,'#ffffff',{rings:3,seg:6});
+}
+
 MODELS.grisha=(S,d,t,pose)=>{
   const ga=gaState(d.id,pose,t);
   man(S,{nobelt:true,face:true,cloth:'#4a2a8a',bracer:'#e0c8ff',armR:ga.R,armL:ga.L,glove:'#e8b894',beard:'#d8d2e8',fo:{eye:'#7ad8ff',glow:1,angry:-.05,brow:'#d8d2e8'},collar:'#e0c8ff'});
@@ -363,15 +374,81 @@ MODELS.grisha=(S,d,t,pose)=>{
   S.cone([0,2.9,-.2],[0,3.25,-.45],.1,'#27184e',{seg:8});
   for(let i=0;i<4;i++) S.box([Math.sin(i*1.6)*.18,2.55+i*.1,.25-i*.05+Math.cos(i*1.6)*.1],[.07,.07,.02],'#ffcf65',{glow:1,rot:[0,0,i]});
   const cs=['#75d8ff','#e58bff','#ffcf65'];
-  cs.forEach((c,i)=>{const a=t*1.8+i*2.094+ga.fx*Math.sin(ga.p*3.14)*5; const p=[Math.cos(a)*.95,1.65+Math.sin(t*2+i)*.12,Math.sin(a)*.95];
+  const tw=(i,sp)=>Math.pow(Math.max(0,Math.sin(t*sp+i*2.3)),4);   // мерцание бликов
+  /* --- шляпа: золотой полумесяц, рубин на ленте, звезда на кончике --- */
+  S.ell([0,2.66,.1],[.075,.075,.02],'#ffcf65',{rings:6,seg:10,shine:.9});
+  S.ell([.03,2.68,.118],[.065,.065,.02],'#27184e',{rings:6,seg:10});
+  S.ell([0,2.36,.345],[.05,.05,.03],'#ff6fd8',{glow:1,rings:4,seg:8});
+  G(S,[0,3.27,-.46],.06+.015*Math.sin(t*4),'#ffcf65',{rings:3,seg:6});
+  /* --- орбы: цветной хвост-комета, кольцо-ореол и мерцающий блик --- */
+  cs.forEach((c,i)=>{const a=t*1.8+i*2.094+ga.fx*Math.sin(ga.p*3.14)*5; const yy=1.65+Math.sin(t*2+i)*.12; const p=[Math.cos(a)*.95,yy,Math.sin(a)*.95];
     S.ell(p,[.17,.17,.17],c,{glow:1});
+    S.ell(add(p,[-.04,.05,.06]),[.06,.05,.04],'#ffffff',{glow:1,rings:3,seg:6});
     if(i===0) for(let k=0;k<5;k++){const q=k*1.256+t*2; S.cone(add(p,[0,.1,0]),add(p,[Math.cos(q)*.24,.28,Math.sin(q)*.24]),.05,'#ff8a3a',{glow:1,seg:5});}
     if(i===1) for(let k=0;k<6;k++){const q=k*1.047; S.cone(add(p,[Math.cos(q)*.13,0,Math.sin(q)*.13]),add(p,[Math.cos(q)*.33,0,Math.sin(q)*.33]),.04,'#d9f7ff',{glow:1,seg:5});}
     if(i===2) S.tube(add(p,[-.15,.15,0]),add(p,[.15,-.15,.05]),.025,.025,'#fff3b0',{glow:1,seg:5});
+    for(let k=1;k<=4;k++){ const a2=a-k*.2; G(S,[Math.cos(a2)*.95,1.65+Math.sin(t*2+i-k*.4)*.12,Math.sin(a2)*.95],.15*(1-k*.2),c,{rings:3,seg:6}); }
+    S.ring(p,.27,.012,'#ffffff',{glow:1,axis:i===1?'z':'x',n:12,phase:t*4+i});
+    grSpark(S,add(p,[0,.02,0]),.24,tw(i,3.1),'#ffffff');
   });
   S.ring([0,1.0,0],.95,.02,'#e0c8ff',{glow:1,n:26,phase:t*.5});
   for(const s of [-1,1]) G(S,add(s>0?ga.R:ga.L,[0,.16+Math.sin(t*3+s)*.05,.05]),.1*(1+ga.fx*.5),s>0?'#75d8ff':'#e58bff');
+  /* --- мантия: золотая каёмка и бегущие светящиеся руны --- */
+  S.tube([0,.14,0],[0,.17,0],.645,.645,'#ffcf65',{seg:22,shine:.8});
+  for(let i=0;i<10;i++){ const a=i/10*Math.PI*2, k=.5+.5*Math.sin(t*2.2-i*.65);
+    S.box([Math.sin(a)*.62,.34,Math.cos(a)*.62],[.05+.05*k,.07+.07*k,.02],cs[i%3],{glow:1,rot:[0,a,0]}); }
+  /* --- блики на шляпе, кулоне и в воздухе --- */
+  grSpark(S,[0,3.3,-.47],.22,.55+.45*Math.sin(t*3.4),'#fff3b0');
+  grSpark(S,[0,1.2,.44],.13,tw(1,2.4),'#ffffff');
+  grSpark(S,[.0,2.37,.37],.1,tw(2,2.9),'#ffd6f5');
+  for(let i=0;i<3;i++){ const a=t*.7+i*2.094, r=1.15+.12*Math.sin(t+i*2), y=.7+i*.75+.2*Math.sin(t*1.3+i);
+    grSpark(S,[Math.cos(a)*r,y,Math.sin(a)*r],.17,tw(i+4,2.2),cs[i]); }
+  /* --- поднимающиеся магические искры --- */
+  for(let i=0;i<8;i++){ const ph=(t*.2+i/8)%1, a=i*2.4+t*.6, rr=.5+.35*Math.sin(i*1.7+t*.4), sz=.05*(1-ph)+.012;
+    S.box([Math.cos(a)*rr,.15+ph*2.9,Math.sin(a)*rr],[sz,sz,sz],cs[i%3],{glow:1,rot:[ph*5,ph*4,0]}); }
+  /* --- руническая гексаграмма под ногами --- */
+  floorFx(S,()=>{
+    const R=.86;
+    for(let tri=0;tri<2;tri++){
+      const pt=[0,1,2].map(i=>{ const a=(tri?-1:1)*t*.4+i*2.0944+tri*1.0472; return [Math.cos(a)*R,.014,Math.sin(a)*R]; });
+      for(let i=0;i<3;i++) S.obox(pt[i],pt[(i+1)%3],.02,.02,tri?'#e58bff':'#75d8ff',{glow:1});
+      for(const q of pt) G(S,add(q,[0,.02,0]),.045,tri?'#ffd6ff':'#d9f7ff',{rings:3,seg:6});
+    }
+    S.ring([0,.014,0],R,.014,'#ffcf65',{glow:1,n:24,phase:t*.2});
+  });
   gaFx(S,ga);
+  /* --- красивая атака и заклинания Гриши --- */
+  if(ga.kind!=='idle'){
+    const cfgG=ga.cfg, hands=[ga.R,ga.L];
+    if(ga.kind==='attack'){
+      const ch=cl01(ga.p/cfgG.hit);
+      if(ga.p<cfgG.hit+.04) hands.forEach((h,hi)=>{            // зарядка: руны вращаются вокруг ладоней
+        S.ring(h,.1+.2*ch,.014,cs[hi],{glow:1,axis:'z',n:14,phase:t*9+hi});
+        for(let k=0;k<3;k++){ const a=t*8+k*2.094+hi, rr=.14+.22*(1-ch); G(S,add(h,[Math.cos(a)*rr,Math.sin(a)*rr,.02]),.035,cs[k],{rings:3,seg:6}); }
+      });
+      const bu=cl01((ga.p-cfgG.hit)/.25);
+      if(ga.burst>.05) hands.forEach((h,hi)=>{                  // вспышка-звезда и расходящееся кольцо
+        grSpark(S,add(h,[0,0,.1]),.5,ga.burst,hi?'#ffd6ff':'#d9f7ff');
+        if(bu<1) S.ring(add(h,[0,0,.1]),.12+.55*bu,.02*(1-bu)+.008,'#ffffff',{glow:1,axis:'z',n:16});
+      });
+      if(ga.shot) hands.forEach((h,hi)=>{                       // снаряд: искрящийся хвост и звезда во главе
+        const u=ga.shot.u, pos=add(h,[0,-.05*u,.15+1.7*u]);
+        for(let k=1;k<=6;k++){ const w=.08*(k/6);
+          G(S,add(pos,[Math.sin(t*14+k*1.1+hi*3)*w,Math.cos(t*14+k*1.1+hi*3)*w,-k*.17]),.045*(1-k*.12),cs[(k+hi)%3],{rings:3,seg:6}); }
+        grSpark(S,pos,.3,.7+.3*Math.sin(t*22+hi),'#ffffff');
+        if(u>.8) S.ring(add(pos,[0,0,.2]),.15+(u-.8)*2.5,.02,'#ffffff',{glow:1,axis:'z',n:16});
+      });
+    } else {
+      if(ga.p>.3&&ga.p<.95) for(let i=0;i<9;i++){               // столб искр вокруг мага
+        const ph=(ga.p*2.2+i/9)%1, a=i*2.4+t*3, rr=.55+.5*ph;
+        G(S,[Math.cos(a)*rr,.2+ph*2.9,Math.sin(a)*rr],.05*(1-ph*.5),cs[i%3],{rings:3,seg:6}); }
+      if(ga.burst>.05){
+        grSpark(S,[0,3.35,-.4],.75,ga.burst,'#fff3b0');
+        for(const h of hands) grSpark(S,h,.4,ga.burst,'#ffffff');
+        S.ring([0,2.3,0],.45+.9*(1-ga.burst),.02,'#ffffff',{glow:1,n:24});
+      }
+    }
+  }
 };
 
 MODELS.golly=(S,d,t)=>{
@@ -942,58 +1019,227 @@ function chipState(rp,t){
   } else { st.fx=0; }
   return st;
 }
+/* ---------- Король Чип: детализированная модель (горностай, золотое шитьё, самоцветы, корона с дугами) ---------- */
+const CHP={GOLD:'#e3b13f',GOLD_HI:'#fff0a8',GOLD_DK:'#b9852a',PURP:'#4b3a78',PURP_HI:'#6a52a3',PURP_DK:'#2c2145',
+  RED:'#a3213f',RED_DK:'#6e1229',FUR:'#f8f4ec',INK:'#1b1424',RUBY:'#d62845',SAPH:'#3f78ff',EMER:'#2fc27a',AMET:'#a05bff'};
+function chipRobeR(y){ return y<=.825 ? .6-.033*(y/.825) : .567-.117*((y-.825)/.675); }
+/* кольцо горностая: белые меховые «шарики» с чёрными хвостиками */
+function chipFur(S,y,R,n,sx,sy,ph){
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2+(ph||0), c=Math.cos(a), s=Math.sin(a);
+    S.ell([c*R,y,s*R],[sx,sy,sx],CHP.FUR,{rings:4,seg:7,shine:.12});
+    if(i%2===0) S.ell([c*(R+sx*.62),y-sy*.15,s*(R+sx*.62)],[.02,.05,.02],CHP.INK,{rings:3,seg:5,shine:.08});
+  }
+}
+/* самоцвет в золотой оправе, смотрит наружу от оси Y */
+function chipGem(S,x,y,z,r,col){
+  S.ell([x,y,z],[r*1.28,r*1.28,r*.7],CHP.GOLD,{rings:4,seg:8,shine:.85});
+  const o=Math.hypot(x,z)||1;
+  S.ell([x+x/o*r*.32,y,z+z/o*r*.32],[r,r,r*.75],col,{rings:4,seg:8,shine:.95});
+  S.ell([x+x/o*r*.7-r*.25,y+r*.3,z+z/o*r*.7],[r*.2,r*.2,r*.12],'#ffffff',{rings:3,seg:5,glow:1});
+}
+/* золотая «звёздочка»-блик из двух скрещённых планок */
+function chipStar(S,pos,size,k){
+  if(k<.05) return; const L=size*k;
+  S.box(pos,[L*2.2,L*.22,.012],'#fffbe0',{glow:1}); S.box(pos,[L*.22,L*2.2,.012],'#fffbe0',{glow:1});
+  S.box(pos,[L*1.3,L*.14,.012],'#ffe9a0',{glow:1,rot:[0,0,.785]}); S.box(pos,[L*.14,L*1.3,.012],'#ffe9a0',{glow:1,rot:[0,0,.785]});
+}
 function chipStaff(S,h,d,t,fx){
-  const [bx,by,bz]=basisY(d,[1,0,0]);
-  const at=s=>add(h,mul(d,s));
-  S.tube(at(-1.1),at(1.0),.045,.045,'#ffd568');
-  for(let i=0;i<3;i++) S.tube(at(-.55+i*.5),at(-.49+i*.5),.07,.07,'#fff3b0',{shine:.7});
-  const hd=at(1.15), rr=.16+.05*fx;
-  S.ell(hd,[rr,rr,rr],'#c0392b',{glow:1});
-  for(let i=0;i<4;i++){ const a=i*1.57; const v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
-    S.cone(add(at(1.0),mul(v,.1)),add(at(1.25),mul(v,.22)),.035,'#ffd568',{seg:5,shine:.7}); }
-  if(fx>.3) for(let i=0;i<5;i++){ const a=t*3+i*1.2566; const v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
-    G(S,add(add(hd,mul(v,.25+.05*fx)),mul(by,Math.sin(a*1.7)*.1)),.025+.02*fx,'#fff3b0'); }
+  const C=CHP, [bx,by,bz]=basisY(d,[1,0,0]), at=s=>add(h,mul(d,s));
+  const pulse=.5+.5*Math.sin(t*2.6);
+  /* древко: золотая витая трубка с кольцами */
+  S.tube(at(-1.12),at(1.0),.042,.042,C.GOLD,{seg:10,shine:.8});
+  for(let i=0;i<9;i++){ const s0=-.95+i*.19; S.tube(at(s0),at(s0+.045),.056,.056,i%2?C.GOLD_HI:C.GOLD_DK,{seg:10,shine:.7}); }
+  /* обмотка под ладонью: красная кожа и золотые кольца */
+  S.tube(at(-.24),at(.26),.058,.058,C.RED_DK,{seg:10,shine:.3});
+  for(const s0 of [-.26,.24]) S.tube(at(s0),at(s0+.04),.07,.07,C.GOLD_HI,{seg:10,shine:.8});
+  /* навершие-пята */
+  S.ell(at(-1.14),[.08,.1,.08],C.GOLD,{rings:5,seg:9,shine:.85}); S.cone(at(-1.2),at(-1.36),.045,C.GOLD_HI,{seg:6,shine:.8});
+  /* чаша под шаром */
+  S.tube(at(.98),at(1.0),.075,.075,C.GOLD_HI,{seg:12,shine:.8});
+  S.tube(at(1.0),at(1.1),.06,.12,C.GOLD,{seg:12,shine:.8});
+  S.tube(at(1.1),at(1.125),.13,.13,C.GOLD_HI,{seg:12,shine:.85});
+  /* четыре изогнутых лапы-зажима, держащие шар */
+  const hd=at(1.27), rr=.16+.045*fx+.012*pulse;
+  for(let i=0;i<4;i++){ const a=i*1.5708+.78, v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
+    const P=[add(at(1.12),mul(v,.1)),add(at(1.22),mul(v,rr+.05)),add(at(1.36),mul(v,rr+.04)),add(at(1.5),mul(v,.05))];
+    for(let k=0;k<3;k++) S.tube(P[k],P[k+1],.024,.02,C.GOLD,{seg:6,shine:.8});
+    S.ell(P[1],[.032,.032,.032],C.GOLD_HI,{rings:3,seg:6,shine:.9}); }
+  S.cone(at(1.5),at(1.72),.055,C.GOLD_HI,{seg:8,shine:.85});
+  S.ell(at(1.74),[.04,.04,.04],C.FUR,{rings:4,seg:7,shine:.95});
+  /* рубиновый шар */
+  S.ell(hd,[rr,rr,rr],C.RUBY,{rings:9,seg:16,shine:.9});
+  S.ell(add(hd,add(mul(bx,-.05),mul(by,.07))),[rr*.38,rr*.3,rr*.3],'#ff9aa8',{rings:4,seg:8,glow:1});
+  G(S,hd,rr*.55,'#ff5a73',{rings:4,seg:8,glow:1});
+  /* кольца-орбиты вокруг шара при кастах */
+  if(fx>.25){
+    const k=fx;
+    for(let i=0;i<7;i++){ const a=t*3.2+i*.8976; const v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
+      G(S,add(add(hd,mul(v,rr+.12+.06*k)),mul(by,Math.sin(a*1.7)*.12)),.022+.02*k,i%2?C.GOLD_HI:'#ffd0d8'); }
+    chipStar(S,add(hd,mul(bz,.02)),.2,.4+.6*k);
+  }
   return hd;
 }
 MODELS.chip=(S,d,t,pose)=>{
-  const rp=chipResolve(pose,t), st=chipState(rp,t);
-  man(S,{nobelt:true,face:true,bulk:1.0,cloth:'#49376d',arm:'#49376d',glove:'#ffd568',armR:st.h,armL:st.l,legs:'#2c2145',belt:'#ffd568',trim:'#ffd568',bracer:'#ffd568',beard:'#f5f0e8',knee:'#ffd568',collar:'#f5f0e8',pad:'#ffd568',padTrim:'#fff3b0',fo:{eye:'#4a7aff',angry:.0,mouth:'smile',brow:'#f5f0e8',lip:'#a0505a'}});
-  robe(S,.6,.45,1.5,'#49376d','#f5f0e8');
-  cape(S,'#8f1d3a','#f5f0e8',1.05,2.0,.45,-.4,5);
-  for(let i=0;i<9;i++){ S.ell([(i-4)*.12,1.72,.0+Math.abs(i-4)*-.02],[.1,.08,.1],'#f5f0e8',{rings:4,seg:6}); }
-  S.tube([0,1.35,0],[0,1.45,0],.45,.45,'#ffd568',{seg:18,shine:.7});
-  for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; G(S,[Math.sin(a)*.46,1.4,Math.cos(a)*.46],.045,i%2?'#c0392b':'#4a7aff',{glow:0,shine:.8}); }
-  S.ell([0,1.15,.45],[.13,.13,.04],'#ffd568',{shine:.7}); S.ell([0,1.15,.48],[.08,.08,.03],'#c0392b',{glow:1,rings:4,seg:8});
-  S.ell([0,1.85,.18],[.2,.24,.12],'#eee');
-  S.tube([0,2.25,0],[0,2.55,0],.3,.34,'#ffd568',{seg:10,glow:1});
-  S.tube([0,2.25,0],[0,2.33,0],.31,.31,'#c0392b',{seg:10,shine:.5});
-  for(let i=0;i<5;i++){const a=i/5*Math.PI*2; S.cone([Math.cos(a)*.31,2.55,Math.sin(a)*.31],[Math.cos(a)*.33,2.9,Math.sin(a)*.33],.06,'#ffd568',{glow:1,seg:5}); G(S,[Math.cos(a)*.33,2.93,Math.sin(a)*.33],.04,i%2?'#4a7aff':'#c0392b'); }
-  G(S,[0,2.4,.33],.05,'#4a7aff');
-  // посох
+  const C=CHP, rp=chipResolve(pose,t), st=chipState(rp,t), TAU=Math.PI*2;
+  const walking=rp.kind==='walk';
+  man(S,{nobelt:true,face:true,bulk:1.0,cloth:C.PURP,arm:C.PURP,glove:C.GOLD,armR:st.h,armL:st.l,legs:C.PURP_DK,belt:C.GOLD,trim:C.GOLD,bracer:C.GOLD,beard:C.FUR,knee:C.GOLD,
+    pad:'#d9a93a',padTrim:C.GOLD_HI,fo:{eye:'#4a7aff',angry:.0,mouth:'smile',brow:C.FUR,lip:'#a0505a',cheeks:'#e8908a'}});
+
+  /* --- мантия: пурпурная ткань, золотое шитьё и ромбы, бархатная вставка спереди --- */
+  robe(S,.6,.45,1.5,C.PURP,null);
+  S.tube([0,.18,0],[0,.3,0],chipRobeR(.18)+.012,chipRobeR(.3)+.012,C.GOLD,{seg:24,shine:.75});
+  S.tube([0,.31,0],[0,.335,0],chipRobeR(.31)+.014,chipRobeR(.335)+.014,C.GOLD_HI,{seg:24,shine:.85});
+  S.tube([0,.94,0],[0,.975,0],chipRobeR(.94)+.01,chipRobeR(.975)+.01,C.GOLD,{seg:24,shine:.75});
+  for(const [y,n,ph] of [[.5,18,0],[.72,16,.2]]){
+    for(let i=0;i<n;i++){ const a=i/n*TAU+ph, r=chipRobeR(y)+.008;
+      S.box([Math.cos(a)*r,y,Math.sin(a)*r],[.075,.075,.022],i%2?C.GOLD:C.GOLD_HI,{rot:[0,Math.PI/2-a,.785],shine:.75});
+      if(i%2===0) S.ell([Math.cos(a)*(r+.012),y,Math.sin(a)*(r+.012)],[.016,.016,.01],C.RUBY,{rings:3,seg:5,shine:.9,rot:[0,Math.PI/2-a,0]}); }
+  }
+  /* алая бархатная полоса по центру с золотой окантовкой и самоцветами */
+  const strip=(w,col,off,sh)=>{ for(const [y0,y1] of [[.16,.825],[.825,1.1]])
+    S.obox([0,y0,chipRobeR(y0)+off],[0,y1,chipRobeR(y1)+off],w,.02,col,{hint:[0,0,1],shine:sh}); };
+  strip(.3,C.GOLD,.005,.7); strip(.24,C.RED_DK,.014,.25);
+  for(const [y,col] of [[.42,C.RUBY],[.6,C.SAPH],[.78,C.EMER],[.96,C.RUBY]]) chipGem(S,0,y,chipRobeR(y)+.026,.04,col);
+  /* ермин по подолу */
+  chipFur(S,.1,.63,20,.13,.09,0);
+
+  /* --- пояс: широкий золотой, самоцветы в оправе, большая пряжка --- */
+  S.tube([0,1.3,0],[0,1.46,0],.455,.455,C.GOLD,{seg:20,shine:.8});
+  S.tube([0,1.3,0],[0,1.315,0],.465,.465,C.GOLD_HI,{seg:20,shine:.85});
+  S.tube([0,1.445,0],[0,1.46,0],.465,.465,C.GOLD_HI,{seg:20,shine:.85});
+  const gems=[C.RUBY,C.SAPH,C.EMER,C.AMET];
+  for(let i=0;i<10;i++){ const a=i/10*TAU+.31; if(Math.abs(Math.sin(a/2-.1))<.2&&Math.cos(a)>.9) continue;
+    chipGem(S,Math.sin(a)*.47,1.38,Math.cos(a)*.47,.034,gems[i%4]); }
+  S.ell([0,1.38,.475],[.2,.15,.05],C.GOLD,{rings:6,seg:12,shine:.85});
+  S.ell([0,1.38,.505],[.15,.11,.04],C.GOLD_DK,{rings:5,seg:10,shine:.7});
+  chipGem(S,0,1.38,.505,.075,C.RUBY);
+  for(const s of [-1,1]) S.ell([s*.125,1.38,.52],[.028,.028,.02],C.FUR,{rings:3,seg:6,shine:.95});
+
+  /* --- алая накидка на плечах с горностаевой отделкой и золотая цепь с подвеской --- */
+  S.tube([0,1.47,0],[0,1.7,0],.5,.34,C.RED,{seg:22,shine:.28});
+  S.tube([0,1.47,0],[0,1.5,0],.512,.5,C.GOLD,{seg:22,shine:.8});
+  chipFur(S,1.48,.52,18,.12,.075,.15);
+  chipFur(S,1.7,.33,12,.12,.085,.2);
+  const Rm=y=>.5-.16*Math.max(0,(y-1.46))/.24;
+  let prev=null;
+  for(let i=0;i<=14;i++){ const f=-1+i/7, phi=f*1.05, y=1.66-.17*Math.cos(phi*1.45), r=Rm(y)+.035;
+    const p=[Math.sin(phi)*r,y,Math.cos(phi)*r];
+    S.ell(p,[.03,.03,.03],C.GOLD,{rings:3,seg:6,shine:.9});
+    if(prev&&i%2) S.tube(prev,p,.014,.014,C.GOLD_HI,{seg:5,shine:.9}); prev=p; }
+  const pY=1.5, pZ=Rm(pY)+.07;
+  S.tube([0,pY+.08,pZ-.02],[0,pY,pZ],.016,.016,C.GOLD_HI,{seg:5});
+  S.ell([0,pY-.02,pZ],[.1,.12,.035],C.GOLD,{rings:5,seg:10,shine:.85});
+  S.ell([0,pY-.02,pZ+.022],[.075,.095,.03],C.RUBY,{rings:5,seg:10,shine:.95});
+  S.ell([-.025,pY+.015,pZ+.045],[.016,.02,.01],'#fff',{rings:3,seg:5,glow:1});
+  /* рубины на наплечниках */
+  for(const s of [-1,1]){ chipGem(S,s*.56,1.7,.07,.04,C.RUBY); chipGem(S,s*.66,1.62,.1,.028,C.SAPH); }
+
+  /* --- плащ-«трон» за спиной: 9 полотнищ, горностаевая кайма с хвостиками и золотая нить --- */
+  /* плащ расходится от плеч к земле и обходит мантию сзади, а не проваливается в неё */
+  for(let i=0;i<11;i++){ const k=i-5, ak=Math.abs(k), w=.19;
+    const ta=[k*.095,2.05,-.4], tb=[k*.145,.45,-.82+ak*.012], P=u=>lerp(ta,tb,u);
+    S.obox(ta,tb,w,.05,i%2?C.RED:'#b0264a',{hint:[0,0,1],shine:.3});
+    S.obox(P(.89),tb,w,.075,C.FUR,{hint:[0,0,1],shine:.12});
+    S.ell(add(P(.945),[0,0,-.05]),[.026,.06,.014],C.INK,{rings:3,seg:5,shine:.08});
+    S.obox(add(P(.04),[0,0,-.028]),add(P(.86),[0,0,-.028]),.014,.012,C.GOLD,{hint:[0,0,1],shine:.7}); }
+  S.box([0,2.05,-.4],[1.1,.05,.05],C.GOLD,{shine:.7});
+
+  /* --- голова: горностаевый воротник, усы, седые виски --- */
+  for(const s of [-1,1]){
+    S.ell([s*.07,1.9,.255],[.1,.035,.04],C.FUR,{rings:4,seg:8,rot:[0,0,-s*.35],shine:.15});
+    S.ell([s*.15,1.88,.245],[.05,.03,.035],C.FUR,{rings:3,seg:6,rot:[0,0,s*.6],shine:.15});
+    S.ell([s*.27,2.02,-.02],[.06,.13,.1],C.FUR,{rings:4,seg:8,shine:.1});
+    S.ell([s*.25,2.17,.02],[.05,.05,.09],C.FUR,{rings:3,seg:6,rot:[0,0,s*.4],shine:.1}); }
+  S.ell([0,2.0,-.2],[.27,.16,.1],C.FUR,{rings:4,seg:10,shine:.1});
+
+  /* --- корона: красный бархат, ободок с самоцветами, зубцы с жемчугом, две дуги и державный шар --- */
+  S.ell([0,2.37,0],[.31,.2,.31],'#9b1c3a',{rings:6,seg:14,shine:.35});
+  S.tube([0,2.22,0],[0,2.42,0],.335,.345,C.GOLD,{seg:20,shine:.8});
+  S.tube([0,2.205,0],[0,2.235,0],.35,.35,C.GOLD_HI,{seg:20,shine:.88});
+  S.tube([0,2.405,0],[0,2.435,0],.352,.352,C.GOLD_HI,{seg:20,shine:.88});
+  for(let i=0;i<8;i++){ const a=i/8*TAU+.39; chipGem(S,Math.sin(a)*.352,2.32,Math.cos(a)*.352,.04,gems[i%4]); }
+  for(let i=0;i<8;i++){ const a=i/8*TAU+.39+TAU/16, x=Math.sin(a)*.34, z=Math.cos(a)*.34;
+    S.ell([x,2.215,z],[.026,.026,.026],C.FUR,{rings:3,seg:6,shine:.95}); }
+  for(let i=0;i<8;i++){
+    const a=i/8*TAU, tall=i%2===0, x=Math.sin(a)*.34, z=Math.cos(a)*.34, top=tall?2.8:2.66;
+    S.cone([x,2.43,z],[x*.96,top,z*.96],.075,C.GOLD,{seg:6,shine:.85});
+    S.ell([x*.96,top+.03,z*.96],[.04,.04,.04],tall?C.FUR:gems[(i/2|0)%4],{rings:4,seg:7,shine:.95});
+    chipStar(S,[x*.96,top+.05,z*.96+.04],.1,Math.pow(Math.max(0,Math.sin(t*2.3+i*1.7)),10)); }
+  for(const ax of [0,1]){
+    let pv=null;
+    for(let k=0;k<=8;k++){ const th=k/8*Math.PI, c=Math.cos(th)*.33, y=2.43+Math.sin(th)*.4;
+      const p=ax?[0,y,c]:[c,y,0];
+      if(pv) S.tube(pv,p,.024,.024,C.GOLD,{seg:6,shine:.85}); pv=p; }
+  }
+  S.ell([0,2.865,0],[.075,.075,.075],C.GOLD,{rings:6,seg:10,shine:.9});
+  S.tube([0,2.86,0],[0,2.88,0],.085,.085,C.GOLD_HI,{seg:10,shine:.9});
+  S.box([0,2.99,0],[.035,.16,.035],C.GOLD_HI,{shine:.9}); S.box([0,3.0,0],[.12,.035,.035],C.GOLD_HI,{shine:.9});
+  chipGem(S,0,2.9,.07,.025,C.RUBY);
+  chipStar(S,[0,3.02,.06],.14,.5+.5*Math.sin(t*3.1));
+
+  /* --- меховые манжеты на запястьях --- */
+  for(const [hp,s] of [[st.h,1],[st.l,-1]]){
+    const dd=norm(sub(hp,[s*.5,1.58,0]));
+    const c=sub(hp,mul(dd,.045));
+    S.ell(c,[.13,.085,.13],C.FUR,{rings:4,seg:8,shine:.1,rot:[0,0,0]});
+    S.ell(add(c,[s*.02,.03,.1]),[.022,.045,.02],C.INK,{rings:3,seg:5,shine:.08}); }
+
+  /* --- посох --- */
   const hd=chipStaff(S,st.h,st.d,t,st.fx);
-  // шлейф за головой посоха
-  st.trail.forEach((tp,i)=>G(S,tp,Math.max(.03,.12-i*.014),i%2?'#ffd568':'#fff3b0'));
-  // вспышка удара / каста
+  st.trail.forEach((tp,i)=>G(S,tp,Math.max(.03,.13-i*.016),i%2?C.GOLD:C.GOLD_HI));
+
+  /* --- вспышка удара / каста --- */
   if(st.burst>.04){
-    const [bx,,bz]=basisY(st.d,[1,0,0]), b=st.burst;
-    G(S,hd,.07+.12*b,'#fff3b0');
-    for(let i=0;i<6;i++){ const a=i/6*Math.PI*2+.4; const v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
-      S.cone(add(hd,mul(v,.12)),add(hd,mul(v,.2+.42*b)),.035,'#ffd568',{glow:1,seg:5}); }
+    const [bx,by,bz]=basisY(st.d,[1,0,0]), b=st.burst;
+    G(S,hd,.08+.13*b,'#fff3b0');
+    for(let i=0;i<8;i++){ const a=i/8*TAU+.4; const v=add(mul(bx,Math.cos(a)),mul(bz,Math.sin(a)));
+      S.cone(add(hd,mul(v,.12)),add(hd,mul(v,.2+.5*b*(i%2?.7:1))),.035,i%2?C.GOLD:C.GOLD_HI,{glow:1,seg:5});
+      if(i%2===0) G(S,add(hd,mul(v,.34+.5*b)),.03+.02*b,'#fffbe0'); }
+    chipStar(S,hd,.3,b);
   }
-  // луч приказа
-  if(st.beam>.05) for(let i=1;i<=6;i++){ const q=add(hd,mul(st.d,.15+i*.28*st.beam+.1)); if(Math.hypot(q[0],q[2])>2.15) break; G(S,q,.05+.05*st.beam*(1-i/8),'#fff0a8'); }
-  // монета
-  if(st.coin){ const c=st.coin; if(c.size>.05) S.ell(c.pos,[.2*c.size,.05*c.size,.2*c.size],'#ffd568',{glow:1,rings:5,seg:10,rot:[c.spin,0,.3]}); }
-  // золотые монеты вокруг (ускоряются при W/R)
-  for(let i=0;i<6;i++){ const a=t*1.4+i*1.047+st.spin; S.ell([Math.cos(a)*1.15,1.2+Math.sin(t*2+i)*.2+.15*(st.orbit-1)/3,Math.sin(a)*1.15],[.13*(1+.4*(st.orbit-1)/3),.03,.13*(1+.4*(st.orbit-1)/3)],'#ffd568',{glow:1,rings:4,seg:8,rot:[.5,a,0]}); }
-  // эффекты на полу (рисуются под моделью)
-  if(st.rings.length||st.spikes>.02){
-    const kk=S.sc, tg=S.target; S.target=S.pre; S.sc=1;
-    for(const r of st.rings) S.ring([0,.012,0],r.r,r.w,'#ffd568',{glow:1,n:36});
-    if(st.spikes>.02) for(let i=0;i<10;i++){ const a=i/10*Math.PI*2+.3, hh=.15+.85*st.spikes*(.7+.3*Math.sin(i*2.3));
+  /* --- луч приказа с летящими монетками --- */
+  if(st.beam>.05) for(let i=1;i<=7;i++){ const q=add(hd,mul(st.d,.15+i*.27*st.beam+.1)); if(Math.hypot(q[0],q[2])>2.2) break;
+    G(S,q,.05+.05*st.beam*(1-i/9),i%2?'#fff0a8':'#ffd568');
+    if(i%2) S.ell(add(q,[0,.09*Math.sin(t*9+i),0]),[.07,.018,.07],C.GOLD,{rings:3,seg:8,shine:.9,rot:[t*8+i,0,.4]}); }
+  /* --- подброшенная монета (Монета судьбы) --- */
+  if(st.coin){ const c=st.coin; if(c.size>.05){
+    S.ell(c.pos,[.21*c.size,.05*c.size,.21*c.size],C.GOLD,{rings:5,seg:14,shine:.95,rot:[c.spin,0,.3]});
+    S.ell(c.pos,[.14*c.size,.056*c.size,.14*c.size],C.GOLD_DK,{rings:4,seg:12,shine:.8,rot:[c.spin,0,.3]});
+    chipStar(S,add(c.pos,[0,.06,.12]),.16*c.size,.5+.5*Math.sin(c.spin*.5)); } }
+
+  /* --- золотые монеты-спутники: объёмные, с чеканкой и хвостиком искр (ускоряются при W/R) --- */
+  const oq=(st.orbit-1)/3;
+  for(let i=0;i<6;i++){
+    const a=t*1.4+i*1.047+st.spin, rad=1.15, yy=1.2+Math.sin(t*2+i)*.2+.15*oq, k=1+.4*oq;
+    const pos=[Math.cos(a)*rad,yy,Math.sin(a)*rad], rot=[.5,a,0];
+    S.ell(pos,[.14*k,.03,.14*k],C.GOLD,{rings:4,seg:12,shine:.9,rot});
+    S.ell(pos,[.1*k,.036,.1*k],C.GOLD_DK,{rings:3,seg:10,shine:.75,rot});
+    S.ell(pos,[.045*k,.04,.045*k],C.GOLD_HI,{rings:3,seg:8,shine:.95,rot});
+    for(let j=1;j<=2;j++){ const b=a-j*.2; G(S,[Math.cos(b)*rad,yy+.015*j,Math.sin(b)*rad],.034-.009*j,j===1?'#ffe9a0':'#ffd568'); }
+  }
+  /* --- золотая пыль, поднимающаяся вокруг короля, и мерцающие блики --- */
+  for(let i=0;i<10;i++){ const ph=(t*.3+i/10)%1, a=t*.7+i*2.4, r=.75+.25*Math.sin(i*1.7);
+    G(S,[Math.cos(a)*r,.2+ph*2.9,Math.sin(a)*r],.04*(1-ph*.65),i%3?C.GOLD:C.GOLD_HI); }
+  for(let i=0;i<4;i++){ const a=i*1.57+.5;
+    chipStar(S,[Math.cos(a)*.62,1.0+.9*Math.abs(Math.sin(i*1.9)),Math.sin(a)*.62+.06],.12,Math.pow(Math.max(0,Math.sin(t*1.9+i*2.2)),8)); }
+
+  /* --- эффекты на полу (рисуются под моделью): золотой круг с рунами, кольца и шипы способностей --- */
+  const kk=S.sc, tg=S.target; S.target=S.pre; S.sc=1;
+  S.ring([0,.01,0],1.22,.012,C.GOLD,{glow:1,n:48});
+  S.ring([0,.012,0],.88,.01,C.GOLD_DK,{glow:1,n:36});
+  for(let i=0;i<12;i++){ const a=t*.35+i*TAU/12;
+    S.box([Math.cos(a)*1.05,.012,Math.sin(a)*1.05],[.11,.01,.045],i%2?C.GOLD_HI:C.GOLD,{glow:1,rot:[0,-a,0]}); }
+  for(let i=0;i<6;i++){ const a=-t*.5+i*TAU/6;
+    S.box([Math.cos(a)*.7,.012,Math.sin(a)*.7],[.07,.01,.07],C.GOLD,{glow:1,rot:[0,-a+.785,0]}); }
+  for(const r of st.rings) S.ring([0,.016,0],r.r,r.w,C.GOLD,{glow:1,n:36});
+  if(st.spikes>.02){
+    for(let i=0;i<10;i++){ const a=i/10*TAU+.3, hh=.15+.85*st.spikes*(.7+.3*Math.sin(i*2.3));
       S.cone([Math.cos(a)*.95,0,Math.sin(a)*.95],[Math.cos(a)*.95,hh,Math.sin(a)*.95],.07,'#fff0a8',{glow:1,seg:5}); }
-    S.sc=kk; S.target=tg;
+    for(let i=0;i<10;i++){ const a=i/10*TAU+.3+TAU/20, hh=.1+.55*st.spikes*(.7+.3*Math.sin(i*1.7));
+      S.cone([Math.cos(a)*1.2,0,Math.sin(a)*1.2],[Math.cos(a)*1.2,hh,Math.sin(a)*1.2],.05,C.GOLD,{glow:1,seg:5}); }
   }
+  S.sc=kk; S.target=tg;
 };
 
 /* ---------- Общая система поз бойцов (атака / касты / витринный цикл) ----------
