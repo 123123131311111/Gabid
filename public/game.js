@@ -560,8 +560,8 @@ function updateIdleVoice(){
   if(gameTime - Math.max(lastFightTime, lastIdleVoiceTime) < IDLE_VOICE_SECONDS) return;
   lastIdleVoiceTime = gameTime;
   if(playerIsGolly() && !playerHero.dead) playGollyVoice('idle');
-  if(!heroes.some(h => h && h.def && h.def.id === 'grisha')) return;   // Гриша должен быть в матче
-  playKillSfx('grisha');
+  if(!heroes.some(h => isGrishaHero(h) && !h.dead)) return;   // Гриша должен быть в матче и жив
+  playGrishaVoice('idle');
 }
 let visionTimer = 0;
 let gameState = 'menu';
@@ -759,6 +759,7 @@ const CHANGELOG = (() => {
     'Новый предмет «Торированная бошка» (1660 монет): бросается в ближайшего врага (сначала в бойцов), оглушает его на 4 сек. и наносит 225 урона каждую секунду оглушения. Дальность 700, КД 20 сек.',
     'Новый предмет «Киска дианы» (2200 монет): пассивный круг радиусом 380 вокруг героя — враги внутри наносят на 9% меньше урона. Активный: на 5 сек. враги в круге получают по 100 урона в секунду. КД 30 сек.',
     'В магазине скинов появились два новых бесплатных скина для любого героя: «Золотой Чемпион» и «Фантом Пустоты». Скины видны в бою, в меню и на портретах и не меняют характеристики.',
+    'Новый предмет «Рефрешер орб» (5000 монет): пассивно +20 к восстановлению здоровья и +9 к восстановлению маны в секунду. Активный: мгновенно перезаряжает все способности, ультимейт и все предметы. Тратит 350 маны, КД 80 сек.',
     'Магазин и инвентарь скинов переделаны в список карточек: можно получить несколько скинов и выбрать, какой надет.'
   ]},
   {version:'0.8.9', title:'РОШАН', changes:[
@@ -1059,6 +1060,13 @@ SHOP_ITEMS.dianaKitty = {
   auraRadius:380, damageReduction:0.09, activeDuration:5, cooldown:30, burstDamage:100, tickInterval:1
 };
 SHOP_ITEM_IDS.push('valakinsens','thoredHead','dianaKitty');
+/* Рефрешер орб: сбрасывает перезарядку всех способностей, ульты и предметов. Цена ровно 5000 (добавлен после множителя 0.93). */
+SHOP_ITEMS.refresherOrb = {
+  name:'Рефрешер орб', icon:'✺', cost:5000, color:'#7fe9ff', active:true,
+  desc:'Пассивно: +20 к восстановлению здоровья в секунду и +9 к восстановлению маны в секунду. Активный: мгновенно перезаряжает абсолютно все способности, ультимейт и все остальные предметы. Тратит 350 маны. КД 80 сек.',
+  hpRegen:20, mpRegen:9, manaCost:350, cooldown:80
+};
+SHOP_ITEM_IDS.push('refresherOrb');
 const SHOP_ITEM_VIEWS = SHOP_ITEM_IDS.map(id => ({...SHOP_ITEMS[id], id}));
 
 /* Общие помощники для новых предметов. */
@@ -1708,6 +1716,7 @@ function playGollyVoice(kind){
 }
 function resetGollyVoiceState(){
   resetChipVoiceState();
+  resetGrishaVoiceState();
   gollyMoveClicks = 0; gollyMoveFirstDone = false; gollyDmgWindow = {t:0, sum:0};
   for(const k in gollyVoiceLastAt) delete gollyVoiceLastAt[k];
   if(gollyVoiceCurrent){ try { gollyVoiceCurrent.pause(); } catch(err) {} }
@@ -1762,6 +1771,169 @@ function playChipVoice(kind){
 function resetChipVoiceState(){
   if(chipVoiceCurrent){ try { chipVoiceCurrent.pause(); } catch(err) {} }
   chipVoiceCurrent = null; chipVoiceCurrentKind = null;
+}
+/* ===== Голос бойца Гриши (звучит у любого Гриши в матче, слышат все) ===== */
+const GRISHA_VOICE_SRC = {
+  death:'./sounds/grisha-death.mp3',         // 1: Гриша умирает
+  stolen:'./sounds/grisha-stolen.mp3',       // 2: у Гриши украли килл
+  saved:'./sounds/grisha-saved.mp3',         // 3: Гришу кто-то спас / помог
+  idle:'./sounds/grisha-idle.mp3',           // 4: нет файтов — устал
+  needHelp:'./sounds/grisha-needhelp.mp3',   // 5: Грише нужна помощь
+  deathRare:'./sounds/grisha-deathrare.mp3', // 6: смерть, редкий вариант (30%)
+  ilya:'./sounds/grisha-ilya.mp3',           // 7: Гриша убил Илью / Илья убил Гришу (секретная)
+  firstStep:'./sounds/grisha-firststep.mp3', // 8: первый шаг со спавна (старт катки и после возрождения)
+  buySteel:'./sounds/grisha-buysteel.mp3',   // 9: купил Мантированную сталь
+  rampage:'./sounds/grisha-rampage.mp3',     // 10: после Rampage
+  mobbed:'./sounds/grisha-mobbed.mp3',       // 11: бьют толпой
+  flee:'./sounds/grisha-flee.mp3'            // 12: убегает, за ним гонятся
+  /* «украл/добил килл» — старая фраза grisha-kill.mp3, играется через playKillSfx('grisha') */
+};
+const GRISHA_VOICE_PRIORITY = {idle:1, firstStep:2, flee:2, buySteel:3, needHelp:3, mobbed:4, stolen:5, saved:5, rampage:6, death:8, deathRare:8, ilya:9};
+const GRISHA_VOICE_COOLDOWN = {idle:0, firstStep:0, buySteel:0, rampage:15, death:0, deathRare:0, ilya:0, stolen:10, saved:20, needHelp:30, mobbed:25, flee:30};
+const GRISHA_DEATH_RARE_CHANCE = 0.30;
+const grishaVoiceCache = {}, grishaVoiceLastAt = {};
+let grishaVoiceCurrent = null, grishaVoiceCurrentKind = null;
+let grishaFirstStep = {anchor:null, pending:false, wasDead:false};
+const nowSec = () => performance.now() / 1000;
+function isGrishaHero(h){ return !!(h && h.type === 'hero' && h.def && h.def.id === 'grisha'); }
+function playGrishaVoice(kind){
+  if(!ANNOUNCER.enabled || !GRISHA_VOICE_SRC[kind] || gameState !== 'playing') return;
+  const now = performance.now();
+  if(now - (grishaVoiceLastAt[kind] || -1e9) < (GRISHA_VOICE_COOLDOWN[kind] || 0) * 1000) return;
+  const cur = grishaVoiceCurrent;
+  if(cur && !cur.ended && !cur.paused){
+    // новая реплика перебивает старую только если она важнее или такой же важности
+    if((GRISHA_VOICE_PRIORITY[kind] || 1) < (GRISHA_VOICE_PRIORITY[grishaVoiceCurrentKind] || 1)) return;
+    try { cur.pause(); } catch(err) {}
+  }
+  try {
+    const a = (grishaVoiceCache[kind] ||= new Audio(GRISHA_VOICE_SRC[kind])).cloneNode(true);
+    a.volume = 1;
+    grishaVoiceCurrent = a; grishaVoiceCurrentKind = kind; grishaVoiceLastAt[kind] = now;
+    const pr = a.play();
+    if(pr && pr.catch) pr.catch(() => {});
+  } catch(err) {}
+}
+function resetGrishaVoiceState(){
+  for(const k in grishaVoiceLastAt) delete grishaVoiceLastAt[k];
+  if(grishaVoiceCurrent){ try { grishaVoiceCurrent.pause(); } catch(err) {} }
+  grishaVoiceCurrent = null; grishaVoiceCurrentKind = null;
+  grishaFirstStep = {anchor:null, pending:false, wasDead:false};
+}
+function grishaState(h){ return h._gv ||= {attackers:[], dangerT:-1e9, fleeT:0, px:h.x, py:h.y}; }
+function heroKillerOf(source){
+  return source && source.coins !== undefined ? source
+    : (source && source.source && source.source.coins !== undefined ? source.source : null);
+}
+/* Смерть Гриши: Илья убил — секретная фраза, иначе обычная, а с шансом 30% — редкая */
+function grishaOnDeath(u, source){
+  if(!isGrishaHero(u)) return;
+  const killer = heroKillerOf(source);
+  if(killer && killer.def && killer.def.id === 'ilya') playGrishaVoice('ilya');
+  else playGrishaVoice(Math.random() < GRISHA_DEATH_RARE_CHANCE ? 'deathRare' : 'death');
+}
+/* Убит герой: Гриша добил/украл килл, у Гриши украли килл, Гришу спасли убийством */
+function grishaOnHeroKill(killer, victim){
+  if(!killer || !victim) return;
+  const contrib = victim.damageContributors || new Map();
+  const maxHp = victim.maxHp || 1;
+  if(isGrishaHero(killer)){
+    if(victim.def && victim.def.id === 'ilya'){ playGrishaVoice('ilya'); return; }   // секретная фраза
+    let own = 0, others = 0;
+    for(const [h, d] of contrib){ if(h === killer) own = d; else if(h.team === killer.team) others += d; }
+    const lowHp = (victim._hpBeforeHit !== undefined) && victim._hpBeforeHit <= maxHp * 0.3;
+    const stole = (others >= maxHp * 0.3 && (others > own || lowHp)) || (lowHp && own < maxHp * 0.5);
+    if(stole) playKillSfx('grisha');
+    return;
+  }
+  const killerDmg = contrib.get(killer) || 0;
+  for(const g of heroes){
+    if(!isGrishaHero(g) || g.team !== killer.team) continue;
+    const d = contrib.get(g) || 0;
+    if(d >= maxHp * 0.3 && d > killerDmg){ playGrishaVoice('stolen'); return; }
+  }
+  const now = nowSec();
+  for(const g of heroes){
+    if(!isGrishaHero(g) || g.dead || g.team !== killer.team || !g._gv) continue;
+    if(now - g._gv.dangerT < 6 && g._gv.attackers.some(a => a.src === victim)){ playGrishaVoice('saved'); return; }
+  }
+}
+/* Гриша получает урон: запоминаем, кто бьёт (для «толпы», «спасли» и «нужна помощь») */
+function grishaOnDamaged(target, sourceHero, source, dmg){
+  if(!isGrishaHero(target) || target.dead) return;
+  const src = sourceHero || (source && source.source) || source;
+  if(!src || src.team === undefined || src.team === target.team) return;
+  const gv = grishaState(target), now = nowSec();
+  gv.attackers.push({src, t:now, d:dmg});
+  gv.attackers = gv.attackers.filter(a => now - a.t < 6);
+  if(src.type === 'hero' && target.hp <= target.maxHp * 0.35) gv.dangerT = now;
+  const win = gv.attackers.filter(a => now - a.t < 2.5);
+  const distinct = new Set(win.map(a => a.src));
+  const heroCount = [...distinct].filter(s => s.type === 'hero').length;
+  const sum = win.reduce((t, a) => t + a.d, 0);
+  if((heroCount >= 2 || distinct.size >= 4) && sum >= target.maxHp * 0.25) playGrishaVoice('mobbed');
+}
+function grishaOnAllyHealed(ally){
+  if(!isGrishaHero(ally) || !ally._gv) return;
+  if(nowSec() - ally._gv.dangerT < 5) playGrishaVoice('saved');
+}
+function grishaOnBuyItem(hero, id){
+  if(isGrishaHero(hero) && id === 'mantledSteel') playGrishaVoice('buySteel');
+}
+function grishaOnRampage(hero, multi){
+  if(!isGrishaHero(hero) || multi < 4) return;
+  // после голоса диктора «Rampage»
+  setTimeout(() => playGrishaVoice('rampage'), 2400);
+}
+/* Каждый кадр: первый шаг, «нужна помощь», «убегаю» */
+function updateGrishaVoice(dt){
+  if(gameState !== 'playing' || !(dt > 0)) return;
+  const now = nowSec();
+  // скорость всех героев (для определения погони)
+  for(const h of heroes){
+    if(!h) continue;
+    const gv = grishaState(h);
+    h._gvx = (h.x - gv.px) / dt; h._gvy = (h.y - gv.py) / dt;
+    gv.px = h.x; gv.py = h.y;
+  }
+  // 8: первый шаг игрока-Гриши со спавна (старт катки и после возрождения)
+  const p = playerHero;
+  if(isGrishaHero(p)){
+    const st = grishaFirstStep;
+    if(p.dead) st.wasDead = true;
+    else {
+      if(st.wasDead || !st.anchor){ st.wasDead = false; st.pending = true; st.anchor = {x:p.x, y:p.y}; }
+      else if(st.pending && Math.hypot(p.x - st.anchor.x, p.y - st.anchor.y) > 50){
+        st.pending = false;
+        playGrishaVoice('firstStep');
+      }
+    }
+  }
+  for(const g of heroes){
+    if(!isGrishaHero(g) || g.dead) continue;
+    const gv = grishaState(g);
+    // 5: нужна помощь — мало HP, недавно били, рядом нет союзников-героев
+    if(g.hp <= g.maxHp * 0.35 && now - gv.dangerT < 3){
+      const hasAlly = heroes.some(a => a && a !== g && !a.dead && a.team === g.team && Math.hypot(a.x - g.x, a.y - g.y) < 900);
+      if(!hasAlly) playGrishaVoice('needHelp');
+    }
+    // 12: убегает — движется от врага-героя, который гонится за ним
+    const gs = Math.hypot(g._gvx || 0, g._gvy || 0);
+    let fleeing = false;
+    if(gs > 40 && gs < 1500 && (g.hp <= g.maxHp * 0.7 || now - gv.dangerT < 5)){
+      for(const e of heroes){
+        if(!e || e.dead || e.team === g.team) continue;
+        const dx = e.x - g.x, dy = e.y - g.y, dist = Math.hypot(dx, dy);
+        if(dist > 650 || dist < 1) continue;
+        const away = (g._gvx * dx + g._gvy * dy) < 0;                 // Гриша движется от врага
+        const es = Math.hypot(e._gvx || 0, e._gvy || 0);
+        const chasing = e.attackTarget === g || (es > 40 && es < 1500 && ((e._gvx || 0) * -dx + (e._gvy || 0) * -dy) > 0);
+        if(away && chasing){ fleeing = true; break; }
+      }
+    }
+    gv.fleeT = fleeing ? gv.fleeT + dt : 0;
+    if(gv.fleeT >= 1.2){ gv.fleeT = 0; playGrishaVoice('flee'); }
+  }
 }
 function playRampageVoice(){ playKillSfx('rampage'); }
 function playRampageSynth(){
@@ -2505,6 +2677,7 @@ function applyDamage(target, amount, source){
   if(sourceHero && sourceHero.team !== target.team && sourceHero.inventory && sourceHero.inventory.some(i => i && i.id === 'satanic') && source && source.attack){
     sourceHero.hp = Math.min(sourceHero.maxHp, sourceHero.hp + dmg * SHOP_ITEMS.satanic.lifesteal);
   }
+  target._hpBeforeHit = target.hp;
   target.hp -= dmg;
   if(source && source.attack && sourceHero && sourceHero.def && sourceHero.def.id === 'yosyp' && target.buffs){
     const passive = sourceHero.skills.find(skill => skill.id === 'yosypBlowback');
@@ -2520,6 +2693,7 @@ function applyDamage(target, amount, source){
   addText(target.x + rnd(-12,12), target.y - target.radius - 6,
           Math.round(dmg), target.type==='hero' ? '#ff5555' : '#ffd24a', 0.8, 15);
   if(target.hp > 0) gollyOnDamaged(target, dmg, source);
+  if(target.type === 'hero') grishaOnDamaged(target, sourceHero, source, dmg);
   if(target.hp <= 0) killUnit(target, source);
 }
 
@@ -2566,6 +2740,7 @@ function killUnit(u, source){
   u.dead = true; u.hp = 0;
   if(u.ballState) u.ballState = null;
   if(u === playerHero && playerIsChip()) playChipVoice('death');
+  grishaOnDeath(u, source);
   if(u === playerHero && playerIsGolly()){
     const killerType = source && (source.type || (source.source && source.source.type));
     const byStructureOrCreep = killerType === 'tower' || killerType === 'barracks' || killerType === 'creep' || killerType === 'neutral';
@@ -2638,7 +2813,8 @@ function killUnit(u, source){
       }
     }
     /* Фраза Гриши после убийства героя — слышат ВСЕ игроки (играется после голоса диктора) */
-    if(rewardHero.def && rewardHero.def.id === 'grisha') playKillSfx('grisha');
+    grishaOnHeroKill(rewardHero, u);                 // добил/украл килл, украли у Гриши, спасли, Илья
+    grishaOnRampage(rewardHero, multi);              // фраза после Rampage
     if(rewardHero === playerHero && playerIsChip()) playChipVoice('kill');
     if(rewardHero === playerHero && playerIsGolly()){
       /* Кража килла: добивал Голли, а основной урон по цели нанёс кто-то другой из его команды */
@@ -3216,6 +3392,7 @@ function spawnHealingWard(hero, level){
       if(Math.hypot(ally.x-this.x, ally.y-this.y) <= 250){
         const heal = ally.maxHp * (0.025 + level * 0.004);
         ally.hp = Math.min(ally.maxHp, ally.hp + heal);
+        grishaOnAllyHealed(ally);
         addText(ally.x, ally.y - 52, '+' + Math.round(heal), '#8dff9d', 0.55, 13);
         spawnParticles(ally.x, ally.y, '#8dff9d', 4, 0.28);
       }
@@ -3377,6 +3554,21 @@ function performInventoryItemActivation(hero, index){
     addText(hero.x, hero.y - 56, 'КИСКА ДИАНЫ', '#ff8fcf', 1.1, 16);
     fxRing(hero.x, hero.y, cfg.auraRadius, '#ff8fcf', 0.7);
     fxRing(hero.x, hero.y, cfg.auraRadius * 0.6, '#ffd0ec', 0.5);
+    return true;
+  }
+  if(item.id === 'refresherOrb'){
+    const cfg = SHOP_ITEMS.refresherOrb;
+    if(item.cooldown > 0){ flashMsg(hero, 'Рефрешер орб на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+    for(const s of hero.skills) if(s) s.cd = 0;
+    if(hero.spellCooldowns) for(const key of Object.keys(hero.spellCooldowns)) hero.spellCooldowns[key] = 0;
+    for(const other of hero.inventory){ if(other && other !== item) other.cooldown = 0; }
+    if(hero.shrapnelMaxCharges){ hero.shrapnelCharges = hero.shrapnelMaxCharges; hero.shrapnelRechargeTimers = []; }
+    item.cooldown = cfg.cooldown;
+    addText(hero.x, hero.y - 56, 'РЕФРЕШЕР: ВСЁ ПЕРЕЗАРЯЖЕНО!', '#7fe9ff', 1.3, 17);
+    fxRing(hero.x, hero.y, 150, '#7fe9ff', 0.7);
+    fxRing(hero.x, hero.y, 90, '#e6fbff', 0.5);
+    fxRing(hero.x, hero.y, 40, '#c59cff', 0.35);
+    spawnParticles(hero.x, hero.y, '#9ff3ff', 26, 1.2);
     return true;
   }
   if(item.id === 'windWaker'){
@@ -3679,6 +3871,7 @@ function buyShopItem(id){
   applyItemStats(playerHero, id);
   playAbilitySound('purchase');
   addText(playerHero.x, playerHero.y - 70, item.name + ' куплен', item.color, 1.2, 15);
+  grishaOnBuyItem(playerHero, id);
   return true;
 }
 
@@ -4255,6 +4448,7 @@ const GUIDE_ITEM_WHY = {
   "valakinsens": "+15 к регенерации HP; актив: +50% сопротивления и +100 скорости на 3 сек.",
   "thoredHead": "Бросается в ближайшего врага: стан 4 сек. и 225 урона каждую секунду.",
   "dianaKitty": "Круг -9% урона врагов вокруг героя; актив: 100 урона/сек. в круге 5 сек.",
+  "refresherOrb": "Актив: сбрасывает КД всех способностей, ульты и предметов. +20 HP/сек. и +9 маны/сек.",
   "manaHooves": "+800 маны — для тех, кто живёт на способностях.",
   "manaTome": "+10% к восстановлению маны — дёшево и полезно в начале.",
   "blink": "Блинк: рывок на 500 — войти в драку или сбежать.",
@@ -4296,6 +4490,7 @@ function botBuyItemById(hero, id){
   hero.coins -= item.cost;
   hero.inventory[slot] = createInventoryItem(id);
   applyItemStats(hero, id);
+  grishaOnBuyItem(hero, id);
   return true;
 }
 
@@ -8144,11 +8339,13 @@ class Hero extends Unit {
       this.timurPillow = Math.max(0, this.timurPillow - dt);
     }
     const manaBoost = this.inventory.some(i => i && i.id === 'manaTome') ? 1.10 : 1;
-    this.mp = Math.min(this.maxMp, this.mp + this.mpRegen * manaBoost * dt);
+    const refresherMp = heroHasItem(this,'refresherOrb') ? SHOP_ITEMS.refresherOrb.mpRegen : 0;
+    this.mp = Math.min(this.maxMp, this.mp + (this.mpRegen + refresherMp) * manaBoost * dt);
 
     let regen = this.hpRegen;
     for(const b of this.buffs) if(b.type === 'hpregen') regen += b.val;
     if(heroHasItem(this,'valakinsens')) regen += SHOP_ITEMS.valakinsens.hpRegen;
+    if(heroHasItem(this,'refresherOrb')) regen += SHOP_ITEMS.refresherOrb.hpRegen;
     if(this.buffs.some(b=>b.type==='regen')) regen += this.maxHp*0.04;
     this.hp = Math.min(this.maxHp, this.hp + regen*dt*healAmpOf(this));
 
@@ -9542,6 +9739,7 @@ function update(dt){
   if(!pre) updateBotScenarios(dt);
   updateBotChatReplies();
   updateIdleVoice();
+  updateGrishaVoice(dt);
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
   if(rampageBanner.t > 0) rampageBanner.t = Math.max(0, rampageBanner.t - dt);
   if(gameTime > 0 && Math.floor(gameTime/120) !== Math.floor((gameTime-dt)/120)) spawnRunes();
@@ -14938,6 +15136,64 @@ function drawItemIcon(item, x, y, size){
     ctx.fillStyle='#fff27a'; ctx.strokeStyle='#b88a00'; ctx.lineWidth=Math.max(1,size*.025);
     ctx.beginPath(); ctx.moveTo(size*.04,-size*.16); ctx.lineTo(-size*.1,size*.1); ctx.lineTo(-size*.01,size*.1); ctx.lineTo(-size*.06,size*.36); ctx.lineTo(size*.12,size*.04); ctx.lineTo(size*.03,size*.04); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
+  } else if(item.id === 'refresherOrb'){
+    /* Уникальная текстура: стеклянный шар с вихрем, вращающимися рунами-стрелками и искрами */
+    const tt = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    ctx.save();
+    ctx.shadowColor='#7fe9ff'; ctx.shadowBlur=18;
+    const R0=size*.4;
+    const body=ctx.createRadialGradient(-R0*.35,-R0*.4,R0*.05,0,0,R0);
+    body.addColorStop(0,'#f2feff'); body.addColorStop(.28,'#7fe9ff'); body.addColorStop(.62,'#3a6fe0'); body.addColorStop(1,'#1a0f55');
+    ctx.fillStyle=body; ctx.beginPath(); ctx.arc(0,0,R0,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.save(); ctx.beginPath(); ctx.arc(0,0,R0,0,Math.PI*2); ctx.clip();
+    /* туманность внутри шара */
+    ctx.globalCompositeOperation='lighter';
+    for(let k=0;k<3;k++){
+      const a=tt*(.5+k*.2)+k*2.1, cx=Math.cos(a)*R0*.38, cy=Math.sin(a*1.3)*R0*.34;
+      const ng=ctx.createRadialGradient(cx,cy,0,cx,cy,R0*.6);
+      ng.addColorStop(0,k===1?'rgba(200,140,255,.55)':'rgba(120,235,255,.5)'); ng.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=ng; ctx.fillRect(-R0,-R0,R0*2,R0*2);
+    }
+    /* спиральный вихрь */
+    ctx.lineCap='round';
+    for(let arm=0;arm<3;arm++){
+      ctx.strokeStyle='rgba(230,251,255,'+(.55-arm*.1)+')'; ctx.lineWidth=Math.max(1,size*.028);
+      ctx.beginPath();
+      for(let s=0;s<=26;s++){
+        const f=s/26, ang=tt*1.4+arm*Math.PI*2/3+f*4.6, rr=R0*.9*f;
+        const px=Math.cos(ang)*rr, py=Math.sin(ang)*rr;
+        if(s===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+    }
+    /* мелкие звёзды-зёрна */
+    ctx.fillStyle='#ffffff';
+    for(let s=0;s<14;s++){
+      const a=s*2.399+tt*.2, rr=R0*(.2+((s*37)%10)/13);
+      const tw=.4+.6*Math.abs(Math.sin(tt*2+s));
+      ctx.globalAlpha=tw; ctx.beginPath(); ctx.arc(Math.cos(a)*rr,Math.sin(a)*rr,Math.max(.6,size*.012+(s%3)*size*.004),0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+    /* золотое кольцо с круговыми стрелками (символ перезарядки) */
+    ctx.globalAlpha=1;
+    ctx.save(); ctx.rotate(tt*.6);
+    ctx.strokeStyle='#ffe28a'; ctx.fillStyle='#ffe28a'; ctx.lineWidth=Math.max(2,size*.055); ctx.lineCap='round';
+    ctx.shadowColor='#ffcf4d'; ctx.shadowBlur=8;
+    for(const d of [0,Math.PI]){
+      ctx.beginPath(); ctx.arc(0,0,R0*1.04,d+.25,d+Math.PI-.55); ctx.stroke();
+      const ea=d+Math.PI-.55, ex=Math.cos(ea)*R0*1.04, ey=Math.sin(ea)*R0*1.04;
+      ctx.save(); ctx.translate(ex,ey); ctx.rotate(ea+Math.PI/2);
+      ctx.beginPath(); ctx.moveTo(0,-size*.075); ctx.lineTo(size*.07,size*.04); ctx.lineTo(-size*.07,size*.04); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+    /* стеклянный блик */
+    ctx.fillStyle='rgba(255,255,255,.75)';
+    ctx.beginPath(); ctx.ellipse(-R0*.38,-R0*.45,R0*.26,R0*.12,-.6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=Math.max(1,size*.025);
+    ctx.beginPath(); ctx.arc(0,0,R0,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
   } else if(item.id === 'dianaKitty'){
     ctx.save();
     ctx.shadowColor='#ff8fcf'; ctx.shadowBlur=12;
@@ -18535,9 +18791,9 @@ function dsBuildWarrior(w,h,part){
   g.restore();
   return cv;
 }
-const dsSpin={key:'',frames:[],N:32};
+const dsSpin={key:'',frames:[],N:48,phase:0,last:0};
 function dsSpinFrame(def,i){
-  const w=560,h=700;
+  const w=480,h=600;
   try{
     const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
     Hero3D.draw(cv.getContext('2d'),def,0,0,w,h,{yaw:-0.42+i/dsSpin.N*Math.PI*2,pitch:.2,zoom:1,t:.3,ss:1.5});
@@ -18560,7 +18816,7 @@ function dsDrawHeroCard(card,def,now){
     ctx.restore(); return;
   }
   const key=def.id+'|'+(def.skinId||'');
-  if(dsSpin.key!==key){ dsSpin.key=key; dsSpin.frames=new Array(dsSpin.N).fill(null); }
+  if(dsSpin.key!==key){ dsSpin.key=key; dsSpin.frames=new Array(dsSpin.N).fill(null); dsSpin.phase=0; dsSpin.last=now; }
   const H=Math.min(card.h*1.04,card.w*1.1/0.8), Wd=H*0.8, cx=card.x+card.w/2, gy=card.y+card.h*0.95;
   ctx.globalCompositeOperation='lighter';
   const aura=ctx.createRadialGradient(cx,gy-H*.5,6,cx,gy-H*.5,H*.8);
@@ -18569,10 +18825,19 @@ function dsDrawHeroCard(card,def,now){
   ctx.strokeStyle=hexRgba(c1,.8); ctx.lineWidth=2; ctx.setLineDash([10,14]); ctx.lineDashOffset=-now*30;
   ctx.beginPath(); ctx.ellipse(cx,gy,Wd*.46,Wd*.13,0,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
   ctx.globalCompositeOperation='source-over';
-  const N=dsSpin.N, idx=Math.floor(((now*0.12)%1)*N)%N;
-  let made=0; for(let k=0;k<N&&made<2;k++){ const j=(idx+k)%N; if(!dsSpin.frames[j]){ dsSpin.frames[j]=dsSpinFrame(def,j)||false; made++; } }
-  let fr=null; for(let k=0;k<N;k++){ const f=dsSpin.frames[(idx-k+N)%N]; if(f){ fr=f; break; } }
-  if(fr) ctx.drawImage(fr,cx-Wd/2,gy-H*.93+Math.sin(now*1.4)*card.h*.006,Wd,H);
+  /* Плавное вращение: 48 кадров + перетекание соседних кадров; крутится только когда все кадры готовы */
+  const N=dsSpin.N;
+  let missing=0; for(let j=0;j<N;j++) if(dsSpin.frames[j]===null) missing++;
+  if(missing){ for(let j=0;j<N;j++){ if(dsSpin.frames[j]===null){ dsSpin.frames[j]=dsSpinFrame(def,j)||false; break; } } }
+  const dtS=Math.min(0.1,Math.max(0,now-dsSpin.last)); dsSpin.last=now;
+  if(!missing) dsSpin.phase=(dsSpin.phase+dtS*0.09)%1;
+  const pos=dsSpin.phase*N, i0=Math.floor(pos)%N, blend=pos-Math.floor(pos), i1=(i0+1)%N;
+  let f0=dsSpin.frames[i0]||null; if(!f0){ for(let j=0;j<N;j++){ if(dsSpin.frames[j]){ f0=dsSpin.frames[j]; break; } } }
+  const f1=missing?null:dsSpin.frames[i1];
+  const fy=gy-H*.93+Math.sin(now*1.4)*card.h*.006;
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  if(f0) ctx.drawImage(f0,cx-Wd/2,fy,Wd,H);
+  if(f1&&f1!==f0&&blend>0.001){ ctx.globalAlpha=blend; ctx.drawImage(f1,cx-Wd/2,fy,Wd,H); ctx.globalAlpha=1; }
   ctx.globalCompositeOperation='lighter';
   for(let i=0;i<22;i++){
     const ph=(now*(.08+dsHash(i)*.08)+dsHash(i+2))%1, ang=i*2.4+now*.5;
@@ -18854,6 +19119,7 @@ function drawDotaSenseHome(){
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
     {tag:'0.9.0',title:'Новые скины в магазине',art:'hero',hero:'Шадоу',action:'store',kind:'магазин'},
+    {tag:'0.9.0',title:'Рефрешер орб: новый предмет',art:'item',itemId:'refresherOrb',action:'store',kind:'магазин'},
     {tag:'0.9.0',title:'Киска дианы: новый предмет',art:'item',itemId:'dianaKitty',action:'store',kind:'магазин'},
     {tag:'ФРАЗА',title:'Лопата челлендж',art:'shovel',action:'store',kind:'новая фраза'},
     {tag:'0.8.3',title:'Любимый боец в меню',art:'hero',hero:'Пиромант',action:'changelog',kind:'обновление'},
