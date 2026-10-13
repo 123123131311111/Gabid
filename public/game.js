@@ -667,7 +667,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.0';
+const GAME_VERSION = '0.9.1';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -754,7 +754,7 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.0', title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ', changes:[
+  const sections = [{version:'0.9.1', title:'ЗВУКИ ИНТЕРФЕЙСА И БОЯ', changes:['Улучшен звуковой движок: короткие мягкие тоны, защита от наложения звуков.','Звуки выстрелов, убийства крипов и героев, наведения и кликов по кнопкам и предметам.','Звук прокрутки магазина во время матча.']},{version:'0.9.0', title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ', changes:[
     'Новый предмет «Валакинсенс» (1900 монет): пассивно +15 к восстановлению здоровья в секунду. Активный: на 3 сек. +50% сопротивления урону и +100 к скорости передвижения. КД 20 сек.',
     'Новый предмет «Торированная бошка» (1660 монет): бросается в ближайшего врага (сначала в бойцов), оглушает его на 4 сек. и наносит 225 урона каждую секунду оглушения. Дальность 700, КД 20 сек.',
     'Новый предмет «Киска дианы» (2200 монет): пассивный круг радиусом 380 вокруг героя — враги внутри наносят на 9% меньше урона. Активный: на 5 сек. враги в круге получают по 100 урона в секунду. КД 30 сек.',
@@ -1356,45 +1356,79 @@ const HERO_TALENTS = {
   chip: [['+250 к здоровью', {maxHp:250, hp:250}], ['+20 к урону', {damage:20}], ['+15 к броне', {armor:15}], ['+15% к скорости', {speedPercent:0.15}], ['+18% к урону способностей', {spellAmp:0.18}]]
 };
 
+/* 0.9.1: улучшенный синт-движок. Короткие мягкие тоны, общий мастер-компрессор,
+   троттлинг по типу звука и лимит одновременных голосов — звуки не накладываются и не режут слух. */
+const SFX_PRESETS = {
+  attack:   {from:260,to:150,duration:0.07,type:'triangle',volume:0.030,noise:0.35,gap:0.07},
+  shotgun:  {from:200,to:70,duration:0.12,type:'triangle',volume:0.045,noise:0.9,gap:0.09},
+  cast:     {from:420,to:700,duration:0.16,type:'sine',volume:0.040,gap:0.06},
+  blink:    {from:640,to:1200,duration:0.15,type:'sine',volume:0.045,gap:0.08},
+  stun:     {from:140,to:70,duration:0.24,type:'triangle',volume:0.055,noise:0.5,gap:0.12},
+  ultimate: {from:110,to:55,duration:0.45,type:'triangle',volume:0.065,noise:0.5,gap:0.25},
+  hover:    {from:880,to:1040,duration:0.045,type:'sine',volume:0.016,gap:0.05},
+  click:    {from:520,to:340,duration:0.07,type:'triangle',volume:0.034,gap:0.06},
+  purchase: {from:620,to:1180,duration:0.14,type:'triangle',volume:0.045,gap:0.08},
+  coin:     {from:988,to:1480,duration:0.11,type:'sine',volume:0.045,gap:0.06},
+  death:    {from:240,to:70,duration:0.38,type:'triangle',volume:0.055,noise:0.4,gap:0.2},
+  level:    {from:520,to:860,duration:0.16,type:'sine',volume:0.036,gap:0.1},
+  creepKill:{from:700,to:420,duration:0.08,type:'triangle',volume:0.028,noise:0.25,gap:0.06},
+  heroKill: {from:330,to:660,duration:0.2,type:'triangle',volume:0.05,noise:0.4,gap:0.18},
+  shopScroll:{from:1250,to:1050,duration:0.03,type:'sine',volume:0.016,gap:0.035}
+};
+const sfxLastPlayed = {};
+let sfxActiveVoices = 0;
+let sfxMaster = null;
+let sfxNoiseBuffer = null;
+function sfxGetMaster(context){
+  if(sfxMaster && sfxMaster.context === context) return sfxMaster;
+  const comp = context.createDynamicsCompressor();
+  comp.threshold.value = -20; comp.knee.value = 24; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.12;
+  const out = context.createGain(); out.gain.value = 0.9;
+  comp.connect(out); out.connect(context.destination);
+  sfxMaster = comp;
+  return comp;
+}
 function playSynthSfx(kind){
   try {
     abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
     const context = abilityAudioContext;
-    context.resume();
+    if(context.state === 'suspended') context.resume();
     const now = context.currentTime;
-    const presets = {
-      attack: {from:150,to:70,duration:0.09,type:'square',volume:0.045,noise:true},
-      cast: {from:420,to:760,duration:0.22,type:'sine',volume:0.045},
-      blink: {from:720,to:1320,duration:0.18,type:'triangle',volume:0.05},
-      stun: {from:110,to:48,duration:0.34,type:'sawtooth',volume:0.07,noise:true},
-      ultimate: {from:72,to:38,duration:0.65,type:'sawtooth',volume:0.09,noise:true},
-      hover: {from:760,to:1120,duration:0.09,type:'triangle',volume:0.025},
-      purchase: {from:620,to:1180,duration:0.16,type:'square',volume:0.05},
-      coin: {from:880,to:1480,duration:0.13,type:'sine',volume:0.055},
-      death: {from:180,to:42,duration:0.52,type:'sawtooth',volume:0.075,noise:true},
-      level: {from:520,to:900,duration:0.2,type:'triangle',volume:0.04}
-    };
-    const preset = presets[kind] || presets.cast;
+    const preset = SFX_PRESETS[kind] || SFX_PRESETS.cast;
+    const key = SFX_PRESETS[kind] ? kind : 'cast';
+    /* троттлинг: один и тот же звук не чаще preset.gap секунд; глобально не больше 8 голосов */
+    if(sfxLastPlayed[key] !== undefined && now - sfxLastPlayed[key] < (preset.gap || 0.05)) return;
+    if(sfxActiveVoices >= 8) return;
+    sfxLastPlayed[key] = now;
+    const dest = sfxGetMaster(context);
     const oscillator = context.createOscillator();
     const gain = context.createGain();
+    const jitter = 1 + (Math.random() - 0.5) * 0.04;
     oscillator.type = preset.type;
-    oscillator.frequency.setValueAtTime(preset.from, now);
-    oscillator.frequency.exponentialRampToValueAtTime(preset.to, now + preset.duration);
+    oscillator.frequency.setValueAtTime(preset.from * jitter, now);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, preset.to * jitter), now + preset.duration);
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(preset.volume, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + preset.duration);
-    oscillator.connect(gain); gain.connect(context.destination);
-    oscillator.start(now); oscillator.stop(now + preset.duration + 0.03);
+    gain.gain.exponentialRampToValueAtTime(preset.volume, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + preset.duration);
+    oscillator.connect(gain); gain.connect(dest);
+    sfxActiveVoices++;
+    oscillator.onended = () => { sfxActiveVoices = Math.max(0, sfxActiveVoices - 1); };
+    oscillator.start(now); oscillator.stop(now + preset.duration + 0.02);
     if(preset.noise){
-      const buffer = context.createBuffer(1, Math.floor(context.sampleRate*0.12), context.sampleRate);
-      const data = buffer.getChannelData(0);
-      for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*(1-i/data.length);
+      if(!sfxNoiseBuffer || sfxNoiseBuffer.sampleRate !== context.sampleRate){
+        sfxNoiseBuffer = context.createBuffer(1, Math.floor(context.sampleRate*0.12), context.sampleRate);
+        const data = sfxNoiseBuffer.getChannelData(0);
+        for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*(1-i/data.length);
+      }
       const noise = context.createBufferSource();
+      const filter = context.createBiquadFilter();
       const noiseGain = context.createGain();
-      noise.buffer = buffer;
-      noiseGain.gain.setValueAtTime(preset.volume*0.55, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.12);
-      noise.connect(noiseGain); noiseGain.connect(context.destination); noise.start(now);
+      filter.type = 'lowpass'; filter.frequency.value = 2400;
+      noise.buffer = sfxNoiseBuffer;
+      const nd = Math.min(0.12, preset.duration);
+      noiseGain.gain.setValueAtTime(preset.volume*preset.noise, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now+nd);
+      noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(dest); noise.start(now);
     }
   } catch(err) {}
 }
@@ -2738,6 +2772,13 @@ function killUnit(u, source){
   if(u.dead) return;
   if(u.type==='hero' && u.aegisTimer>0){ aegisRevive(u); return; }
   u.dead = true; u.hp = 0;
+  /* 0.9.1: звуки убийств крипов и героев (только рядом с игроком или по его вине) */
+  try {
+    const nearP = playerHero && Math.hypot(u.x-playerHero.x, u.y-playerHero.y) < 1100;
+    const byP = source && (source === playerHero || source.source === playerHero);
+    if(u.type === 'hero'){ if(nearP || byP) playSynthSfx('heroKill'); }
+    else if((u.type === 'creep' || u.type === 'neutral') && (nearP || byP)) playSynthSfx(byP ? 'coin' : 'creepKill');
+  } catch(err) {}
   if(u.ballState) u.ballState = null;
   if(u === playerHero && playerIsChip()) playChipVoice('death');
   grishaOnDeath(u, source);
@@ -10331,6 +10372,7 @@ canvas.addEventListener('mousemove', e => {
   mouse.wx = w.x; mouse.wy = w.y;
   updatePhraseWheelSelection();
   updateMenuButtonHoverSound();
+  updateGameHoverSound();
   const edge=42;
   edgePan.x = mouse.x < edge ? -1 : (mouse.x > VW-edge ? 1 : 0);
   edgePan.y = mouse.y < edge ? -1 : (mouse.y > VH-edge ? 1 : 0);
@@ -10351,7 +10393,9 @@ canvas.addEventListener('wheel', e => {
   const {r, totalRows, visibleRows} = shopLayout();
   if(e.clientX < r.x || e.clientX > r.x+r.w || e.clientY < r.y || e.clientY > r.y+r.h) return;
   const maxScroll = Math.max(0, totalRows-visibleRows);
+  const prevShopRow = shopScrollRow;
   shopScrollRow = clamp(shopScrollRow + (e.deltaY > 0 ? 1 : -1), 0, maxScroll);
+  if(shopScrollRow !== prevShopRow) playSynthSfx('shopScroll');
   e.preventDefault();
 }, {passive:false});
 
@@ -10381,7 +10425,7 @@ canvas.addEventListener('mousedown', e => {
   }
 
   if(gameState === 'menu' && e.button === 0 && heroViewPointerDown(mx, my)){ e.preventDefault(); return; }
-  if(gameState === 'menu'){ handleMenuClick(mx, my); return; }
+  if(gameState === 'menu'){ playSynthSfx('click'); handleMenuClick(mx, my); return; }
   if(gameState === 'over'){
     gameState = 'menu';
     menuStage = 'home';
@@ -10450,8 +10494,8 @@ canvas.addEventListener('mousedown', e => {
   }
 
   if(testMode && handleTestPanelClick(mx, my)) return;
-  if(handleHudClick(mx, my)) return;
-  if(handleSkillBarClick(mx, my)) return;
+  if(handleHudClick(mx, my)){ playSynthSfx('click'); return; }
+  if(handleSkillBarClick(mx, my)){ playSynthSfx('click'); return; }
 
   const w = screenToWorld(mx, my);
   if(e.button === 0 || e.button === 2){
@@ -16707,6 +16751,32 @@ function drawMenuUpdatePreview(playRect){
   ctx.restore();
 }
 
+let lastGameHoverKey = '';
+/* 0.9.1: hover-звук на кнопке магазина, вкладках, предметах магазина и слотах инвентаря в матче */
+function updateGameHoverSound(){
+  if(gameState !== 'playing'){ lastGameHoverKey=''; return; }
+  const inside = r => r && mouse.x>=r.x && mouse.x<=r.x+r.w && mouse.y>=r.y && mouse.y<=r.y+r.h;
+  let key = '';
+  try {
+    if(inside(shopButtonRect())) key = 'shopbtn';
+    else if(shopOpen){
+      const L = shopLayout();
+      if(inside(shopCloseRect(L))) key = 'close';
+      else if(inside(shopSearchRect(L))) key = 'search';
+      else if(inside(shopGuideButtonRect())) key = 'guide';
+      else {
+        for(let i=0;i<SHOP_TABS.length;i++) if(inside(shopTabRect(i,L))){ key='tab'+i; break; }
+        if(!key){ const id = shopHoveredId(L); if(id) key = 'item:'+id; }
+      }
+    }
+    if(!key && playerHero){
+      for(let i=0;i<6;i++) if(inside(inventorySlotRect(i))){ key='slot'+i; break; }
+    }
+  } catch(err) {}
+  if(key && key !== lastGameHoverKey) playSynthSfx('hover');
+  lastGameHoverKey = key;
+}
+
 function updateMenuButtonHoverSound(){
   if(gameState!=='menu'){
     lastMenuButtonHoverKey='';
@@ -21769,3 +21839,14 @@ function drawBaseComplexes(){
     }
   }
 }
+
+
+/* 0.9.1: hover/click-звуки для всех DOM-кнопок (аккаунт, лидерборд, меню). Троттлинг — внутри playSynthSfx. */
+document.addEventListener('pointerover', e => {
+  const t = e.target && e.target.closest && e.target.closest('button, .btn, [role="button"], a[href]');
+  if(t && !t.disabled && !(e.relatedTarget && t.contains(e.relatedTarget))) playSynthSfx('hover');
+});
+document.addEventListener('click', e => {
+  const t = e.target && e.target.closest && e.target.closest('button, .btn, [role="button"]');
+  if(t && !t.disabled) playSynthSfx('click');
+});
