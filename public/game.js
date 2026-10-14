@@ -667,7 +667,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.1';
+const GAME_VERSION = '0.9.5';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -3007,6 +3007,31 @@ function spawnFootstepDust(x,y,color){
     });
   }
 }
+/* 0.9.5: синие пузырьки Вирсуди (Сларк) — шлейф при ходьбе и редкие пузырьки в покое */
+function spawnVirsudiBubbles(h,count,walking){
+  if(perfLite()) count = Math.ceil(count*0.5);
+  if(count <= 0) return;
+  if(particles.length > particleCap()) particles.splice(0, particles.length - particleCap());
+  const r = h.radius || 22;
+  for(let i=0;i<count;i++){
+    const back = walking ? rnd(0.2,0.9) : rnd(-0.2,0.4);
+    const side = rnd(-0.8,0.8);
+    const bx = h.x - Math.cos(h.facing)*r*back + Math.cos(h.facing+Math.PI/2)*r*side;
+    const by = h.y - Math.sin(h.facing)*r*back + Math.sin(h.facing+Math.PI/2)*r*side + r*rnd(0.1,0.7);
+    particles.push({
+      x:bx, y:by, vx:rnd(-9,9), vy:-rnd(14,44),
+      color:'#7fd8ff', size:rnd(1.8,5.2), t:0, life:rnd(0.6,1.25),
+      gravity:-rnd(18,46), drag:0.97, spark:false, bubble:true
+    });
+  }
+}
+function virsudiBubbleTick(h,dt){
+  if(!h || h.dead || h.type !== 'hero' || !h.def || h.def.id !== 'virsudi') return;
+  h.bubbleTimer = (h.bubbleTimer || 0) - dt;
+  if(h.bubbleTimer > 0) return;
+  h.bubbleTimer = h.moving ? 0.07 : 0.4;
+  spawnVirsudiBubbles(h, h.moving ? 2 : 1, !!h.moving);
+}
 function spawnGrassBend(x,y,angle){
   if(perfLite()) return;
   if(grassBends.length > 260) grassBends.splice(0, grassBends.length - 260);
@@ -4999,6 +5024,7 @@ class Unit {
     clampVirsudiTether(this);
     const movedDist = Math.hypot(this.x-preMoveX, this.y-preMoveY);
     this.moving = movedDist > 0.02;
+    virsudiBubbleTick(this, dt);
     if(this.moving && this.type !== 'tower' && this.type !== 'barracks' && this.type !== 'ancient'){
       const strideSpeed = Math.max(28, this.getSpeed());
       this.walkPhase += (movedDist/dt) / (strideSpeed*0.62) * dt;
@@ -14698,7 +14724,16 @@ function drawWorldObjects(){
     ctx.fillStyle = p.color;
     ctx.strokeStyle = p.color;
     if(particleGlow){ ctx.shadowColor = p.color; ctx.shadowBlur = p.spark ? 12 : 5; }
-    if(p.blade){
+    if(p.bubble){
+      const br = p.size*(1+k*0.35);
+      ctx.globalAlpha = (1-k)*0.9;
+      ctx.lineWidth = Math.max(1, br*0.22);
+      ctx.strokeStyle = 'rgba(130,220,255,1)';
+      ctx.fillStyle = 'rgba(60,150,255,0.22)';
+      ctx.beginPath(); ctx.arc(p.x,p.y,br,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath(); ctx.arc(p.x-br*0.35,p.y-br*0.35,Math.max(0.8,br*0.22),0,Math.PI*2); ctx.fill();
+    } else if(p.blade){
       ctx.translate(p.x,p.y);
       ctx.rotate(p.angle + Math.PI/2);
       ctx.beginPath();
@@ -21645,6 +21680,7 @@ requestAnimationFrame(loop);
     if(speed > 35) hero.remoteMoveHold = 0.15;
     else hero.remoteMoveHold = Math.max(0, (hero.remoteMoveHold || 0) - dt);
     hero.moving = hero.remoteMoveHold > 0 && !(hero.stunTimer > 0);
+    virsudiBubbleTick(hero, dt);
     if(!hero.moving){ hero.footstepTimer = 0; return; }
     const heroSpeed = Math.max(28, hero.getSpeed());
     const shown = Math.min(speed, heroSpeed * 1.6);

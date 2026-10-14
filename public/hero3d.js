@@ -2442,7 +2442,7 @@ ANIM.sasych=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'walk',p:.25},{kind
    способность: Q — волны, W — прыжок, E — кража, R — туман.
    ========================================================= */
 const VS={NAVY:'#2b3752',NAVYD:'#171d2e',NAVYL:'#46598a',CYAN:'#a8eaff',CYAND:'#3fa9d6',STEEL:'#cfd9e8',STEELD:'#6b7a96',
-  LEATH:'#3b2f2c',SKIN:'#c99d7d',VOID:'#05070d',VIO:'#8a6bff',SMOKE:'#6f7fa8'};
+  LEATH:'#3b2f2c',SKIN:'#c99d7d',FACE:'#b9d3df',FACED:'#7fa3b8',VOID:'#05070d',VIO:'#8a6bff',SMOKE:'#6f7fa8'};
 function vsPose(rp,t){
   const k=rp.kind, p=rp.p||0, sl=rp.slot|0, br=Math.sin(t*1.7);
   const P={pitch:.3+.02*br,twist:.16,roll:0,offY:-.07+.012*br,offZ:0,head:-.12,
@@ -2547,99 +2547,139 @@ function vsBlade(S,H,a,L,glow,t){
   return pt;
 }
 MODELS.virsudi=(S,d,t,pose)=>{
+  /* 0.9.5 — Вирсуди переделан под Сларка: синяя рыбья кожа, оранжевый капюшон с фиолетовыми шипами,
+     наплечник-фугу с зелёным глазом, рыбья голова-наруч, плавники, клыки и синие пузырьки. */
   const rp=rigResolve(pose,t,'vs',4), P=vsPose(rp,t);
-  const {NAVY,NAVYD,NAVYL,CYAN,CYAND,STEEL,STEELD,LEATH,SKIN,VOID,VIO,SMOKE}=VS;
+  const B1='#1e4c84',B2='#0f2f58',B3='#2f6aa8',TEAL='#1b6a7e',TEALD='#10434f',CREAM='#cbbd9c',CREAMD='#8a7d61',
+    ORG='#8a4320',ORGD='#4a2211',ORGL='#b8662a',PUR='#563692',PURL='#a28ad6',FIN='#a5634a',FIND='#6f3527',
+    TUN='#1b2234',STRAP='#15110e',CLOTH='#4a1822',CLOTHD='#2e0f17',BUB='#4fb0f0',BUBH='#cfeeff',CLAW='#0d0e14';
   const PV=[0,.9,0], R=mkRot(P.pitch,P.twist,P.roll), TR=[0,P.offY,P.offZ];
   const Wp=q=>add(add(R(sub(q,PV)),PV),TR);
   vsFloor(S,rp,P);
   const m0=S.faces.length;
-  /* таз, пояс, набедренная накидка */
-  S.ell([0,.95,0],[.4,.24,.28],NAVYD,{rings:6,seg:12});
-  S.tube([0,.9,0],[0,1.04,0],.4,.4,LEATH,{seg:14,shine:.3});
-  S.box([0,.98,.4],[.16,.14,.05],STEEL,{shine:.7}); S.box([0,.98,.43],[.07,.07,.02],CYAN,{glow:1});
-  for(const s of [-1,1]){ S.box([s*.34,.9,.14],[.13,.18,.13],LEATH); S.box([s*.34,.99,.14],[.14,.05,.14],NAVYD); }
-  S.box([.08,.62,.34],[.3,.6,.04],NAVY,{rot:[.08,0,.05]}); S.box([-.16,.58,.33],[.2,.66,.04],NAVYD,{rot:[.08,0,-.06]});
-  /* торс: подтянутый, в тёмной тунике с бирюзовой руной */
-  S.tube([0,1.02,0],[0,1.46,0],.3,.37,NAVY,{seg:14});
-  S.ell([0,1.5,.02],[.46,.36,.3],NAVY,{rings:9,seg:16});
-  S.ell([0,1.5,.12],[.36,.28,.2],NAVYL,{rings:6,seg:12,shine:.4});
-  S.obox([-.3,1.72,.2],[.3,1.15,.26],.09,.04,LEATH,{shine:.35,hint:[0,0,1]});
-  S.box([0,1.45,.28],[.05,.26,.03],CYAN,{glow:1}); S.box([0,1.45,.28],[.2,.05,.03],CYAN,{glow:1});
-  /* шарф, наплечник справа, плащ за спиной */
-  S.tube([0,1.72,0],[0,1.92,0],.35,.25,NAVYD,{seg:14,shine:.2});
-  S.tube([0,1.76,0],[0,1.82,0],.37,.37,CYAN,{seg:14,glow:0,shine:.6});
-  const sw=Math.sin(t*3.1)*.07*(.4+P.flow);
-  S.obox([-.18,1.82,-.2],[-.3+sw,1.3,-.5-.5*P.flow],.16,.03,CYAN,{shine:.5,hint:[1,0,0]});
-  S.ell([.64,1.8,0],[.32,.2,.3],STEELD,{rings:7,seg:12,shine:.55});
-  S.tube([.58,1.86,0],[.7,1.78,0],.31,.3,NAVYD,{seg:10,shine:.4});
-  S.tube([.6,1.9,0],[.7,1.86,0],.318,.3,CYAN,{seg:10,shine:.7});
-  for(let i=0;i<3;i++) S.cone([.64+i*.02,1.9,.0+(i-1)*.12],[.7+i*.03,2.22-i*.06,(i-1)*.18],.05,STEEL,{seg:5,shine:.7});
-  S.ell([-.62,1.78,0],[.26,.18,.25],NAVY,{rings:6,seg:10});
-  S.box([0,1.4,-.31],[.78,.95,.05],NAVYD,{shine:.2});
-  for(let i=0;i<5;i++){
-    const x=(i-2)*.17, s2=Math.sin(t*3+i*1.3)*.07*(.4+P.flow), fl=P.flow;
-    const a=[x,1.7,-.3], m=[x*1.15+s2,1.1,-.4-.32*fl+s2*.4], e=[x*1.3+s2*1.8,.5+.12*(i%2),-.55-.7*fl+s2];
-    S.obox(a,m,.22,.03,i%2?NAVY:NAVYD,{shine:.2,hint:[0,0,1]});
-    S.obox(m,e,.2,.03,i%2?NAVYD:NAVY,{shine:.2,hint:[0,0,1]});
-    S.cone(add(e,[0,.02,0]),add(e,[s2*.5,-.28-.1*fl,-.12-.2*fl]),.1,i%2?NAVYD:NAVY,{seg:4,shine:.2});
+  /* таз, ремни, набедренная повязка */
+  S.ell([0,.95,0],[.4,.25,.29],B2,{rings:6,seg:12});
+  S.tube([0,.92,0],[0,1.06,0],.4,.4,STRAP,{seg:14,shine:.3});
+  S.tube([0,1.06,0],[0,1.13,0],.375,.375,CREAMD,{seg:14,shine:.25});
+  S.tube([0,1.13,0],[0,1.2,0],.36,.36,STRAP,{seg:14,shine:.3});
+  S.box([0,1.02,.41],[.14,.14,.05],CREAMD,{shine:.5});
+  S.box([.06,.62,.35],[.3,.62,.04],CLOTH,{rot:[.08,0,.05]}); S.box([-.14,.58,.34],[.2,.66,.04],CLOTHD,{rot:[.08,0,-.06]});
+  S.box([0,.6,-.33],[.5,.62,.04],CLOTHD,{rot:[-.05,0,0]});
+  /* торс: тёмная туника, светлое брюшко, ремни */
+  S.tube([0,1.14,0],[0,1.46,0],.31,.37,TUN,{seg:14});
+  S.ell([0,1.5,.02],[.46,.36,.3],TUN,{rings:9,seg:16});
+  S.ell([0,1.4,.2],[.2,.32,.13],CREAM,{rings:6,seg:12,shine:.3});
+  S.obox([-.34,1.74,.2],[.3,1.2,.28],.09,.04,STRAP,{shine:.35,hint:[0,0,1]});
+  S.obox([.34,1.74,.16],[-.3,1.22,.27],.07,.04,STRAP,{shine:.35,hint:[0,0,1]});
+  S.tube([0,1.7,0],[0,1.9,0],.34,.24,TUN,{seg:14});
+  S.tube([0,1.74,0],[0,1.8,0],.36,.36,CREAMD,{seg:14,shine:.4});
+  /* правое плечо: костяной наплечник-фугу с зелёным глазом и шипами */
+  const PB=[.68,1.84,0];
+  S.ell(PB,[.36,.31,.34],CREAM,{rings:8,seg:14,shine:.5});
+  S.ell([.68,1.84,.0],[.38,.2,.36],CREAMD,{rings:5,seg:12,shine:.3});
+  for(const dv of [[.55,.8,.1],[.95,.35,.2],[.5,.75,-.55],[.85,0,-.55],[.35,.15,-.95],[.6,.95,.35],[.15,1,0],[1,-.15,-.1],[.55,-.55,-.5],[.3,.5,-.8],[.9,.55,-.3],[.2,.9,-.4]]){
+    const n=norm(dv); S.cone(add(PB,mul(n,.28)),add(PB,mul(n,.5)),.06,CREAM,{seg:5,shine:.55});
   }
-  /* голова и капюшон — отдельной группой, чтобы смотрела вперёд при наклоне корпуса */
+  S.ell([.8,1.86,.22],[.09,.09,.06],'#6fc21e',{glow:1,rings:5,seg:10});
+  S.ell([.82,1.86,.27],[.016,.07,.03],'#0b0b10',{rings:4,seg:8,shine:.7});
+  S.ell([.84,1.9,.31],[.016,.016,.01],'#ffffff',{rings:3,seg:5,glow:1});
+  /* левое плечо: оранжевая накидка и веер плавников */
+  S.ell([-.62,1.8,0],[.27,.2,.26],ORGD,{rings:6,seg:10});
+  for(let i=0;i<6;i++){ const a=i/5; S.cone([-.66-a*.04,1.88,-.04-a*.1],[-.92-a*.34,2.2+Math.sin(a*3)*.12-a*.15,-.2-a*.28],.075-a*.012,i%2?ORGL:FIND,{seg:4,shine:.35}); }
+  /* хвост с плавником (чуть качается при беге) */
+  const sw=Math.sin(t*3.1)*.12*(.4+P.flow);
+  S.tube([0,.95,-.22],[sw*.5,.78,-.62],.12,.06,B1,{seg:8});
+  S.obox([sw*.5,.78,-.6],[sw,.66,-1.06-.25*P.flow],.34,.03,FIN,{shine:.3,hint:[0,0,1]});
+  for(let i=-2;i<=2;i++) S.cone([sw*.8+i*.05,.72,-.95],[sw+i*.13,.62+.04*(i%2),-1.28-.25*P.flow],.035,FIND,{seg:4});
+  /* голова: капюшон, рыбья морда с клыками, фиолетовые шипы */
   const mh=S.faces.length, HP=[0,1.98,.04];
-  S.tube([0,1.84,0],[0,2.0,.04],.16,.15,SKIN,{seg:10});
-  S.ell([0,2.08,0],[.36,.4,.37],NAVY,{rings:10,seg:16,shine:.25});
-  S.ell([0,2.04,.12],[.3,.34,.28],NAVYD,{rings:8,seg:14});
-  S.ell([0,2.04,.28],[.21,.24,.12],VOID,{rings:7,seg:12,shine:0});                       // тьма под капюшоном
-  S.ell([0,1.9,.27],[.2,.12,.1],NAVYD,{rings:5,seg:10,shine:.3});               // маска-шарф
+  S.tube([0,1.84,0],[0,2.0,.06],.17,.16,B1,{seg:10});
+  S.ell([0,2.16,-.2],[.4,.38,.4],ORG,{rings:9,seg:16,shine:.3});           // капюшон-раковина
+  S.ell([0,2.22,-.32],[.36,.32,.34],ORGD,{rings:7,seg:14,shine:.25});
+  for(let i=0;i<4;i++) S.obox([0,2.5-i*.02,.12-i*.2],[0,2.42-i*.1,.04-i*.2],.07,.05,ORGD,{shine:.4,hint:[1,0,0]});
+  S.ring([0,2.07,.06],.36,.06,ORGD,{axis:'z',n:22,});                          // кайма капюшона
+  S.ell([0,2.03,.24],[.31,.31,.31],B1,{rings:8,seg:14,shine:.3});              // лицо
+  S.ell([0,2.14,.36],[.2,.1,.2],B3,{rings:5,seg:10,shine:.3});              // светлая макушка морды
+  S.ell([0,1.96,.52],[.2,.15,.27],B1,{rings:6,seg:12,shine:.3});               // верхняя челюсть
+  S.ell([0,1.77,.47],[.19,.1,.27],CREAM,{rings:5,seg:12,shine:.3});           // нижняя челюсть
+  S.ell([0,1.87,.52],[.15,.075,.2],'#1c070b',{rings:4,seg:10});               // пасть
   for(const s of [-1,1]){
-    S.ell([s*.09,2.07,.355],[.08,.036,.025],CYAN,{glow:1,rings:4,seg:8,rot:[0,0,-s*.3]});
-    S.box([s*.1,2.14,.36],[.14,.03,.03],VOID,{rot:[0,0,-s*.4]});
-    S.cone([s*.2,2.2,.1],[s*.34,2.36,-.1],.05,NAVYL,{seg:5});                  // «ушки» капюшона
+    for(let i=0;i<7;i++){ const z=.36+i*.052, x=s*(.14-i*.013), L=(i%2?.1:.15)-i*.004;
+      S.cone([x,1.94,z],[x,1.94-L,z],.022,'#f4eedd',{seg:4,shine:.7});
+      S.cone([x,1.79,z],[x,1.79+L*.9,z],.022,'#f4eedd',{seg:4,shine:.7}); }
+    S.cone([s*.04,1.94,.74],[s*.04,1.80,.74],.024,'#f4eedd',{seg:4,shine:.7});
+    S.cone([s*.05,1.79,.72],[s*.05,1.92,.72],.024,'#f4eedd',{seg:4,shine:.7});
+    S.ell([s*.15,2.08,.46],[.062,.034,.04],'#ff4d0a',{glow:1,rings:4,seg:10,rot:[0,0,s*.4]});      // узкие горящие глаза
+    S.ell([s*.152,2.08,.495],[.01,.028,.012],'#0b0b10',{rings:3,seg:6,shine:.7});
+    S.obox([s*.04,2.12,.52],[s*.28,2.25,.4],.075,.05,B2,{hint:[0,0,1]});                         // злое надбровье
+    for(let g=0;g<3;g++) S.obox([s*.27,2.02-g*.05,.3-g*.02],[s*.3,1.99-g*.05,.2-g*.02],.012,.03,'#07101c',{hint:[0,0,1]}); // жабры
+    S.cone([s*.24,2.0,.12],[s*.46,1.98,.0],.06,B3,{seg:5});                     // плавники-уши
+    S.cone([s*.2,2.34,-.02],[s*.64,2.86,-.1],.075,PUR,{seg:5,shine:.55});       // фиолетовые шипы
+    S.cone([s*.12,2.4,-.06],[s*.3,2.95,-.12],.045,PURL,{seg:4,shine:.6});
+    S.cone([s*.26,2.28,-.04],[s*.7,2.6,-.12],.045,PUR,{seg:4,shine:.5});
   }
-  S.cone([0,2.3,-.12],[0,2.2+.1*Math.sin(t*2.6),-.75-.15*P.flow],.2,NAVY,{seg:8});   // хвост капюшона
-  S.tube([-.3,2.0,.12],[-.34,1.97,.05],.02,.02,CYAN,{seg:5,glow:1});
-  xfGroup(S,mh,HP,mkRot(P.head,0,0),[0,0,.04],1.22);
+  S.ell([0,2.0,.72],[.035,.03,.03],B2,{rings:3,seg:6});
+  xfGroup(S,mh,HP,mkRot(P.head,0,0),[0,0,.04],1.2);
   xfGroup(S,m0,PV,R,TR);
-  /* руки по IK: тёмные наручи, перчатки, клинки */
+  /* руки по IK */
   const hands={};
   const arm=(s,tg)=>{
     const shd=Wp([s*.6,1.76,0]), r=ik2(shd,tg,.58,.58,[s*.5,-.2,-.8]), el=r.el, hd=r.hand, dir=norm(sub(hd,el));
-    S.tube(shd,el,.13,.105,NAVY); S.ell(el,[.115,.115,.115],NAVYD,{rings:5,seg:8});
-    S.tube(el,lerp(el,hd,.3),.105,.095,NAVY);
-    S.tube(lerp(el,hd,.28),lerp(el,hd,.94),.125,.115,NAVYD,{seg:9,shine:.35});
-    S.tube(lerp(el,hd,.3),lerp(el,hd,.36),.14,.14,CYAN,{seg:9,shine:.55}); S.tube(lerp(el,hd,.84),hd,.13,.13,STEELD,{seg:9,shine:.5});
-    S.ell(add(hd,mul(dir,.06)),[.1,.1,.1],SKIN,{rings:5,seg:8});
+    S.tube(shd,el,.14,.11,B1); S.ell(el,[.12,.12,.12],B2,{rings:5,seg:8});
+    S.tube(el,hd,.11,.095,B1,{seg:9});
+    if(s<0){                                                                    // рыбья голова-наруч с плавниками
+      const hc=lerp(el,hd,.3);
+      S.tube(lerp(el,hd,.12),lerp(el,hd,.78),.17,.12,ORG,{seg:9,shine:.4});
+      S.ell(add(hc,[0,.02,.1]),[.15,.14,.2],ORGL,{rings:6,seg:10,shine:.4});
+      S.ell(add(hc,[-.1,.08,.16]),[.055,.055,.04],'#ffe14a',{glow:1,rings:4,seg:8});
+      S.ell(add(hc,[-.11,.08,.2]),[.022,.03,.015],'#0b0b10',{rings:3,seg:6});
+      for(let i=0;i<4;i++) S.cone(add(lerp(el,hd,.2+i*.16),[-.1,.14,-.02]),add(lerp(el,hd,.12+i*.2),[-.34,.46-i*.06,-.16]),.06,i%2?FIND:ORGL,{seg:4,shine:.35});
+      for(let i=0;i<3;i++) S.cone(add(hc,[.02*i-.03,-.02,.28]),add(hc,[.02*i-.03,-.12,.3]),.016,'#fffaf0',{seg:4});
+    } else {
+      S.tube(lerp(el,hd,.5),lerp(el,hd,.92),.13,.115,ORGD,{seg:9,shine:.35});
+      S.tube(lerp(el,hd,.5),lerp(el,hd,.56),.145,.145,CREAMD,{seg:9,shine:.4});
+    }
+    S.ell(add(hd,mul(dir,.05)),[.105,.1,.105],B1,{rings:5,seg:8});
+    let sd=cross(dir,[0,1,0]); sd=len(sd)<1e-3?[1,0,0]:norm(sd);
+    for(let k=-1;k<=1;k++) S.cone(add(add(hd,mul(dir,.1)),mul(sd,k*.05)),add(add(hd,mul(dir,.24)),mul(sd,k*.07)),.022,CLAW,{seg:4,shine:.5});
     hands[s]=hd;
   };
   arm(1,P.hR); arm(-1,P.hL);
   const bp={};
   bp[1]=vsBlade(S,hands[1],P.bR,.98,P.fire,t);
   bp[-1]=vsBlade(S,hands[-1],P.bL,.98,P.fire,t);
-  /* ноги: тёмные штаны, бинты, лёгкие сапоги с бирюзовой полосой */
+  /* ноги: массивные бирюзово-синие, плавники на икрах, когтистые лапы */
   const leg=(s,ft)=>{
     const hip=[s*.27,.9+P.offY,P.offZ*.6], r=ik2(hip,add(ft,[0,.14,0]),.62,.6,[s*.1,.1,1]), kn=r.el, an=r.hand;
-    S.ell(hip,[.22,.2,.22],NAVYD,{rings:5,seg:9});
-    S.tube(hip,kn,.2,.15,NAVY,{seg:10}); S.ell(kn,[.15,.16,.15],NAVYL,{rings:5,seg:8,shine:.45});
-    S.tube(kn,an,.14,.105,NAVYD,{seg:9});
-    S.tube(lerp(kn,an,.55),lerp(kn,an,.8),.135,.125,LEATH,{seg:9,shine:.35});
-    S.tube(add(an,[0,.14,0]),add(an,[0,.02,0]),.125,.12,NAVYD,{seg:9,shine:.35});
-    S.tube(add(an,[0,.12,0]),add(an,[0,.08,0]),.135,.135,CYAN,{seg:9,shine:.55});
-    S.ell(add(ft,[0,.07,.12]),[.11,.07,.24],NAVYD,{rings:4,seg:8});
-    S.cone(add(ft,[0,.06,.3]),add(ft,[0,.04,.5]),.07,NAVYD,{seg:6});
-    S.box(add(ft,[0,.015,.14]),[.24,.03,.5],'#0c0f18');
+    S.ell(hip,[.25,.22,.24],B2,{rings:5,seg:9});
+    S.tube(hip,kn,.23,.16,B1,{seg:10}); S.ell(kn,[.16,.17,.16],B3,{rings:5,seg:8,shine:.4});
+    S.tube(kn,an,.15,.1,TEAL,{seg:9});
+    S.obox(lerp(kn,an,.15),lerp(kn,an,.85),.04,.03,TEALD,{hint:[1,0,0]});
+    S.obox(add(lerp(kn,an,.2),[s*.13,0,-.1]),add(lerp(kn,an,.85),[s*.3,.02,-.2]),.13,.02,FIN,{shine:.3,hint:[0,0,1]});
+    for(let i=0;i<3;i++) S.cone(add(lerp(kn,an,.3+i*.2),[s*.12,0,-.1]),add(lerp(kn,an,.3+i*.2),[s*.38,.02+.04*i,-.26]),.03,FIND,{seg:4});
+    S.ell(add(ft,[0,.07,.12]),[.13,.08,.22],TEAL,{rings:4,seg:8});
+    for(let k=-1;k<=1;k++){ const x=k*.075;
+      S.tube(add(ft,[x,.07,.2]),add(ft,[x*1.5,.05,.46]),.045,.03,TEALD,{seg:5});
+      S.cone(add(ft,[x*1.5,.05,.46]),add(ft,[x*1.7,.03,.58]),.03,CREAM,{seg:4,shine:.6}); }
+    S.cone(add(ft,[0,.09,-.04]),add(ft,[0,.2,-.2]),.04,CLAW,{seg:4});
   };
   leg(1,P.fR); leg(-1,P.fL);
-  /* эффекты: туман у ног при беге, аура способностей, клинок вспыхивает при ударе */
-  if(P.flow>0){ for(let i=0;i<4;i++){ const ph=(t*1.3+i/4)%1; G(S,[Math.sin(i*2.3)*.3,.12+ph*.15,-.35-ph*.9],.14*(1-ph*.6)+.04,SMOKE,{glow:0,shine:.05}); } }
-  if(P.glow>.1){ for(let i=0;i<7;i++){ const ph=(t*.9+i/7)%1, a=i*.95+t*1.4; G(S,[Math.cos(a)*(.85+.25*P.glow),.2+ph*2.2,Math.sin(a)*(.85+.25*P.glow)],.05*(1-ph*.5)+.02,i%2?CYAN:'#e4fbff'); } }
-  if(P.drain>.05){ for(let i=0;i<8;i++){ const ph=(t*1.1+i/8)%1, a=i*.8; const o=1.6*(1-ph);
-    G(S,[Math.cos(a)*o,1.0+.7*ph,Math.sin(a)*o+.3],.06+.03*(1-ph),i%2?VIO:CYAN); } }
+  /* синие пузырьки: всегда поднимаются вокруг, при беге тянутся шлейфом за ногами */
+  const bub=(pos,r)=>{ r*=1.7; G(S,pos,r,BUB,{glow:1}); G(S,[pos[0]+r*.3,pos[1]+r*.35,pos[2]+r*.5],r*.3,BUBH,{glow:1,rings:3,seg:5}); };
+  for(let i=0;i<9;i++){ const ph=(t*.42+i/9)%1, a=i*2.4+t*.5, rr=.55+.35*Math.sin(i*1.7)+.18*ph;
+    bub([Math.cos(a)*rr,.15+ph*2.5,Math.sin(a)*rr],.035+.05*Math.sin(Math.PI*ph)*(.6+.4*((i*37)%5)/5)); }
+  if(P.flow>0){ for(let i=0;i<8;i++){ const ph=(t*1.5+i/8)%1;
+    bub([Math.sin(i*2.3+t*2)*.28,.1+ph*.7+.04*Math.sin(i*5),-.3-ph*1.25],.03+.07*Math.sin(Math.PI*ph)); } }
+  if(P.glow>.1){ for(let i=0;i<7;i++){ const ph=(t*.9+i/7)%1, a=i*.95+t*1.4;
+    bub([Math.cos(a)*(.85+.25*P.glow),.2+ph*2.2,Math.sin(a)*(.85+.25*P.glow)],.05*(1-ph*.5)+.02); } }
+  if(P.drain>.05){ for(let i=0;i<8;i++){ const ph=(t*1.1+i/8)%1, a=i*.8, o=1.6*(1-ph);
+    G(S,[Math.cos(a)*o,1.0+.7*ph,Math.sin(a)*o+.3],.06+.03*(1-ph),i%2?VS.VIO:BUB); } }
   if(P.smoke>.03){ for(let i=0;i<14;i++){ const a=i*2.4+t, ph=(i*.137+t*.35)%1, rr=.4+1.3*P.smoke*(.4+ph*.6);
-    G(S,[Math.cos(a)*rr,.35+ph*1.7,Math.sin(a)*rr],(.16+.13*(1-ph))*(.5+P.smoke*.6),i%3?SMOKE:'#c7d4ff',{glow:0,shine:.05}); } }
-  if(P.fire>.1){ for(const s of [-1,1]) if(hands[s]) G(S,hands[s],.06+.1*P.fire,CYAN); }
-  /* дуга удара: светящийся след между замахом и выпадом */
+    G(S,[Math.cos(a)*rr,.35+ph*1.7,Math.sin(a)*rr],(.16+.13*(1-ph))*(.5+P.smoke*.6),i%3?'#4a86c8':'#bfe6ff',{glow:0,shine:.05}); } }
+  if(P.fire>.1){ for(const s of [-1,1]) if(hands[s]) G(S,hands[s],.06+.1*P.fire,BUB); }
   if(rp.kind==='attack'&&rp.p>.38&&rp.p<.82){ const u0=cl01((rp.p-.38)/.44); for(let i=0;i<7;i++){ const u=i/6*u0, x=.95-1.4*u, y=2.1-1.3*u+.3*Math.sin(u*Math.PI), z=.1+1.2*u;
-    G(S,[x,y,z],.07*(1-i/9)+.02,i%2?CYAN:'#e4fbff'); } }
-  if(rp.kind==='cast'&&rp.slot===1&&P.air>.15){ for(let i=1;i<=6;i++) G(S,[0,1.0+P.air*.5-i*.05,-.2-i*.22*P.air],.09*(1-i/8),CYAN); }
+    G(S,[x,y,z],.07*(1-i/9)+.02,i%2?BUB:'#e4fbff'); } }
+  if(rp.kind==='cast'&&rp.slot===1&&P.air>.15){ for(let i=1;i<=6;i++) bub([0,1.0+P.air*.5-i*.05,-.2-i*.22*P.air],.09*(1-i/8)); }
 };
 ANIM.virsudi=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'attack',p:.7},{kind:'walk',p:.25},{kind:'walk',p:.75},
   {kind:'cast',slot:0,p:.5},{kind:'cast',slot:0,p:.93},{kind:'cast',slot:0,p:1},{kind:'cast',slot:1,p:.5},{kind:'cast',slot:1,p:.64},
