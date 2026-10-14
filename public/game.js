@@ -754,7 +754,16 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.1', title:'ЗВУКИ ИНТЕРФЕЙСА И БОЯ', changes:['Улучшен звуковой движок: короткие мягкие тоны, защита от наложения звуков.','Звуки выстрелов, убийства крипов и героев, наведения и кликов по кнопкам и предметам.','Звук прокрутки магазина во время матча.']},{version:'0.9.0', title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ', changes:[
+  const sections = [{version:'0.9.1', title:'БАЛАНС САСЫЧА И ПРЕДМЕТОВ', changes:[
+    'Сасыч: Thirst теперь растёт с уровнем — +30% к скорости за каждого вражеского героя на 0% здоровья без прокачки, 60% / 90% / 120% / 150% на уровнях 1–4. Кроме того, Thirst даёт скорость атаки в размере половины бонуса к скорости бега.',
+    'Сасыч: базовая скорость передвижения увеличена со 150 до 180.',
+    'Сасыч: Bloodrage усилен — скорость атаки 0.45 + 0.16 за уровень, усиление заклинаний ×(1.4 + 0.18 за уровень), потеря здоровья снижена, длительность 11 сек., перезарядка 15/13/11/9 сек., мана 60–90.',
+    'Клыки Васьки: теперь +20 к урону обычных атак и +5 к урону каждой способности (раньше +100 к обоим).',
+    'Кингляндия: +250 к урону обычных атак (раньше +650) и +50 к урону каждой способности по врагам.',
+    'Бошка Семёна: +100 к урону вместо +290.',
+    'Новый предмет «Octarine Core» (4500 монет): +450 к здоровью, +450 к мане, +6 к восстановлению маны в секунду и −25% к перезарядке всех способностей и предметов.'
+  ]},
+  {version:'0.9.0', title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ', changes:[
     'Новый предмет «Валакинсенс» (1900 монет): пассивно +15 к восстановлению здоровья в секунду. Активный: на 3 сек. +50% сопротивления урону и +100 к скорости передвижения. КД 20 сек.',
     'Новый предмет «Торированная бошка» (1660 монет): бросается в ближайшего врага (сначала в бойцов), оглушает его на 4 сек. и наносит 225 урона каждую секунду оглушения. Дальность 700, КД 20 сек.',
     'Новый предмет «Киска дианы» (2200 монет): пассивный круг радиусом 380 вокруг героя — враги внутри наносят на 9% меньше урона. Активный: на 5 сек. враги в круге получают по 100 урона в секунду. КД 30 сек.',
@@ -936,7 +945,7 @@ const SHOP_ITEMS = {
   mango: {name:'Манго', icon:'◆', cost:70, desc:'Активный расходуемый предмет: восстанавливает 100 маны. Одноразовый — после использования исчезает.', color:'#72e6a5', active:true},
   joelBoots: {name:'Сапог Джоэла', icon:'▲', cost:500, desc:'Пассивно: +45 к скорости передвижения.', color:'#e7c77a', speed:45, active:false},
   tango: {name:'Танго', icon:'♣', cost:90, desc:'Активный расходуемый предмет: съедает ближайшее дерево и восстанавливает 90 HP.', color:'#79d46c', active:true},
-  fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +100 к обычным атакам и к урону способностей.', color:'#ff8d8d', damage:100, active:false},
+  fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +20 к урону обычных атак и +5 к урону каждой способности.', color:'#ff8d8d', damage:20, spellDamage:5, active:false},
   bkb: {name:'БКБ', icon:'✚', cost:1750, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
   pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 200 монет. Пассивно: +150 урона, +60 скорости передвижения и ускорение атак.', color:'#ff9e5d', active:false},
   blink: {name:'Блинк', icon:'◇', cost:1150, range:500, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
@@ -954,7 +963,7 @@ const SHOP_ITEMS = {
   hatchet: {name:'Топорик', icon:'🪓', cost:125, desc:'Пассивно: +35 урона. Активный: срубает ближайшее дерево в радиусе 150. КД 10 сек.', color:'#c68b5b', cooldown:10, damage:35, active:true}
   ,satanic: {name:'Сатаник', icon:'♦', cost:2900, desc:'Пассивно: +660 к максимальному и текущему здоровью. Обычные атаки возвращают 25% нанесённого урона.', color:'#d83b55', hp:660, lifesteal:0.25, active:false}
   ,arcadiaScar: {name:'Шрам-Аркадия', icon:'✦', cost:2400, desc:'Активный: на 7 сек. даёт +250 урона и ускоряет атаки в 3 раза относительно базовой скорости. КД 24 сек.', color:'#ff7043', manaCost:100, activeDuration:7, damage:250, attackSpeed:2, cooldown:24, active:true}
-  ,kinglandia: {name:'Кингляндия', icon:'♛', cost:4450, desc:'Пассивно: +650 к урону обычных атак.', color:'#f4d35e', damage:650, active:false}
+  ,kinglandia: {name:'Кингляндия', icon:'♛', cost:4450, desc:'Пассивно: +250 к урону обычных атак и +50 к урону каждой способности по врагам.', color:'#f4d35e', damage:250, spellDamage:50, active:false}
   ,gur: {name:'Гур', icon:'⬆', cost:1600, desc:'Активный: подбрасывает выбранного врага на 0,8 сек. и даёт герою на 12 сек. +150 урона, +100 скорости передвижения и ускорение атак. КД 28 сек.', color:'#d9f2ff', activeDuration:12, damage:150, attackSpeed:0.8, moveSpeed:100, cooldown:28, active:true}
   ,dagonEmpire: {name:'Дагонская империя', icon:'⚡', cost:1100, desc:'Активный: наносит выбранному вражескому бойцу 1200 магического урона. КД 10 сек.', color:'#ff4f8b', cooldown:10, damage:1200, active:true}
   ,timurPillow: {name:'Подушка тимура', icon:'☁', cost:200, desc:'Активный расходуемый предмет: лечит 600 HP за 10 секунд. Любой урон врага сразу прерывает лечение.', color:'#9ed8ff', active:true}
@@ -1010,8 +1019,8 @@ SHOP_ITEM_IDS.push('dianaPants','girfsyutin','eggGolly','zamist');
 /* 0.8.5: «Бошка Семёна» — пассивный предмет на урон (цена ровно 1200, множитель 0.93 не применяется) */
 SHOP_ITEMS.semenHead = {
   name:'Бошка Семёна', icon:'☻', cost:1200, color:'#e8b98a', active:false,
-  desc:'Пассивно: +290 к урону.',
-  damage:290
+  desc:'Пассивно: +100 к урону.',
+  damage:100
 };
 SHOP_ITEM_IDS.push('semenHead');
 
@@ -1067,20 +1076,33 @@ SHOP_ITEMS.refresherOrb = {
   hpRegen:20, mpRegen:9, manaCost:350, cooldown:80
 };
 SHOP_ITEM_IDS.push('refresherOrb');
+/* Октариновое ядро (Octarine Core): цена ровно 4500 (добавлен после множителя 0.93). */
+SHOP_ITEMS.octarineCore = {
+  name:'Octarine Core', icon:'◍', cost:4500, color:'#7fd6ff', active:false,
+  desc:'Пассивно: +450 к здоровью, +450 к мане, +6 к восстановлению маны в секунду и -25% к перезарядке всех способностей и предметов.',
+  hp:450, maxMp:450, mpRegen:6, cooldownReduction:0.25
+};
+SHOP_ITEM_IDS.push('octarineCore');
 const SHOP_ITEM_VIEWS = SHOP_ITEM_IDS.map(id => ({...SHOP_ITEMS[id], id}));
 
 /* Общие помощники для новых предметов. */
 function heroHasItem(unit, id){ return !!(unit && unit.inventory && unit.inventory.some(i => i && i.id === id)); }
 function healAmpOf(unit){ return heroHasItem(unit,'holyLocket') ? 1 + SHOP_ITEMS.holyLocket.healAmp : 1; }
 function statusResistOf(unit){ return heroHasItem(unit,'kayaSange') ? SHOP_ITEMS.kayaSange.statusResist : 0; }
-const POSITIVE_BUFF_TYPES = new Set(['armor','shardArmor','spd','as','dmg','haste','regen','hpregen','shardShield','shardBlade','shardSpell','juvsyutGuard','dawnShardShield','tribuShield','mageReflect','bladeFury','bloodrage','enchantTotem','ilyaAura','exileRage','reginaUnleash','electricOverload']);
-const NEGATIVE_BUFF_TYPES = new Set(['burning','poison','vaspPoison','yosypPoison','yosypDrain','fear','shardMark']);
+const POSITIVE_BUFF_TYPES = new Set(['armor','shardArmor','spd','as','dmg','haste','regen','hpregen','shardShield','shardBlade','shardSpell','juvsyutGuard','dawnShardShield','tribuShield','mageReflect','bladeFury','bloodrage','enchantTotem','ilyaAura','exileRage','reginaUnleash','electricOverload','virsudiAgility','virsudiMist']);
+const NEGATIVE_BUFF_TYPES = new Set(['burning','poison','vaspPoison','yosypPoison','yosypDrain','fear','shardMark','virsudiAttrLoss','virsudiTether']);
 const NULLIFY_BLOCKED_ITEMS = new Set(['bkb','zamist','superBoots','mantledSteel','timurPillow','windWaker','valakinsens']);
 /* Срывает положительные эффекты и защитные предметы (Нуллификатор, Ураган). */
 function purgePositiveEffects(unit){
   if(!unit) return;
+  const virsudiMistRemoved=unit.buffs && unit.buffs.some(b=>b.type==='virsudiMist'&&!(b.t>=9000));
   if(unit.buffs && unit.buffs.some(b => POSITIVE_BUFF_TYPES.has(b.type) && !b.isOrb && !(b.t >= 9000)))
     unit.buffs = unit.buffs.filter(b => !POSITIVE_BUFF_TYPES.has(b.type) || b.isOrb || b.t >= 9000);
+  if(virsudiMistRemoved){
+    unit.virsudiInvisibilityTimer=0;
+    unit.undetectable=false;
+    if(unit.tribuInvisibilityTimer<=0) unit.invisible=false;
+  }
   unit.bkbActive = 0; unit.windTimer = 0; unit.timurPillow = 0;
   if(unit.inventory) for(const it of unit.inventory){
     if(it && NULLIFY_BLOCKED_ITEMS.has(it.id) && it.activeTimer > 0) it.activeTimer = 0;
@@ -1107,7 +1129,7 @@ const CREATOR_BUILDS = {
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['mango','Мана для койлов. Шадоу хочет давить с первых волн, а не ждать идеальный момент.'],['tango','Дерево превращается в здоровье: держи дистанцию и фарми под постоянным восстановлением.']]},
       {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать дальнюю дистанцию и собирать души безопаснее.'],['fangs','Клыки усиливают и автоатаки, и койлы. Собери ПТ: Сапог Джоэла + Клыки Васьки + 200 монет.']]},
       {name:'CORE', items:[['pt','ПТ дает урон, скорость и темп атак. Это главный мост от фарма к Реквиему.'],['ilyaHair','Урон, скорость и стан на 4 секунды: враг не переживает твой залп душ.'],['enemy302','-30% к перезарядке превращает койлы в конвейер давления.']]},
-      {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['arcadiaScar','Когда нужен взрывной прокаст и добивание героя.'],['kinglandia','+650 урона превращает накопленные души в приговор.'],['aghanimShard','Отдельный навык усиливает план героя, не занимая слот инвентаря.']]}
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['arcadiaScar','Когда нужен взрывной прокаст и добивание героя.'],['kinglandia','+250 урона атак и +50 к каждой способности превращают накопленные души в приговор.'],['aghanimShard','Отдельный навык усиливает план героя, не занимая слот инвентаря.']]}
     ]
   },
   ilya: {
@@ -1356,79 +1378,45 @@ const HERO_TALENTS = {
   chip: [['+250 к здоровью', {maxHp:250, hp:250}], ['+20 к урону', {damage:20}], ['+15 к броне', {armor:15}], ['+15% к скорости', {speedPercent:0.15}], ['+18% к урону способностей', {spellAmp:0.18}]]
 };
 
-/* 0.9.1: улучшенный синт-движок. Короткие мягкие тоны, общий мастер-компрессор,
-   троттлинг по типу звука и лимит одновременных голосов — звуки не накладываются и не режут слух. */
-const SFX_PRESETS = {
-  attack:   {from:260,to:150,duration:0.07,type:'triangle',volume:0.030,noise:0.35,gap:0.07},
-  shotgun:  {from:200,to:70,duration:0.12,type:'triangle',volume:0.045,noise:0.9,gap:0.09},
-  cast:     {from:420,to:700,duration:0.16,type:'sine',volume:0.040,gap:0.06},
-  blink:    {from:640,to:1200,duration:0.15,type:'sine',volume:0.045,gap:0.08},
-  stun:     {from:140,to:70,duration:0.24,type:'triangle',volume:0.055,noise:0.5,gap:0.12},
-  ultimate: {from:110,to:55,duration:0.45,type:'triangle',volume:0.065,noise:0.5,gap:0.25},
-  hover:    {from:880,to:1040,duration:0.045,type:'sine',volume:0.016,gap:0.05},
-  click:    {from:520,to:340,duration:0.07,type:'triangle',volume:0.034,gap:0.06},
-  purchase: {from:620,to:1180,duration:0.14,type:'triangle',volume:0.045,gap:0.08},
-  coin:     {from:988,to:1480,duration:0.11,type:'sine',volume:0.045,gap:0.06},
-  death:    {from:240,to:70,duration:0.38,type:'triangle',volume:0.055,noise:0.4,gap:0.2},
-  level:    {from:520,to:860,duration:0.16,type:'sine',volume:0.036,gap:0.1},
-  creepKill:{from:700,to:420,duration:0.08,type:'triangle',volume:0.028,noise:0.25,gap:0.06},
-  heroKill: {from:330,to:660,duration:0.2,type:'triangle',volume:0.05,noise:0.4,gap:0.18},
-  shopScroll:{from:1250,to:1050,duration:0.03,type:'sine',volume:0.016,gap:0.035}
-};
-const sfxLastPlayed = {};
-let sfxActiveVoices = 0;
-let sfxMaster = null;
-let sfxNoiseBuffer = null;
-function sfxGetMaster(context){
-  if(sfxMaster && sfxMaster.context === context) return sfxMaster;
-  const comp = context.createDynamicsCompressor();
-  comp.threshold.value = -20; comp.knee.value = 24; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.12;
-  const out = context.createGain(); out.gain.value = 0.9;
-  comp.connect(out); out.connect(context.destination);
-  sfxMaster = comp;
-  return comp;
-}
 function playSynthSfx(kind){
   try {
     abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
     const context = abilityAudioContext;
-    if(context.state === 'suspended') context.resume();
+    context.resume();
     const now = context.currentTime;
-    const preset = SFX_PRESETS[kind] || SFX_PRESETS.cast;
-    const key = SFX_PRESETS[kind] ? kind : 'cast';
-    /* троттлинг: один и тот же звук не чаще preset.gap секунд; глобально не больше 8 голосов */
-    if(sfxLastPlayed[key] !== undefined && now - sfxLastPlayed[key] < (preset.gap || 0.05)) return;
-    if(sfxActiveVoices >= 8) return;
-    sfxLastPlayed[key] = now;
-    const dest = sfxGetMaster(context);
+    const presets = {
+      attack: {from:150,to:70,duration:0.09,type:'square',volume:0.045,noise:true},
+      cast: {from:420,to:760,duration:0.22,type:'sine',volume:0.045},
+      blink: {from:720,to:1320,duration:0.18,type:'triangle',volume:0.05},
+      stun: {from:110,to:48,duration:0.34,type:'sawtooth',volume:0.07,noise:true},
+      ultimate: {from:72,to:38,duration:0.65,type:'sawtooth',volume:0.09,noise:true},
+      hover: {from:760,to:1120,duration:0.09,type:'triangle',volume:0.025},
+      purchase: {from:620,to:1180,duration:0.16,type:'square',volume:0.05},
+      coin: {from:880,to:1480,duration:0.13,type:'sine',volume:0.055},
+      death: {from:180,to:42,duration:0.52,type:'sawtooth',volume:0.075,noise:true},
+      level: {from:520,to:900,duration:0.2,type:'triangle',volume:0.04}
+    };
+    const preset = presets[kind] || presets.cast;
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    const jitter = 1 + (Math.random() - 0.5) * 0.04;
     oscillator.type = preset.type;
-    oscillator.frequency.setValueAtTime(preset.from * jitter, now);
-    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, preset.to * jitter), now + preset.duration);
+    oscillator.frequency.setValueAtTime(preset.from, now);
+    oscillator.frequency.exponentialRampToValueAtTime(preset.to, now + preset.duration);
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(preset.volume, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + preset.duration);
-    oscillator.connect(gain); gain.connect(dest);
-    sfxActiveVoices++;
-    oscillator.onended = () => { sfxActiveVoices = Math.max(0, sfxActiveVoices - 1); };
-    oscillator.start(now); oscillator.stop(now + preset.duration + 0.02);
+    gain.gain.exponentialRampToValueAtTime(preset.volume, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + preset.duration);
+    oscillator.connect(gain); gain.connect(context.destination);
+    oscillator.start(now); oscillator.stop(now + preset.duration + 0.03);
     if(preset.noise){
-      if(!sfxNoiseBuffer || sfxNoiseBuffer.sampleRate !== context.sampleRate){
-        sfxNoiseBuffer = context.createBuffer(1, Math.floor(context.sampleRate*0.12), context.sampleRate);
-        const data = sfxNoiseBuffer.getChannelData(0);
-        for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*(1-i/data.length);
-      }
+      const buffer = context.createBuffer(1, Math.floor(context.sampleRate*0.12), context.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*(1-i/data.length);
       const noise = context.createBufferSource();
-      const filter = context.createBiquadFilter();
       const noiseGain = context.createGain();
-      filter.type = 'lowpass'; filter.frequency.value = 2400;
-      noise.buffer = sfxNoiseBuffer;
-      const nd = Math.min(0.12, preset.duration);
-      noiseGain.gain.setValueAtTime(preset.volume*preset.noise, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now+nd);
-      noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(dest); noise.start(now);
+      noise.buffer = buffer;
+      noiseGain.gain.setValueAtTime(preset.volume*0.55, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.12);
+      noise.connect(noiseGain); noiseGain.connect(context.destination); noise.start(now);
     }
   } catch(err) {}
 }
@@ -1751,6 +1739,7 @@ function playGollyVoice(kind){
 function resetGollyVoiceState(){
   resetChipVoiceState();
   resetGrishaVoiceState();
+  resetVirsudiVoiceState();
   gollyMoveClicks = 0; gollyMoveFirstDone = false; gollyDmgWindow = {t:0, sum:0};
   for(const k in gollyVoiceLastAt) delete gollyVoiceLastAt[k];
   if(gollyVoiceCurrent){ try { gollyVoiceCurrent.pause(); } catch(err) {} }
@@ -1968,6 +1957,64 @@ function updateGrishaVoice(dt){
     gv.fleeT = fleeing ? gv.fleeT + dt : 0;
     if(gv.fleeT >= 1.2){ gv.fleeT = 0; playGrishaVoice('flee'); }
   }
+}
+
+/* ===== Голос Вирсуди (звучит у любого Вирсуди в матче, слышат все) ===== */
+const VIRSUDI_VOICE_SRC = {
+  death:'./sounds/virsudi-death.mp3',       // 1: Вирсуди умирает
+  kill:'./sounds/virsudi-kill.mp3',         // 2: Вирсуди убивает героя
+  buySteel:'./sounds/virsudi-buysteel.mp3', // 3: купил Мантированную сталь
+  hurt:'./sounds/virsudi-hurt.mp3',         // 4: его бьют героями или мало HP
+  golly:'./sounds/virsudi-golly.mp3'        // 5: Голли убил Вирсуди / Вирсуди убил Голли
+};
+const VIRSUDI_VOICE_PRIORITY = {hurt:1, buySteel:3, kill:4, death:8, golly:9};
+const VIRSUDI_VOICE_COOLDOWN = {hurt:25, buySteel:0, kill:6, death:0, golly:0};
+const virsudiVoiceCache = {}, virsudiVoiceLastAt = {};
+let virsudiVoiceCurrent = null, virsudiVoiceCurrentKind = null;
+function isVirsudiHero(h){ return !!(h && h.type === 'hero' && h.def && h.def.id === 'virsudi'); }
+function playVirsudiVoice(kind){
+  if(!ANNOUNCER.enabled || !VIRSUDI_VOICE_SRC[kind] || gameState !== 'playing') return;
+  const now = performance.now();
+  if(now - (virsudiVoiceLastAt[kind] || -1e9) < (VIRSUDI_VOICE_COOLDOWN[kind] || 0) * 1000) return;
+  const cur = virsudiVoiceCurrent;
+  if(cur && !cur.ended && !cur.paused){
+    if((VIRSUDI_VOICE_PRIORITY[kind] || 1) < (VIRSUDI_VOICE_PRIORITY[virsudiVoiceCurrentKind] || 1)) return;
+    try { cur.pause(); } catch(err) {}
+  }
+  try {
+    const a = (virsudiVoiceCache[kind] ||= new Audio(VIRSUDI_VOICE_SRC[kind])).cloneNode(true);
+    a.volume = 1;
+    virsudiVoiceCurrent = a; virsudiVoiceCurrentKind = kind; virsudiVoiceLastAt[kind] = now;
+    const pr = a.play();
+    if(pr && pr.catch) pr.catch(() => {});
+  } catch(err) {}
+}
+function resetVirsudiVoiceState(){
+  for(const k in virsudiVoiceLastAt) delete virsudiVoiceLastAt[k];
+  if(virsudiVoiceCurrent){ try { virsudiVoiceCurrent.pause(); } catch(err) {} }
+  virsudiVoiceCurrent = null; virsudiVoiceCurrentKind = null;
+}
+function virsudiOnDeath(u, source){
+  if(!isVirsudiHero(u)) return;
+  const killer = heroKillerOf(source);
+  if(killer && killer.def && killer.def.id === 'golly') playVirsudiVoice('golly');
+  else playVirsudiVoice('death');
+}
+function virsudiOnHeroKill(killer, victim){
+  if(!killer || !victim) return;
+  if(isVirsudiHero(killer)){
+    if(victim.def && victim.def.id === 'golly') playVirsudiVoice('golly');
+    else if(victim.type === 'hero' && !victim.isIllusion) playVirsudiVoice('kill');
+  }
+}
+function virsudiOnDamaged(target, sourceHero, source){
+  if(!isVirsudiHero(target) || target.dead) return;
+  const src = sourceHero || (source && source.source) || source;
+  if(!src || src.team === undefined || src.team === target.team) return;
+  if(src.type === 'hero' || target.hp <= target.maxHp * 0.3) playVirsudiVoice('hurt');
+}
+function virsudiOnBuyItem(hero, id){
+  if(isVirsudiHero(hero) && id === 'mantledSteel') playVirsudiVoice('buySteel');
 }
 function playRampageVoice(){ playKillSfx('rampage'); }
 function playRampageSynth(){
@@ -2667,9 +2714,13 @@ function applyDamage(target, amount, source){
   noteStructureAttack(target, source, false);
   const armor = target.getArmor ? target.getArmor() : (target.armor || 0);
   const structureBonus = target.type === 'tower' ? 1.2 : 1;
+  const isAttackHit = !!(source && source.attack);
   const fangsBonus = sourceHero && sourceHero.inventory && sourceHero.inventory.some(item => item && item.id === 'fangs')
-    ? SHOP_ITEMS.fangs.damage
+    ? (isAttackHit ? SHOP_ITEMS.fangs.damage : SHOP_ITEMS.fangs.spellDamage)
     : 0;
+  /* Кингляндия: +50 к урону способностей по вражеским целям (не к обычным атакам — для них +250 в getDamage) */
+  const kinglandiaSpellBonus = (!isAttackHit && sourceHero && sourceHero.team !== target.team && sourceHero.inventory &&
+    sourceHero.inventory.some(item => item && item.id === 'kinglandia')) ? SHOP_ITEMS.kinglandia.spellDamage : 0;
   const dianaBonus = sourceHero && sourceHero.inventory && sourceHero.inventory.some(item => item && item.id === 'dianaPants')
     ? SHOP_ITEMS.dianaPants.damage
     : 0;
@@ -2685,7 +2736,10 @@ function applyDamage(target, amount, source){
     : Math.max(1, amountBeforeFlatBonuses * armorMult(armor) * structureBonus);
   const fangsDamage = fangsBonus * (source && source.attack ? (source.fangsDamageScale || 1) : 1);
   const dianaDamage = dianaBonus * (source && source.attack ? (source.dianaDamageScale || 1) : 1);
-  const dmg = mitigatedDamage + fangsDamage + dianaDamage;
+  const dmg = mitigatedDamage + fangsDamage + dianaDamage + kinglandiaSpellBonus;
+  if(isAttackHit && sourceHero && sourceHero.def && sourceHero.def.id==='virsudi' &&
+     target.type==='hero' && !target.isIllusion && target.team!==sourceHero.team)
+    applyVirsudiEssenceShift(sourceHero,target);
   if(isStructure(target) && target.isServerAuthoritative && window.__shadowOnlineMatch){
     const onlineSocket = window.__shadowOnlineSocket;
     if(onlineSocket && onlineSocket.connected && sourceHero && sourceHero.isPlayer &&
@@ -2728,6 +2782,7 @@ function applyDamage(target, amount, source){
           Math.round(dmg), target.type==='hero' ? '#ff5555' : '#ffd24a', 0.8, 15);
   if(target.hp > 0) gollyOnDamaged(target, dmg, source);
   if(target.type === 'hero') grishaOnDamaged(target, sourceHero, source, dmg);
+  if(target.type === 'hero') virsudiOnDamaged(target, sourceHero, source);
   if(target.hp <= 0) killUnit(target, source);
 }
 
@@ -2772,16 +2827,10 @@ function killUnit(u, source){
   if(u.dead) return;
   if(u.type==='hero' && u.aegisTimer>0){ aegisRevive(u); return; }
   u.dead = true; u.hp = 0;
-  /* 0.9.1: звуки убийств крипов и героев (только рядом с игроком или по его вине) */
-  try {
-    const nearP = playerHero && Math.hypot(u.x-playerHero.x, u.y-playerHero.y) < 1100;
-    const byP = source && (source === playerHero || source.source === playerHero);
-    if(u.type === 'hero'){ if(nearP || byP) playSynthSfx('heroKill'); }
-    else if((u.type === 'creep' || u.type === 'neutral') && (nearP || byP)) playSynthSfx(byP ? 'coin' : 'creepKill');
-  } catch(err) {}
   if(u.ballState) u.ballState = null;
   if(u === playerHero && playerIsChip()) playChipVoice('death');
   grishaOnDeath(u, source);
+  virsudiOnDeath(u, source);
   if(u === playerHero && playerIsGolly()){
     const killerType = source && (source.type || (source.source && source.source.type));
     const byStructureOrCreep = killerType === 'tower' || killerType === 'barracks' || killerType === 'creep' || killerType === 'neutral';
@@ -2791,6 +2840,7 @@ function killUnit(u, source){
     ? source
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
   if(u.type === 'neutral') u.respawnTimer = u.isRoshan ? ROSHAN_RESPAWN : 30;
+  if(rewardHero && rewardHero.team !== u.team) phantomOnCreepKill(rewardHero, u);
   if(rewardHero && rewardHero.team !== u.team){
     const bountyMul = gameModeCfg().creepBountyMul;
     const reward = u.isRoshan ? ROSHAN_REWARD : u.type === 'neutral' ? Math.round(70*bountyMul) : (u.type === 'creep' ? Math.round(60*bountyMul) : (u.type === 'hero' ? 200 : 0));
@@ -2854,6 +2904,7 @@ function killUnit(u, source){
       }
     }
     /* Фраза Гриши после убийства героя — слышат ВСЕ игроки (играется после голоса диктора) */
+    virsudiOnHeroKill(rewardHero, u);
     grishaOnHeroKill(rewardHero, u);                 // добил/украл килл, украли у Гриши, спасли, Илья
     grishaOnRampage(rewardHero, multi);              // фраза после Rampage
     if(rewardHero === playerHero && playerIsChip()) playChipVoice('kill');
@@ -3913,6 +3964,7 @@ function buyShopItem(id){
   playAbilitySound('purchase');
   addText(playerHero.x, playerHero.y - 70, item.name + ' куплен', item.color, 1.2, 15);
   grishaOnBuyItem(playerHero, id);
+  virsudiOnBuyItem(playerHero, id);
   return true;
 }
 
@@ -4470,15 +4522,27 @@ const HERO_GUIDES = {
       "Кидайте гранаты, когда враги рядом: стан 2.5 с хватает, чтобы добить.",
       "Ульту используйте в начале драки — копии оглушают, травят и бьют цепной молнией."
     ]
+  },
+  "virsudi": {
+    "role": "Мобильный боец-инициатор",
+    "style": "Срывает контроль волнами, запрыгивает к уязвимой цели и усиливается в затяжных драках.",
+    "skills": [0, 1, 2],
+    "skillNote": "Отдай сдачу (Q) очищает Вирсуди и бьёт вокруг после задержки. Прыжок на Коломию (W) ловит героя в привязку. Царствоудий (E) усиливает атаки. Изгойствоудий (R) даёт невидимость и бонусы вне обзора.",
+    "build": ["pt", "satanic", "bkb", "kinglandia", "aghanimScepter"],
+    "tips": [
+      "Перед Q следите за здоровьем: способность тратит 16% максимального HP и срабатывает не сразу.",
+      "На W прыгайте сквозь цель, чтобы приземлиться рядом и удержать её в зоне атаки."
+    ]
   }
 };
 /* ==== HERO_GUIDES:END ==== */
 const GUIDE_ITEM_WHY = {
   "pt": "Сапог Джоэла + Клыки Васьки: урон, скорость и скорость атаки сразу. Собирается из двух частей.",
   "joelBoots": "+45 к скорости — догонять и убегать.",
-  "fangs": "+100 к урону атак и способностей.",
-  "semenHead": "+290 урона за 1200 — самый выгодный предмет на урон.",
-  "kinglandia": "+650 к урону атак — главный предмет поздней игры для атакующих бойцов.",
+  "fangs": "+20 к урону атак и +5 к урону способностей.",
+  "octarineCore": "+450 здоровья и маны, +6 маны/сек и -25% к перезарядке способностей и предметов.",
+  "semenHead": "+100 урона за 1200 — дешёвая прибавка к урону.",
+  "kinglandia": "+250 к урону атак и +50 к урону способностей — предмет поздней игры.",
   "hatchet": "Дешёвый урон и срубание деревьев.",
   "evsyutin": "+500 к здоровью — первая защита.",
   "satanic": "+660 здоровья и вампиризм 25%: даёт выжить в долгой драке.",
@@ -4532,6 +4596,7 @@ function botBuyItemById(hero, id){
   hero.inventory[slot] = createInventoryItem(id);
   applyItemStats(hero, id);
   grishaOnBuyItem(hero, id);
+  virsudiOnBuyItem(hero, id);
   return true;
 }
 
@@ -4592,6 +4657,12 @@ function applyItemStats(hero, id){
     hero.maxHp += SHOP_ITEMS.girfsyutin.hp;
     hero.hp += SHOP_ITEMS.girfsyutin.hp;
   }
+  if(id === 'octarineCore'){
+    hero.maxHp += SHOP_ITEMS.octarineCore.hp;
+    hero.hp += SHOP_ITEMS.octarineCore.hp;
+    hero.maxMp += SHOP_ITEMS.octarineCore.maxMp;
+    hero.mp += SHOP_ITEMS.octarineCore.maxMp;
+  }
   if(id === 'kayaSange'){
     hero.maxHp += SHOP_ITEMS.kayaSange.hp;
     hero.hp += SHOP_ITEMS.kayaSange.hp;
@@ -4648,6 +4719,63 @@ function thoredPickTarget(hero){
 /* =========================================================
    UNIT
    ========================================================= */
+function isOutsideEnemyVision(unit){
+  const observers = new Set([...(units || []), ...(heroes || [])]);
+  for(const observer of observers){
+    if(!observer || observer === unit || observer.dead || observer.team === unit.team || observer.team === 2) continue;
+    const vision = observer.vision || 0;
+    if(vision > 0 && Math.hypot(observer.x-unit.x, observer.y-unit.y) <= vision) return false;
+  }
+  return true;
+}
+
+function clampVirsudiTether(unit){
+  const tether = unit && unit.buffs && unit.buffs.find(buff => buff.type === 'virsudiTether' && buff.t > 0);
+  if(!tether || !Number.isFinite(tether.x) || !Number.isFinite(tether.y)) return;
+  const dx=unit.x-tether.x, dy=unit.y-tether.y, distance=Math.hypot(dx,dy);
+  const radius=Math.max(1,tether.radius||160);
+  if(distance>radius){
+    const scale=radius/(distance||1);
+    unit.x=clamp(tether.x+dx*scale,40,WORLD-40);
+    unit.y=clamp(tether.y+dy*scale,40,WORLD-40);
+  }
+}
+
+function tickVirsudiWaves(hero,dt){
+  const pending=hero.virsudiPendingWaves;
+  if(!pending || hero.dead) return;
+  if(pending.delay>0){
+    pending.delay=Math.max(0,pending.delay-dt);
+    if(pending.delay>0) return;
+  }
+  if(!pending.cleansed){
+    purgeNegativeEffects(hero);
+    hero.knockbackTimer=0;
+    hero.liftTimer=0;
+    hero.ruptureState=null;
+    pending.cleansed=true;
+    addText(hero.x,hero.y-hero.radius-24,'ОТДАЙ СДАЧУ','#c9f6ff',1.1,16);
+  }
+  if(pending.wait>0){
+    pending.wait=Math.max(0,pending.wait-dt);
+    if(pending.wait>0) return;
+  }
+  const radius=150+pending.pulse*74+pending.level*16;
+  const previousLevel=hero.castingSkillLevel;
+  hero.castingSkillLevel=pending.level;
+  for(const target of new Set([...(units||[]),...(heroes||[])])){
+    if(!target || target.dead || target.team===hero.team || target.team===2 || isBuilding(target)) continue;
+    if(Math.hypot(target.x-hero.x,target.y-hero.y)<=radius+(target.radius||0))
+      applyDamage(target,abilityDamage(hero,58+24*pending.level),hero);
+  }
+  hero.castingSkillLevel=previousLevel;
+  fxRing(hero.x,hero.y,radius,'#83ddff',0.52);
+  spawnParticles(hero.x,hero.y,'#b9f6ff',14,0.48);
+  pending.pulse++;
+  pending.wait=0.27;
+  if(pending.pulse>=3) hero.virsudiPendingWaves=null;
+}
+
 class Unit {
   constructor(o){
     this.x=o.x; this.y=o.y; this.team=o.team;
@@ -4674,7 +4802,15 @@ class Unit {
   }
   get alive(){ return !this.dead; }
   distTo(o){ return Math.hypot(this.x-o.x, this.y-o.y); }
-  getArmor(){ let a=this.armor; for(const b of this.buffs) if(b.type==='armor' || b.type==='shardArmor') a+=b.val; return a; }
+  getArmor(){
+    let a=this.armor;
+    for(const b of this.buffs){
+      if(b.type==='armor' || b.type==='shardArmor') a+=b.val;
+      if(b.type==='virsudiAgility') a+=b.val;
+      if(b.type==='virsudiAttrLoss') a-=b.val;
+    }
+    return a;
+  }
   getAttackRange(){
     let range=this.atkRange;
     if(this.inventory && this.inventory.some(i => i && i.id === 'brainEye')) range+=SHOP_ITEMS.brainEye.attackRange;
@@ -4686,8 +4822,8 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
-  getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; return this.atkTime/m; }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed;
     if(this.inventory && this.inventory.some(item=>item&&item.id==='joelBoots')) speed+=SHOP_ITEMS.joelBoots.speed;
@@ -4704,22 +4840,44 @@ class Unit {
     if(valakinsensItem&&valakinsensItem.activeTimer>0) speed+=SHOP_ITEMS.valakinsens.moveSpeed;
     if(heroHasItem(this,'disperser')) speed+=SHOP_ITEMS.disperser.speed;
     if(this.buffs.some(buff=>buff.type==='haste')) speed+=180;
+    const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0);
+    const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0);
+    speed=Math.max(35,speed+agility*1.5-drained*0.75);
+    const virsudiUlt=this.skills&&this.skills.find(skill=>skill.id==='virsudiR');
+    if(this.def&&this.def.id==='virsudi'&&virsudiUlt&&virsudiUlt.level>0&&this.virsudiOutsideVision) speed*=1.42;
+    if(this.def&&this.def.id==='virsudi'&&this.virsudiInvisibilityTimer>0) speed+=135;
     if(this.def&&this.def.id==='malit'&&this.skills&&this.skills[1]&&this.skills[1].level>0) speed*=1.18;
     const superBoots=this.inventory&&this.inventory.find(item=>item&&item.id==='superBoots');
     if(superBoots){ speed+=SHOP_ITEMS.superBoots.speed; if(superBoots.activeTimer>0) speed+=SHOP_ITEMS.superBoots.activeSpeed; }
     const aghanimHead=this.inventory&&this.inventory.find(item=>item&&item.id==='aghanimHead');
     if(aghanimHead&&aghanimHead.activeTimer>0) speed+=100;
     for(const buff of this.buffs) if(buff.type==='spd') speed*=(1+buff.val);
-    const thirst=this.def&&this.def.id==='sasych'
-      ? heroes.filter(hero=>hero.team!==this.team&&!hero.dead&&hero.type==='hero').reduce((sum,hero)=>sum+(1-hero.hp/hero.maxHp)*0.48,0)
-      : 0;
-    speed*=1+thirst;
+    speed*=1+this.getThirst();
     if(this.slowT>0) speed*=(1-this.slow);
     return speed;
+  }
+  /* Thirst (Сасыч): чем выше уровень и чем ранены враги — тем быстрее. Ур.0: 0.30, ур.1-4: 0.60/0.90/1.20/1.50 за каждого врага с 0% HP */
+  getThirst(){
+    if(!(this.def&&this.def.id==='sasych')) return 0;
+    const lvl=(this.skills&&this.skills[2]&&this.skills[2].level)||0;
+    const k=0.30+0.30*lvl;
+    return heroes.filter(hero=>hero.team!==this.team&&!hero.dead&&hero.type==='hero').reduce((sum,hero)=>sum+(1-hero.hp/hero.maxHp)*k,0);
   }
   addBuff(b){ this.buffs.push(b); }
   tickTimers(dt){
     if(this.atkCd>0) this.atkCd-=dt;
+    if(this.attackTarget && this.isPlayer!==true && isHiddenFrom(this.attackTarget,this.team)){ this.attackTarget=null; this.isAttacking=false; }
+    if(this.virsudiInvisibilityTimer>0){
+      this.virsudiInvisibilityTimer=Math.max(0,this.virsudiInvisibilityTimer-dt);
+      if(this.virsudiInvisibilityTimer<=0){
+        this.undetectable=false;
+        if(this.tribuInvisibilityTimer<=0) this.invisible=false;
+      }
+    }
+    if(this.def&&this.def.id==='virsudi'){
+      this.virsudiOutsideVision=isOutsideEnemyVision(this);
+      tickVirsudiWaves(this,dt);
+    }
     if(this.attackSlowT>0) this.attackSlowT=Math.max(0,this.attackSlowT-dt);
     if(this.inventory){
       /* Кая и Санга: сопротивление эффектам ускоряет спад оглушения, замедления и безмолвия. */
@@ -4780,6 +4938,7 @@ class Unit {
       this.x += this.knockbackX * dt;
       this.y += this.knockbackY * dt;
       this.knockbackTimer = Math.max(0, this.knockbackTimer-dt);
+      clampVirsudiTether(this);
       this.moving=false;
       return;
     }
@@ -4836,6 +4995,7 @@ class Unit {
     }
     this.x = clamp(this.x, 40, WORLD-40);
     this.y = clamp(this.y, 40, WORLD-40);
+    clampVirsudiTether(this);
     const movedDist = Math.hypot(this.x-preMoveX, this.y-preMoveY);
     this.moving = movedDist > 0.02;
     if(this.moving && this.type !== 'tower' && this.type !== 'barracks' && this.type !== 'ancient'){
@@ -4865,7 +5025,7 @@ class Unit {
         this.atkCd = this.getAttackTime() * (this.attackSlowT > 0 ? 1 + (this.attackSlow || 0.35) : 1);
         this.facing = Math.atan2(t.y-this.y, t.x-this.x);
         this.attackAngle = this.facing; this.attackAnimProgress = 0; this.isAttacking = true;
-        if(this.invisible){ this.invisible=false; this.tribuInvisibilityTimer=0; }
+        if(this.invisible && !(this.def&&this.def.id==='virsudi'&&this.virsudiInvisibilityTimer>0)){ this.invisible=false; this.tribuInvisibilityTimer=0; }
         if(this.type === 'hero') playHeroSfx('attack_' + (this.def.id || 'default'));
         if(this.def && this.def.id === 'tribupainer' && this.getAttackRange()>220){
           const incendiary=!!(this.tribuIncendiaryTimer>0 || (this.buffs && this.buffs.some(buff=>buff.type==='tribuShardShot')));
@@ -4965,7 +5125,7 @@ class Unit {
             applyDamage(t, attackDamage, {team: this.team, source: this, attack: true, fangsDamageIncluded:true, fangsDamageScale, dianaDamageIncluded:true, dianaDamageScale:fangsDamageScale});
           }
           if(this.def && this.def.id === 'electricGosha') applyElectricOverload(this, t);
-          if(this.owner && this.owner.def && this.owner.def.id === 'illusionist' && this.owner.isPlayer && Math.random() < 0.15) spawnPassiveIllusion(this.owner, t);
+          if(this.owner && this.owner.def && this.owner.def.id === 'illusionist' && this.owner.type === 'hero' && !this.isIllusion && Math.random() < PHANTOM_CHANCE) spawnPassiveIllusion(this.owner, t);
           if(this.vaspOnHit!==undefined && this.summonKind==='vaspCopy') vaspCopyHit(this,t);
           fxHit(t.x, t.y, '#ffdd88');
         }
@@ -5011,7 +5171,13 @@ class Unit {
     this.updateAI(dt);
     this.updateMove(dt);
     this.updateCombat(dt);
-    if(this.hpRegen) this.hp = Math.min(this.maxHp, this.hp + this.hpRegen*dt);
+    if(this.hpRegen){
+      const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0);
+      this.hp = Math.min(this.maxHp, this.hp + Math.max(0,this.hpRegen-drained*0.1)*dt);
+    }
+    const virsudiUlt=this.skills&&this.skills.find(skill=>skill.id==='virsudiR');
+    if(this.def&&this.def.id==='virsudi'&&virsudiUlt&&virsudiUlt.level>0&&this.virsudiOutsideVision)
+      this.hp=Math.min(this.maxHp,this.hp+28*dt);
   }
   updateAI(dt){}
 }
@@ -5096,7 +5262,7 @@ class NeutralCreep extends Unit {
     if(!this.attackTarget){
       let best=null, bestDistance=this.aggroRange;
       for(const unit of heroes){
-        if(unit.dead) continue;
+        if(unit.dead || isHiddenFrom(unit,this.team)) continue;
         const distance=this.distTo(unit);
         if(distance<bestDistance){ bestDistance=distance; best=unit; }
       }
@@ -5286,8 +5452,13 @@ function resolveTreeOverlap(unit, dt){
   return true;
 }
 
+/* Изгойствоудий: невидимый Вирсуди недоступен врагам — их крипы, боты и саммоны не берут его в цель. */
+function isHiddenFrom(target, viewerTeam){
+  return !!(target && target.undetectable && target.team !== viewerTeam);
+}
 function hasTreeCover(attacker, target){
   if(!attacker || !target) return false;
+  if(isHiddenFrom(target, attacker.team)) return true;
   for(const tree of trees){
     if(pointSegmentDistance(tree.x,tree.y,attacker.x,attacker.y,target.x,target.y) < tree.radius + 8) return true;
   }
@@ -5312,7 +5483,7 @@ class TimedSummon extends Unit {
     if(!this.attackTarget || this.attackTarget.dead || this.distTo(this.attackTarget) > 850){
       let target=null, best=850;
       for(const unit of units){
-        if(unit.dead || unit.team===this.team || unit.team===2) continue;
+        if(unit.dead || unit.team===this.team || unit.team===2 || isHiddenFrom(unit,this.team)) continue;
         const distance=this.distTo(unit);
         if(distance<best){ best=distance; target=unit; }
       }
@@ -5547,10 +5718,25 @@ function spawnIllusion(hero, options={}){
     isIllusion:true, damageMultiplier:(options.damageMultiplier || 0.3) + Math.max(0,hero.level-10)*0.012 + (hero.illusionDamageBonus || 0), damageTakenMultiplier:options.damageTakenMultiplier || 2
   });
   illusion.level=hero.level;
+  illusion.skinId = hero.skinId;
   const target = units.find(unit => !unit.dead && unit.team !== hero.team && unit.team !== 2);
   if(target) illusion.attackTarget = target;
   units.push(illusion);
   return illusion;
+}
+
+const PHANTOM_CHANCE = 0.5;   /* 0.9.1: шанс пассивки «Фантом» (был 15%) */
+/* 0.9.1: после убийства лайнового или лесного крипа — тот же шанс создать иллюзию на месте крипа */
+function phantomOnCreepKill(hero, creep){
+  if(!hero || hero.type !== 'hero' || !hero.def || hero.def.id !== 'illusionist' || hero.dead) return;
+  if(!creep || (creep.type !== 'creep' && creep.type !== 'neutral')) return;
+  if(Math.random() >= PHANTOM_CHANCE) return;
+  const active = units.filter(unit => unit.isIllusion && unit.illusionKind === 'passive' && unit.owner === hero && !unit.dead);
+  if(active.length >= 3) return;
+  const illusion = spawnIllusion(hero, {life:4, damageMultiplier:0.15, damageTakenMultiplier:3, angle:Math.random()*Math.PI*2});
+  illusion.illusionKind = 'passive';
+  illusion.x = clamp(creep.x, 60, WORLD-60); illusion.y = clamp(creep.y, 60, WORLD-60);
+  fxRing(illusion.x, illusion.y, 46, '#d8b4ff', 0.4);
 }
 
 function spawnPassiveIllusion(hero, target){
@@ -6550,11 +6736,14 @@ const SKILLS = {
   arcadyMolotov: {
     name:'Молотов', short:'W', type:'point', maxLevel:4,
     cd:[0,20,18,16,14], mana:[0,110,125,140,155], range:850,
-    desc:'Поджигает область на 8 секунд: враги внутри получают урон каждые 0.3 сек., а выйдя из огня, ещё 10 секунд горят по 25 HP в секунду.',
+    desc:'Поджигает область на 8 секунд: враги внутри горят и получают урон каждые 0.5 сек. (с каждым уровнем тики чаще: 0.5 / 0.4 / 0.3 / 0.25 сек.). Выйдя из огня, цель ещё 5 секунд горит по 25 HP в секунду.',
     cast(h,x,y,lvl){
-      const damage=[0,25,50,75,100][lvl];
-      aoes.push({x,y,radius:220+15*lvl,dmg:abilityDamage(h,damage),manaDmg:0,team:h.team,source:h,delay:0,t:0,color:'#ff6b35',applied:false,life:8,dead:false,burnField:true,tickInterval:0.3,residualBurn:true});
-      fxMark(x,y,220+15*lvl,'#ff6b35',8);
+      const damage=[0,18,26,34,42][lvl];
+      const tick=[0,0.5,0.4,0.3,0.25][lvl];
+      const radius=220+15*lvl;
+      aoes.push({x,y,radius,dmg:abilityDamage(h,damage),manaDmg:0,team:h.team,source:h,delay:0,t:0,color:'#ff6b35',applied:false,life:8,dead:false,molotov:true,visual:'molotovFire',tickInterval:tick});
+      fxMark(x,y,radius,'#ff6b35',0.6);
+      spawnParticles(x,y,'#ffb34d',22,0.9);
     }
   },
   arcadyFocus: {
@@ -6612,7 +6801,7 @@ const SKILLS = {
   illusionistPhantom: {
     name:'Фантом', short:'E', type:'self', maxLevel:4,
     cd:[0,0,0,0,0], mana:[0,0,0,0,0],
-    desc:'Пассивно: автоатаки имеют 15% шанс создать слабую иллюзию у цели.',
+    desc:'Пассивно: автоатаки и добивание крипов (лесных и обычных) имеют 50% шанс создать слабую иллюзию. Иллюзии выглядят точно как сам Иллюзионист.',
     cast(){}
   },
   illusionistFinale: {
@@ -6981,11 +7170,11 @@ const SKILLS = {
   },
   bloodrage: {
     name:'Bloodrage', short:'Q', type:'self', maxLevel:4,
-    cd:[0,18,16,14,12], mana:[0,70,80,90,100],
+    cd:[0,15,13,11,9], mana:[0,60,70,80,90],
     desc:'Быстрее атакует и усиливает заклинания, теряя здоровье',
     cast(h,x,y,lvl){
       h.buffs = h.buffs.filter(b => b.type !== 'bloodrage');
-      h.addBuff({type:'bloodrage', val:0.35+lvl*0.12, spellMult:1.3+lvl*0.15, hpDrain:10+lvl*8, t:10});
+      h.addBuff({type:'bloodrage', val:0.45+lvl*0.16, spellMult:1.4+lvl*0.18, hpDrain:8+lvl*6, t:11});
       addText(h.x,h.y-60,'BLOODRAGE','#ff5368',1.2,18); fxRing(h.x,h.y,90,'#a71936',0.5);
     }
   },
@@ -7002,7 +7191,7 @@ const SKILLS = {
   thirst: {
     name:'Thirst', short:'E', type:'self', maxLevel:4,
     cd:[0,0,0,0,0], mana:[0,0,0,0,0],
-    desc:'Пассивно ускоряется от раненых вражеских героев',
+    desc:'Пассивно ускоряется (и бьёт быстрее) от раненых вражеских героев. С каждым уровнем бонус растёт: +30% скорости за каждого врага на 0% здоровья на ур.1, до +150% на ур.4',
     cast(){ }
   },
   rupture: {
@@ -7087,6 +7276,91 @@ const SKILLS = {
     }
   }
 };
+
+Object.assign(SKILLS, {
+  virsudiQ: {
+    name:'Отдай сдачу', short:'Q', type:'self', maxLevel:4,
+    cd:[0,19,17,15,13], mana:[0,0,0,0,0], costType:'hp', hpCostPercent:0.16,
+    desc:'Жертвует 16% максимального здоровья. Через 1,5 секунды выпускает три расширяющиеся волны, наносящие урон врагам рядом и снимающие с Вирсуди большинство отрицательных эффектов.',
+    cast(h,x,y,lvl){
+      h.virsudiPendingWaves={delay:1.5,wait:0,pulse:0,level:lvl,cleansed:false};
+      fxRing(h.x,h.y,100,'#83ddff',0.35);
+      spawnParticles(h.x,h.y,'#b9f6ff',22,0.7);
+      addText(h.x,h.y-72,'ГОТОВЬСЯ К ОТВЕТУ','#b9f6ff',1.0,15);
+    }
+  },
+  virsudiW: {
+    name:'Прыжок на Коломию', short:'W', type:'point', maxLevel:4,
+    cd:[0,18,16,14,12], mana:[0,75,85,95,105], range:720,
+    desc:'Прыгает вперёд. Первый встреченный вражеский герой получает урон и привязывается к точке приземления на 3 секунды.',
+    cast(h,x,y,lvl){
+      const ox=h.x, oy=h.y;
+      let dx=x-ox, dy=y-oy, distance=Math.hypot(dx,dy);
+      if(distance<1){ dx=Math.cos(h.facing||0); dy=Math.sin(h.facing||0); distance=1; }
+      const dirX=dx/distance, dirY=dy/distance;
+      let first=null, firstProgress=Infinity;
+      for(const enemy of heroes){
+        if(!enemy || enemy===h || enemy.dead || enemy.team===h.team || enemy.type!=='hero' || enemy.isIllusion) continue;
+        const along=( (enemy.x-ox)*dirX + (enemy.y-oy)*dirY );
+        if(along<0 || along>distance) continue;
+        const px=ox+dirX*along, py=oy+dirY*along;
+        if(Math.hypot(enemy.x-px,enemy.y-py)>(enemy.radius||20)+42) continue;
+        if(along<firstProgress){ first=enemy; firstProgress=along; }
+      }
+      const landingDistance=first ? Math.min(distance,firstProgress+115) : distance;
+      const nx=clamp(ox+dirX*landingDistance,60,WORLD-60);
+      const ny=clamp(oy+dirY*landingDistance,60,WORLD-60);
+      h.x=nx; h.y=ny; h.facing=Math.atan2(dirY,dirX); h.moveTarget=null;
+      fxBeam(ox,oy,nx,ny,'#8de8ff',0.4);
+      spawnParticles(nx,ny,'#b9f6ff',28,0.75);
+      fxRing(nx,ny,48,'#83ddff',0.35);
+      if(first && !first.dead){
+        applyDamage(first,abilityDamage(h,125+55*lvl),h);
+        const duration=2.8+lvl*0.2, radius=160+lvl*5;
+        first.addBuff({type:'virsudiTether',val:1,t:duration,x:nx,y:ny,radius});
+        fxBeam(nx,ny,first.x,first.y,'#b9f6ff',0.5);
+        fxRing(nx,ny,radius,'#83ddff',0.55);
+        addText(first.x,first.y-first.radius-24,'ПРИВЯЗАН','#b9f6ff',0.9,14);
+      }
+      playHeroSfx('jump');
+    }
+  },
+  virsudiE: {
+    name:'Царствоудий', short:'E', type:'self', passive:true, maxLevel:4,
+    cd:[0,5,5,5,5], mana:[0,0,0,0,0],
+    desc:'Пассивно (перезарядка 5 сек): обычная атака по вражескому герою крадёт у него по 1 единице силы, ловкости и интеллекта на 24 сек. Вирсуди получает +3 ловкости на 12 секунд.',
+    cast(){}
+  },
+  virsudiR: {
+    name:'Изгойствоудий', short:'R', type:'self', maxLevel:3, ult:true,
+    cd:[0,75,62,50], mana:[0,120,160,200],
+    desc:'Активно: на 8–11 секунд скрывается в тумане, получает бонус к скорости и не раскрывается даже True Sight. Пассивно: вне обзора врагов быстрее передвигается и восстанавливает здоровье.',
+    cast(h,x,y,lvl){
+      const duration=7+lvl*1.4;
+      h.virsudiInvisibilityTimer=duration;
+      h.invisible=true;
+      h.undetectable=true;
+      h.addBuff({type:'virsudiMist',val:1,t:duration});
+      fxRing(h.x,h.y,115,'#8299c9',0.7);
+      spawnParticles(h.x,h.y,'#c7d4ff',36,0.9);
+      addText(h.x,h.y-72,'ИЗГОЙСТВОУДИЙ','#c7d4ff',1.1,17);
+      playHeroSfx('blink');
+    }
+  }
+});
+
+function applyVirsudiEssenceShift(hero,target){
+  const passive=hero.skills && hero.skills.find(skill=>skill.id==='virsudiE');
+  if(!passive || passive.level<=0 || !target || target.dead) return;
+  if(passive.cd>0) return;                       /* пассивка с перезарядкой 5 секунд */
+  passive.cd=5;
+  target.addBuff({type:'virsudiAttrLoss',val:1,t:24});
+  hero.addBuff({type:'virsudiAgility',val:3,t:12});
+  fxRing(target.x,target.y,32,'#9deaff',0.22);
+  addText(target.x,target.y-target.radius-18,'−1 СИЛА • ЛОВКОСТЬ • ИНТ','#9deaff',0.8,12);
+  if(hero===playerHero && typeof window.__shadowOnlineSkillCast==='function')
+    window.__shadowOnlineSkillCast(hero,2,'virsudiE',target.x,target.y);
+}
 
 function reginaLandingImpact(h, x, y, damage, radius, stun, label, color='#ff8bb1'){
   const hitUnits = [];
@@ -7844,7 +8118,7 @@ const HERO_DEFS = [
     id:'sasych', name:'Сасыч', title:'Кровавый охотник',
     color:'#9d1d35', color2:'#ff7180',
     baseHp:650, hpPerLvl:82, baseMp:240, mpPerLvl:30,
-    baseDmg:52, dmgPerLvl:6, speed:150,
+    baseDmg:52, dmgPerLvl:6, speed:180,
     atkRange:150, atkTime:0.92,
     baseArmor:2, armorPerLvl:0.35, vision:1000,
     hpRegen:1.2, mpRegen:1.4,
@@ -8058,6 +8332,16 @@ const HERO_DEFS = [
     vision:1100, hpRegen:1.8, mpRegen:2.5,
     skills:['vaspPassive','vaspGrenades','vaspCopies','vaspUltimate'],
     weapon:{type:'staff',color:'#3f7a2a',size:1.0,followFacing:true}
+  },
+  {
+    id:'virsudi', name:'Вирсуди', title:'Теневой изгой',
+    color:'#34415f', color2:'#a8eaff',
+    baseHp:720, hpPerLvl:92, baseMp:285, mpPerLvl:38,
+    baseDmg:68, dmgPerLvl:7, speed:190,
+    atkRange:155, atkTime:0.92, baseArmor:4, armorPerLvl:0.55,
+    vision:1020, hpRegen:2.2, mpRegen:2.0,
+    skills:['virsudiQ','virsudiW','virsudiE','virsudiR'],
+    weapon:{type:'dualBlades',color:'#a8eaff',size:1.08,followFacing:true}
   }
 ];
 
@@ -8070,7 +8354,8 @@ const HERO_STAT_BALANCE = {
   yosyp:[860,102,70,7.8,0.98],
   dawnMaiden:[1080,137,72,3,0.92], exileKnight:[900,112,90,3.7,0.92], juvsyut:[970,128,68,3.2,0.95],
   chip:[760,90,58,3.3,1.03], savely:[970,116,80,3.4,0.94], juggernaut:[930,110,78,3,0.94],
-  earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04], vaspassir:[560,64,62,3.4,1.04]
+  earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04], vaspassir:[560,64,62,3.4,1.04],
+  virsudi:[690,84,66,6.5,1]
 };
 
 for(const def of HERO_DEFS){
@@ -8270,6 +8555,12 @@ class Hero extends Unit {
         this.moveTarget = null; this.attackTarget = null;
         this.combatTimer = 0;
         this.buffs.length = 0;
+        if(this.def.id==='virsudi'){
+          this.virsudiInvisibilityTimer=0;
+          this.virsudiPendingWaves=null;
+          this.invisible=false;
+          this.undetectable=false;
+        }
         if(this.def.id === 'juvsyut') juvsyutResetDevour(this);
         this.invulnerable = false;
         this.omnislashWasActive = false;
@@ -8347,7 +8638,7 @@ class Hero extends Unit {
     }
     for(const item of this.inventory){
       if(!item) continue;
-      if(item.cooldown > 0) item.cooldown = Math.max(0, item.cooldown - dt);
+      if(item.cooldown > 0) item.cooldown = Math.max(0, item.cooldown - (heroHasItem(this,'octarineCore') ? dt/(1-SHOP_ITEMS.octarineCore.cooldownReduction) : dt));
       if(item.activeTimer > 0) item.activeTimer = Math.max(0, item.activeTimer - dt);
       if(item.id === 'holyLocket' && !this.dead){
         const lockerCfg = SHOP_ITEMS.holyLocket;
@@ -8380,15 +8671,19 @@ class Hero extends Unit {
       this.timurPillow = Math.max(0, this.timurPillow - dt);
     }
     const manaBoost = this.inventory.some(i => i && i.id === 'manaTome') ? 1.10 : 1;
-    const refresherMp = heroHasItem(this,'refresherOrb') ? SHOP_ITEMS.refresherOrb.mpRegen : 0;
-    this.mp = Math.min(this.maxMp, this.mp + (this.mpRegen + refresherMp) * manaBoost * dt);
+    const refresherMp = (heroHasItem(this,'refresherOrb') ? SHOP_ITEMS.refresherOrb.mpRegen : 0) + (heroHasItem(this,'octarineCore') ? SHOP_ITEMS.octarineCore.mpRegen : 0);
+    const virsudiStatDrain=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0);
+    this.mp = Math.min(this.maxMp, this.mp + Math.max(0,this.mpRegen+refresherMp-virsudiStatDrain*0.1) * manaBoost * dt);
 
-    let regen = this.hpRegen;
+    let regen = Math.max(0,this.hpRegen-virsudiStatDrain*0.1);
     for(const b of this.buffs) if(b.type === 'hpregen') regen += b.val;
     if(heroHasItem(this,'valakinsens')) regen += SHOP_ITEMS.valakinsens.hpRegen;
     if(heroHasItem(this,'refresherOrb')) regen += SHOP_ITEMS.refresherOrb.hpRegen;
     if(this.buffs.some(b=>b.type==='regen')) regen += this.maxHp*0.04;
     this.hp = Math.min(this.maxHp, this.hp + regen*dt*healAmpOf(this));
+    const virsudiUlt=this.skills.find(skill=>skill.id==='virsudiR');
+    if(this.def.id==='virsudi'&&virsudiUlt&&virsudiUlt.level>0&&this.virsudiOutsideVision)
+      this.hp=Math.min(this.maxHp,this.hp+28*dt);
 
     const base = BASES[this.team];
     const nearBase = inSpawnRoom(this.x, this.y, this.team, 20);
@@ -8473,7 +8768,8 @@ function skillFxColor(hero, skillId){
 /* анимация каста 3D-бойца (Чип): разворот к цели + длительность по способности */
 function startChipCastAnim(hero, slot, def, tx, ty){
   if(def.type==='point' && typeof tx==='number' && Math.hypot(tx-hero.x,ty-hero.y)>8) hero.facing = Math.atan2(ty-hero.y, tx-hero.x);
-  hero.castAnim = { slot, t0:gameTime, dur: def.ult ? 1.5 : (slot===1 ? 1.2 : 1.0), facing:hero.facing||0 };
+  const vsQ = hero.def && hero.def.id==='virsudi' && slot===0;   /* Вирсуди Q: поза держится все 1,5 с до первой волны */
+  hero.castAnim = { slot, t0:gameTime, dur: vsQ ? 1.7 : (def.ult ? 1.5 : (slot===1 ? 1.2 : 1.0)), facing:hero.facing||0 };
 }
 function castSkillVisual(hero, skill, tx, ty){
   const color = skillFxColor(hero, skill.id);
@@ -8545,7 +8841,9 @@ function castSkill(hero, slot, tx, ty){
   if(invokeSpellKey && spellCd > 0){ flashMsg(hero, 'Заклинание на КД ' + Math.ceil(spellCd) + 'с'); return false; }
   if(!invokeSpellKey && s.cd > 0){ flashMsg(hero, 'КД ' + Math.ceil(s.cd) + 'с'); return false; }
   const mana = def.mana[s.level];
-  const hpCost = def.costType === 'hp' ? (def.hpCost || 0) : 0;
+  const hpCost = def.costType === 'hp'
+    ? (def.hpCostPercent ? Math.ceil(hero.maxHp * def.hpCostPercent) : (def.hpCost || 0))
+    : 0;
   if(def.costType === 'hp'){
     if(hero.hp <= hpCost){ flashMsg(hero,'Недостаточно здоровья'); return false; }
   } else if(hero.mp < mana){ flashMsg(hero, 'Мало маны (' + Math.ceil(mana) + ')'); return false; }
@@ -8571,7 +8869,8 @@ function castSkill(hero, slot, tx, ty){
     flashMsg(hero, slot === 0 ? 'Враг должен быть в радиусе Q' : 'Цель должна быть в радиусе W');
     return false;
   }
-  const cooldownMultiplier = 1 - (hero.inventory.some(i => i && i.id === 'enemy302') ? SHOP_ITEMS.enemy302.cooldownReduction : 0);
+  const cooldownMultiplier = (1 - (hero.inventory.some(i => i && i.id === 'enemy302') ? SHOP_ITEMS.enemy302.cooldownReduction : 0))
+    * (1 - (heroHasItem(hero,'octarineCore') ? SHOP_ITEMS.octarineCore.cooldownReduction : 0));
   hero.castingSkillLevel = s.level;
   hero.scepterSkillBoost = hasScepter(hero) && (slot === 0 || slot === 1 || def.ult);
   let castSucceeded = false;
@@ -8884,6 +9183,32 @@ function clearTestDummies(){
     const hi = heroes.indexOf(dummy); if(hi>=0) heroes.splice(hi,1);
   }
   testDummies = [];
+}
+
+/* Переключение управления: клик по строке бойца в панели тест-режима.
+   Игрок «заходит» за выбранного бойца (манекена): ходит, кастует, покупает.
+   Прежний боец становится манекеном; команды меняются местами, чтобы
+   управляемый всегда был в команде 0 (от этого зависят туман и видимость). */
+function switchTestControl(hero){
+  if(!testMode || !playerHero || !hero || hero===playerHero || hero.dead) return;
+  const old = playerHero;
+  const di = testDummies.indexOf(hero);
+  if(di < 0) return;
+  testDummies[di] = old;
+  const oldTeam = old.team; old.team = hero.team; hero.team = oldTeam;
+  old.isPlayer = false; old.isDummy = true;
+  old.moveTarget = null; old.attackTarget = null;
+  hero.isPlayer = true; hero.isDummy = false;
+  hero.moveTarget = null; hero.attackTarget = null;
+  hero.skinId = activeSkinFor(hero.def.id);
+  hero.coins = 99999;
+  playerHero = hero;
+  controlledUnit = null; inspectUnit = null;
+  shopOpen = false; shopGuideOpen = false; pendingPurchaseId = null; pendingSellIndex = -1;
+  talentOpen = false; talentChoices = []; talentHero = null; talentTreeOpen = false;
+  cam.x = hero.x; cam.y = hero.y; cameraManual = false;
+  addText(hero.x, hero.y-56, 'ВЫ УПРАВЛЯЕТЕ: ' + hero.def.name, '#ffe066', 1.2, 15);
+  fxRing(hero.x, hero.y, 90, '#ffe066', 0.5);
 }
 
 function testRestoreHero(hero){
@@ -9213,7 +9538,7 @@ function botFightOdds(h, enemy){
 function botPickVisibleEnemy(h){
   let best = null, bestScore = Infinity;
   for(const u of heroes){
-    if(!u || u.dead || u.team === h.team || u.isIllusion || u.invulnerable || u.windTimer > 0) continue;
+    if(!u || u.dead || u.team === h.team || u.isIllusion || u.invulnerable || u.windTimer > 0 || isHiddenFrom(u, h.team)) continue;
     const d = Math.hypot(u.x - h.x, u.y - h.y);
     if(d > h.vision) continue;
     const score = d + (u.hp / Math.max(1, u.maxHp)) * 250;
@@ -9553,6 +9878,33 @@ function updateEnemyAI(h, dt){
    * 3) идти по цепочке зданий: T1 -> T2 -> казармы -> трон.
    */
   const target = forcedTarget || urgentFight || nearbyCreep || structureTarget || laneEnemy || visibleEnemy || null;
+
+  /* === ВИРСУДИ — АИ === */
+  if(h.def.id === 'virsudi'){
+    if(target){
+      const d=Math.hypot(target.x-h.x,target.y-h.y);
+      h.attackTarget=target;
+      h.moveTarget=null;
+      const enemyHero=target.type==='hero'&&!target.isIllusion;
+      if(enemyHero&&h.skills[3].level>0&&h.skills[3].cd<=0&&d<700){
+        castSkill(h,3,h.x,h.y);
+        return;
+      }
+      if(enemyHero&&h.skills[1].level>0&&h.skills[1].cd<=0&&d>190&&d<720){
+        castSkill(h,1,target.x,target.y);
+        return;
+      }
+      if(h.skills[0].level>0&&h.skills[0].cd<=0&&d<310&&h.hp/h.maxHp>0.42){
+        castSkill(h,0,h.x,h.y);
+        return;
+      }
+    } else {
+      h.attackTarget=null;
+      const goal=botLaneObjective(h);
+      h.moveTarget={x:goal.x,y:goal.y};
+    }
+    return;
+  }
 
   /* === САСЫЧ — АИ === */
   if(h.def.id === 'sasych'){
@@ -9918,7 +10270,7 @@ function update(dt){
         const scepter=!!(scepterOwner && hasScepter(scepterOwner));
         igniteUnit(p.target,attackOwner,(scepter?7:5)+skillLevel-1,(scepter?35:25)+(skillLevel-1)*6);
       }
-      if(attackOwner && attackOwner.def && attackOwner.def.id === 'illusionist' && attackOwner.isPlayer && Math.random() < 0.15) spawnPassiveIllusion(attackOwner, p.target);
+      if(attackOwner && attackOwner.def && attackOwner.def.id === 'illusionist' && attackOwner.type === 'hero' && Math.random() < PHANTOM_CHANCE) spawnPassiveIllusion(attackOwner, p.target);
       if(p.kind === 'dynamite'){
         const explosionRadius = 125;
         fxRing(p.target.x, p.target.y, explosionRadius, '#ff7043', 0.55);
@@ -9977,6 +10329,48 @@ function update(dt){
           playHeroSfx('jump');
           addText(h.x, h.y-90, 'РАССВЕТ!', '#fff4af', 1.3, 20);
         }
+      }
+      continue;
+    }
+    if(a.molotov){
+      /* Молотов Аркадия — постоянное огненное поле. Каждый тик бьёт всех, кто
+         сейчас внутри (интервал зависит от уровня). Как только цель вышла из
+         огня (или поле погасло) — она ещё 5 секунд горит по 25 HP/сек. */
+      if(!a.applied){ a.applied = true; fxRing(a.x, a.y, a.radius, a.color, 0.5); }
+      const src = a.source || {team:a.team};
+      const inside = new Set();
+      for(const u of units){
+        if(u.team===a.team || u.dead || isBuilding(u)) continue;
+        if(Math.hypot(u.x-a.x, u.y-a.y) < a.radius + u.radius) inside.add(u);
+      }
+      for(const u of inside) u.molotovFireUntil = gameTime + 0.25;
+      a.pulseTimer = (a.pulseTimer || 0) + dt;
+      while(a.pulseTimer >= a.tickInterval){
+        a.pulseTimer -= a.tickInterval;
+        for(const u of inside){
+          if(u.dead) continue;
+          applyDamage(u, a.dmg, src);
+          u.hitFlash = Math.max(u.hitFlash || 0, 0.1);
+        }
+      }
+      a.insideSet = a.insideSet || new Set();
+      for(const u of a.insideSet){
+        if(!inside.has(u) && !u.dead) igniteUnit(u, src, 5, 25);
+      }
+      a.insideSet = inside;
+      a.emberT = (a.emberT || 0) + dt;
+      if(a.emberT >= 0.1 && !perfLite()){
+        a.emberT = 0;
+        const ang = Math.random()*Math.PI*2, rr = a.radius*Math.sqrt(Math.random())*0.95;
+        particles.push({
+          x:a.x+Math.cos(ang)*rr, y:a.y+Math.sin(ang)*rr*0.68,
+          vx:rnd(-14,14), vy:rnd(-70,-30), color:Math.random()<0.5?'#ffb34d':'#ff6b35',
+          size:rnd(2,4.5), t:0, life:rnd(0.5,0.9), gravity:-30, drag:0.97, spark:true
+        });
+      }
+      if(a.t >= a.life){
+        for(const u of inside){ if(!u.dead) igniteUnit(u, src, 5, 25); }
+        a.dead = true;
       }
       continue;
     }
@@ -10372,7 +10766,6 @@ canvas.addEventListener('mousemove', e => {
   mouse.wx = w.x; mouse.wy = w.y;
   updatePhraseWheelSelection();
   updateMenuButtonHoverSound();
-  updateGameHoverSound();
   const edge=42;
   edgePan.x = mouse.x < edge ? -1 : (mouse.x > VW-edge ? 1 : 0);
   edgePan.y = mouse.y < edge ? -1 : (mouse.y > VH-edge ? 1 : 0);
@@ -10393,9 +10786,7 @@ canvas.addEventListener('wheel', e => {
   const {r, totalRows, visibleRows} = shopLayout();
   if(e.clientX < r.x || e.clientX > r.x+r.w || e.clientY < r.y || e.clientY > r.y+r.h) return;
   const maxScroll = Math.max(0, totalRows-visibleRows);
-  const prevShopRow = shopScrollRow;
   shopScrollRow = clamp(shopScrollRow + (e.deltaY > 0 ? 1 : -1), 0, maxScroll);
-  if(shopScrollRow !== prevShopRow) playSynthSfx('shopScroll');
   e.preventDefault();
 }, {passive:false});
 
@@ -10425,7 +10816,7 @@ canvas.addEventListener('mousedown', e => {
   }
 
   if(gameState === 'menu' && e.button === 0 && heroViewPointerDown(mx, my)){ e.preventDefault(); return; }
-  if(gameState === 'menu'){ playSynthSfx('click'); handleMenuClick(mx, my); return; }
+  if(gameState === 'menu'){ handleMenuClick(mx, my); return; }
   if(gameState === 'over'){
     gameState = 'menu';
     menuStage = 'home';
@@ -10494,8 +10885,8 @@ canvas.addEventListener('mousedown', e => {
   }
 
   if(testMode && handleTestPanelClick(mx, my)) return;
-  if(handleHudClick(mx, my)){ playSynthSfx('click'); return; }
-  if(handleSkillBarClick(mx, my)){ playSynthSfx('click'); return; }
+  if(handleHudClick(mx, my)) return;
+  if(handleSkillBarClick(mx, my)) return;
 
   const w = screenToWorld(mx, my);
   if(e.button === 0 || e.button === 2){
@@ -11273,6 +11664,10 @@ function drawUnitSafely(u){
 const UNIT_VISUAL_SCALE = 1.15;      /* все модели в матче визуально крупнее на 15% (хитбокс не меняется) */
 const NEUTRAL_MONSTER = {wolf:'mon_hound', big:'mon_golem', satyr:'mon_imp'};   /* обычный лагерь — мухомор */
 function unitVisualScale(u){ return portraitRenderMode ? 1 : UNIT_VISUAL_SCALE; }
+/* 0.9.1: иллюзии Иллюзиониста выглядят как сам боец — тот же 3D-спрайт, скин, подписи и полоски */
+function isIllusionClone(u){ return !!(u && u.isIllusion && u.summonKind==='illusion' && u.copyDef && u.owner); }
+function heroLikeDef(u){ return u.type==='hero' ? u.def : (isIllusionClone(u) ? u.copyDef : null); }
+function heroLikeSrc(u){ return isIllusionClone(u) ? u.owner : u; }
 function unitLabelLift(u){
   const vs = unitVisualScale(u);
   if(vs === 1) return 0;
@@ -11840,7 +12235,7 @@ function drawMilitaryBike(u, footY){
 
 function drawUnit(u){
   if(u.dead) return;
-  if(u.invisible) return;
+  if(u.invisible && u!==playerHero) return;
   const isEnemy = u.team !== 0;
   if(isEnemy && !isVisibleToPlayer(u) && !u.arcMotion) return;
 
@@ -11903,8 +12298,8 @@ function drawUnit(u){
     ctx.beginPath(); ctx.arc(24,0,7+Math.sin(gameTime*28)*2,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  if(u.type === 'hero' && !perfLite()){
-    const heroAccent = u.skinId === 'reginaRed' ? '#ff344f' : (u.skinId === 'goldChampion' ? '#ffd34f' : (u.skinId === 'voidPhantom' ? '#b07cff' : (u.def.color2 || col)));
+  if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
+    const heroAccent = u.skinId === 'reginaRed' ? '#ff344f' : (u.skinId === 'goldChampion' ? '#ffd34f' : (u.skinId === 'voidPhantom' ? '#b07cff' : (heroLikeDef(u).color2 || col)));
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = heroAccent;
@@ -11958,11 +12353,12 @@ function drawUnit(u){
 
   /* 3D-боец (hero3d.js): модель рендерится в спрайт под нужный угол — тот же вид, что в просмотре бойца */
   let hero3dSpr = null;
-  if(u.type === 'hero' && !portraitRenderMode && window.Hero3D && Hero3D.has(u.def.id)){
+  const hd = heroLikeDef(u);
+  if(hd && !portraitRenderMode && window.Hero3D && Hero3D.has(hd.id)){
     let fa = u.facing || 0;
     if(u.isAttacking && u.attackTarget && u.attackTarget.alive) fa = Math.atan2(u.attackTarget.y-u.y, u.attackTarget.x-u.x);
     let anim3d = null;
-    if(Hero3D.hasAnim && Hero3D.hasAnim(u.def.id)){
+    if(Hero3D.hasAnim && Hero3D.hasAnim(hd.id)){
       if(u.castAnim){
         const cp = (gameTime-u.castAnim.t0)/u.castAnim.dur;
         if(cp>=0 && cp<1){ anim3d = {kind:'cast', slot:u.castAnim.slot, p:cp}; fa = u.castAnim.facing; }
@@ -11972,10 +12368,10 @@ function drawUnit(u){
       if(!anim3d && u.moving && !u.isAttacking) anim3d = {kind:'walk', p:(u.walkPhase||0)%1};
     }
     if(perfLite()) anim3d = null;      /* супер низкая: без анимаций моделей — статичные спрайты */
-    if(u.bikeTimer > 0 && u.def.id === 'mo3gi') anim3d = null;   /* на байке боец сидит, не шагает */
-    let spriteDef = u.def;
-    if(u.skinId && u.skinId !== u.def.skinId && SKIN_BY_ID[u.skinId]){
-      if(!u._skinDefCache || u._skinDefCache.skinId !== u.skinId) u._skinDefCache = {...u.def, skinId:u.skinId};
+    if(u.bikeTimer > 0 && hd.id === 'mo3gi') anim3d = null;   /* на байке боец сидит, не шагает */
+    let spriteDef = hd;
+    if(u.skinId && u.skinId !== hd.skinId && SKIN_BY_ID[u.skinId]){
+      if(!u._skinDefCache || u._skinDefCache.skinId !== u.skinId) u._skinDefCache = {...hd, skinId:u.skinId};
       spriteDef = u._skinDefCache;
     }
     hero3dSpr = Hero3D.battleSprite(spriteDef, u.radius, fa, gameTime, anim3d);
@@ -11998,7 +12394,7 @@ function drawUnit(u){
         const lunge = Math.sin(Math.min(1,u.attackAnimProgress)*Math.PI) * u.radius*(anim3d ? 0.12 : 0.28);
         lx = Math.cos(fa)*lunge; ly = Math.sin(fa)*lunge*0.6;
       }
-      if(u.bikeTimer > 0 && u.def.id === 'mo3gi'){
+      if(u.bikeTimer > 0 && hd.id === 'mo3gi'){
         const bd = drawMilitaryBike(u, footY);       /* байк рисуется под всадником */
         ly -= u.radius*0.7; lx -= bd*u.radius*0.95;
       }
@@ -12098,7 +12494,7 @@ function drawUnit(u){
     ctx.beginPath(); ctx.arc(0,-u.radius*0.18,5+Math.sin(gameTime*5)*1.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
     ctx.fillStyle='#2a1b18'; ctx.fillRect(-9,2,18,16);
     ctx.fillStyle='rgba(255,220,150,0.8)'; ctx.fillRect(-6,5,4,5); ctx.fillRect(2,5,4,5);
-  } else if(u.type === 'hero' && !portraitRenderMode && window.Hero3D && Hero3D.has(u.def.id)){
+  } else if(heroLikeDef(u) && !portraitRenderMode && window.Hero3D && Hero3D.has(heroLikeDef(u).id)){
     /* 0.8.7: 3D-спрайт ещё считается в воркере — вместо старой 2D-картинки рисуем только тень и кольцо команды */
     const footY0 = u.radius*0.7;
     const sg0 = ctx.createRadialGradient(0, footY0, 1, 0, footY0, u.radius*1.05);
@@ -13473,7 +13869,12 @@ function drawUnit(u){
     ctx.strokeStyle = 'rgba(120,200,255,0.8)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0,0,u.radius+6,0,Math.PI*2); ctx.stroke();
   }
-  if(u.buffs && u.buffs.some(buff => buff.type === 'burning')){
+  if((u.buffs && u.buffs.some(buff => buff.type === 'burning')) || gameTime < (u.molotovFireUntil || 0)){
+    for(let k=0;k<3;k++){
+      const fa=gameTime*7+k*2.1, fx=Math.cos(k*2.1)*u.radius*0.7, flh=9+4*Math.sin(fa);
+      ctx.fillStyle='rgba(255,120,40,0.85)';
+      ctx.beginPath(); ctx.moveTo(fx-4,-u.radius*0.2); ctx.quadraticCurveTo(fx-3,-u.radius*0.2-flh*0.6,fx,-u.radius*0.2-flh-u.radius*0.5); ctx.quadraticCurveTo(fx+3,-u.radius*0.2-flh*0.6,fx+4,-u.radius*0.2); ctx.closePath(); ctx.fill();
+    }
     ctx.strokeStyle = 'rgba(255,104,45,0.9)'; ctx.lineWidth = 3;
     ctx.shadowColor = '#ff5a24'; ctx.shadowBlur = 14;
     ctx.beginPath(); ctx.arc(0,0,u.radius+8+Math.sin(gameTime*12)*2,0,Math.PI*2); ctx.stroke();
@@ -13538,24 +13939,25 @@ function drawUnit(u){
     ctx.restore();
   }
   if(!portraitRenderMode) drawHealthBar(u);
-  if(u.type === 'hero' && !portraitRenderMode){
+  if((u.type === 'hero' || isIllusionClone(u)) && !portraitRenderMode){
     const vsLift = unitLabelLift(u);
+    const lsrc = heroLikeSrc(u);
     ctx.save();
     ctx.textAlign='center'; ctx.font='bold 12px Segoe UI, Arial';
     ctx.fillStyle=u.team===0 ? '#a8ffb0' : '#ffb0a8';
     ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3;
-    ctx.strokeText('Ур. ' + u.level, u.x, u.y - u.radius - 38 - vsLift);
-    ctx.fillText('Ур. ' + u.level, u.x, u.y - u.radius - 38 - vsLift);
+    ctx.strokeText('Ур. ' + lsrc.level, u.x, u.y - u.radius - 38 - vsLift);
+    ctx.fillText('Ур. ' + lsrc.level, u.x, u.y - u.radius - 38 - vsLift);
     ctx.font='bold 10px Segoe UI, Arial';
     ctx.fillStyle='rgba(255,239,184,0.9)';
-    const roleLabel = gameTime >= MID_PUSH_TIME && u.midPushAssignment ? 'МИД • PUSH' : LANE_NAMES[u.assignedLane || 0];
+    const roleLabel = gameTime >= MID_PUSH_TIME && lsrc.midPushAssignment ? 'МИД • PUSH' : LANE_NAMES[lsrc.assignedLane || 0];
     ctx.strokeText(roleLabel, u.x, u.y - u.radius - 50 - vsLift);
     ctx.fillText(roleLabel, u.x, u.y - u.radius - 50 - vsLift);
     // 0.8.2: имя бойца над всеми героями (над подписью линии)
     ctx.font='bold 13px Georgia, serif';
     ctx.fillStyle=u.team===0 ? '#e6ffe9' : '#ffe3df';
     ctx.lineWidth=3.5;
-    const nameLabel=(u.def && u.def.name) || '';
+    const nameLabel=(heroLikeDef(u) && heroLikeDef(u).name) || '';
     ctx.strokeText(nameLabel, u.x, u.y - u.radius - 63 - vsLift);
     ctx.fillText(nameLabel, u.x, u.y - u.radius - 63 - vsLift);
     ctx.restore();
@@ -13574,22 +13976,25 @@ function drawHealthBar(u){
     ctx.fillText('★ АЭГИС '+Math.ceil(u.aegisTimer)+'с', u.x, u.y-u.radius-78-unitLabelLift(u));
     ctx.restore();
   }
-  const w = u.isRoshan ? 150 : u.type==='hero' ? 68 : (u.type==='ancient' ? 130 : 46);
-  const h = u.type==='hero' ? 8 : 6;
+  const heroBar = u.type==='hero' || isIllusionClone(u);
+  const w = u.isRoshan ? 150 : heroBar ? 68 : (u.type==='ancient' ? 130 : 46);
+  const h = heroBar ? 8 : 6;
   const x = u.x - w/2;
-  const y = u.y - u.radius - (u.type==='hero' ? 26 : 18) - unitLabelLift(u);
+  const y = u.y - u.radius - (heroBar ? 26 : 18) - unitLabelLift(u);
 
   ctx.fillStyle = 'rgba(0,0,0,0.75)';
   ctx.fillRect(x-2, y-2, w+4, h+4);
-  const pct = clamp(u.hp/u.maxHp, 0, 1);
+  const psrc = isIllusionClone(u) ? heroLikeSrc(u) : u;   /* иллюзия показывает здоровье оригинала — не выдаёт себя полной полоской */
+  const pct = clamp(psrc.hp/psrc.maxHp, 0, 1);
   ctx.fillStyle = u.team===0 ? '#3ddc60' : '#e2483f';
   ctx.fillRect(x, y, w*pct, h);
   ctx.strokeStyle = 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 1;
   ctx.strokeRect(x-2, y-2, w+4, h+4);
 
-  if(u.type === 'hero'){
-    const mpct = clamp(u.mp/u.maxMp, 0, 1);
+  if(heroBar){
+    const msrc = heroLikeSrc(u);
+    const mpct = clamp((msrc.mp||0)/(msrc.maxMp||1), 0, 1);
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(x-2, y+h+1, w+4, 7);
     ctx.fillStyle = '#3d8bff';
@@ -13604,6 +14009,37 @@ function isWorldPointVisible(x,y,padding=140){
 }
 
 function drawWorldObjects(){
+  for(const f of aoes){
+    if(f.visual !== 'molotovFire' || f.dead) continue;
+    /* Огненное поле Молотова в цветах Аркадия: тёмная опалённая земля,
+       тлеющий круг и язычки пламени, которые пляшут по всей площади. */
+    const fade=Math.max(0,Math.min(1,f.t/0.2,(f.life-f.t)/0.6));
+    if(fade<=0) continue;
+    ctx.save(); ctx.translate(f.x,f.y);
+    ctx.globalAlpha=fade;
+    const glow=ctx.createRadialGradient(0,0,4,0,0,f.radius);
+    glow.addColorStop(0,'rgba(255,208,138,0.55)');
+    glow.addColorStop(0.45,'rgba(239,91,50,0.42)');
+    glow.addColorStop(0.85,'rgba(120,28,12,0.38)');
+    glow.addColorStop(1,'rgba(60,12,6,0)');
+    ctx.fillStyle=glow; ctx.strokeStyle='rgba(255,140,60,'+(0.55+0.25*Math.sin(gameTime*6))+')'; ctx.lineWidth=2.5;
+    ctx.shadowColor='#ff5a24'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.ellipse(0,0,f.radius,f.radius*0.68,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0;
+    const n=perfLite()?7:Math.round(f.radius/13);
+    for(let i=0;i<n;i++){
+      const ang=i*2.399, rr=f.radius*Math.sqrt((i+0.5)/n)*0.94;
+      const fx=Math.cos(ang)*rr, fy=Math.sin(ang)*rr*0.68;
+      const flick=0.75+0.25*Math.sin(gameTime*8+i*1.9);
+      const hh=(15+9*Math.sin(gameTime*6.3+i*2.7))*flick, ww=7+3*Math.sin(gameTime*5+i);
+      const sway=Math.sin(gameTime*4+i)*3;
+      ctx.fillStyle='rgba(255,90,36,0.78)';
+      ctx.beginPath(); ctx.moveTo(fx-ww,fy); ctx.quadraticCurveTo(fx-ww*0.6+sway,fy-hh*0.6,fx+sway,fy-hh); ctx.quadraticCurveTo(fx+ww*0.6+sway,fy-hh*0.6,fx+ww,fy); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='rgba(255,208,138,0.85)';
+      ctx.beginPath(); ctx.moveTo(fx-ww*0.45,fy); ctx.quadraticCurveTo(fx+sway*0.6,fy-hh*0.5,fx+sway*0.7,fy-hh*0.62); ctx.quadraticCurveTo(fx+ww*0.2+sway*0.5,fy-hh*0.3,fx+ww*0.45,fy); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
   for(const puddle of aoes){
     if(puddle.visual !== 'yosypPuddle' || puddle.dead) continue;
     const fade=Math.max(0,Math.min(1,puddle.t/0.16,(puddle.life-puddle.t)/0.55));
@@ -14615,6 +15051,9 @@ function drawTestPanel(){
   ctx.strokeStyle = 'rgba(139,233,253,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.textAlign = 'left'; ctx.fillStyle = '#8be9fd'; ctx.font = 'bold 13px Segoe UI, Arial';
   ctx.fillText('⚙ ТЕСТ-РЕЖИМ', panelX, panelTop+20);
+  ctx.fillStyle = 'rgba(232,201,132,0.75)'; ctx.font = '10px Segoe UI, Arial'; ctx.textAlign = 'right';
+  ctx.fillText('клик по бойцу — управлять им', panelX+panelW, panelTop+20);
+  ctx.textAlign = 'left';
   ctx.restore();
 
   rows.forEach((hero, i)=>{
@@ -14694,6 +15133,11 @@ function handleTestPanelClick(mx, my){
     }
     if(mx>=btns.plus30.x && mx<=btns.plus30.x+btns.plus30.w && my>=btns.plus30.y && my<=btns.plus30.y+btns.plus30.h){
       setHeroLevelDelta(rows[i], 30);
+      return true;
+    }
+    const rr = testFighterRowRect(i);
+    if(mx>=rr.x && mx<=rr.x+rr.w && my>=rr.y && my<=rr.y+rr.h){
+      if(rows[i] !== playerHero) switchTestControl(rows[i]);
       return true;
     }
   }
@@ -15310,7 +15754,7 @@ function getShopItemDescription(item, hero, itemId=null){
 const SHOP_TABS = ['ВСЕ','РАСХОДНИКИ','ХАРАКТЕРИСТИКИ','АКТИВНЫЕ','ОСОБЫЕ'];
 const SHOP_CATEGORY_OF = {
   tango:1, timurPillow:1, mango:1, hatchet:1,
-  joelBoots:2, fangs:2, evsyutin:2, manaTome:2, manaHooves:2, brainEye:2, kinglandia:2, satanic:2, enemy302:2, semenHead:2,
+  joelBoots:2, fangs:2, evsyutin:2, manaTome:2, manaHooves:2, brainEye:2, kinglandia:2, satanic:2, enemy302:2, semenHead:2, octarineCore:2,
   pt:4, aghanimShard:4, aghanimScepter:4
 };
 function shopItemCategory(id){ return SHOP_CATEGORY_OF[id] || 3; }
@@ -16677,6 +17121,7 @@ function storePanelLayout(){
 }
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.9.1',title:'БАЛАНС САСЫЧА И ПРЕДМЕТОВ',description:'Сасыч стал быстрее: Thirst растёт с уровнем, Bloodrage усилен. Изменены Клыки Васьки, Кингляндия и Бошка Семёна, а в магазине появился Octarine Core.',compactDescription:'Баланс Сасыча, предметов и Octarine Core.'},
   {version:'0.9.0',title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ',description:'Три новых предмета — Валакинсенс, Торированная бошка и Киска дианы, а в магазине скинов появились два новых образа: Золотой Чемпион и Фантом Пустоты.',compactDescription:'3 предмета и 2 новых скина.'},
   {version:'0.8.3',title:'ЛЮБИМЫЙ БОЕЦ И ОПТИМИЗАЦИЯ',description:'Любимого героя можно поставить в центр меню. Новый красно-чёрный экран загрузки, новый фон выбора режима, река без деревьев и серьёзная оптимизация: игра стала заметно меньше лагать.',compactDescription:'Любимый боец в меню, новая загрузка, оптимизация.'},
   {version:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',description:'Иконки героев заменены на новые 3D-модельки везде: меню, выбор бойцов, матч. Над героями в бою показывается имя, у кнопки «Играть» теперь 4x4, а музыка меню стала богаче.',compactDescription:'3D-иконки, имена над героями, 4x4, новая музыка.'},
@@ -16749,32 +17194,6 @@ function drawMenuUpdatePreview(playRect){
     ctx.restore();
   });
   ctx.restore();
-}
-
-let lastGameHoverKey = '';
-/* 0.9.1: hover-звук на кнопке магазина, вкладках, предметах магазина и слотах инвентаря в матче */
-function updateGameHoverSound(){
-  if(gameState !== 'playing'){ lastGameHoverKey=''; return; }
-  const inside = r => r && mouse.x>=r.x && mouse.x<=r.x+r.w && mouse.y>=r.y && mouse.y<=r.y+r.h;
-  let key = '';
-  try {
-    if(inside(shopButtonRect())) key = 'shopbtn';
-    else if(shopOpen){
-      const L = shopLayout();
-      if(inside(shopCloseRect(L))) key = 'close';
-      else if(inside(shopSearchRect(L))) key = 'search';
-      else if(inside(shopGuideButtonRect())) key = 'guide';
-      else {
-        for(let i=0;i<SHOP_TABS.length;i++) if(inside(shopTabRect(i,L))){ key='tab'+i; break; }
-        if(!key){ const id = shopHoveredId(L); if(id) key = 'item:'+id; }
-      }
-    }
-    if(!key && playerHero){
-      for(let i=0;i<6;i++) if(inside(inventorySlotRect(i))){ key='slot'+i; break; }
-    }
-  } catch(err) {}
-  if(key && key !== lastGameHoverKey) playSynthSfx('hover');
-  lastGameHoverKey = key;
 }
 
 function updateMenuButtonHoverSound(){
@@ -19188,6 +19607,8 @@ function drawDotaSenseHome(){
 
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
+    {tag:'0.9.1',title:'Octarine Core: новый предмет',art:'item',itemId:'octarineCore',action:'store',kind:'магазин'},
+    {tag:'0.9.1',title:'Баланс Сасыча и предметов',art:'hero',hero:'Сасыч',action:'changelog',kind:'обновление'},
     {tag:'0.9.0',title:'Новые скины в магазине',art:'hero',hero:'Шадоу',action:'store',kind:'магазин'},
     {tag:'0.9.0',title:'Рефрешер орб: новый предмет',art:'item',itemId:'refresherOrb',action:'store',kind:'магазин'},
     {tag:'0.9.0',title:'Киска дианы: новый предмет',art:'item',itemId:'dianaKitty',action:'store',kind:'магазин'},
@@ -20978,7 +21399,8 @@ requestAnimationFrame(loop);
       slow:hero.slow,slowT:hero.slowT,attackSlow:hero.attackSlow,attackSlowT:hero.attackSlowT,
       liftTimer:hero.liftTimer,knockbackX:hero.knockbackX,knockbackY:hero.knockbackY,knockbackTimer:hero.knockbackTimer,
       buffs:(hero.buffs||[]).slice(0,24).map(buff=>({
-        type:buff.type,val:buff.val,t:buff.t,multiplier:buff.multiplier,damage:buff.damage
+        type:buff.type,val:buff.val,t:buff.t,multiplier:buff.multiplier,damage:buff.damage,
+        x:buff.x,y:buff.y,radius:buff.radius
       }))
     };
   }
@@ -21839,14 +22261,3 @@ function drawBaseComplexes(){
     }
   }
 }
-
-
-/* 0.9.1: hover/click-звуки для всех DOM-кнопок (аккаунт, лидерборд, меню). Троттлинг — внутри playSynthSfx. */
-document.addEventListener('pointerover', e => {
-  const t = e.target && e.target.closest && e.target.closest('button, .btn, [role="button"], a[href]');
-  if(t && !t.disabled && !(e.relatedTarget && t.contains(e.relatedTarget))) playSynthSfx('hover');
-});
-document.addEventListener('click', e => {
-  const t = e.target && e.target.closest && e.target.closest('button, .btn, [role="button"]');
-  if(t && !t.disabled) playSynthSfx('click');
-});

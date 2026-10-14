@@ -648,9 +648,40 @@ MODELS.illusionist=(S,d,t)=>{
   for(let i=0;i<4;i++){const a=t*1.1+i*Math.PI/2; const p=[Math.cos(a)*1.2,1.55+Math.sin(t*1.3+i)*.1,Math.sin(a)*1.2]; const ry=[0,-a+Math.PI/2,0];
     S.box(p,[.55,.9,.04],'#79e4e4',{glow:1,rot:ry});
     S.box(p,[.64,1.0,.03],'#eadbff',{rot:ry,shine:.7}); }
+  /* 0.9.1: отделка — золотая шляпа с короной, наплечники, пояс-шарф, кулон, парящие искры и посох с кристаллом */
+  const GOLD='#ffd568', CY='#79e4e4', PEARL='#eadbff';
+  S.tube([0,2.225,0],[0,2.25,0],.5,.5,GOLD,{seg:18,shine:.8});
+  S.tube([0,2.5,0],[0,2.58,0],.285,.285,GOLD,{seg:16,shine:.8});
+  S.box([0,2.54,.275],[.13,.13,.03],GOLD,{rot:[0,0,Math.PI/4],shine:.9});
+  S.ell([0,2.54,.292],[.04,.04,.02],'#ff7ad9',{glow:1,rings:4,seg:8});
+  for(let i=0;i<6;i++){ const a=i*Math.PI/3+.3, k=flick(t,i)*.03;
+    S.cone([Math.cos(a)*.2,2.88,Math.sin(a)*.2],[Math.cos(a)*.27,3.1+k+(i%2)*.05,Math.sin(a)*.27],.055,i%2?GOLD:CY,{glow:1,seg:5}); }
+  S.cone([0,2.88,0],[0,3.28+flick(t,7)*.04,0],.1,GOLD,{glow:1,seg:6});
+  S.ell([0,3.3,0],[.06,.06,.06],'#fff3b0',{glow:1,rings:4,seg:8});
+  for(const s of [-1,1]){
+    S.ell([s*.56,1.84,.02],[.2,.1,.2],GOLD,{shine:.8});
+    S.ell([s*.56,1.9,.02],[.12,.06,.12],CY,{glow:1,rings:4,seg:8});
+    S.cone([s*.66,1.86,.02],[s*.86,1.98,.02],.06,GOLD,{seg:5,shine:.7});
+    S.ell([s*.2,2.15,.19],[.035,.035,.035],GOLD,{glow:1,rings:4,seg:6});
+  }
+  S.box([0,1.1,.31],[.5,.07,.05],GOLD,{shine:.8});
+  S.ell([0,1.1,.345],[.07,.07,.03],CY,{glow:1,rings:4,seg:8});
+  S.box([.18,.85,.33],[.08,.5,.03],GOLD,{rot:[0,0,.08]});
+  S.ell([0,1.34,.36],[.06,.085,.03],'#ff7ad9',{glow:1,rings:4,seg:8});
+  S.tube([-.1,1.62,.33],[0,1.37,.36],.01,.01,GOLD,{seg:4}); S.tube([.1,1.62,.33],[0,1.37,.36],.01,.01,GOLD,{seg:4});
+  S.ring([0,.02,0],.95,.014,CY,{glow:1,n:26,phase:t*.6});
+  S.ring([0,.02,0],.75,.01,GOLD,{glow:1,n:20,phase:-t*.9});
+  for(let i=0;i<7;i++){ const a=t*1.5+i*Math.PI*2/7, r=.82+Math.sin(t*2+i)*.08;
+    S.ell([Math.cos(a)*r,.5+i*.25+Math.sin(t*2.2+i)*.07,Math.sin(a)*r],[.045,.045,.045],i%2?GOLD:PEARL,{glow:1,rings:4,seg:6}); }
   const _h6=hmark(S);
   S.tube([.65,.5,.45],[.65,1.5,.45],.025,.025,'#11323a');
-  S.ell([.65,1.56,.45],[.06,.06,.06],'#79e4e4',{glow:1,rings:4,seg:8});
+  for(let i=0;i<4;i++) S.tube([.65,.7+i*.22,.45],[.65,.78+i*.22,.45],.036,.036,i%2?GOLD:CY,{seg:6,shine:.7});
+  S.cone([.65,.5,.45],[.65,.28,.45],.04,GOLD,{seg:6});
+  S.ell([.65,1.56,.45],[.1,.1,.1],CY,{glow:1,rings:5,seg:10,shine:.7});
+  S.ell([.65,1.56,.45],[.05,.05,.05],'#ffffff',{glow:1,rings:4,seg:8});
+  S.ring([.65,1.56,.45],.17,.014,GOLD,{glow:1,axis:'z',n:14,phase:t*2});
+  S.ring([.65,1.56,.45],.17,.014,PEARL,{glow:1,axis:'x',n:14,phase:-t*2});
+  for(const s of [-1,1]) S.cone([.65+s*.07,1.62,.45],[.65+s*.17,1.84+flick(t,s+3)*.03,.45],.04,GOLD,{glow:1,seg:5});
   hold(S,_h6,'R');
 };
 
@@ -2402,6 +2433,217 @@ MODELS.sasych=(S,d,t,pose)=>{
 const _bsCasts=4;
 ANIM.earthshaker=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'walk',p:.25},{kind:'walk',p:.75},{kind:'cast',slot:0,p:.3},{kind:'cast',slot:0,p:.55},{kind:'cast',slot:1,p:.5},{kind:'cast',slot:1,p:.7},{kind:'cast',slot:2,p:.3},{kind:'cast',slot:2,p:.55},{kind:'cast',slot:3,p:.4},{kind:'cast',slot:3,p:.6}];
 ANIM.sasych=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'walk',p:.25},{kind:'walk',p:.75},{kind:'cast',slot:0,p:.4},{kind:'cast',slot:0,p:.6},{kind:'cast',slot:1,p:.3},{kind:'cast',slot:1,p:.6},{kind:'cast',slot:2,p:.4},{kind:'cast',slot:2,p:.6},{kind:'cast',slot:3,p:.35},{kind:'cast',slot:3,p:.6}];
+
+/* =========================================================
+   0.9.2 — ВИРСУДИ, «Теневой изгой»: новая 3D-модель со скелетом.
+   Капюшон со светящимися глазами, рваный плащ, наплечник, два клинка
+   с бирюзовой кромкой. Настоящий бег (корпус наклонён, плащ летит
+   за спиной), двойной скрещённый удар и своя анимация на каждую
+   способность: Q — волны, W — прыжок, E — кража, R — туман.
+   ========================================================= */
+const VS={NAVY:'#2b3752',NAVYD:'#171d2e',NAVYL:'#46598a',CYAN:'#a8eaff',CYAND:'#3fa9d6',STEEL:'#cfd9e8',STEELD:'#6b7a96',
+  LEATH:'#3b2f2c',SKIN:'#c99d7d',VOID:'#05070d',VIO:'#8a6bff',SMOKE:'#6f7fa8'};
+function vsPose(rp,t){
+  const k=rp.kind, p=rp.p||0, sl=rp.slot|0, br=Math.sin(t*1.7);
+  const P={pitch:.3+.02*br,twist:.16,roll:0,offY:-.07+.012*br,offZ:0,head:-.12,
+    hR:[.6,1.08+.02*br,.62],hL:[-.52,1.0+.02*br,.5],fR:[.3,0,.24],fL:[-.3,0,-.2],
+    bR:[.12,.2,1],bL:[-.25,.3,-1],glow:0,fire:0,flow:0,air:0,drain:0,smoke:0};
+  if(k==='walk'){
+    const ph=p*Math.PI*2;
+    const fr=limbPhase(ph,.66,.04,.58,0), fl=limbPhase(ph+Math.PI,.66,.04,.58,0);
+    P.fR=[.27,fr[1],fr[0]]; P.fL=[-.27,fl[1],fl[0]];
+    P.pitch=.74+.05*Math.sin(ph*2); P.offY=-.15+.06*Math.cos(ph*2);
+    P.twist=.24*Math.cos(ph); P.roll=-.05*Math.sin(ph);
+    P.hR=[.5,1.02+.1*Math.abs(Math.sin(ph)),-.28-.5*(fr[0]-.04)];
+    P.hL=[-.5,1.02+.1*Math.abs(Math.cos(ph)),-.28-.5*(fl[0]-.04)];
+    P.bR=[.1,.12,-1]; P.bL=[-.1,.12,-1];
+    P.head=-.55*P.pitch+.1; P.flow=1;
+  } else if(k==='attack'){
+    P.pitch=RK(p,[[0,.3],[.28,.08],[.5,.62,E_in],[.8,.45],[1,.3]]);
+    P.twist=RK(p,[[0,.16],[.28,.75],[.5,-.7,E_in],[.8,-.2],[1,.16]]);
+    P.offZ=RK(p,[[0,0],[.28,-.08],[.5,.3,E_in],[1,0]]);
+    P.hR=RK(p,[[0,P.hR],[.28,[.95,2.25,-.2]],[.5,[-.3,.9,1.4],E_in],[.8,[.3,1.0,.9]],[1,[.6,1.08,.62]]]);
+    P.bR=RK(p,[[0,P.bR],[.28,[.3,.95,-.1]],[.5,[-.5,-.1,.9],E_in],[.8,[0,.3,1]],[1,P.bR]]);
+    P.hL=RK(p,[[0,P.hL],[.32,[-.95,1.3,.1]],[.5,[-.95,1.65,.4]],[.68,[.5,.8,1.35],E_in],[.9,[-.2,1.0,.8]],[1,[-.52,1.0,.5]]]);
+    P.bL=RK(p,[[0,P.bL],[.32,[-.4,.3,-.9]],[.5,[-.2,.6,.5]],[.68,[.7,-.1,.7],E_in],[1,P.bL]]);
+    P.fR=RK(p,[[0,P.fR],[.5,[.3,0,.62],E_in],[1,P.fR]]);
+    P.fL=RK(p,[[0,P.fL],[.5,[-.3,0,-.4],E_in],[1,P.fL]]);
+    P.head=RK(p,[[0,-.12],[.28,.1],[.5,-.4],[1,-.12]]); P.fire=bell(p,.52,.1); P.arc=1;
+  } else if(k==='cast'&&sl===0){        // Q «Отдай сдачу»: сжимается, держит скрещённые клинки 1,5 с и выпускает волны
+    P.pitch=RK(p,[[0,.3],[.2,.52],[.85,.5],[.92,.02,E_out],[1,.2]]);
+    P.twist=RK(p,[[0,.16],[.2,0],[.85,0],[1,.16]]);
+    P.offY=RK(p,[[0,-.07],[.2,-.32],[.85,-.3],[.93,.06,E_out],[1,-.02]]);
+    P.hR=RK(p,[[0,P.hR],[.2,[.14,1.35,.82]],[.85,[.14,1.4,.82]],[.93,[1.3,1.15,.3],E_out],[1,[1.25,1.1,.4]]]);
+    P.hL=RK(p,[[0,P.hL],[.2,[-.14,1.3,.84]],[.85,[-.14,1.35,.84]],[.93,[-1.3,1.15,.3],E_out],[1,[-1.25,1.1,.4]]]);
+    P.bR=RK(p,[[0,P.bR],[.2,[-.6,.9,.15]],[.85,[-.6,.9,.15]],[.93,[1,.15,.1]],[1,[1,.15,.1]]]);
+    P.bL=RK(p,[[0,P.bL],[.2,[.6,.9,.15]],[.85,[.6,.9,.15]],[.93,[-1,.15,.1]],[1,[-1,.15,.1]]]);
+    P.fR=RK(p,[[0,P.fR],[.2,[.5,0,.12]],[1,[.5,0,.12]]]); P.fL=RK(p,[[0,P.fL],[.2,[-.5,0,-.05]],[1,[-.5,0,-.05]]]);
+    P.head=RK(p,[[0,-.12],[.2,.32],[.85,.3],[.93,-.15],[1,-.12]]);
+    P.glow=Math.max(.25*cl01(p/.2)*(p<.9?1:0),bell(p,.93,.1)); P.fire=bell(p,.93,.06)+.3*cl01((p-.2)/.4)*(p<.9?1:0);
+  } else if(k==='cast'&&sl===1){        // W «Прыжок на Коломию»: присед — прыжок — удар сверху
+    P.pitch=RK(p,[[0,.3],[.22,.78],[.5,.5],[.62,.95,E_in],[.82,.5],[1,.3]]);
+    P.offY=RK(p,[[0,-.07],[.22,-.34],[.5,1.15,E_out],[.64,-.1,E_in],[.8,0],[1,-.07]]);
+    P.offZ=RK(p,[[0,0],[.22,-.08],[.5,.25],[.64,.35,E_in],[1,0]]);
+    P.twist=RK(p,[[0,.16],[.22,.5],[.5,0],[.64,-.2],[1,.16]]);
+    P.hR=RK(p,[[0,P.hR],[.22,[.5,.6,-.3]],[.5,[.45,2.0,1.0]],[.64,[.35,.25,1.5,],E_in],[.9,[.4,.5,1.3]],[1,[.6,1.08,.62]]]);
+    P.hL=RK(p,[[0,P.hL],[.22,[-.5,.6,-.3]],[.5,[-.45,2.0,1.0]],[.64,[-.35,.25,1.5],E_in],[.9,[-.4,.5,1.3]],[1,[-.52,1.0,.5]]]);
+    P.bR=RK(p,[[0,P.bR],[.22,[.1,.2,-1]],[.5,[.1,.5,.9]],[.64,[.1,-.9,.5],E_in],[.9,[.1,-.3,.9]],[1,P.bR]]);
+    P.bL=RK(p,[[0,P.bL],[.22,[-.1,.2,-1]],[.5,[-.1,.5,.9]],[.64,[-.1,-.9,.5],E_in],[.9,[-.1,-.3,.9]],[1,P.bL]]);
+    const air=Math.max(0,P.offY); P.air=air;
+    P.fR=[.3,air*.75,.2+air*.35]; P.fL=[-.3,air*.9,-.2+air*.45];
+    P.head=RK(p,[[0,-.12],[.22,.2],[.5,-.2],[.64,-.6],[1,-.12]]);
+    P.glow=bell(p,.6,.2)*.7; P.fire=bell(p,.64,.08);
+  } else if(k==='cast'&&sl===2){        // E «Царствоудий»: клинки в стороны, вытягивает силу врага
+    P.pitch=RK(p,[[0,.3],[.35,.12],[.8,.16],[1,.3]]);
+    P.hR=RK(p,[[0,P.hR],[.35,[1.25,1.55,.35]],[.8,[1.2,1.5,.4]],[1,[.6,1.08,.62]]]);
+    P.hL=RK(p,[[0,P.hL],[.35,[-1.25,1.55,.35]],[.8,[-1.2,1.5,.4]],[1,[-.52,1.0,.5]]]);
+    P.bR=RK(p,[[0,P.bR],[.35,[.8,.7,.3]],[.8,[.8,.7,.3]],[1,P.bR]]);
+    P.bL=RK(p,[[0,P.bL],[.35,[-.8,.7,.3]],[.8,[-.8,.7,.3]],[1,P.bL]]);
+    P.head=RK(p,[[0,-.12],[.35,.55],[.8,.45],[1,-.12]]); P.drain=bell(p,.55,.3); P.glow=.6*P.drain; P.fire=bell(p,.5,.15);
+  } else if(k==='cast'){                // R «Изгойствоудий»: заворачивается в плащ, взрыв тумана
+    P.pitch=RK(p,[[0,.3],[.3,.5],[.5,.55],[.75,.1,E_out],[1,.3]]);
+    P.offY=RK(p,[[0,-.07],[.3,-.3],[.55,-.32],[.75,0],[1,-.07]]);
+    P.hR=RK(p,[[0,P.hR],[.3,[.22,1.8,.6]],[.55,[.22,1.85,.58]],[.8,[1.1,1.4,.3],E_out],[1,[.6,1.08,.62]]]);
+    P.hL=RK(p,[[0,P.hL],[.3,[-.22,1.78,.6]],[.55,[-.22,1.83,.58]],[.8,[-1.1,1.4,.3],E_out],[1,[-.52,1.0,.5]]]);
+    P.bR=RK(p,[[0,P.bR],[.3,[-.3,-.9,.2]],[.55,[-.3,-.9,.2]],[.8,[.9,.2,.2]],[1,P.bR]]);
+    P.bL=RK(p,[[0,P.bL],[.3,[.3,-.9,.2]],[.55,[.3,-.9,.2]],[.8,[-.9,.2,.2]],[1,P.bL]]);
+    P.fR=RK(p,[[0,P.fR],[.3,[.4,0,.1]],[1,P.fR]]); P.fL=RK(p,[[0,P.fL],[.3,[-.4,0,0]],[1,P.fL]]);
+    P.head=RK(p,[[0,-.12],[.3,.5],[.6,.55],[.8,-.1],[1,-.12]]);
+    P.glow=bell(p,.6,.3); P.smoke=E_io(cl01(p/.55))*(1-cl01((p-.8)/.2)); P.fire=bell(p,.65,.1);
+  }
+  return P;
+}
+function vsFloor(S,rp,P){
+  const k=rp.kind, p=rp.p||0, sl=rp.slot|0, C1='#83ddff', C2='#e4fbff', V1='#6f7fa8';
+  floorFx(S,()=>{
+    if(k==='attack'){ const r=cl01((p-.48)/.4); if(r>0) S.ring([0,.012,.5],.25+.8*E_out(r),.045*(1-r)+.01,C1,{glow:1,n:26}); return; }
+    if(k!=='cast') return;
+    if(sl===0){ for(const [j,c] of [[0,C1],[.09,C2],[.18,C1]]){ const r=cl01((p-.9-j*.25)/.2); if(r>0) S.ring([0,.012,0],.3+(1.3+j*4)*E_out(r),.06*(1-r)+.012,c,{glow:1,n:36}); }
+      if(p>.15&&p<.9){ const g=cl01((p-.15)/.5), pr=.8*(1-.55*g); S.ring([0,.012,0],pr,.03,C1,{glow:1,n:28}); } }
+    else if(sl===1){ const r=cl01((p-.62)/.4); if(r>0){ S.ring([0,.012,.4],.25+1.2*E_out(r),.06*(1-r)+.012,C1,{glow:1,n:30}); S.ring([0,.012,.4],.15+.7*E_out(r),.04*(1-r)+.01,C2,{glow:1,n:24}); } }
+    else if(sl===2){ const r=cl01((p-.3)/.5); if(r>0) S.ring([0,.012,0],1.1-.8*E_out(r),.04*(1-r)+.012,'#8a6bff',{glow:1,n:28}); }
+    else { for(const [j,c] of [[0,V1],[.12,C1]]){ const r=cl01((p-.55-j)/.45); if(r>0) S.ring([0,.012,0],.3+1.7*E_out(r),.07*(1-r)+.012,c,{glow:1,n:34}); } }
+  });
+}
+function vsBlade(S,H,a,L,glow,t){
+  a=norm(a);
+  let cand=[0,0,1]; if(Math.abs(dot(a,cand))>.8) cand=[0,1,0];
+  let c=sub(cand,mul(a,dot(cand,a))); c=norm(c);
+  const nrm=norm(cross(a,c)), curve=.55, Rb=L/curve;
+  /* рукоять, гарда, навершие */
+  S.tube(add(H,mul(a,-.2)),add(H,mul(a,.12)),.05,.05,VS.LEATH,{seg:7,shine:.3});
+  S.ell(add(H,mul(a,-.22)),[.06,.06,.06],VS.CYAN,{rings:4,seg:6,glow:1});
+  S.box(add(H,mul(a,.14)),[.2,.05,.05],VS.STEELD,{shine:.6,rot:[0,0,0]});
+  const pt=u=>{ const b=u*curve; return add(add(H,mul(a,.16+Rb*Math.sin(b))),mul(c,Rb*(1-Math.cos(b)))); };
+  const N=6;
+  for(let i=0;i<N;i++){
+    const u0=i/N,u1=(i+1)/N,q0=pt(u0),q1=pt(u1);
+    const w=.15*(1-.62*(u0+u1)/2);
+    S.obox(q0,q1,Math.max(.045,w),.03,VS.STEEL,{shine:.75,hint:nrm});
+    S.obox(add(q0,mul(c,-.0)),add(q1,mul(c,-.0)),Math.max(.02,w*.38),.038,VS.CYAN,{glow:1,hint:nrm});
+  }
+  S.cone(pt(1),add(pt(1),mul(norm(add(mul(a,Math.cos(curve)),mul(c,Math.sin(curve)))),.18)),.05,VS.STEEL,{seg:4,shine:.7});
+  if(glow>.05) G(S,pt(.8),.06+.08*glow,VS.CYAN);
+  return pt;
+}
+MODELS.virsudi=(S,d,t,pose)=>{
+  const rp=rigResolve(pose,t,'vs',4), P=vsPose(rp,t);
+  const {NAVY,NAVYD,NAVYL,CYAN,CYAND,STEEL,STEELD,LEATH,SKIN,VOID,VIO,SMOKE}=VS;
+  const PV=[0,.9,0], R=mkRot(P.pitch,P.twist,P.roll), TR=[0,P.offY,P.offZ];
+  const Wp=q=>add(add(R(sub(q,PV)),PV),TR);
+  vsFloor(S,rp,P);
+  const m0=S.faces.length;
+  /* таз, пояс, набедренная накидка */
+  S.ell([0,.95,0],[.4,.24,.28],NAVYD,{rings:6,seg:12});
+  S.tube([0,.9,0],[0,1.04,0],.4,.4,LEATH,{seg:14,shine:.3});
+  S.box([0,.98,.4],[.16,.14,.05],STEEL,{shine:.7}); S.box([0,.98,.43],[.07,.07,.02],CYAN,{glow:1});
+  for(const s of [-1,1]){ S.box([s*.34,.9,.14],[.13,.18,.13],LEATH); S.box([s*.34,.99,.14],[.14,.05,.14],NAVYD); }
+  S.box([.08,.62,.34],[.3,.6,.04],NAVY,{rot:[.08,0,.05]}); S.box([-.16,.58,.33],[.2,.66,.04],NAVYD,{rot:[.08,0,-.06]});
+  /* торс: подтянутый, в тёмной тунике с бирюзовой руной */
+  S.tube([0,1.02,0],[0,1.46,0],.3,.37,NAVY,{seg:14});
+  S.ell([0,1.5,.02],[.46,.36,.3],NAVY,{rings:9,seg:16});
+  S.ell([0,1.5,.12],[.36,.28,.2],NAVYL,{rings:6,seg:12,shine:.4});
+  S.obox([-.3,1.72,.2],[.3,1.15,.26],.09,.04,LEATH,{shine:.35,hint:[0,0,1]});
+  S.box([0,1.45,.28],[.05,.26,.03],CYAN,{glow:1}); S.box([0,1.45,.28],[.2,.05,.03],CYAN,{glow:1});
+  /* шарф, наплечник справа, плащ за спиной */
+  S.tube([0,1.72,0],[0,1.92,0],.35,.25,NAVYD,{seg:14,shine:.2});
+  S.tube([0,1.76,0],[0,1.82,0],.37,.37,CYAN,{seg:14,glow:0,shine:.6});
+  const sw=Math.sin(t*3.1)*.07*(.4+P.flow);
+  S.obox([-.18,1.82,-.2],[-.3+sw,1.3,-.5-.5*P.flow],.16,.03,CYAN,{shine:.5,hint:[1,0,0]});
+  S.ell([.64,1.8,0],[.32,.2,.3],STEELD,{rings:7,seg:12,shine:.55});
+  S.tube([.58,1.86,0],[.7,1.78,0],.31,.3,NAVYD,{seg:10,shine:.4});
+  S.tube([.6,1.9,0],[.7,1.86,0],.318,.3,CYAN,{seg:10,shine:.7});
+  for(let i=0;i<3;i++) S.cone([.64+i*.02,1.9,.0+(i-1)*.12],[.7+i*.03,2.22-i*.06,(i-1)*.18],.05,STEEL,{seg:5,shine:.7});
+  S.ell([-.62,1.78,0],[.26,.18,.25],NAVY,{rings:6,seg:10});
+  S.box([0,1.4,-.31],[.78,.95,.05],NAVYD,{shine:.2});
+  for(let i=0;i<5;i++){
+    const x=(i-2)*.17, s2=Math.sin(t*3+i*1.3)*.07*(.4+P.flow), fl=P.flow;
+    const a=[x,1.7,-.3], m=[x*1.15+s2,1.1,-.4-.32*fl+s2*.4], e=[x*1.3+s2*1.8,.5+.12*(i%2),-.55-.7*fl+s2];
+    S.obox(a,m,.22,.03,i%2?NAVY:NAVYD,{shine:.2,hint:[0,0,1]});
+    S.obox(m,e,.2,.03,i%2?NAVYD:NAVY,{shine:.2,hint:[0,0,1]});
+    S.cone(add(e,[0,.02,0]),add(e,[s2*.5,-.28-.1*fl,-.12-.2*fl]),.1,i%2?NAVYD:NAVY,{seg:4,shine:.2});
+  }
+  /* голова и капюшон — отдельной группой, чтобы смотрела вперёд при наклоне корпуса */
+  const mh=S.faces.length, HP=[0,1.98,.04];
+  S.tube([0,1.84,0],[0,2.0,.04],.16,.15,SKIN,{seg:10});
+  S.ell([0,2.08,0],[.36,.4,.37],NAVY,{rings:10,seg:16,shine:.25});
+  S.ell([0,2.04,.12],[.3,.34,.28],NAVYD,{rings:8,seg:14});
+  S.ell([0,2.04,.28],[.21,.24,.12],VOID,{rings:7,seg:12,shine:0});                       // тьма под капюшоном
+  S.ell([0,1.9,.27],[.2,.12,.1],NAVYD,{rings:5,seg:10,shine:.3});               // маска-шарф
+  for(const s of [-1,1]){
+    S.ell([s*.09,2.07,.355],[.08,.036,.025],CYAN,{glow:1,rings:4,seg:8,rot:[0,0,-s*.3]});
+    S.box([s*.1,2.14,.36],[.14,.03,.03],VOID,{rot:[0,0,-s*.4]});
+    S.cone([s*.2,2.2,.1],[s*.34,2.36,-.1],.05,NAVYL,{seg:5});                  // «ушки» капюшона
+  }
+  S.cone([0,2.3,-.12],[0,2.2+.1*Math.sin(t*2.6),-.75-.15*P.flow],.2,NAVY,{seg:8});   // хвост капюшона
+  S.tube([-.3,2.0,.12],[-.34,1.97,.05],.02,.02,CYAN,{seg:5,glow:1});
+  xfGroup(S,mh,HP,mkRot(P.head,0,0),[0,0,.04],1.22);
+  xfGroup(S,m0,PV,R,TR);
+  /* руки по IK: тёмные наручи, перчатки, клинки */
+  const hands={};
+  const arm=(s,tg)=>{
+    const shd=Wp([s*.6,1.76,0]), r=ik2(shd,tg,.58,.58,[s*.5,-.2,-.8]), el=r.el, hd=r.hand, dir=norm(sub(hd,el));
+    S.tube(shd,el,.13,.105,NAVY); S.ell(el,[.115,.115,.115],NAVYD,{rings:5,seg:8});
+    S.tube(el,lerp(el,hd,.3),.105,.095,NAVY);
+    S.tube(lerp(el,hd,.28),lerp(el,hd,.94),.125,.115,NAVYD,{seg:9,shine:.35});
+    S.tube(lerp(el,hd,.3),lerp(el,hd,.36),.14,.14,CYAN,{seg:9,shine:.55}); S.tube(lerp(el,hd,.84),hd,.13,.13,STEELD,{seg:9,shine:.5});
+    S.ell(add(hd,mul(dir,.06)),[.1,.1,.1],SKIN,{rings:5,seg:8});
+    hands[s]=hd;
+  };
+  arm(1,P.hR); arm(-1,P.hL);
+  const bp={};
+  bp[1]=vsBlade(S,hands[1],P.bR,.98,P.fire,t);
+  bp[-1]=vsBlade(S,hands[-1],P.bL,.98,P.fire,t);
+  /* ноги: тёмные штаны, бинты, лёгкие сапоги с бирюзовой полосой */
+  const leg=(s,ft)=>{
+    const hip=[s*.27,.9+P.offY,P.offZ*.6], r=ik2(hip,add(ft,[0,.14,0]),.62,.6,[s*.1,.1,1]), kn=r.el, an=r.hand;
+    S.ell(hip,[.22,.2,.22],NAVYD,{rings:5,seg:9});
+    S.tube(hip,kn,.2,.15,NAVY,{seg:10}); S.ell(kn,[.15,.16,.15],NAVYL,{rings:5,seg:8,shine:.45});
+    S.tube(kn,an,.14,.105,NAVYD,{seg:9});
+    S.tube(lerp(kn,an,.55),lerp(kn,an,.8),.135,.125,LEATH,{seg:9,shine:.35});
+    S.tube(add(an,[0,.14,0]),add(an,[0,.02,0]),.125,.12,NAVYD,{seg:9,shine:.35});
+    S.tube(add(an,[0,.12,0]),add(an,[0,.08,0]),.135,.135,CYAN,{seg:9,shine:.55});
+    S.ell(add(ft,[0,.07,.12]),[.11,.07,.24],NAVYD,{rings:4,seg:8});
+    S.cone(add(ft,[0,.06,.3]),add(ft,[0,.04,.5]),.07,NAVYD,{seg:6});
+    S.box(add(ft,[0,.015,.14]),[.24,.03,.5],'#0c0f18');
+  };
+  leg(1,P.fR); leg(-1,P.fL);
+  /* эффекты: туман у ног при беге, аура способностей, клинок вспыхивает при ударе */
+  if(P.flow>0){ for(let i=0;i<4;i++){ const ph=(t*1.3+i/4)%1; G(S,[Math.sin(i*2.3)*.3,.12+ph*.15,-.35-ph*.9],.14*(1-ph*.6)+.04,SMOKE,{glow:0,shine:.05}); } }
+  if(P.glow>.1){ for(let i=0;i<7;i++){ const ph=(t*.9+i/7)%1, a=i*.95+t*1.4; G(S,[Math.cos(a)*(.85+.25*P.glow),.2+ph*2.2,Math.sin(a)*(.85+.25*P.glow)],.05*(1-ph*.5)+.02,i%2?CYAN:'#e4fbff'); } }
+  if(P.drain>.05){ for(let i=0;i<8;i++){ const ph=(t*1.1+i/8)%1, a=i*.8; const o=1.6*(1-ph);
+    G(S,[Math.cos(a)*o,1.0+.7*ph,Math.sin(a)*o+.3],.06+.03*(1-ph),i%2?VIO:CYAN); } }
+  if(P.smoke>.03){ for(let i=0;i<14;i++){ const a=i*2.4+t, ph=(i*.137+t*.35)%1, rr=.4+1.3*P.smoke*(.4+ph*.6);
+    G(S,[Math.cos(a)*rr,.35+ph*1.7,Math.sin(a)*rr],(.16+.13*(1-ph))*(.5+P.smoke*.6),i%3?SMOKE:'#c7d4ff',{glow:0,shine:.05}); } }
+  if(P.fire>.1){ for(const s of [-1,1]) if(hands[s]) G(S,hands[s],.06+.1*P.fire,CYAN); }
+  /* дуга удара: светящийся след между замахом и выпадом */
+  if(rp.kind==='attack'&&rp.p>.38&&rp.p<.82){ const u0=cl01((rp.p-.38)/.44); for(let i=0;i<7;i++){ const u=i/6*u0, x=.95-1.4*u, y=2.1-1.3*u+.3*Math.sin(u*Math.PI), z=.1+1.2*u;
+    G(S,[x,y,z],.07*(1-i/9)+.02,i%2?CYAN:'#e4fbff'); } }
+  if(rp.kind==='cast'&&rp.slot===1&&P.air>.15){ for(let i=1;i<=6;i++) G(S,[0,1.0+P.air*.5-i*.05,-.2-i*.22*P.air],.09*(1-i/8),CYAN); }
+};
+ANIM.virsudi=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'attack',p:.7},{kind:'walk',p:.25},{kind:'walk',p:.75},
+  {kind:'cast',slot:0,p:.5},{kind:'cast',slot:0,p:.93},{kind:'cast',slot:0,p:1},{kind:'cast',slot:1,p:.5},{kind:'cast',slot:1,p:.64},
+  {kind:'cast',slot:2,p:.4},{kind:'cast',slot:2,p:.6},{kind:'cast',slot:3,p:.35},{kind:'cast',slot:3,p:.7}];
 
 
 /* ---------- Настройки анимаций бойцов: idle-руки, стиль атаки, стили 4 способностей ---------- */

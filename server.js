@@ -19,7 +19,7 @@ const MAP_SCALE = 1.846;
 const mapPoint = (x,y) => ({x:(x-1800)*MAP_SCALE+WORLD_SIZE/2,y:(y-1800)*MAP_SCALE+WORLD_SIZE/2});
 const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y));
 const SPAWN_RADIUS = 70;
-const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir'];
+const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi'];
 const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
 const makeTowerId = (team, lane, tier, base = false) => base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
 const TOWER_SPOTS = [
@@ -34,6 +34,7 @@ const rooms = Object.create(null);
 const socketRooms = new Map();
 let nextBulletId = 1;
 
+app.get('/api/healthz', (_req, res) => res.json({ status: 'ok' }));
 app.use((req, res, next) => { if(!accounts.handle(req, res)) next(); });
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, filePath){
@@ -387,7 +388,10 @@ function handlePlayerSkill(socket,data){
       target.skillBuffs=state.buffs.slice(0,24).map(buff=>({
         type:String(buff.type||'').slice(0,40),val:Number.isFinite(buff.val)?clamp(buff.val,-10000,10000):undefined,
         t:Number.isFinite(buff.t)?clamp(buff.t,0,120):undefined,multiplier:Number.isFinite(buff.multiplier)?clamp(buff.multiplier,0,20):undefined,
-        damage:Number.isFinite(buff.damage)?clamp(buff.damage,0,10000):undefined
+        damage:Number.isFinite(buff.damage)?clamp(buff.damage,0,10000):undefined,
+        x:Number.isFinite(buff.x)?clamp(buff.x,0,WORLD_SIZE):undefined,
+        y:Number.isFinite(buff.y)?clamp(buff.y,0,WORLD_SIZE):undefined,
+        radius:Number.isFinite(buff.radius)?clamp(buff.radius,0,2000):undefined
       }));
     }
     effects.push({targetId:target.id,state:{
