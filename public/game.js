@@ -17882,6 +17882,7 @@ function drawHeroViewer(def,x,y,w,h,now){
   ctx.fillText('↻ '+deg+'°   ×'+heroView.zoom.toFixed(2),x+12,y+h-12);
   ctx.textAlign='right'; ctx.font='11px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.5)';
   ctx.fillText('тяни — крутить  •  колесо — масштаб  •  2×клик — сброс',x+w-12,y+h-12);
+  ctx.fillStyle='#7fd8ff'; ctx.textAlign='left'; ctx.fillText('game 0.9.5 • модель: '+((window.Hero3D&&Hero3D.ver)||'СТАРАЯ hero3d.js'),x+12,y+16);
 }
 
 function drawHeroDetail(def){
