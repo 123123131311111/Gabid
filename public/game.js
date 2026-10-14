@@ -4877,6 +4877,7 @@ class Unit {
     if(this.def&&this.def.id==='virsudi'){
       this.virsudiOutsideVision=isOutsideEnemyVision(this);
       tickVirsudiWaves(this,dt);
+      tickVirsudiJump(this,dt);
     }
     if(this.attackSlowT>0) this.attackSlowT=Math.max(0,this.attackSlowT-dt);
     if(this.inventory){
@@ -4942,7 +4943,7 @@ class Unit {
       this.moving=false;
       return;
     }
-    if(this.stunTimer>0){ this.moving=false; return; }
+    if(this.stunTimer>0 || this.virsudiJump){ this.moving=false; return; }
     if(this.ruptureState && this.isPlayer!==true && !(this.windTimer>0) && !(this.buffs && this.buffs.some(buff=>buff.type==='fear'))){
       /* Разрыв: бот понимает, что двигаться нельзя — стоит и ждёт, пока эффект спадёт */
       this.moving=false; this.moveTarget=null; return;
@@ -5017,7 +5018,7 @@ class Unit {
   updateCombat(dt){
     const t=this.attackTarget;
     if(!t||t.dead){ this.attackTarget=null; return; }
-    if(this.stunTimer>0 || this.windTimer>0) return;
+    if(this.stunTimer>0 || this.windTimer>0 || this.virsudiJump) return;
     if((this.type==='tower' || this.type==='creep') && hasTreeCover(this,t)) return;
     const d=Math.hypot(t.x-this.x, t.y-this.y);
     if(d <= this.getAttackRange() + t.radius){
@@ -5025,7 +5026,14 @@ class Unit {
         this.atkCd = this.getAttackTime() * (this.attackSlowT > 0 ? 1 + (this.attackSlow || 0.35) : 1);
         this.facing = Math.atan2(t.y-this.y, t.x-this.x);
         this.attackAngle = this.facing; this.attackAnimProgress = 0; this.isAttacking = true;
-        if(this.invisible && !(this.def&&this.def.id==='virsudi'&&this.virsudiInvisibilityTimer>0)){ this.invisible=false; this.tribuInvisibilityTimer=0; }
+        if(this.def&&this.def.id==='virsudi'&&this.virsudiInvisibilityTimer>0){
+          /* Изгойствоудий: атака раскрывает Вирсуди — боты видят его и начинают атаковать */
+          this.virsudiInvisibilityTimer=0; this.undetectable=false;
+          this.buffs=this.buffs.filter(b=>b.type!=='virsudiMist');
+          if(this.tribuInvisibilityTimer<=0) this.invisible=false;
+          addText(this.x,this.y-72,'РАСКРЫТ','#ff9aa8',0.9,15);
+          fxRing(this.x,this.y,70,'#8299c9',0.4);
+        } else if(this.invisible){ this.invisible=false; this.tribuInvisibilityTimer=0; }
         if(this.type === 'hero') playHeroSfx('attack_' + (this.def.id || 'default'));
         if(this.def && this.def.id === 'tribupainer' && this.getAttackRange()>220){
           const incendiary=!!(this.tribuIncendiaryTimer>0 || (this.buffs && this.buffs.some(buff=>buff.type==='tribuShardShot')));
@@ -7291,37 +7299,22 @@ Object.assign(SKILLS, {
   },
   virsudiW: {
     name:'Прыжок на Коломию', short:'W', type:'point', maxLevel:4,
-    cd:[0,18,16,14,12], mana:[0,75,85,95,105], range:720,
-    desc:'Прыгает вперёд. Первый встреченный вражеский герой получает урон и привязывается к точке приземления на 3 секунды.',
+    cd:[0,18,16,14,12], mana:[0,75,85,95,105], range:480,
+    desc:'Долгий прыжок на 1,3 секунды (дальность 480). При приземлении наносит урон всем врагам рядом, а первый задетый вражеский герой привязывается к точке приземления на 3 секунды.',
     cast(h,x,y,lvl){
+      if(h.virsudiJump) return false;
       const ox=h.x, oy=h.y;
       let dx=x-ox, dy=y-oy, distance=Math.hypot(dx,dy);
       if(distance<1){ dx=Math.cos(h.facing||0); dy=Math.sin(h.facing||0); distance=1; }
-      const dirX=dx/distance, dirY=dy/distance;
-      let first=null, firstProgress=Infinity;
-      for(const enemy of heroes){
-        if(!enemy || enemy===h || enemy.dead || enemy.team===h.team || enemy.type!=='hero' || enemy.isIllusion) continue;
-        const along=( (enemy.x-ox)*dirX + (enemy.y-oy)*dirY );
-        if(along<0 || along>distance) continue;
-        const px=ox+dirX*along, py=oy+dirY*along;
-        if(Math.hypot(enemy.x-px,enemy.y-py)>(enemy.radius||20)+42) continue;
-        if(along<firstProgress){ first=enemy; firstProgress=along; }
-      }
-      const landingDistance=first ? Math.min(distance,firstProgress+115) : distance;
-      const nx=clamp(ox+dirX*landingDistance,60,WORLD-60);
-      const ny=clamp(oy+dirY*landingDistance,60,WORLD-60);
-      h.x=nx; h.y=ny; h.facing=Math.atan2(dirY,dirX); h.moveTarget=null;
-      fxBeam(ox,oy,nx,ny,'#8de8ff',0.4);
-      spawnParticles(nx,ny,'#b9f6ff',28,0.75);
-      fxRing(nx,ny,48,'#83ddff',0.35);
-      if(first && !first.dead){
-        applyDamage(first,abilityDamage(h,125+55*lvl),h);
-        const duration=2.8+lvl*0.2, radius=160+lvl*5;
-        first.addBuff({type:'virsudiTether',val:1,t:duration,x:nx,y:ny,radius});
-        fxBeam(nx,ny,first.x,first.y,'#b9f6ff',0.5);
-        fxRing(nx,ny,radius,'#83ddff',0.55);
-        addText(first.x,first.y-first.radius-24,'ПРИВЯЗАН','#b9f6ff',0.9,14);
-      }
+      distance=Math.min(distance,480);
+      const dirX=dx/Math.hypot(dx,dy), dirY=dy/Math.hypot(dx,dy);
+      const nx=clamp(ox+dirX*distance,60,WORLD-60);
+      const ny=clamp(oy+dirY*distance,60,WORLD-60);
+      h.virsudiJump={t:0,dur:1.3,ox,oy,nx,ny,lvl};
+      h.facing=Math.atan2(dirY,dirX); h.moveTarget=null; h.attackTarget=null; h.isAttacking=false;
+      fxBeam(ox,oy,nx,ny,'#8de8ff',0.5);
+      spawnParticles(ox,oy,'#b9f6ff',20,0.6);
+      fxRing(ox,oy,46,'#83ddff',0.3);
       playHeroSfx('jump');
     }
   },
@@ -7334,7 +7327,7 @@ Object.assign(SKILLS, {
   virsudiR: {
     name:'Изгойствоудий', short:'R', type:'self', maxLevel:3, ult:true,
     cd:[0,75,62,50], mana:[0,120,160,200],
-    desc:'Активно: на 8–11 секунд скрывается в тумане, получает бонус к скорости и не раскрывается даже True Sight. Пассивно: вне обзора врагов быстрее передвигается и восстанавливает здоровье.',
+    desc:'Активно: на 8–11 секунд становится невидимым, боты его не замечают, +скорость; даже True Sight не раскрывает. Первая же атака раскрывает Вирсуди, и враги начинают его атаковать. Пассивно: вне обзора врагов быстрее передвигается и восстанавливает здоровье.',
     cast(h,x,y,lvl){
       const duration=7+lvl*1.4;
       h.virsudiInvisibilityTimer=duration;
@@ -7348,6 +7341,41 @@ Object.assign(SKILLS, {
     }
   }
 });
+
+function tickVirsudiJump(hero,dt){
+  const j=hero.virsudiJump;
+  if(!j) return;
+  if(hero.dead){ hero.virsudiJump=null; return; }
+  j.t+=dt;
+  const k=Math.min(1,j.t/j.dur);
+  const e=k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;   /* плавный разгон и торможение по земле */
+  hero.x=j.ox+(j.nx-j.ox)*e; hero.y=j.oy+(j.ny-j.oy)*e;
+  hero.moveTarget=null; hero.moving=false;
+  if(k<1) return;
+  hero.virsudiJump=null;
+  const lvl=j.lvl, nx=j.nx, ny=j.ny, landR=170+lvl*10;
+  let first=null, firstD=Infinity;
+  const targets=[];
+  for(const u of units){
+    if(!u || u.dead || u===hero || u.team===hero.team || u.team===2 || u.invulnerable || u.isIllusion) continue;
+    const d=Math.hypot(u.x-nx,u.y-ny);
+    if(d>landR+(u.radius||20)) continue;
+    targets.push(u);
+    if(u.type==='hero' && d<firstD){ first=u; firstD=d; }
+  }
+  fxRing(nx,ny,landR,'#83ddff',0.6);
+  fxRing(nx,ny,landR*0.55,'#e4fbff',0.4);
+  spawnParticles(nx,ny,'#b9f6ff',40,0.9);
+  addText(nx,ny-60,'ПРИЗЕМЛЕНИЕ','#b9f6ff',0.9,15);
+  for(const u of targets) applyDamage(u,abilityDamage(hero,90+45*lvl),hero);
+  if(first && !first.dead){
+    const duration=2.8+lvl*0.2, radius=160+lvl*5;
+    first.addBuff({type:'virsudiTether',val:1,t:duration,x:nx,y:ny,radius});
+    fxBeam(nx,ny,first.x,first.y,'#b9f6ff',0.5);
+    fxRing(nx,ny,radius,'#83ddff',0.55);
+    addText(first.x,first.y-first.radius-24,'ПРИВЯЗАН','#b9f6ff',0.9,14);
+  }
+}
 
 function applyVirsudiEssenceShift(hero,target){
   const passive=hero.skills && hero.skills.find(skill=>skill.id==='virsudiE');
@@ -8557,7 +8585,7 @@ class Hero extends Unit {
         this.buffs.length = 0;
         if(this.def.id==='virsudi'){
           this.virsudiInvisibilityTimer=0;
-          this.virsudiPendingWaves=null;
+          this.virsudiPendingWaves=null; this.virsudiJump=null;
           this.invisible=false;
           this.undetectable=false;
         }
@@ -8769,7 +8797,7 @@ function skillFxColor(hero, skillId){
 function startChipCastAnim(hero, slot, def, tx, ty){
   if(def.type==='point' && typeof tx==='number' && Math.hypot(tx-hero.x,ty-hero.y)>8) hero.facing = Math.atan2(ty-hero.y, tx-hero.x);
   const vsQ = hero.def && hero.def.id==='virsudi' && slot===0;   /* Вирсуди Q: поза держится все 1,5 с до первой волны */
-  hero.castAnim = { slot, t0:gameTime, dur: vsQ ? 1.7 : (def.ult ? 1.5 : (slot===1 ? 1.2 : 1.0)), facing:hero.facing||0 };
+  hero.castAnim = { slot, t0:gameTime, dur: vsQ ? 1.7 : (hero.def && hero.def.id==='virsudi' && slot===1 ? 1.3 : def.ult ? 1.5 : (slot===1 ? 1.2 : 1.0)), facing:hero.facing||0 };
 }
 function castSkillVisual(hero, skill, tx, ty){
   const color = skillFxColor(hero, skill.id);
@@ -9782,14 +9810,14 @@ function updateEnemyAI(h, dt){
   }
 
   const farmPhaseEnemy = gameTime < BOT_FARM_PHASE_TIME
-    ? heroes.filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead &&
+    ? heroes.filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
         Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
       .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0]
     : null;
   if(!forcedTarget && !scenarioDirective && gameTime < BOT_FARM_PHASE_TIME && !farmPhaseEnemy){
     const farmLane = Number.isInteger(h.assignedLane) ? h.assignedLane : 0;
     const laneCreep = units
-      .filter(unit => unit.type === 'creep' && unit.team !== h.team && !unit.dead &&
+      .filter(unit => unit.type === 'creep' && unit.team !== h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
         laneDistanceToPoint(unit.x,unit.y,farmLane) < 190 && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
       .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
     if(laneCreep){
@@ -9807,11 +9835,11 @@ function updateEnemyAI(h, dt){
     return;
   }
   if(!forcedTarget && scenarioDirective && scenarioDirective.passive){
-    const defender = units.filter(unit => unit.type==='hero' && unit.team!==h.team && !unit.dead &&
+    const defender = units.filter(unit => unit.type==='hero' && unit.team!==h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
       Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
       .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
     if(defender){ h.attackTarget=defender; h.moveTarget=null; return; }
-    const creep = units.filter(unit => unit.type==='creep' && unit.team!==h.team && !unit.dead &&
+    const creep = units.filter(unit => unit.type==='creep' && unit.team!==h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
       laneDistanceToPoint(unit.x,unit.y,scenarioDirective.lane)<220 && Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
       .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
     if(creep){ h.laneState='lane'; h.attackTarget=creep; h.moveTarget=null; return; }
@@ -9832,13 +9860,13 @@ function updateEnemyAI(h, dt){
     (gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0));
   if(!scenarioDirective && gameTime >= MID_PUSH_TIME && h.midPushAssignment) h.assignedLane = 0;
   const laneEnemy = units
-    .filter(unit => unit.team !== h.team && unit.team !== 2 && !unit.dead &&
+    .filter(unit => unit.team !== h.team && unit.team !== 2 && !unit.dead && !isHiddenFrom(unit,h.team) &&
       isUnitOnBotLane(unit, strategicLane) && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
     .sort((left,right) => (right.type === 'hero') - (left.type === 'hero'))[0];
   /* В первые 5 минут бот может помочь соседней линии, если там уже
      началась драка рядом с союзником, а не продолжать слепо идти по своей. */
   const nearbyFight = (gameTime < MID_PUSH_TIME || h.midPushAssignment) ? units
-    .filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead &&
+    .filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
       Math.hypot(unit.x-h.x,unit.y-h.y) <= Math.min(820,h.vision))
     .filter(unit => units.some(ally =>
       ally.type === 'hero' && ally.team === h.team && !ally.dead &&
@@ -9877,7 +9905,8 @@ function updateEnemyAI(h, dt){
    * 2) добить ближайших крипов перед собой;
    * 3) идти по цепочке зданий: T1 -> T2 -> казармы -> трон.
    */
-  const target = forcedTarget || urgentFight || nearbyCreep || structureTarget || laneEnemy || visibleEnemy || null;
+  let target = forcedTarget || urgentFight || nearbyCreep || structureTarget || laneEnemy || visibleEnemy || null;
+  if(target && isHiddenFrom(target,h.team)) target = null;   /* невидимых (Вирсуди R) боты не замечают */
 
   /* === ВИРСУДИ — АИ === */
   if(h.def.id === 'virsudi'){
@@ -9890,7 +9919,7 @@ function updateEnemyAI(h, dt){
         castSkill(h,3,h.x,h.y);
         return;
       }
-      if(enemyHero&&h.skills[1].level>0&&h.skills[1].cd<=0&&d>190&&d<720){
+      if(enemyHero&&h.skills[1].level>0&&h.skills[1].cd<=0&&d>190&&d<470){
         castSkill(h,1,target.x,target.y);
         return;
       }
