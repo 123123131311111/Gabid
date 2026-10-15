@@ -667,7 +667,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.3.3';
+const GAME_VERSION = '0.9.4';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -754,7 +754,13 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.3.3', title:'БАЛАНС ТРИБУПЕЙНЕРА, ИЛЬИ И АРКАДИЯ', changes:[
+  const sections = [{version:'0.9.4', title:'ПЕРЕРАБОТАННЫЕ БАШНИ', changes:[
+    'Новый облик башен: каменное основание, колонны, металлические пояса, золотые акценты и светящееся магическое ядро. Свет — резной слоновый камень с голубым ядром, Тьма — обсидиан с шипами и красным ядром. Башни второго яруса выше и богаче.',
+    'Снаряды башен стали заметными: светящийся шар с хвостом и яркая вспышка с искрами в точке попадания.',
+    'Реакция на урон: короткая вспышка при попадании, по мере потери здоровья ярче ядро, появляются светящиеся трещины, дым и искры.',
+    'Эффектное разрушение: вспышка ядра, разлетающиеся обломки, пыль, оседание башни и затухающее свечение на руинах. Разрушенная башня сразу перестаёт атаковать.'
+  ]},
+  {version:'0.9.3.3', title:'БАЛАНС ТРИБУПЕЙНЕРА, ИЛЬИ И АРКАДИЯ', changes:[
     'Трибупейнер: немного повышен урон (базовый 32 → 38, рост за уровень 2,5 → 3,2).',
     'Трибупейнер, Q «Поджигающие пули»: теперь переключатель без перезарядки. Включение стоит 10 маны, пока включено — все выстрелы огненные; повторное нажатие выключает огонь бесплатно.',
     'Трибупейнер, E «Тихий охотник»: герой зарывается в землю на 10 секунд — враги его не видят и не могут выбрать целью; эффект спадает при первом выстреле.',
@@ -1946,6 +1952,7 @@ function drawPrematchOverlay(){
   ctx.restore();
 }
 function noteStructureAttack(target, source, fromSync){
+  if(target && target.type === 'tower') towerOnHit(target, source);
   if(!playerHero || gameState !== 'playing' || !target) return;
   if(target.type !== 'tower' && target.type !== 'barracks' && target.type !== 'ancient') return;
   if(source && source.team === target.team) return;
@@ -3227,6 +3234,7 @@ function killUnit(u, source){
     }
     addText(rewardHero.x, rewardHero.y - 88, streak, rewardHero.killStreak >= 2 ? '#ff3b30' : '#ff7b7b', 1.8, rewardHero.killStreak >= 2 ? 26 : 20);
   }
+  if(u.type === 'tower') towerBeginRuin(u);
   if(u.type === 'tower' || u.type === 'barracks'){
     if(u.type === 'tower' && rewardHero === playerHero && playerIsGolly() && rewardHero.team !== u.team) playGollyVoice('steal');
     addText(u.x, u.y - 70, u.type === 'tower' ? 'БАШНЯ РАЗРУШЕНА!' : 'КАЗАРМЫ РАЗРУШЕНЫ!', '#ffd54f', 1.8, 20);
@@ -9780,7 +9788,7 @@ function startGame(playerIndex, draftPicks=null){
   onlineMatchActive = false;
   stopMenuMusic();
   MID_PUSH_TIME = gameModeCfg().midPushTime;
-  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; grassBends=[];
+  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
@@ -9901,7 +9909,7 @@ function orientOnlineMapForTeam(globalTeam){
 function startTestMode(playerIndex){
   MID_PUSH_TIME = GAME_MODES.turbo.midPushTime;
   stopMenuMusic();
-  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; grassBends=[];
+  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID);
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
@@ -11352,6 +11360,7 @@ function update(dt){
     p.vy = p.vy * Math.pow(p.drag, dt*60) + p.gravity * dt;
   }
   particles = particles.filter(p => p.t < p.life);
+  updateTowerFx(dt);
   for(const gb of grassBends) gb.t += dt;
   grassBends = grassBends.filter(gb => gb.t < gb.life);
   for(const t of texts){ t.t += dt; t.y -= 28*dt; }
@@ -12675,67 +12684,385 @@ function structurePoly(points, fill, stroke, lw){
   if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.lineJoin = 'round'; ctx.stroke(); }
 }
 
-function drawLightTowerModel(r, t){
-  const s = r / 20;
-  ctx.save();
-  ctx.scale(s, s);
-  const pulse = 0.65 + 0.35 * Math.sin(t * 2.2);
-  /* каменное основание-диск с водой */
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 12, 26, 10, 0, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#b8ab8c'; ctx.strokeStyle = '#6f654f'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.ellipse(0, 10, 24, 9, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#9fe6f5'; ctx.globalAlpha = 0.55 + 0.25 * pulse;
-  ctx.beginPath(); ctx.ellipse(0, 10, 15, 5.5, 0, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
-  /* корпус-обелиск */
-  const body = ctx.createLinearGradient(-14, 0, 14, 0);
-  body.addColorStop(0, '#cfc4a6'); body.addColorStop(0.5, '#efe6cf'); body.addColorStop(1, '#a79b7d');
-  structurePoly([[-12,10],[-14,-8],[-10,-24],[-3,-34],[8,-31],[14,-20],[13,-4],[11,10]], body, '#6f654f', 1.6);
-  /* голова-«птичий клюв» */
-  structurePoly([[-10,-24],[-3,-34],[8,-31],[16,-27],[8,-24],[-1,-22]], '#f6efdc', '#6f654f', 1.4);
-  /* голубое свечение в трещинах */
-  ctx.save();
-  ctx.shadowColor = '#7fe3ff'; ctx.shadowBlur = 8 * pulse;
-  ctx.fillStyle = 'rgba(130,225,255,' + (0.75 + 0.2 * pulse) + ')';
-  structurePoly([[-9,-20],[-1,-24],[3,-21],[-4,-17]], ctx.fillStyle, null);
-  structurePoly([[-10,-9],[2,-13],[8,-9],[-1,-4]], ctx.fillStyle, null);
-  structurePoly([[-8,2],[1,-1],[6,3],[-2,7]], ctx.fillStyle, null);
-  structurePoly([[4,-29],[8,-28],[6,-25]], ctx.fillStyle, null);
-  ctx.restore();
-  /* золотая кромка */
-  ctx.strokeStyle = 'rgba(224,178,70,0.85)'; ctx.lineWidth = 1.6;
-  ctx.beginPath(); ctx.moveTo(-13, 8); ctx.lineTo(-14, -8); ctx.stroke();
+/* ===== 0.9.4: новые башни — модель, реакция на урон, снаряды и разрушение =====
+   Всё чисто визуальное: логика, урон, HP и дальность башен не затрагиваются. */
+let towerFx = [], towerBolts = [], towerRuins = [];
+const TOWER_PAL = {
+  light:{stoneL:'#f4ecd6',stone:'#d2c7a9',stoneD:'#9a8e72',line:'#5f563f',metalL:'#a9b6c3',metal:'#6a7886',metalD:'#323b46',gold:'#f0c24f',goldD:'#a67c22',glow:'#7fe3ff',core:'#e2fcff',rgb:'127,227,255',smoke:'196,206,212',boltRgb:'150,235,255'},
+  dark:{stoneL:'#50555f',stone:'#32353c',stoneD:'#17191d',line:'#06070a',metalL:'#767b85',metal:'#3d4048',metalD:'#1a1b1f',gold:'#c8952f',goldD:'#7a5817',glow:'#ff4a2b',core:'#ffe0a8',rgb:'255,90,40',smoke:'62,56,56',boltRgb:'255,120,60'}
+};
+const towerGlowCache = {};
+function towerGlowSprite(rgb){
+  let c = towerGlowCache[rgb];
+  if(c) return c;
+  c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32,32,0,32,32,32);
+  gr.addColorStop(0,'rgba('+rgb+',1)'); gr.addColorStop(0.35,'rgba('+rgb+',0.45)'); gr.addColorStop(1,'rgba('+rgb+',0)');
+  g.fillStyle = gr; g.fillRect(0,0,64,64);
+  return towerGlowCache[rgb] = c;
+}
+function towerGlow(x,y,rad,rgb,alpha){
+  if(alpha <= 0.01 || rad <= 0.5) return;
+  ctx.globalAlpha = Math.min(1,alpha);
+  ctx.drawImage(towerGlowSprite(rgb), x-rad, y-rad, rad*2, rad*2);
+}
+function towerFxCap(){ return perfLevel === 0 ? 240 : (perfLevel === 1 ? 170 : (perfLevel === 2 ? 110 : 50)); }
+function towerRnd(seed,i){ const x = Math.sin(seed*12.9898 + i*78.233)*43758.5453; return x - Math.floor(x); }
+function towerIsLight(u){ return (u.team === 0) !== structuresSwapped; }
+function towerCoreOffset(u){ return u.isBase ? -u.radius*1.2 : -u.radius*(u.tier >= 2 ? 2.2 : 2.0); }
+
+/* Модель башни. Координаты — «условные» (r=20), y вверх отрицательный. */
+function drawTowerBody(r, t, light, tier, hpFrac, opt){
+  opt = opt || {};
+  const P = light ? TOWER_PAL.light : TOWER_PAL.dark;
+  const big = tier >= 2, s = r/20;
+  const dmg = 1 - Math.max(0, Math.min(1, hpFrac));
+  const pulse = 0.65 + 0.35*Math.sin(t*(light ? 2.2 : 3.1) + (light ? 0 : 1));
+  const H = big ? -36 : -29;               /* уровень площадки-короны */
+  const coreY = H - (big ? 11 : 9);
+  ctx.save(); ctx.scale(s, s);
+  /* тень */
+  ctx.fillStyle = 'rgba(0,0,0,0.34)'; ctx.beginPath(); ctx.ellipse(0, 14, big ? 33 : 29, 11, 0, 0, Math.PI*2); ctx.fill();
+  const sideGrad = (rx) => { const g = ctx.createLinearGradient(-rx,0,rx,0); g.addColorStop(0,P.stone); g.addColorStop(0.3,P.stoneL); g.addColorStop(1,P.stoneD); return g; };
+  const plinth = (rx, ry, y, h, topCol) => {
+    ctx.beginPath(); ctx.ellipse(0,y+h,rx,ry,0,0,Math.PI); ctx.lineTo(-rx,y); ctx.ellipse(0,y,rx,ry,0,Math.PI,Math.PI*2); ctx.closePath();
+    ctx.fillStyle = sideGrad(rx); ctx.fill(); ctx.strokeStyle = P.line; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0,y,rx,ry,0,0,Math.PI*2); ctx.fillStyle = topCol; ctx.fill(); ctx.stroke();
+  };
+  if(big) plinth(31, 11.5, 9, 5, P.stone);
+  plinth(27, 10.5, big ? 5 : 8, 6, P.stoneL);
+  plinth(21, 8, 2, 6, P.stone);
+  /* золотая кайма цоколя */
+  ctx.strokeStyle = P.gold; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.ellipse(0, 2, 21, 8, 0, 0.15, Math.PI-0.15); ctx.stroke();
+  /* ствол */
+  const topY = H + 4;
+  const shaftPath = () => { ctx.beginPath(); ctx.moveTo(-12,2); ctx.lineTo(-9,topY); ctx.lineTo(9,topY); ctx.lineTo(12,2); ctx.closePath(); };
+  shaftPath(); ctx.fillStyle = sideGrad(12); ctx.fill(); ctx.strokeStyle = P.line; ctx.lineWidth = 1.4; ctx.stroke();
+  /* кладка */
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 0.8;
+  const rows = big ? 6 : 5;
+  for(let i=1;i<rows;i++){
+    const y = 2 + (topY-2)*i/rows, hw = 12 - 3*(2-y)/(2-topY);
+    ctx.beginPath(); ctx.moveTo(-hw,y); ctx.lineTo(hw,y); ctx.stroke();
+    const off = (i%2 ? -4 : 3);
+    ctx.beginPath(); ctx.moveTo(off,y); ctx.lineTo(off,y + (topY-2)/rows); ctx.stroke();
+  }
+  /* окно-прорезь с магическим светом */
+  const winY = 2 + (topY-2)*0.5;
+  ctx.fillStyle = P.metalD; ctx.beginPath();
+  if(light){ ctx.moveTo(-2.8,winY+6); ctx.lineTo(-2.8,winY-2); ctx.arc(0,winY-2,2.8,Math.PI,0); ctx.lineTo(2.8,winY+6); }
+  else { ctx.moveTo(-2,winY+6); ctx.lineTo(0,winY-6); ctx.lineTo(2,winY+6); }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba('+P.rgb+','+(0.55+0.35*pulse+dmg*0.15).toFixed(3)+')';
+  ctx.beginPath();
+  if(light){ ctx.moveTo(-1.5,winY+5); ctx.lineTo(-1.5,winY-2); ctx.arc(0,winY-2,1.5,Math.PI,0); ctx.lineTo(1.5,winY+5); }
+  else { ctx.moveTo(-0.9,winY+5); ctx.lineTo(0,winY-4.5); ctx.lineTo(0.9,winY+5); }
+  ctx.closePath(); ctx.fill();
+  /* боковые колонны: капитель, база, золотые пояса */
+  const colTop = H + 9;
+  for(const cx of [-13.5, 13.5]){
+    const g = ctx.createLinearGradient(cx-2.8,0,cx+2.8,0); g.addColorStop(0,P.stone); g.addColorStop(0.35,P.stoneL); g.addColorStop(1,P.stoneD);
+    ctx.fillStyle = g; ctx.strokeStyle = P.line; ctx.lineWidth = 1.1;
+    ctx.fillRect(cx-2.6, colTop, 5.2, 2-colTop); ctx.strokeRect(cx-2.6, colTop, 5.2, 2-colTop);
+    ctx.fillStyle = P.stoneL; ctx.fillRect(cx-3.5, 0, 7, 3); ctx.strokeRect(cx-3.5, 0, 7, 3);
+    ctx.fillStyle = P.stoneL; ctx.fillRect(cx-3.5, colTop-2.2, 7, 2.4); ctx.strokeRect(cx-3.5, colTop-2.2, 7, 2.4);
+    ctx.fillStyle = P.gold; ctx.fillRect(cx-2.8, colTop+4, 5.6, 1.5); ctx.fillRect(cx-2.8, colTop+(2-colTop)*0.6, 5.6, 1.5);
+    if(!light){ /* шип на колонне Тьмы */
+      ctx.fillStyle = P.metal; ctx.strokeStyle = P.line;
+      ctx.beginPath(); ctx.moveTo(cx-2.4,colTop-2.2); ctx.lineTo(cx+(cx<0?-1:1),colTop-9); ctx.lineTo(cx+2.4,colTop-2.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else { /* золотой шар на колонне Света */
+      ctx.fillStyle = P.gold; ctx.beginPath(); ctx.arc(cx, colTop-4.2, 1.7, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = P.goldD; ctx.lineWidth = 0.7; ctx.stroke();
+    }
+  }
+  /* металлический пояс с заклёпками */
+  const bandY = 2 + (topY-2)*0.22, bhw = 12 - 3*(2-bandY)/(2-topY) + 1.2;
+  const bg = ctx.createLinearGradient(0,bandY-2,0,bandY+2); bg.addColorStop(0,P.metalL); bg.addColorStop(1,P.metalD);
+  ctx.fillStyle = bg; ctx.strokeStyle = P.line; ctx.lineWidth = 1;
+  ctx.fillRect(-bhw, bandY-2, bhw*2, 4); ctx.strokeRect(-bhw, bandY-2, bhw*2, 4);
+  ctx.fillStyle = P.gold; for(let i=-2;i<=2;i++){ ctx.beginPath(); ctx.arc(i*bhw*0.4, bandY, 0.9, 0, Math.PI*2); ctx.fill(); }
+  if(big){ const by2 = 2 + (topY-2)*0.72; ctx.fillStyle = bg; ctx.fillRect(-9.8, by2-1.6, 19.6, 3.2); ctx.strokeRect(-9.8, by2-1.6, 19.6, 3.2); }
+  /* корона: платформа и зубцы / шипы */
+  plinth(17, 6.5, H+1, 4, P.stone);
+  ctx.fillStyle = P.stoneL; ctx.strokeStyle = P.line; ctx.lineWidth = 1;
+  for(const mx of [-13,-4.5,4.5,13]){
+    ctx.beginPath();
+    if(light){ ctx.rect(mx-2.5, H-4, 5, 5.4); }
+    else { ctx.moveTo(mx-2.8,H+1.4); ctx.lineTo(mx, H-9 - (Math.abs(mx)>10 ? 0 : 2)); ctx.lineTo(mx+2.8,H+1.4); ctx.closePath(); }
+    ctx.fill(); ctx.stroke();
+  }
+  /* силуэт: плавники Света / рога Тьмы */
+  for(const sg of [-1,1]){
+    ctx.beginPath();
+    if(light){
+      ctx.moveTo(sg*9, H+1); ctx.quadraticCurveTo(sg*21, H-3, sg*17, H-(big?22:17)); ctx.quadraticCurveTo(sg*14, H-8, sg*6, H-3); ctx.closePath();
+      ctx.fillStyle = P.stoneL;
+    } else {
+      ctx.moveTo(sg*8, H); ctx.lineTo(sg*20, H-4); ctx.lineTo(sg*16, H-(big?26:20)); ctx.lineTo(sg*12, H-9); ctx.lineTo(sg*5, H-3); ctx.closePath();
+      ctx.fillStyle = P.stone;
+    }
+    ctx.fill(); ctx.strokeStyle = P.line; ctx.lineWidth = 1.1; ctx.stroke();
+    ctx.strokeStyle = P.gold; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sg*(light?9:8), H+0.4); ctx.lineTo(sg*(light?17:16), H-(big?22:(light?17:20))+1); ctx.stroke();
+  }
+  /* опоры и золотая арка вокруг ядра */
+  ctx.strokeStyle = P.metal; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-7,H+1); ctx.lineTo(-6,coreY+2); ctx.moveTo(7,H+1); ctx.lineTo(6,coreY+2); ctx.stroke();
+  /* магическое ядро (на заднем плане арки) */
+  if(!opt.noCore){
+    const cy = coreY + Math.sin(t*2)*0.8;
+    const boost = (opt.flash || 0)*0.6 + (opt.coreBoost || 0);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    towerGlow(0, cy, (15 + dmg*8 + boost*14)*(0.88+0.12*pulse), P.rgb, 0.55 + 0.3*pulse + dmg*0.3 + boost);
+    ctx.restore(); ctx.globalAlpha = 1;
+    const cg = ctx.createLinearGradient(-5,cy-7,5,cy+7); cg.addColorStop(0,P.core); cg.addColorStop(0.5,P.glow); cg.addColorStop(1,P.metalD);
+    ctx.fillStyle = cg; ctx.strokeStyle = P.gold; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0,cy-7.5); ctx.lineTo(5,cy); ctx.lineTo(0,cy+7.5); ctx.lineTo(-5,cy); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,'+(0.65+0.3*pulse).toFixed(3)+')';
+    ctx.beginPath(); ctx.moveTo(0,cy-4); ctx.lineTo(1.8,cy); ctx.lineTo(0,cy+4); ctx.lineTo(-1.8,cy); ctx.closePath(); ctx.fill();
+  }
+  /* золотая арка поверх ядра */
+  ctx.strokeStyle = P.gold; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(0, coreY, 8.4, 9.5, 0, Math.PI, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle = P.goldD; ctx.lineWidth = 0.9;
+  ctx.beginPath(); ctx.ellipse(0, coreY, 4.2, 9.5, 0, Math.PI, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = P.gold; ctx.beginPath(); ctx.arc(0, coreY-9.5, 1.6, 0, Math.PI*2); ctx.fill();
+  /* трещины со свечением — проявляются по мере потери здоровья */
+  if(dmg > 0.28){
+    const a = Math.min(1,(dmg-0.22)*1.5)*(0.6+0.4*pulse);
+    const cracks = [[[-8,topY+6],[-3,topY+13],[-6,topY+19],[0,topY+25]],[[7,topY+10],[2,topY+17],[8,topY+22]],[[-9,2-6],[-3,2-12],[-7,2-16]]];
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const n = dmg > 0.62 ? 3 : 2;
+    for(let i=0;i<n;i++){
+      const c = cracks[i];
+      ctx.strokeStyle = 'rgba('+P.rgb+','+(a*0.3).toFixed(3)+')'; ctx.lineWidth = 3.4;
+      ctx.beginPath(); ctx.moveTo(c[0][0],c[0][1]); for(let k=1;k<c.length;k++) ctx.lineTo(c[k][0],c[k][1]); ctx.stroke();
+      ctx.strokeStyle = 'rgba('+P.rgb+','+Math.min(1,a).toFixed(3)+')'; ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.moveTo(c[0][0],c[0][1]); for(let k=1;k<c.length;k++) ctx.lineTo(c[k][0],c[k][1]); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  /* белая вспышка при попадании */
+  if(opt.flash > 0){
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    shaftPath(); ctx.fillStyle = 'rgba(255,255,255,'+(opt.flash*0.42).toFixed(3)+')'; ctx.fill();
+    ctx.restore();
+  }
   ctx.restore();
 }
 
-function drawDarkTowerModel(r, t){
-  const s = r / 20;
+function towerFxAdd(p, force){
+  if(!force && towerFx.length >= towerFxCap()) return;
+  if(towerFx.length > towerFxCap()*1.6) return;
+  p.t = 0; towerFx.push(p);
+}
+function towerSparks(x,y,rgb,n,ang,spread){
+  if(perfLite()) n = Math.ceil(n/2);
+  for(let i=0;i<n;i++){
+    const a = (ang === undefined ? Math.random()*Math.PI*2 : ang + (Math.random()-0.5)*spread), sp = rnd(70,220);
+    towerFxAdd({k:'spark',x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,g:260,life:rnd(0.25,0.55),size:rnd(1.4,2.6),rgb});
+  }
+}
+function towerImpact(x,y,rgb,ang){
+  towerFxAdd({k:'flash',x,y,life:0.2,size:30,rgb}, true);
+  towerFxAdd({k:'ring',x,y,life:0.26,size:22,rgb}, true);
+  towerSparks(x,y,rgb,5,ang,2.4);
+}
+/* Реакция башни на попадание (вызывается из noteStructureAttack) */
+function towerOnHit(u, source){
+  if(u.type !== 'tower' || u.dead) return;
+  const fresh = (u.towerHitT || 0) < 0.08;
+  u.towerHitT = 0.16;
+  if(!fresh) return;
+  const src = source && (source.source && source.source.x !== undefined ? source.source : source);
+  const ang = src && src.x !== undefined ? Math.atan2(src.y-u.y, src.x-u.x) : -Math.PI/2;
+  const light = towerIsLight(u), P = light ? TOWER_PAL.light : TOWER_PAL.dark;
+  const hx = u.x + Math.cos(ang)*u.radius*0.7, hy = u.y - u.radius*0.9 + Math.sin(ang)*u.radius*0.4;
+  towerFxAdd({k:'flash',x:hx,y:hy,life:0.14,size:u.radius*1.4,rgb:'255,240,200'});
+  towerSparks(hx,hy,P.rgb,3,ang,1.6);
+}
+/* Визуальный выстрел башни (событие tower:shot) — урон считает сервер */
+function towerFireBolt(ev, target){
+  const tw = units.find(u => (u.type === 'tower' || u.type === 'ancient') && String(u.id) === String(ev.id));
+  if(!tw || tw.dead) return false;
+  if(towerBolts.length > 40) return true;
+  const light = towerIsLight(tw), P = light ? TOWER_PAL.light : TOWER_PAL.dark;
+  const ox = tw.x, oy = tw.y + towerCoreOffset(tw);
+  towerBolts.push({tw, ox, oy, x:ox, y:oy, target, ang:ev.angle || 0, tx:target ? target.x : ox+Math.cos(ev.angle||0)*400, ty:target ? target.y : oy+Math.sin(ev.angle||0)*400,
+    t:0, life:0.22, rgb:P.boltRgb, light, trail:0, big:tw.type === 'ancient'});
+  towerFxAdd({k:'flash',x:ox,y:oy,life:0.16,size:tw.radius*(tw.isBase ? 0.9 : 1.5),rgb:P.rgb}, true);
+  return true;
+}
+/* Разрушение */
+function towerBeginRuin(u){
+  const light = towerIsLight(u), P = light ? TOWER_PAL.light : TOWER_PAL.dark;
+  if(towerRuins.length > 12) towerRuins.shift();
+  towerRuins.push({x:u.x, y:u.y, r:u.radius, tier:u.tier || 1, light, t:0, life:3.4, seed:(u.x*0.013 + u.y*0.007), stage:0, emberT:0, smokeT:0, hp:0.0, P});
+  /* стадия 0: вспышка ядра, первая волна обломков */
+  const cy = u.y + towerCoreOffset(u);
+  towerFxAdd({k:'flash',x:u.x,y:cy,life:0.55,size:u.radius*5.2,rgb:'255,255,255'}, true);
+  towerFxAdd({k:'flash',x:u.x,y:cy,life:0.8,size:u.radius*8,rgb:P.rgb}, true);
+  towerFxAdd({k:'ring',x:u.x,y:cy,life:0.6,size:u.radius*5,rgb:P.rgb}, true);
+  towerSparks(u.x, cy, P.rgb, 14, undefined, 0);
+  towerSpawnDebris(u, P, perfLite() ? 4 : 7, cy);
+  fxRing(u.x, u.y, u.radius*2.4, TEAM_COL[u.team], 0.5);
+}
+function towerSpawnDebris(u, P, n, fromY){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = rnd(60,210);
+    towerFxAdd({k:'debris',x:u.x+rnd(-8,8),y:(fromY === undefined ? u.y : u.y+rnd(-4,10)),z:fromY === undefined ? rnd(8,40) : Math.max(8, u.y-fromY),
+      vx:Math.cos(a)*sp,vy:Math.sin(a)*sp*0.5,vz:rnd(160,340),rot:Math.random()*6.28,vr:rnd(-7,7),
+      size:rnd(3.5,8.5)*Math.max(0.8,u.radius/20),col:Math.random()<0.5 ? P.stone : P.stoneD,life:rnd(1.3,2.0),sh:Math.random()*100}, true);
+  }
+}
+function towerSpawnDust(x,y,r,P,n){
+  if(perfLite()) n = Math.ceil(n/2);
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = rnd(25,85);
+    towerFxAdd({k:'dust',x:x+Math.cos(a)*r*0.5,y:y+r*0.4+Math.sin(a)*r*0.2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp*0.35 - rnd(8,26),life:rnd(0.9,1.6),size:rnd(9,16)*r/20,grow:rnd(14,26),rgb:'150,138,118'}, true);
+  }
+}
+function updateTowerFx(dt){
+  for(const p of towerFx){
+    p.t += dt;
+    switch(p.k){
+      case 'spark': p.x += p.vx*dt; p.y += p.vy*dt; p.vy += p.g*dt; p.vx *= 0.96; break;
+      case 'smoke': case 'dust': p.x += p.vx*dt; p.y += p.vy*dt; p.vx *= 0.985; p.size += (p.grow || 8)*dt; break;
+      case 'debris':
+        p.x += p.vx*dt; p.y += p.vy*dt; p.z += p.vz*dt; p.vz -= 900*dt; p.rot += p.vr*dt;
+        if(p.z <= 0){ p.z = 0; if(p.vz < -140){ p.vz = -p.vz*0.3; p.vx *= 0.5; p.vy *= 0.5; p.vr *= 0.5; } else { p.vz = 0; p.vx *= 0.8; p.vy *= 0.8; p.vr = 0; } }
+        break;
+    }
+  }
+  if(towerFx.length){ let j = 0; for(let i=0;i<towerFx.length;i++){ const p = towerFx[i]; if(p.t < p.life) towerFx[j++] = p; } towerFx.length = j; }
+  /* снаряды */
+  for(const b of towerBolts){
+    b.t += dt;
+    const tg = b.target;
+    if(tg && !tg.dead && tg.x !== undefined){ b.tx = tg.x; b.ty = tg.y - (tg.radius || 20)*0.3; }
+    const k = Math.min(1, b.t/b.life), e = k*k*(3-2*k)*0.35 + k*0.65;
+    b.px = b.x; b.py = b.y;
+    b.x = b.ox + (b.tx-b.ox)*e; b.y = b.oy + (b.ty-b.oy)*e;
+    b.trail -= dt;
+    if(b.trail <= 0){ b.trail = 0.035; towerFxAdd({k:'spark',x:b.x,y:b.y,vx:rnd(-20,20),vy:rnd(-20,20),g:0,life:0.28,size:rnd(1.3,2.2),rgb:b.rgb}); }
+    if(k >= 1){ b.done = true; towerImpact(b.tx, b.ty, b.rgb, Math.atan2(b.oy-b.ty, b.ox-b.tx)); }
+  }
+  if(towerBolts.length){ towerBolts = towerBolts.filter(b => !b.done); }
+  /* состояние живых башен: затухание вспышки, дым и искры по мере потери HP */
+  const smokeOk = !perfLite();
+  for(const u of units){
+    if(u.type !== 'tower') continue;
+    if(u.towerHitT > 0) u.towerHitT = Math.max(0, u.towerHitT - dt);
+    if(u.dead || !(u.maxHp > 0) || !isWorldPointVisible(u.x,u.y,60)) continue;
+    const frac = u.hp/u.maxHp;
+    if(frac >= 0.66) continue;
+    const P = towerIsLight(u) ? TOWER_PAL.light : TOWER_PAL.dark;
+    u.dmgFxT = (u.dmgFxT || rnd(0,0.4)) - dt;
+    if(u.dmgFxT > 0) continue;
+    const bad = frac < 0.33;
+    u.dmgFxT = bad ? rnd(0.22,0.4) : rnd(0.5,0.9);
+    const topY = u.y + towerCoreOffset(u)*0.8;
+    if(smokeOk) towerFxAdd({k:'smoke',x:u.x+rnd(-6,6)*u.radius/20,y:topY,vx:rnd(-6,10),vy:-rnd(18,32),life:rnd(1.1,1.7),size:rnd(4,6)*u.radius/20,grow:rnd(7,11),rgb:P.smoke});
+    if(bad && Math.random() < 0.6) towerSparks(u.x+rnd(-8,8)*u.radius/20, u.y-u.radius*rnd(0.6,1.6), P.rgb, 2, -Math.PI/2, 2.2);
+  }
+  /* руины */
+  for(const rz of towerRuins){
+    const dt0 = rz.t; rz.t += dt;
+    const P = rz.P;
+    if(rz.stage === 0 && rz.t >= 0.3){ rz.stage = 1; towerSpawnDust(rz.x, rz.y, rz.r*1.6, P, 10); towerSpawnDebris({x:rz.x,y:rz.y,radius:rz.r}, P, perfLite() ? 3 : 7); }
+    if(rz.stage === 1 && rz.t >= 0.75){ rz.stage = 2; towerSpawnDust(rz.x, rz.y, rz.r*2, P, 8); towerFxAdd({k:'ring',x:rz.x,y:rz.y+rz.r*0.4,life:0.5,size:rz.r*3,rgb:'170,155,130'}, true); }
+    if(rz.t > 0.5 && rz.t < 2.3){
+      rz.emberT -= dt; if(rz.emberT <= 0){ rz.emberT = 0.12; towerFxAdd({k:'spark',x:rz.x+rnd(-14,14)*rz.r/20,y:rz.y+rnd(-2,8),vx:rnd(-14,14),vy:-rnd(30,80),g:-10,life:rnd(0.6,1.1),size:rnd(1.2,2.2),rgb:P.rgb}); }
+      if(!perfLite()){ rz.smokeT -= dt; if(rz.smokeT <= 0){ rz.smokeT = 0.2; towerFxAdd({k:'smoke',x:rz.x+rnd(-12,12)*rz.r/20,y:rz.y+rnd(-2,6),vx:rnd(-6,10),vy:-rnd(14,28),life:rnd(1.2,1.8),size:rnd(7,10)*rz.r/20,grow:rnd(9,14),rgb:'88,82,78'}); } }
+    }
+  }
+  if(towerRuins.length){ towerRuins = towerRuins.filter(rz => rz.t < rz.life); }
+}
+/* Падающая башня + груда камней (рисуется под героями) */
+function drawTowerRuins(){
+  for(const rz of towerRuins){
+    if(!isWorldPointVisible(rz.x, rz.y, 140)) continue;
+    const s = rz.r/20, t = rz.t, P = rz.P;
+    const fade = rz.t > rz.life-0.8 ? Math.max(0,(rz.life-rz.t)/0.8) : 1;
+    ctx.save(); ctx.translate(rz.x, rz.y);
+    /* остаточное свечение на земле — затухает */
+    const gk = Math.max(0, 1 - Math.max(0,t-0.2)/2.3);
+    if(gk > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.translate(0, 8*s); ctx.scale(1, 0.45); towerGlow(0,0,34*s,P.rgb,0.75*gk*fade); ctx.restore(); ctx.globalAlpha = 1; }
+    /* оседающая конструкция */
+    if(t < 1.25){
+      const k = t < 0.3 ? 0 : Math.min(1,(t-0.3)/0.9), e = k*k;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(-90*s, -150*s, 180*s, 164*s); ctx.clip();
+      const shake = t < 1.1 ? Math.sin(t*70)*(t < 0.3 ? 0.8 : 1.6)*s*(1-k*0.6) : 0;
+      ctx.translate(shake, e*58*s);
+      ctx.translate(0, 12*s); ctx.rotate((rz.light ? 1 : -1)*k*0.07); ctx.translate(0, -12*s);
+      drawTowerBody(rz.r, gameTime || 0, rz.light, rz.tier, 0.12, {noCore:true, flash:t < 0.25 ? 1-t/0.25 : 0});
+      ctx.restore();
+    }
+    /* груда обломков */
+    const rk = Math.min(1, Math.max(0,(t-0.45)/0.6));
+    if(rk > 0){
+      ctx.globalAlpha = fade*rk;
+      for(let i=0;i<11;i++){
+        const px = (towerRnd(rz.seed,i)-0.5)*54*s, py = 9*s + (towerRnd(rz.seed,i+20)-0.5)*14*s;
+        const sz = (3+towerRnd(rz.seed,i+40)*6)*s;
+        ctx.fillStyle = i%3 === 0 ? P.stoneL : (i%3 === 1 ? P.stone : P.stoneD);
+        ctx.strokeStyle = P.line; ctx.lineWidth = 0.9;
+        ctx.beginPath(); ctx.moveTo(px-sz, py+sz*0.5); ctx.lineTo(px-sz*0.4, py-sz*0.7); ctx.lineTo(px+sz*0.6, py-sz*0.4); ctx.lineTo(px+sz, py+sz*0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      /* тлеющие трещины в камнях */
+      if(gk > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba('+P.rgb+','+(0.8*gk*fade).toFixed(3)+')'; ctx.lineWidth = 1.2*s;
+        ctx.beginPath(); ctx.moveTo(-10*s,10*s); ctx.lineTo(-2*s,7*s); ctx.lineTo(6*s,11*s); ctx.lineTo(13*s,8*s); ctx.stroke(); ctx.restore(); }
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+/* Частицы, снаряды и вспышки башен (рисуются поверх героев) */
+function drawTowerFx(){
+  if(!towerFx.length && !towerBolts.length) return;
   ctx.save();
-  ctx.scale(s, s);
-  const pulse = 0.6 + 0.4 * Math.sin(t * 3.1 + 1);
-  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 12, 27, 10, 0, 0, Math.PI*2); ctx.fill();
-  /* груда камней в основании */
-  structurePoly([[-24,12],[-17,2],[-9,6],[-2,-2],[8,5],[17,0],[25,12],[10,17],[-12,17]], '#2b2e33', '#0d0f12', 1.6);
-  structurePoly([[-17,2],[-9,6],[-12,12],[-22,11]], '#3a3e44', null);
-  /* корпус из чёрных блоков */
-  structurePoly([[-11,6],[-13,-8],[-9,-20],[-12,-26],[-4,-30],[0,-36],[6,-30],[13,-24],[10,-12],[12,6]], '#23262b', '#0d0f12', 1.8);
-  structurePoly([[-13,-8],[-9,-20],[-5,-15],[-8,-3]], '#32363c', null);
-  structurePoly([[3,-27],[10,-14],[8,4],[2,2]], '#181a1e', null);
-  /* «шляпа» башни */
-  structurePoly([[-16,-24],[-6,-30],[-2,-38],[6,-37],[10,-31],[18,-26],[8,-22],[-8,-22]], '#1b1d21', '#0d0f12', 1.6);
-  /* красные прожилки */
-  ctx.save();
-  ctx.shadowColor = '#ff3b2b'; ctx.shadowBlur = 8 * pulse;
-  ctx.strokeStyle = 'rgba(255,70,50,' + (0.7 + 0.3 * pulse) + ')'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.beginPath(); ctx.moveTo(-11,-14); ctx.lineTo(-3,-9); ctx.lineTo(4,-12); ctx.lineTo(11,-6); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-9,-2); ctx.lineTo(0,2); ctx.lineTo(8,-1); ctx.stroke();
-  ctx.restore();
-  /* огненное око под шляпой */
-  ctx.save();
-  ctx.shadowColor = '#ff8a3d'; ctx.shadowBlur = 12 * pulse;
-  ctx.fillStyle = 'rgba(255,150,60,' + (0.8 + 0.2 * pulse) + ')';
-  ctx.beginPath(); ctx.ellipse(-3, -23, 4.5, 3, 0, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#fff1c0'; ctx.beginPath(); ctx.ellipse(-3, -23, 1.8, 1.2, 0, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
+  for(const p of towerFx){
+    if(!isWorldPointVisible(p.x, p.y - (p.z || 0), 80)) continue;
+    const k = p.t/p.life;
+    switch(p.k){
+      case 'smoke': case 'dust':
+        ctx.globalAlpha = (1-k)*(p.k === 'smoke' ? 0.42 : 0.4); ctx.fillStyle = 'rgb('+p.rgb+')';
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); break;
+      case 'spark':
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1-k;
+        ctx.fillStyle = 'rgb('+p.rgb+')'; ctx.beginPath(); ctx.arc(p.x, p.y, p.size*(1-k*0.5), 0, Math.PI*2); ctx.fill();
+        towerGlow(p.x, p.y, p.size*4, p.rgb, (1-k)*0.6);
+        ctx.globalCompositeOperation = 'source-over'; break;
+      case 'flash':
+        ctx.globalCompositeOperation = 'lighter'; towerGlow(p.x, p.y, p.size*(0.7+k*0.5), p.rgb, (1-k)*(1-k)*1.2);
+        ctx.globalCompositeOperation = 'source-over'; break;
+      case 'ring':
+        ctx.globalAlpha = (1-k)*0.8; ctx.strokeStyle = 'rgb('+p.rgb+')'; ctx.lineWidth = 2.2*(1-k)+0.6;
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size*(0.3+k*0.9), p.size*(0.3+k*0.9)*0.7, 0, 0, Math.PI*2); ctx.stroke(); break;
+      case 'debris': {
+        const fade = k > 0.7 ? (1-k)/0.3 : 1;
+        if(p.z > 0){ ctx.globalAlpha = 0.25*fade; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size*0.7, p.size*0.35, 0, 0, Math.PI*2); ctx.fill(); }
+        ctx.globalAlpha = fade; ctx.save(); ctx.translate(p.x, p.y - p.z); ctx.rotate(p.rot);
+        ctx.fillStyle = p.col; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 0.8;
+        const z = p.size, a = p.sh;
+        ctx.beginPath(); ctx.moveTo(-z, z*0.3); ctx.lineTo(-z*0.3*(1+(a%3)*0.3), -z*0.8); ctx.lineTo(z*0.9, -z*0.3); ctx.lineTo(z*0.6, z*0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.restore(); break; }
+    }
+  }
+  /* снаряды башен: светящийся шар с хвостом */
+  for(const b of towerBolts){
+    if(!isWorldPointVisible(b.x, b.y, 100)) continue;
+    const ang = Math.atan2(b.y-b.py || 0.0001, b.x-b.px || 0.0001);
+    const len = 34*(b.big ? 1.4 : 1), ex = b.x - Math.cos(ang)*len, ey = b.y - Math.sin(ang)*len;
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createLinearGradient(ex, ey, b.x, b.y); g.addColorStop(0,'rgba('+b.rgb+',0)'); g.addColorStop(1,'rgba('+b.rgb+',0.85)');
+    ctx.globalAlpha = 1; ctx.strokeStyle = g; ctx.lineCap = 'round'; ctx.lineWidth = b.big ? 7 : 5;
+    ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(b.x, b.y); ctx.stroke();
+    towerGlow(b.x, b.y, b.big ? 26 : 18, b.rgb, 0.95);
+    ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.big ? 4 : 3, 0, Math.PI*2); ctx.fill();
+    /* ромбовидный блик */
+    if(b.light){ ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.moveTo(b.x,b.y-8); ctx.lineTo(b.x+2,b.y); ctx.lineTo(b.x,b.y+8); ctx.lineTo(b.x-2,b.y); ctx.closePath(); ctx.fill(); }
+    ctx.globalCompositeOperation = 'source-over';
+  }
   ctx.restore();
 }
 
@@ -12849,7 +13176,7 @@ function drawStructureModel(u, col){
   ctx.beginPath(); ctx.ellipse(0, u.radius * 0.45, u.radius * (u.isBase ? 1.35 : 1.45), u.radius * (u.isBase ? 0.55 : 0.6), 0, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
   if(u.isBase){ light ? drawLightAncientModel(u.radius*1.7, t) : drawDarkAncientModel(u.radius*1.7, t); }
-  else { light ? drawLightTowerModel(u.radius, t) : drawDarkTowerModel(u.radius, t); }
+  else { drawTowerBody(u.radius, t, light, u.tier || 1, u.maxHp > 0 ? u.hp/u.maxHp : 1, {flash: u.towerHitT > 0 ? u.towerHitT/0.16 : 0}); }
 }
 
 
@@ -15018,10 +15345,12 @@ function drawWorldObjects(){
     unit.y+unit.radius>=viewTop && unit.y-unit.radius<=viewBottom
   ).sort((a,b) => a.y-b.y);
   if(window.Hero3D) Hero3D.resetBudget();
+  drawTowerRuins();
   for(const u of list){
     if((u.type === 'tower' || u.type === 'ancient') && (!u.alive || u.hp <= 0 || u.dead)) continue;
     drawUnitSafely(u);
   }
+  drawTowerFx();
 
   for(const p of projectiles){
     if(!isWorldPointVisible(p.x,p.y,180)) continue;
@@ -18654,7 +18983,7 @@ function drawHeroViewer(def,x,y,w,h,now){
   ctx.fillText('↻ '+deg+'°   ×'+heroView.zoom.toFixed(2),x+12,y+h-12);
   ctx.textAlign='right'; ctx.font='11px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.5)';
   ctx.fillText('тяни — крутить  •  колесо — масштаб  •  2×клик — сброс',x+w-12,y+h-12);
-  ctx.fillStyle='#7fd8ff'; ctx.textAlign='left'; ctx.fillText('game 0.9.3.3 • модель: '+((window.Hero3D&&Hero3D.ver)||'СТАРАЯ hero3d.js'),x+12,y+16);
+  ctx.fillStyle='#7fd8ff'; ctx.textAlign='left'; ctx.fillText('game 0.9.4 • модель: '+((window.Hero3D&&Hero3D.ver)||'СТАРАЯ hero3d.js'),x+12,y+16);
 }
 
 function drawHeroDetail(def){
@@ -22398,7 +22727,8 @@ requestAnimationFrame(loop);
     });
     socket.on('tower:shot', event => {
       if(!event || !event.id) return;
-      fxRing(event.x, event.y, 18, event.team === 0 ? '#8be9fd' : '#ff8a3d', 0.18);
+      const boltTarget = remoteHeroes.get(event.targetId) || units.find(h => h.onlinePlayerId === event.targetId);
+      if(!towerFireBolt(event, boltTarget)) fxRing(event.x, event.y, 18, event.team === 0 ? '#8be9fd' : '#ff8a3d', 0.18);
     });
     socket.on('game_over', data => {
       if(!data || !Number.isInteger(data.winner)) return;
