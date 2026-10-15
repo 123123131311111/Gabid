@@ -667,7 +667,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.3.2';
+const GAME_VERSION = '0.9.3.3';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -754,7 +754,15 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.3.2', title:'ПЛАВАЮЩИЕ ЦИФРЫ УРОНА', changes:[
+  const sections = [{version:'0.9.3.3', title:'БАЛАНС ТРИБУПЕЙНЕРА, ИЛЬИ И АРКАДИЯ', changes:[
+    'Трибупейнер: немного повышен урон (базовый 32 → 38, рост за уровень 2,5 → 3,2).',
+    'Трибупейнер, Q «Поджигающие пули»: теперь переключатель без перезарядки. Включение стоит 10 маны, пока включено — все выстрелы огненные; повторное нажатие выключает огонь бесплатно.',
+    'Трибупейнер, E «Тихий охотник»: герой зарывается в землю на 10 секунд — враги его не видят и не могут выбрать целью; эффект спадает при первом выстреле.',
+    'Илья, W «Вонючая аура»: теперь включается и выключается без перезарядки и маны, как Трусы Дианы. Урон по врагам исправлен, Илья сам постепенно теряет здоровье (меньше, чем наносит врагам). Обводка убрана — вместо неё облако вони.',
+    'Аркадий, R «Динамит»: урон уменьшен (300/400/500 → 255/340/425).',
+    'ПТ: бонус к урону увеличен с +150 до +180.'
+  ]},
+  {version:'0.9.3.2', title:'ПЛАВАЮЩИЕ ЦИФРЫ УРОНА', changes:[
     'Над целями всплывают анимированные цифры урона: поп-эффект, подъём и плавное исчезание.',
     'Цвета: физический — красный/жёлтый, магический — синий, чистый — белый, лечение — зелёный, крит — золотой.',
     'Количество цифр ограничено для стабильного FPS.'
@@ -1192,7 +1200,7 @@ const SHOP_ITEMS = {
   tango: {name:'Танго', icon:'♣', cost:90, desc:'Активный расходуемый предмет: съедает ближайшее дерево и восстанавливает 90 HP.', color:'#79d46c', active:true},
   fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +20 к урону обычных атак и +5 к урону каждой способности.', color:'#ff8d8d', damage:20, spellDamage:5, active:false},
   bkb: {name:'БКБ', icon:'✚', cost:1750, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
-  pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 200 монет. Пассивно: +150 урона, +60 скорости передвижения и ускорение атак.', color:'#ff9e5d', active:false},
+  pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 200 монет. Пассивно: +180 урона, +60 скорости передвижения и ускорение атак.', color:'#ff9e5d', active:false},
   blink: {name:'Блинк', icon:'◇', cost:1150, range:500, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
   evsyutin: {name:'Еблет Евсютина', icon:'♥', cost:1250, desc:'Пассивно: +500 к максимальному и текущему здоровью.', color:'#ff7898', hp:500, active:false},
   mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2400, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', manaCost:80, active:true},
@@ -5200,7 +5208,7 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=150; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=180; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
   getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed;
@@ -5294,9 +5302,10 @@ class Unit {
     if(this.stunTimer>0) this.stunTimer-=dt;
     if(this.stunTimer>0 && !this.stunSoundActive){ playHeroSfx('stun'); this.stunSoundActive=true; }
     if(this.stunTimer<=0) this.stunSoundActive=false;
+    if(this.dead && this.tribuIncendiaryOn) this.tribuIncendiaryOn=false;
     if(this.tribuInvisibilityTimer>0){
       this.tribuInvisibilityTimer=Math.max(0,this.tribuInvisibilityTimer-dt);
-      if(this.tribuInvisibilityTimer<=0) this.invisible=false;
+      if(this.tribuInvisibilityTimer<=0){ this.invisible=false; if(!(this.virsudiInvisibilityTimer>0)) this.undetectable=false; }
     }
     if(this.slowT>0) this.slowT-=dt;
     if(this.hitFlash>0) this.hitFlash-=dt;
@@ -5412,10 +5421,10 @@ class Unit {
           if(this.tribuInvisibilityTimer<=0) this.invisible=false;
           addText(this.x,this.y-72,'РАСКРЫТ','#ff9aa8',0.9,15);
           fxRing(this.x,this.y,70,'#8299c9',0.4);
-        } else if(this.invisible){ this.invisible=false; this.tribuInvisibilityTimer=0; }
+        } else if(this.invisible){ this.invisible=false; if(this.tribuInvisibilityTimer>0 && !(this.virsudiInvisibilityTimer>0)) this.undetectable=false; this.tribuInvisibilityTimer=0; }
         if(this.type === 'hero' && (this === playerHero || !playerHero || Math.hypot(this.x-playerHero.x,this.y-playerHero.y) < 1100)) playHeroSfx('attack_' + (this.def.id || 'default'));
         if(this.def && this.def.id === 'tribupainer' && this.getAttackRange()>220){
-          const incendiary=!!(this.tribuIncendiaryTimer>0 || (this.buffs && this.buffs.some(buff=>buff.type==='tribuShardShot')));
+          const incendiary=!!(this.tribuIncendiaryOn || this.tribuIncendiaryTimer>0 || (this.buffs && this.buffs.some(buff=>buff.type==='tribuShardShot')));
           const bullets=hasScepter(this) ? 4 : 3;
           const pelletDamage=Math.max(33,this.getDamage()*0.38+Math.max(0,this.level-8)*0.75);
           for(let pellet=0;pellet<bullets;pellet++){
@@ -7004,13 +7013,12 @@ const SKILLS = {
     }
   },
   ilyaAura: {
-    name:'Ядовитая аура', short:'W', type:'self', maxLevel:4,
-    cd:[0,18,16,14,12], mana:[0,90,100,110,120],
-    desc:'Тратит здоровье Ильи каждую секунду, нанося усиленный урон врагам рядом.',
+    name:'Вонючая аура', short:'W', type:'self', maxLevel:4, toggle:true, freeWhen:h=>!!h.ilyaStinkOn,
+    cd:[0,0,0,0,0], mana:[0,0,0,0,0],
+    desc:'Переключатель без перезарядки и маны: пока включена, Илья воняет — каждую секунду наносит урон врагам рядом и понемногу теряет здоровье сам (меньше, чем наносит врагам).',
     cast(h,x,y,lvl){
-      h.buffs=h.buffs.filter(buff=>buff.type!=='ilyaAura');
-      h.addBuff({type:'ilyaAura',radius:210+18*lvl,damage:abilityDamage(h,56+36*lvl),t:8,auraTimer:0});
-      addText(h.x,h.y-60,'ЯДОВИТАЯ АУРА','#7dff82',1.2,18);
+      h.ilyaStinkOn=!h.ilyaStinkOn; h.ilyaStinkTimer=0;
+      addText(h.x,h.y-60,h.ilyaStinkOn?'ВОНЬ: ВКЛ':'ВОНЬ: ВЫКЛ','#7dff82',1.0,16);
     }
   },
   ilyaBelly: {
@@ -7142,14 +7150,14 @@ const SKILLS = {
   arcadyDynamite: {
     name:'Динамит', short:'R', type:'point', maxLevel:3,
     cd:[0,55,48,42], mana:[0,180,220,260], range:1100, ult:true,
-    desc:'Запускает три динамита во врага. При попадании каждый взрывается и наносит до 500 урона.',
+    desc:'Запускает три динамита во врага. При попадании каждый взрывается и наносит до 425 урона.',
     cast(h,x,y,lvl){
       const target=pickUnitAt(x,y);
       if(!target || target.team===h.team || target.dead || isBuilding(target)){ flashMsg(h,'Наведите на врага'); return; }
       const distance=Math.hypot(target.x-h.x,target.y-h.y)||1;
       const dirX=(target.x-h.x)/distance, dirY=(target.y-h.y)/distance;
       const sideX=-dirY, sideY=dirX;
-      const damage=[0,300,400,500][lvl];
+      const damage=[0,255,340,425][lvl];
       for(let i=0;i<3;i++){
         const offset=(i-1)*24;
         const projectile=spawnProjectile(h.x+sideX*offset,h.y+sideY*offset,target,abilityDamage(h,damage),h,620,'#ffbf5c',15);
@@ -7897,9 +7905,9 @@ const YOSYP_SKILLS = {
 Object.assign(SKILLS,YOSYP_SKILLS);
 
 const TRIBUPAINER_SKILLS = {
-  tribuIncendiary: {name:'Поджигающие пули',short:'Q',type:'self',passive:false,maxLevel:4,cd:[0,14,12,10,8],mana:[0,45,55,65,75],desc:'На 10 секунд дробовик поджигает цель на 5–8 секунд; урон горения растёт с уровнем навыка.',cast(h){ h.tribuIncendiaryTimer=10; addText(h.x,h.y-62,'ПОДЖИГАЮЩИЕ ПУЛИ','#ff8a3d',1.1,16); fxRing(h.x,h.y,78,'#ff5a24',0.45); }},
+  tribuIncendiary: {name:'Поджигающие пули',short:'Q',type:'self',passive:false,maxLevel:4,toggle:true,freeWhen:h=>!!h.tribuIncendiaryOn,cd:[0,0,0,0,0],mana:[0,10,10,10,10],desc:'Переключатель без перезарядки: одно нажатие (10 маны) — дробовик постоянно стреляет огненными пулями, которые поджигают цель на 5–8 секунд; урон горения растёт с уровнем навыка. Повторное нажатие выключает огонь (бесплатно).',cast(h){ if(h.tribuIncendiaryOn){ h.tribuIncendiaryOn=false; addText(h.x,h.y-62,'ОГОНЬ ВЫКЛ.','#c9b8a8',0.9,15); fxRing(h.x,h.y,60,'#8a6a55',0.3); } else { h.tribuIncendiaryOn=true; addText(h.x,h.y-62,'ОГНЕННЫЕ ПУЛИ ВКЛ.','#ff8a3d',1.1,16); fxRing(h.x,h.y,78,'#ff5a24',0.45); } }},
   tribuShield: {name:'Щит дробовика',short:'W',type:'self',maxLevel:4,cd:[0,3,3,3,3],mana:[0,45,50,55,60],desc:'Щит на 3 секунды блокирует 30% входящего урона.',cast(h,x,y,lvl){ h.buffs=h.buffs.filter(buff=>buff.type!=='tribuShield'); h.addBuff({type:'tribuShield',val:0.30,t:3}); addText(h.x,h.y-62,'ЩИТ: -30% УРОНА','#8be9fd',1.0,16); fxRing(h.x,h.y,88,'#8be9fd',0.5); }},
-  tribuInvisibility: {name:'Тихий охотник',short:'E',type:'self',maxLevel:4,cd:[0,24,21,18,15],mana:[0,60,70,80,90],desc:'Становится невидимым на 10 секунд или до первого выстрела.',cast(h){ h.invisible=true; h.tribuInvisibilityTimer=10; addText(h.x,h.y-62,'НЕВИДИМОСТЬ','#d8b4ff',1.0,16); fxRing(h.x,h.y,82,'#d8b4ff',0.45); }},
+  tribuInvisibility: {name:'Тихий охотник',short:'E',type:'self',maxLevel:4,cd:[0,24,21,18,15],mana:[0,60,70,80,90],desc:'Трибупейнер зарывается в землю на 10 секунд: враги его не видят и не могут выбрать целью. Эффект спадает при первом выстреле.',cast(h){ h.invisible=true; h.undetectable=true; h.tribuInvisibilityTimer=10; addText(h.x,h.y-62,'ЗАРЫЛСЯ В ЗЕМЛЮ','#d8b4ff',1.0,16); fxRing(h.x,h.y,82,'#8a6a45',0.45); spawnParticles(h.x,h.y,'#7a5a3a',30,1.1); }},
   tribuExecution: {name:'Трибупейнерский взрыв',short:'R',type:'point',maxLevel:3,cd:[0,70,60,50],mana:[0,160,200,240],range:900,ult:true,desc:'Останавливает врага, наносит 1500 урона и отпускает его после взрыва.',cast(h,x,y,lvl){ const target=pickUnitAt(x,y); if(!target||target.team===h.team||target.dead||isBuilding(target)){ flashMsg(h,'Наведите на вражеского бойца'); return; } target.stunTimer=Math.max(target.stunTimer,1.2); applyDamage(target,1500,h); fxRing(target.x,target.y,185,'#ff7043',0.85); spawnParticles(target.x,target.y,'#ffd36b',70,1.8); addText(target.x,target.y-76,'ТРИБУПЕЙНЕРСКИЙ ВЗРЫВ','#ffd36b',1.3,17); }}
 };
 
@@ -8757,7 +8765,7 @@ const HERO_STAT_BALANCE = {
   golly:[760,106,46,3.4,1], sasych:[610,72,47,2.8,0.92], ilya:[1010,126,78,3.5,0.93],
   malit:[930,116,68,3.2,0.95], arcady:[620,74,52,3.5,1], illusionist:[680,82,60,3.6,0.94],
   shadow:[850,97,58,3.2,1], electricGosha:[720,86,54,3.5,1.02], mo3gi:[800,95,64,3.8,0.95],
-  tribupainer:[850,102,32,2.5,0.95], mageHunter:[760,92,52,2.5,0.92], regina:[870,105,60,2.6,0.94],
+  tribupainer:[850,102,38,3.2,0.95], mageHunter:[760,92,52,2.5,0.92], regina:[870,105,60,2.6,0.94],
   yosyp:[860,102,70,7.8,0.98],
   dawnMaiden:[1080,137,72,3,0.92], exileKnight:[900,112,90,3.7,0.92], juvsyut:[970,128,68,3.2,0.95],
   chip:[760,90,58,3.3,1.03], savely:[970,116,80,3.4,0.94], juggernaut:[930,110,78,3,0.94],
@@ -9043,6 +9051,25 @@ class Hero extends Unit {
         }
       }
     }
+    if(this.ilyaStinkOn){
+      if(this.dead || !this.def || this.def.id!=='ilya'){ this.ilyaStinkOn=false; }
+      else {
+        const stinkSkill=this.skills && this.skills[1]; const lvl=Math.max(1,(stinkSkill&&stinkSkill.level)||1);
+        const radius=210+18*lvl, step=0.5;
+        this.ilyaStinkTimer=(this.ilyaStinkTimer||0)-dt;
+        if(this.ilyaStinkTimer<=0){
+          this.ilyaStinkTimer=step;
+          if(!perfLite()) spawnParticles(this.x+rnd(-radius*0.6,radius*0.6),this.y+rnd(-radius*0.6,radius*0.6),'#8fcf5a',3,0.5);
+          const enemyDmg=(56+36*lvl)*step;
+          for(const unit of units){
+            if(unit.team===this.team||unit.dead||isStructure(unit)) continue;
+            if(Math.hypot(unit.x-this.x,unit.y-this.y)<radius+(unit.radius||0)) applyDamage(unit,enemyDmg,{team:this.team,source:this,magic:true,trueDamage:true});
+          }
+          this.hp=Math.max(1,this.hp-(18+this.level*0.5)*step);
+          this.hitFlash=Math.max(this.hitFlash||0,0.06);
+        }
+      }
+    }
     for(const item of this.inventory){
       if(!item) continue;
       if(item.cooldown > 0) item.cooldown = Math.max(0, item.cooldown - (heroHasItem(this,'octarineCore') ? dt/(1-SHOP_ITEMS.octarineCore.cooldownReduction) : dt));
@@ -9253,7 +9280,7 @@ function castSkill(hero, slot, tx, ty){
     : 0;
   if(def.costType === 'hp'){
     if(hero.hp <= hpCost){ flashMsg(hero,'Недостаточно здоровья'); return false; }
-  } else if(hero.mp < mana){ flashMsg(hero, 'Мало маны (' + Math.ceil(mana) + ')'); return false; }
+  } else if(!(def.freeWhen && def.freeWhen(hero)) && hero.mp < mana){ flashMsg(hero, 'Мало маны (' + Math.ceil(mana) + ')'); return false; }
 
   if(hero.def.id === 'shadow' && slot >= 0 && slot <= 2){
      const target = getShadowAutoTarget(hero, def.range || 0);
@@ -9276,6 +9303,7 @@ function castSkill(hero, slot, tx, ty){
     flashMsg(hero, slot === 0 ? 'Враг должен быть в радиусе Q' : 'Цель должна быть в радиусе W');
     return false;
   }
+  const freeCast = !!(def.freeWhen && def.freeWhen(hero));
   const cooldownMultiplier = (1 - (hero.inventory.some(i => i && i.id === 'enemy302') ? SHOP_ITEMS.enemy302.cooldownReduction : 0))
     * (1 - (heroHasItem(hero,'octarineCore') ? SHOP_ITEMS.octarineCore.cooldownReduction : 0));
   hero.castingSkillLevel = s.level;
@@ -9286,7 +9314,7 @@ function castSkill(hero, slot, tx, ty){
     castSucceeded = result !== false;
     if(castSucceeded){
       if(def.costType === 'hp') hero.hp = Math.max(1,hero.hp-hpCost);
-      else hero.mp -= mana;
+      else if(!freeCast) hero.mp -= mana;
       if(hero.def && window.Hero3D && Hero3D.hasAnim && Hero3D.hasAnim(hero.def.id)) startChipCastAnim(hero, slot, def, tx, ty);
       if(def.ult) playHeroSfx('ultimate');
       else playAbilitySound('cast');
@@ -10869,6 +10897,16 @@ function updateEnemyAI(h, dt){
       if(h.skills[0].level>0 && h.skills[0].cd<=0 && d<1000) castSkill(h,0,target.x,target.y);
       if(h.skills[1].level>0 && h.skills[1].cd<=0 && d<850) castSkill(h,1,target.x,target.y);
       if(isHero && h.skills[3].level>0 && h.skills[3].cd<=0 && d<1100) castSkill(h,3,target.x,target.y);
+    } else if(h.def.id==='ilya'){
+      if(h.skills[1].level>0 && !h.ilyaStinkOn && d<320 && hpPct>0.35) castSkill(h,1,h.x,h.y);
+      else if(h.skills[1].level>0 && h.ilyaStinkOn && (d>420 || hpPct<0.25)) castSkill(h,1,h.x,h.y);
+      if(h.skills[0].level>0 && h.skills[0].cd<=0 && d<260) castSkill(h,0,target.x,target.y);
+      if(isHero && h.skills[2].level>0 && h.skills[2].cd<=0 && d<300) castSkill(h,2,h.x,h.y);
+      if(isHero && h.skills[3] && h.skills[3].level>0 && h.skills[3].cd<=0 && d<400) castSkill(h,3,h.x,h.y);
+    } else if(h.def.id==='tribupainer'){
+      if(h.skills[0].level>0 && !h.tribuIncendiaryOn && h.mp>=20 && d<700) castSkill(h,0,h.x,h.y);
+      if(h.skills[1].level>0 && h.skills[1].cd<=0 && hpPct<0.65) castSkill(h,1,h.x,h.y);
+      if(isHero && h.skills[3] && h.skills[3].level>0 && h.skills[3].cd<=0 && d<800) castSkill(h,3,target.x,target.y);
     } else {
       if(h.skills[0].level>0 && h.skills[0].cd<=0 && d<260)
         castSkill(h, 0, target.x, target.y);
@@ -13019,10 +13057,11 @@ function drawUnit(u){
   ctx.translate(u.x, u.y - visualLift - walkBob);
 
   const aura = u.buffs && u.buffs.find(buff => buff.type === 'ilyaAura');
-  if(aura){
-    ctx.fillStyle='rgba(93,255,115,0.16)';
-    ctx.strokeStyle='rgba(125,255,130,0.85)'; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.arc(0,0,aura.radius,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  if(u.ilyaStinkOn && !u.dead){
+    const sr=210+18*Math.max(1,(u.skills&&u.skills[1]&&u.skills[1].level)||1);
+    const g=ctx.createRadialGradient(0,0,sr*0.1,0,0,sr);
+    g.addColorStop(0,'rgba(120,190,60,0.16)'); g.addColorStop(1,'rgba(120,190,60,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,sr,0,Math.PI*2); ctx.fill();
   }
   if(u.type === 'hero' && u.def.id === 'mageHunter' && u.buffs.some(buff => buff.type === 'mageReflect')){
     ctx.globalAlpha=0.42+Math.sin(gameTime*7)*0.08; ctx.strokeStyle='#d58cff'; ctx.shadowColor='#b65cff'; ctx.shadowBlur=22; ctx.lineWidth=4;
@@ -13095,6 +13134,20 @@ function drawUnit(u){
   ctx.beginPath();
   ctx.ellipse(0, u.radius*0.75, u.radius*0.95, u.radius*0.45, 0, 0, Math.PI*2);
   ctx.fill();
+  if(u.def && u.def.id==='tribupainer' && u.type==='hero'){
+    if(u.tribuIncendiaryOn){
+      ctx.save(); ctx.globalAlpha=0.55+Math.sin(gameTime*9)*0.15; ctx.strokeStyle='#ff6a24'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(0,0,u.radius+8+Math.sin(gameTime*7)*2,0,Math.PI*2); ctx.stroke(); ctx.restore();
+    }
+    if(u.tribuInvisibilityTimer>0){
+      /* зарылся в землю: холмик земли, сам боец полупрозрачный (виден только владельцу) */
+      ctx.save(); ctx.fillStyle='#5a3f26';
+      ctx.beginPath(); ctx.ellipse(0,u.radius*0.6,u.radius*1.25,u.radius*0.6,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#7a5a3a';
+      ctx.beginPath(); ctx.ellipse(0,u.radius*0.5,u.radius*0.85,u.radius*0.38,0,0,Math.PI*2); ctx.fill(); ctx.restore();
+      ctx.globalAlpha=0.4;
+    }
+  }
   if(FX_3D && !perfLite()){ draw3DShadow(u); if(u.type==='tower'||u.type==='ancient'||u.type==='barracks') draw3DExtrude(u); }
 
   if(walkableUnit && u.moving){
@@ -18585,7 +18638,7 @@ function drawHeroViewer(def,x,y,w,h,now){
   ctx.fillText('↻ '+deg+'°   ×'+heroView.zoom.toFixed(2),x+12,y+h-12);
   ctx.textAlign='right'; ctx.font='11px Segoe UI, Arial'; ctx.fillStyle='rgba(255,255,255,.5)';
   ctx.fillText('тяни — крутить  •  колесо — масштаб  •  2×клик — сброс',x+w-12,y+h-12);
-  ctx.fillStyle='#7fd8ff'; ctx.textAlign='left'; ctx.fillText('game 0.9.3.2 • модель: '+((window.Hero3D&&Hero3D.ver)||'СТАРАЯ hero3d.js'),x+12,y+16);
+  ctx.fillStyle='#7fd8ff'; ctx.textAlign='left'; ctx.fillText('game 0.9.3.3 • модель: '+((window.Hero3D&&Hero3D.ver)||'СТАРАЯ hero3d.js'),x+12,y+16);
 }
 
 function drawHeroDetail(def){
@@ -18772,6 +18825,7 @@ function drawCosmicBackdrop(now){
    ========================================================= */
 const ACCOUNT_TOKEN_KEY = 'dotasense-account-token';
 const ACCOUNT_PROFILE_KEY = 'dotasense-account-profile';
+const ACCOUNT_MATCH_DETAILS_KEY = 'dotasense-match-details';
 const account = { token: null, profile: null, lastGain: 0 };
 let accountCareer = {history:[], leaders:[]};
 let accountCareerLoading = false;
@@ -18805,6 +18859,42 @@ function accountStore(key, value){
 }
 function accountRead(key){
   try { return localStorage.getItem(key); } catch(err) { return null; }
+}
+function readAccountMatchDetails(){
+  try {
+    const saved=JSON.parse(accountRead(ACCOUNT_MATCH_DETAILS_KEY) || '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch(err) { return {}; }
+}
+function saveAccountMatchDetails(matchId, stats){
+  if(!matchId || !stats) return;
+  const saved=readAccountMatchDetails();
+  saved[matchId]={
+    duration: Math.max(0,Math.floor(Number(stats.duration) || 0)),
+    winnerTeam: stats.winnerTeam === 1 ? 1 : 0,
+    participants: Array.isArray(stats.participants) ? stats.participants.slice(0,12).map(player=>({
+      nick: player.nick || '',
+      heroId: player.heroId || '',
+      team: player.team === 1 ? 1 : 0,
+      kills: player.kills || 0,
+      deaths: player.deaths || 0,
+      assists: player.assists || 0,
+      netWorth: player.netWorth || 0,
+      level: player.level || 1,
+      gold: player.gold || 0,
+      items: Array.isArray(player.items) ? player.items.slice(0,6) : []
+    })) : []
+  };
+  const ids=Object.keys(saved);
+  ids.slice(0,Math.max(0,ids.length-40)).forEach(id=>delete saved[id]);
+  accountStore(ACCOUNT_MATCH_DETAILS_KEY,JSON.stringify(saved));
+}
+function mergeLocalMatchDetails(history){
+  const saved=readAccountMatchDetails();
+  return Array.isArray(history) ? history.map(match=>{
+    const local=match && saved[match.matchId];
+    return local ? {...match,...local} : match;
+  }) : [];
 }
 function accountSet(token, profile){
   account.token = token;
@@ -18855,6 +18945,7 @@ function renderCareerPanel(){
   const history = document.getElementById('career-history');
   const xp = document.getElementById('career-xp');
   summary.replaceChildren(); favorites.replaceChildren(); history.replaceChildren();
+  history.appendChild(careerNode('p','career-local-note','Подробности новых матчей сохраняются в этом браузере.'));
   xp.textContent = (profile.xp || 0) % 500 + ' / 500 XP';
 
   [
@@ -18875,23 +18966,144 @@ function renderCareerPanel(){
   } else accountCareer.history.forEach(match=>{
     const details=careerNode('details','career-match'+(match.won?'':' loss'));
     const summaryNode=careerNode('summary');
-    const date=Number.isFinite(match.playedAt) ? new Date(match.playedAt).toLocaleDateString('ru-RU') : '';
+    const playedAt=Number(match.playedAt);
+    const date=Number.isFinite(playedAt) && playedAt > 0 ? new Date(playedAt).toLocaleDateString('ru-RU') : 'Дата не указана';
+    const participants=Array.isArray(match.participants) ? match.participants : [];
+    const matchWorth=match.netWorth != null && match.netWorth !== '' && Number.isFinite(Number(match.netWorth))
+      ? Number(match.netWorth).toLocaleString('ru-RU')+' зол.' : '—';
     summaryNode.append(
       careerNode('span','career-match-title',careerHeroName(match.heroId)+' · '+date),
-      careerNode('span','career-match-score',`${match.kills||0}/${match.deaths||0}/${match.assists||0} · ${(match.netWorth||0).toLocaleString('ru-RU')}`)
+      careerNode('span','career-match-score',`${match.kills ?? '—'}/${match.deaths ?? '—'}/${match.assists ?? '—'} · ${matchWorth}`)
     );
     details.appendChild(summaryNode);
     const body=careerNode('div','career-match-body');
-    (match.participants || []).forEach(player=>{
-      const row=careerNode('div','career-participant'+(player.team===match.winnerTeam?' winner':''));
-      row.append(
-        careerNode('span','',`${player.nick || careerHeroName(player.heroId)} · ${careerHeroName(player.heroId)}`),
-        careerNode('span','',`${player.kills||0}/${player.deaths||0}/${player.assists||0}`),
-        careerNode('span','',`${(player.netWorth||0).toLocaleString('ru-RU')} зол.`),
-        careerNode('span','',player.team===match.winnerTeam?'ПОБЕДИТЕЛЬ':'')
-      );
-      body.appendChild(row);
+    const report=careerNode('div','career-report');
+    const initialParticipant=participants.find(player=>player && player.heroId===match.heroId) || participants[0] || null;
+    let selectedParticipant=initialParticipant;
+    const teamLabel=team=>team===0?'СИЛЫ СВЕТА':team===1?'СИЛЫ ТЬМЫ':team==null?'КОМАНДА':'КОМАНДА '+String(team);
+    const hasValue=value=>value != null && value !== '' && Number.isFinite(Number(value));
+    const displayNumber=value=>hasValue(value) ? Number(value).toLocaleString('ru-RU') : '—';
+    const hasLegacyData=!hasValue(match.duration) ||
+      participants.some(player=>player && (!hasValue(player.level) || !Array.isArray(player.items)));
+
+    const main=careerNode('section','career-report-main');
+    const identity=careerNode('div','career-report-identity');
+    const portrait=careerNode('canvas','career-report-portrait');
+    portrait.width=240; portrait.height=240;
+    portrait.setAttribute('aria-label','Портрет бойца');
+    const identityText=careerNode('div','career-report-name');
+    const heroTitle=careerNode('strong','career-report-hero');
+    const nickTitle=careerNode('span','career-report-nick');
+    identityText.append(heroTitle,nickTitle);
+    identity.append(portrait,identityText);
+    const stats=careerNode('div','career-report-stats');
+    const itemsHeading=careerNode('div','career-report-items-heading','ФИНАЛЬНЫЕ ПРЕДМЕТЫ');
+    const items=careerNode('div','career-report-items');
+    const detailMeta=careerNode('div','career-report-meta');
+    const legacy=careerNode('p','career-legacy-note');
+    legacy.textContent='Архивный матч: в старой записи часть игровых данных не сохранялась.';
+    legacy.hidden=!hasLegacyData;
+    main.append(identity,stats,itemsHeading,items,detailMeta,legacy);
+    report.appendChild(main);
+
+    const roster=careerNode('section','career-report-roster');
+    const rosterHeading=careerNode('div','career-report-roster-heading','СОСТАВЫ МАТЧА');
+    const rosterTeams=careerNode('div','career-report-teams');
+    const teamBuckets=new Map();
+    participants.forEach(player=>{
+      if(!player) return;
+      const key=String(player.team == null ? 'unknown' : player.team);
+      if(!teamBuckets.has(key)) teamBuckets.set(key,{team:player.team,players:[]});
+      teamBuckets.get(key).players.push(player);
     });
+    if(match.winnerTeam != null && !teamBuckets.has(String(match.winnerTeam))) teamBuckets.set(String(match.winnerTeam),{team:match.winnerTeam,players:[]});
+    const orderedTeams=Array.from(teamBuckets.values()).sort((a,b)=>{
+      const aa=Number(a.team), bb=Number(b.team);
+      return Number.isFinite(aa)&&Number.isFinite(bb)?aa-bb:String(a.team).localeCompare(String(b.team));
+    });
+    orderedTeams.forEach(bucket=>{
+      const team=careerNode('div','career-roster-team'+(bucket.team===match.winnerTeam?' winner':''));
+      const label=careerNode('div','career-team-label');
+      label.append(careerNode('strong','',teamLabel(bucket.team)),bucket.team===match.winnerTeam?careerNode('small','','ПОБЕДИТЕЛЬ'):careerNode('small','',''));
+      team.appendChild(label);
+      bucket.players.forEach(player=>{
+        const row=careerNode('button','career-participant'+(player===selectedParticipant?' selected':'')+(player.team===match.winnerTeam?' winner':''));
+        row.type='button';
+        row.setAttribute('aria-pressed',player===selectedParticipant?'true':'false');
+        const miniPortrait=careerNode('canvas','career-participant-portrait');
+        miniPortrait.width=52; miniPortrait.height=52;
+        if(typeof window.__renderHeroPortrait==='function') window.__renderHeroPortrait(miniPortrait,player.heroId);
+        const playerText=careerNode('span','career-participant-name');
+        playerText.append(careerNode('strong','',player.nick || careerHeroName(player.heroId)),careerNode('small','',careerHeroName(player.heroId)));
+        const playerScore=careerNode('span','career-participant-kda',`${player.kills ?? '—'}/${player.deaths ?? '—'}/${player.assists ?? '—'}`);
+        row.append(miniPortrait,playerText,playerScore);
+        row.addEventListener('click',event=>{
+          event.preventDefault();
+          selectedParticipant=player;
+          renderSelected();
+          rosterTeams.querySelectorAll('.career-participant').forEach(button=>{
+            const active=button===row;
+            button.classList.toggle('selected',active);
+            button.setAttribute('aria-pressed',active?'true':'false');
+          });
+        });
+        team.appendChild(row);
+      });
+      rosterTeams.appendChild(team);
+    });
+    if(!participants.length) rosterTeams.appendChild(careerNode('div','career-empty','Состав матча не сохранён.'));
+    roster.append(rosterHeading,rosterTeams);
+    report.appendChild(roster);
+
+    function renderSelected(){
+      const player=selectedParticipant;
+      const heroId=player ? player.heroId : match.heroId;
+      heroTitle.textContent=careerHeroName(heroId);
+      nickTitle.textContent=player ? (player.nick || 'Игрок')+' · '+teamLabel(player.team) : 'Боец матча';
+      if(typeof window.__renderHeroPortrait==='function') window.__renderHeroPortrait(portrait,heroId);
+      stats.replaceChildren();
+      const k=player ? player.kills : match.kills, d=player ? player.deaths : match.deaths, a=player ? player.assists : match.assists;
+      [
+        ['УБИЙСТВА',k ?? '—','career-stat-kills'],
+        ['СМЕРТИ',d ?? '—','career-stat-deaths'],
+        ['ПОМОЩЬ',a ?? '—','career-stat-assists'],
+        ['УРОВЕНЬ',player && player.level != null ? player.level : '—',''],
+        ['ЗОЛОТО',player && player.gold != null ? displayNumber(player.gold) : '—',''],
+        ['ЦЕННОСТЬ',displayNumber(player && player.netWorth != null ? player.netWorth : match.netWorth),'']
+      ].forEach(([label,value,className])=>{
+        const stat=careerNode('div','career-report-stat '+className);
+        stat.append(careerNode('b','',String(value)),careerNode('span','',label));
+        stats.appendChild(stat);
+      });
+      items.replaceChildren();
+      const slots=player && Array.isArray(player.items) ? player.items.slice(0,6) : [];
+      for(let i=0;i<6;i++){
+        const item=slots[i];
+        const itemDef=item ? SHOP_ITEMS[item] : null;
+        const slot=careerNode('div','career-item-slot'+(item?' filled':''));
+        slot.title=itemDef ? itemDef.name : item ? String(item) : 'Пустой слот';
+        if(itemDef){
+          const glyph=careerNode('span','career-item-glyph',itemDef.icon || '◇');
+          glyph.style.color=itemDef.color || '#d6c49a';
+          slot.append(glyph,careerNode('span','career-item-name',itemDef.name || String(item)));
+        } else if(item) slot.appendChild(careerNode('span','career-item-name',String(item)));
+        items.appendChild(slot);
+      }
+      const duration=Number(match.duration);
+      const durationText=hasValue(match.duration) && duration>0
+        ? Math.floor(duration/60)+':'+String(Math.floor(duration%60)).padStart(2,'0')
+        : 'Не сохранена';
+      detailMeta.replaceChildren(
+        careerNode('span','','ДЛИТЕЛЬНОСТЬ'),
+        careerNode('strong','',durationText),
+        careerNode('span','','ЧИСТАЯ ЦЕННОСТЬ'),
+        careerNode('strong','',displayNumber(player && player.netWorth != null ? player.netWorth : match.netWorth)+' зол.')
+      );
+      const selectedHasLegacy=!player || !hasValue(player.level) || !Array.isArray(player.items) || !hasValue(match.duration);
+      legacy.hidden=!(hasLegacyData || selectedHasLegacy);
+    }
+    renderSelected();
+    body.appendChild(report);
     details.appendChild(body);
     history.appendChild(details);
   });
@@ -18977,7 +19189,7 @@ async function loadAccountCareer(){
     const careerResponse=await accountApi('career',{token});
     if(account.token !== token) return;
     account.profile=careerResponse.profile;
-    accountCareer.history=careerResponse.history || [];
+    accountCareer.history=mergeLocalMatchDetails(careerResponse.history || []);
     accountStore(ACCOUNT_PROFILE_KEY,JSON.stringify(account.profile));
     renderAccountModal();
   } catch(err) {
@@ -19016,6 +19228,8 @@ function currentMatchCareerStats(){
   const roster = heroes.filter(hero => hero && hero.type === 'hero' && !hero.isIllusion);
   const netWorthOf = hero => Math.floor((hero.coins || 0) + (hero.inventory || []).reduce((total, item) =>
     total + (item ? (SHOP_ITEMS[item.id]?.totalCost || SHOP_ITEMS[item.id]?.cost || 0) : 0), 0));
+  const itemsOf = hero => (hero.inventory || []).slice(0, 6).map(item =>
+    item && typeof item.id === 'string' ? item.id : '');
   const participants = roster.map(hero => ({
     nick: hero === playerHero && account.profile ? account.profile.nick : hero.def.name,
     heroId: hero.def.id,
@@ -19023,7 +19237,10 @@ function currentMatchCareerStats(){
     kills: hero.kills || 0,
     deaths: hero.deaths || 0,
     assists: hero.assists || 0,
-    netWorth: netWorthOf(hero)
+    netWorth: netWorthOf(hero),
+    level: Math.max(1, Math.floor(hero.level || 1)),
+    gold: Math.max(0, Math.floor(hero.coins || 0)),
+    items: itemsOf(hero)
   }));
   return {
     heroId: playerHero && playerHero.def ? playerHero.def.id : '',
@@ -19032,6 +19249,7 @@ function currentMatchCareerStats(){
     assists: playerHero ? playerHero.assists || 0 : 0,
     netWorth: playerHero ? netWorthOf(playerHero) : 0,
     winnerTeam: winner === 1 ? 1 : 0,
+    duration: Math.max(0, Math.floor(Number(gameTime) || 0)),
     participants
   };
 }
@@ -19052,9 +19270,10 @@ async function accountFlushPending(){
 }
 async function accountRecordResult(won, matchId, ranked, stats){
   account.lastGain = 0;
-  if(!account.token) return;
   matchId = matchId || makeMatchId();
   const entry = { won: !!won, matchId, ranked: !!ranked, stats: stats || {} };
+  saveAccountMatchDetails(matchId,entry.stats);
+  if(!account.token) return;
   const before = account.profile ? account.profile.level : 0;
   /* Сначала кладём в очередь: если вкладку закроют раньше ответа сервера — результат не потеряется. */
   savePendingResults(pendingResults().concat(entry));
