@@ -15,7 +15,10 @@ const participantSchema = new mongoose.Schema({
   kills: { type: Number, min: 0, default: 0 },
   deaths: { type: Number, min: 0, default: 0 },
   assists: { type: Number, min: 0, default: 0 },
-  netWorth: { type: Number, min: 0, default: 0 }
+  netWorth: { type: Number, min: 0, default: 0 },
+  level: { type: Number, min: 1, default: 1 },
+  gold: { type: Number, min: 0, default: 0 },
+  items: { type: [String], default: [] }
 }, { _id: false });
 
 const matchSchema = new mongoose.Schema({
@@ -27,6 +30,7 @@ const matchSchema = new mongoose.Schema({
   assists: { type: Number, min: 0, default: 0 },
   netWorth: { type: Number, min: 0, default: 0 },
   winnerTeam: { type: Number, min: 0, max: 1, default: 0 },
+  duration: { type: Number, min: 0, default: 0 },
   xpGained: { type: Number, min: 0, default: 0 },
   ratingChange: { type: Number, default: 0 },
   playedAt: { type: Number, default: Date.now },
@@ -256,8 +260,13 @@ const routes = {
       kills: Math.round(clamp(Number(player.kills) || 0, 0, 1000)),
       deaths: Math.round(clamp(Number(player.deaths) || 0, 0, 1000)),
       assists: Math.round(clamp(Number(player.assists) || 0, 0, 1000)),
-      netWorth: Math.round(clamp(Number(player.netWorth) || 0, 0, 100000000))
+      netWorth: Math.round(clamp(Number(player.netWorth) || 0, 0, 100000000)),
+      level: Math.round(clamp(Number(player.level) || 1, 1, 99)),
+      gold: Math.round(clamp(Number(player.gold) || 0, 0, 100000000)),
+      items: (Array.isArray(player.items) ? player.items.slice(0, 6) : [])
+        .map(id => typeof id === 'string' && /^[A-Za-z0-9_]{1,32}$/.test(id) ? id : '')
     })) : [];
+    const duration = Math.round(clamp(Number(inputStats.duration) || 0, 0, 86400));
 
     const recentTimes = account.times.filter(time => now - time < 3600000);
     if(recentTimes.length >= 40) return [200, { profile: publicProfile(account), ignored: true }];
@@ -294,7 +303,7 @@ const routes = {
       },
       $push: {
         history: { $each: [{
-          matchId: matchId || '', won, heroId, kills, deaths, assists, netWorth, winnerTeam,
+          matchId: matchId || '', won, heroId, kills, deaths, assists, netWorth, winnerTeam, duration,
           xpGained, ratingChange, playedAt: now, participants
         }], $position: 0, $slice: 20 }
       }

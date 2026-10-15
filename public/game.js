@@ -16553,6 +16553,22 @@ function drawItemIcon(item, x, y, size){
   ctx.fill();
   ctx.restore();
 }
+/* Иконка предмета на отдельном canvas (для истории матчей): та же отрисовка, что и в игре */
+window.__renderItemIcon = function(target, itemId){
+  const def = SHOP_ITEMS[itemId];
+  if(!def || !target) return false;
+  const previous = ctx;
+  try {
+    ctx = target.getContext('2d');
+    ctx.clearRect(0, 0, target.width, target.height);
+    drawItemIcon({id:itemId, color:def.color, icon:def.icon}, target.width/2, target.height/2, target.width*0.78);
+    return true;
+  } catch(err) {
+    return false;
+  } finally {
+    ctx = previous;
+  }
+};
 
 function getShopItemDescription(item, hero, itemId=null){
   if(!item) return '';
@@ -18995,15 +19011,19 @@ function renderCareerPanel(){
     const heroTitle=careerNode('strong','career-report-hero');
     const nickTitle=careerNode('span','career-report-nick');
     identityText.append(heroTitle,nickTitle);
-    identity.append(portrait,identityText);
+    const levelBadge=careerNode('span','career-level-badge');
+    identity.append(portrait,levelBadge,identityText);
     const stats=careerNode('div','career-report-stats');
-    const itemsHeading=careerNode('div','career-report-items-heading','ФИНАЛЬНЫЕ ПРЕДМЕТЫ');
+    const itemsHeading=careerNode('div','career-report-items-heading','КУПЛЕННЫЕ ПРЕДМЕТЫ');
     const items=careerNode('div','career-report-items');
     const detailMeta=careerNode('div','career-report-meta');
     const legacy=careerNode('p','career-legacy-note');
     legacy.textContent='Архивный матч: в старой записи часть игровых данных не сохранялась.';
     legacy.hidden=!hasLegacyData;
-    main.append(identity,stats,itemsHeading,items,detailMeta,legacy);
+    const perfHeading=careerNode('div','career-report-items-heading','ДЕЙСТВИЯ ИГРОКА В ЭТОМ МАТЧЕ');
+    const perf=careerNode('div','career-perf');
+    const avgBox=careerNode('div','career-avg');
+    main.append(identity,stats,itemsHeading,items,perfHeading,perf,avgBox,detailMeta,legacy);
     report.appendChild(main);
 
     const roster=careerNode('section','career-report-roster');
@@ -19076,6 +19096,7 @@ function renderCareerPanel(){
         stats.appendChild(stat);
       });
       items.replaceChildren();
+      levelBadge.textContent=player && player.level != null ? String(player.level) : '—';
       const slots=player && Array.isArray(player.items) ? player.items.slice(0,6) : [];
       for(let i=0;i<6;i++){
         const item=slots[i];
@@ -19083,11 +19104,60 @@ function renderCareerPanel(){
         const slot=careerNode('div','career-item-slot'+(item?' filled':''));
         slot.title=itemDef ? itemDef.name : item ? String(item) : 'Пустой слот';
         if(itemDef){
-          const glyph=careerNode('span','career-item-glyph',itemDef.icon || '◇');
-          glyph.style.color=itemDef.color || '#d6c49a';
-          slot.append(glyph,careerNode('span','career-item-name',itemDef.name || String(item)));
+          slot.style.setProperty('--item-color',itemDef.color || '#d6c49a');
+          const icon=careerNode('canvas','career-item-icon');
+          icon.width=96; icon.height=96;
+          icon.setAttribute('aria-label',itemDef.name);
+          const drawn=typeof window.__renderItemIcon==='function' && window.__renderItemIcon(icon,item);
+          if(drawn) slot.appendChild(icon);
+          else {
+            const glyph=careerNode('span','career-item-glyph',itemDef.icon || '◇');
+            glyph.style.color=itemDef.color || '#d6c49a';
+            slot.appendChild(glyph);
+          }
+          slot.appendChild(careerNode('span','career-item-name',itemDef.name || String(item)));
         } else if(item) slot.appendChild(careerNode('span','career-item-name',String(item)));
         items.appendChild(slot);
+      }
+      /* Шкалы 0–10: насколько игрок выделялся среди всех участников матча */
+      perf.replaceChildren();
+      const bestOf=key=>Math.max(1,...participants.map(p=>Number(p && p[key]) || 0));
+      const netValue=player && player.netWorth != null ? player.netWorth : match.netWorth;
+      [['УБИЙСТВА','kills',k,'kills'],['СМЕРТИ','deaths',d,'deaths'],['ПОМОЩЬ','assists',a,'assists'],['БОГАТСТВО','netWorth',netValue,'gold']].forEach(([label,key,value,cls])=>{
+        const num=Number(value) || 0;
+        const ratio=Math.max(0,Math.min(1,num/bestOf(key)));
+        const row=careerNode('div','career-perf-row '+cls);
+        const track=careerNode('div','career-perf-track');
+        const fill=careerNode('i','career-perf-fill');
+        fill.style.width=Math.max(3,Math.round(ratio*100))+'%';
+        track.appendChild(fill);
+        row.append(careerNode('span','career-perf-label',label),track,careerNode('b','career-perf-value',(ratio*10).toFixed(1)));
+        perf.appendChild(row);
+      });
+      /* Сравнение со средними результатами на этом герое (только для самого владельца аккаунта) */
+      avgBox.replaceChildren();
+      const sameHero=accountCareer.history.filter(m=>m && m !== match && m.heroId===heroId && m.kills != null);
+      const isOwner=player && player===initialParticipant && heroId===match.heroId;
+      avgBox.hidden=!(isOwner && sameHero.length);
+      if(!avgBox.hidden){
+        const mean=key=>sameHero.reduce((sum,m)=>sum+(Number(m[key])||0),0)/sameHero.length;
+        avgBox.appendChild(careerNode('div','career-avg-title','ВАШИ СРЕДНИЕ ПОКАЗАТЕЛИ НА ЭТОМ ГЕРОЕ · '+sameHero.length+' МАТЧ.'));
+        const grid=careerNode('div','career-avg-grid');
+        [['УБИЙСТВ','kills',k,false],['СМЕРТЕЙ','deaths',d,true],['ПОМОЩИ','assists',a,false],['ЦЕННОСТЬ','netWorth',netValue,false]].forEach(([label,key,value,inverse])=>{
+          const average=mean(key);
+          const diff=(Number(value)||0)-average;
+          const good=inverse ? diff<=0 : diff>=0;
+          const cell=careerNode('div','career-avg-cell');
+          const shown=Math.abs(average)>=100 ? Math.round(average).toLocaleString('ru-RU') : (Math.round(average*10)/10).toString();
+          const delta=Math.abs(diff)>=100 ? Math.round(diff).toLocaleString('ru-RU') : (Math.round(diff*10)/10).toString();
+          cell.append(
+            careerNode('span','career-avg-label',label),
+            careerNode('b','',shown),
+            careerNode('em',good?'up':'down',(diff>=0?'+':'')+delta)
+          );
+          grid.appendChild(cell);
+        });
+        avgBox.appendChild(grid);
       }
       const duration=Number(match.duration);
       const durationText=hasValue(match.duration) && duration>0
