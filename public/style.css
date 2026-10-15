@@ -659,3 +659,10 @@ canvas {
 /* 0.8.8: новое главное меню в стиле Dota 2 рисуется на canvas — прячем старые HTML-кнопки */
 body.ds-home #online-counter,
 body.ds-home #leaderboard-open { display: none !important; }
+
+/* Онлайн-лобби: сетка героев в стиле экрана выбора (чёрно-красная палитра, золотые акценты) */
+.hero-grid { background: linear-gradient(180deg, rgba(26,8,10,.85), rgba(6,4,7,.9)); border: 1px solid rgba(215,179,106,.28); border-radius: 10px; scrollbar-color: #7a2320 transparent; }
+.hero-cell { border-radius: 8px; border-color: rgba(215,179,106,.22); background: rgba(12,6,8,.85); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.hero-cell:hover:not(:disabled) { border-color: #ffd568; box-shadow: 0 0 16px rgba(255,170,70,.4); transform: translateY(-3px) scale(1.04); }
+.hero-cell.selected { border-color: #ffd568; box-shadow: 0 0 18px rgba(255,200,90,.65), inset 0 0 12px rgba(190,40,30,.45); animation: heroCellPulse 1.8s ease-in-out infinite; }
+@keyframes heroCellPulse { 50% { box-shadow: 0 0 26px rgba(255,200,90,.9), inset 0 0 14px rgba(190,40,30,.6); } }
