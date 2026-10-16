@@ -667,7 +667,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.4.6';
+const GAME_VERSION = '0.9.4.7';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -754,7 +754,14 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.4.6', title:'ДИНАМИЧЕСКОЕ ГЛАВНОЕ МЕНЮ', changes:[
+  const sections = [{version:'0.9.4.7', title:'КАМЕРА НАБЛЮДЕНИЯ ПОСЛЕ СМЕРТИ', changes:[
+    'После гибели героя включается режим наблюдения: камера плавно переходит к ближайшему живому союзнику и следует за ним до возрождения.',
+    'Панель союзников с портретами и текущим здоровьем, кнопки «◀ ▶» (и клавиши [ и ]) для переключения, имя выбранного героя и индикатор «НАБЛЮДЕНИЕ».',
+    'Если все союзники погибли, камера спокойно смотрит на вашу базу; кнопка «К месту гибели» возвращает обзор к месту смерти.',
+    'Исправление звука: игровые звуки снова подключаются напрямую, как до 0.9.4.5; общий регулятор громкости задействуется только если вы изменили настройки звука.',
+    'При возрождении управление и камера автоматически возвращаются к вашему герою. Наблюдение ограничено своей командой и не раскрывает невидимых врагов и скрытые области. Механика смерти и время возрождения не изменены.'
+  ]},
+  {version:'0.9.4.6', title:'ДИНАМИЧЕСКОЕ ГЛАВНОЕ МЕНЮ', changes:[
     'Фон и освещение главного меню меняются вместе с выбранным режимом: TURBO — красная тема, ALL PICK — зелёная, РЕЙТИНГ — фиолетовая.',
     'Цвет темы применяется ко всему оформлению: свет фона, подсветка центрального героя, плашка выбранного режима, кнопка «Играть», верхняя панель, вкладка-логотип, навигация и рамки.',
     'Каждая тема имеет свою атмосферу: у TURBO — пульсирующий свет и быстрые огненные искры, у ALL PICK — спокойные светящиеся огоньки, у РЕЙТИНГА — тонкие энергетические разряды и расходящиеся кольца.',
@@ -1676,26 +1683,28 @@ const SND = (() => {
   try { const v = JSON.parse(localStorage.getItem('dota-sens-snd') || 'null'); if(v) { d.on = v.on !== false; d.ui = Math.max(0, Math.min(1, +v.ui)); d.game = Math.max(0, Math.min(1, +v.game)); if(!isFinite(d.ui)) d.ui = 1; if(!isFinite(d.game)) d.game = 1; } } catch(err) {}
   return d;
 })();
-let sndGameOut = null, sndUiOut = null;
+let sndGameOut = null;
 const sndNodeConnect = AudioNode.prototype.connect;
-function sndOutNode(context, ui){
-  const cur = ui ? sndUiOut : sndGameOut;
-  if(cur && cur.context === context) return cur;
+/* По умолчанию (громкость 100%, звук включён) тракт идентичен прежнему: узлы подключаются прямо к destination.
+   Перенаправление через общий gain включается только если игрок изменил настройки. */
+function sndNeedsRedirect(){ return !SND.on || SND.game < 0.999; }
+function sndOutNode(context){
+  if(sndGameOut && sndGameOut.context === context) return sndGameOut;
   const g = context.createGain(); sndNodeConnect.call(g, context.destination);
-  g.gain.value = SND.on ? (ui ? SND.ui : SND.game) : 0;
-  if(ui) sndUiOut = g; else sndGameOut = g;
+  g.gain.value = SND.on ? SND.game : 0; sndGameOut = g;
   return g;
 }
 AudioNode.prototype.connect = function(dest){
-  if(dest && typeof AudioDestinationNode !== 'undefined' && dest instanceof AudioDestinationNode && abilityAudioContext && dest.context === abilityAudioContext && this !== sndGameOut && this !== sndUiOut){
-    const args = Array.prototype.slice.call(arguments); args[0] = sndOutNode(dest.context, false);
+  if(dest && sndNeedsRedirect() && typeof AudioDestinationNode !== 'undefined' && dest instanceof AudioDestinationNode && abilityAudioContext && dest.context === abilityAudioContext && this !== sndGameOut){
+    const args = Array.prototype.slice.call(arguments); args[0] = sndOutNode(dest.context);
     return sndNodeConnect.apply(this, args);
   }
   return sndNodeConnect.apply(this, arguments);
 };
 function sndApply(){
   if(sndGameOut) sndGameOut.gain.value = SND.on ? SND.game : 0;
-  if(sndUiOut) sndUiOut.gain.value = SND.on ? SND.ui : 0;
+  if(sfxMaster) sfxMaster.gain.value = 0.9 * (SND.on ? SND.game : 0);
+  if(sfxMasterUi) sfxMasterUi.gain.value = 0.9 * (SND.on ? SND.ui : 0);
 }
 function sndSave(){ try { localStorage.setItem('dota-sens-snd', JSON.stringify(SND)); } catch(err) {} }
 function sndCycle(key){
@@ -1749,7 +1758,8 @@ function sfxBus(context, ui){
   const comp = context.createDynamicsCompressor();
   comp.threshold.value = -20; comp.knee.value = 18; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.12;
   input.connect(filter); filter.connect(comp);
-  if(ui) sndNodeConnect.call(comp, sndOutNode(context, true)); else comp.connect(context.destination);   /* игровая шина перенаправляется на gain игровых эффектов */
+  sndNodeConnect.call(comp, context.destination);               /* шина подключена напрямую, как раньше */
+  input.gain.value = 0.9 * (ui ? SND.ui : SND.game);
   input.context = context; if(ui) sfxMasterUi = input; else sfxMaster = input;
   return input;
 }
@@ -11740,12 +11750,18 @@ function update(dt){
   if(playerHero){
     const focusUnit=getControlledUnit();
     const tx = focusUnit.x, ty = focusUnit.y;
-    if(!cameraManual){
-      cam.x += (tx-cam.x) * Math.min(1, dt*8);
-      cam.y += (ty-cam.y) * Math.min(1, dt*8);
+    const specPoint = specCamera(focusUnit);
+    if(specPoint){                      /* наблюдение: плавное следование за союзником, без ручного смещения */
+      cam.x += (specPoint.x-cam.x) * Math.min(1, dt*4);
+      cam.y += (specPoint.y-cam.y) * Math.min(1, dt*4);
+    } else {
+      if(!cameraManual){
+        cam.x += (tx-cam.x) * Math.min(1, dt*8);
+        cam.y += (ty-cam.y) * Math.min(1, dt*8);
+      }
+      cam.x += (edgePan.x + cameraKeys.x) * 720 * dt;
+      cam.y += (edgePan.y + cameraKeys.y) * 720 * dt;
     }
-    cam.x += (edgePan.x + cameraKeys.x) * 720 * dt;
-    cam.y += (edgePan.y + cameraKeys.y) * 720 * dt;
     const hw = VW/2, hh = VH/2;
     cam.x = VW>=WORLD ? WORLD/2 : clamp(cam.x, hw, WORLD-hw);
     cam.y = VH>=WORLD ? WORLD/2 : clamp(cam.y, hh, WORLD-hh);
@@ -11984,6 +12000,7 @@ function handleMo3giControlClick(mx,my){
 canvas.addEventListener('mousedown', e => {
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
+  if(e.button === 0 && gameState !== 'menu' && specHandleClick(mx, my)){ e.preventDefault(); return; }
 
   if(e.button === 1){
     cameraDrag.active = true;
@@ -18358,6 +18375,121 @@ function drawHeroStripIcon(def,x,y,size,now,dead){
   ctx.restore();
 }
 
+/* 0.9.4.7: режим наблюдения после смерти. Камера плавно следует за живым союзником (только своя команда —
+   видимость, туман войны и правила обзора не затрагиваются; механика смерти и возрождения не менялась). */
+const SPEC = {active:false, target:null, free:false, lastX:0, lastY:0, hits:[], portraits:{}};
+function specAllies(){ return heroes.filter(h => h.type === 'hero' && !h.isIllusion && h.team === playerHero.team && h !== playerHero); }
+function specAlive(){ return specAllies().filter(h => !h.dead && Number.isFinite(h.x) && Number.isFinite(h.y)); }
+function specNearest(x, y, skip){
+  let best = null, bd = Infinity;
+  for(const h of specAlive()){ if(h === skip) continue; const d = Math.hypot(h.x-x, h.y-y); if(d < bd){ bd = d; best = h; } }
+  return best;
+}
+/* возвращает точку, на которую смотрит камера, либо null — если наблюдение не нужно */
+function specCamera(focusUnit){
+  if(!playerHero || !playerHero.dead || focusUnit !== playerHero){
+    if(SPEC.active){ SPEC.active = false; SPEC.target = null; SPEC.free = false; SPEC.hits.length = 0; cameraManual = false; }
+    return null;
+  }
+  if(!SPEC.active){
+    SPEC.active = true; SPEC.free = false; SPEC.lastX = SPEC.deathX = playerHero.x; SPEC.lastY = SPEC.deathY = playerHero.y;
+    SPEC.target = specNearest(playerHero.x, playerHero.y, null); cameraManual = false;
+  }
+  if(SPEC.target && (SPEC.target.dead || !units.includes(SPEC.target) && !heroes.includes(SPEC.target))) SPEC.target = specNearest(SPEC.target.x, SPEC.target.y, SPEC.target);
+  if(!SPEC.target && !SPEC.free){ SPEC.target = specNearest(SPEC.lastX, SPEC.lastY, null); }
+  if(SPEC.target){ SPEC.lastX = SPEC.target.x; SPEC.lastY = SPEC.target.y; return {x:SPEC.target.x, y:SPEC.target.y}; }
+  if(SPEC.free) return {x:SPEC.deathX, y:SPEC.deathY};
+  const base = spawnRoomCenter(playerHero.team);           /* все союзники мертвы — спокойный обзор своей базы */
+  return {x:base.x, y:base.y};
+}
+function specCycle(dir){
+  if(!SPEC.active) return;
+  const alive = specAlive(); if(!alive.length) return;
+  const i = alive.indexOf(SPEC.target);
+  SPEC.target = alive[i < 0 ? (dir > 0 ? 0 : alive.length-1) : (i + dir + alive.length) % alive.length];
+  SPEC.free = false; playSynthSfx('click');
+}
+function specHandleClick(mx, my){
+  if(!SPEC.active || !SPEC.hits.length) return false;
+  for(const b of SPEC.hits){
+    if(mx < b.x || mx > b.x+b.w || my < b.y || my > b.y+b.h) continue;
+    if(b.act === 'prev') specCycle(-1);
+    else if(b.act === 'next') specCycle(1);
+    else if(b.act === 'pick'){ if(b.ally && !b.ally.dead){ SPEC.target = b.ally; SPEC.free = false; playSynthSfx('click'); } }
+    else if(b.act === 'free'){ SPEC.target = null; SPEC.free = true; playSynthSfx('click'); }
+    return true;
+  }
+  return false;
+}
+window.addEventListener('keydown', e => {
+  if(!SPEC.active || (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return;
+  if(e.code === 'BracketLeft'){ specCycle(-1); e.preventDefault(); }
+  else if(e.code === 'BracketRight'){ specCycle(1); e.preventDefault(); }
+});
+function specPortrait(def){
+  let c = SPEC.portraits[def.id];
+  if(c === undefined){
+    c = document.createElement('canvas'); c.width = c.height = 64;
+    let ok = false; try { ok = window.__renderHeroPortrait && window.__renderHeroPortrait(c, def.id); } catch(err) {}
+    SPEC.portraits[def.id] = c = ok ? c : false;
+  }
+  return c;
+}
+function drawSpectatorUi(h){
+  SPEC.hits.length = 0;
+  const allies = specAllies(), n = allies.length;
+  const cw = Math.max(44, Math.min(70, (VW - 140) / Math.max(1, n))), ch = Math.round(cw*1.12), gap = 8;
+  const rowW = n*cw + (n-1)*gap, bw = 34, y0 = Math.round(VH*0.11);
+  ctx.save(); ctx.textBaseline = 'alphabetic';
+  /* индикатор режима и имя выбранного союзника */
+  const t = SPEC.target;
+  const label = t ? 'НАБЛЮДЕНИЕ · ' + (t.def ? t.def.name : 'Союзник') : (SPEC.free ? 'НАБЛЮДЕНИЕ · МЕСТО ГИБЕЛИ' : 'НАБЛЮДЕНИЕ · БАЗА');
+  ctx.font = 'bold 15px Segoe UI, Arial';
+  const lw = Math.min(VW-20, ctx.measureText(label).width + 56), lx = VW/2 - lw/2;
+  ctx.fillStyle = 'rgba(8,10,16,0.82)'; ctx.fillRect(lx, y0-34, lw, 28);
+  ctx.strokeStyle = '#d7b36a'; ctx.lineWidth = 1.2; ctx.strokeRect(lx+.5, y0-33.5, lw-1, 27);
+  ctx.fillStyle = '#ff6a5a'; ctx.beginPath(); ctx.arc(lx+16, y0-20, 4.5 + Math.sin(performance.now()/300)*.8, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff3d6'; ctx.textAlign = 'center'; ctx.fillText(label, VW/2 + 8, y0-15);
+  if(n){
+    const x0 = VW/2 - rowW/2;
+    /* кнопки предыдущий / следующий */
+    for(const [act, bx, sym] of [['prev', x0 - bw - 8, '◀'], ['next', x0 + rowW + 8, '▶']]){
+      const hov = mouse.x >= bx && mouse.x <= bx+bw && mouse.y >= y0 && mouse.y <= y0+ch;
+      ctx.fillStyle = hov ? 'rgba(139,44,35,0.75)' : 'rgba(8,10,16,0.82)'; ctx.fillRect(bx, y0, bw, ch);
+      ctx.strokeStyle = hov ? '#ffe2a0' : '#d7b36a'; ctx.strokeRect(bx+.5, y0+.5, bw-1, ch-1);
+      ctx.fillStyle = '#fff3d6'; ctx.font = 'bold 16px Segoe UI, Arial'; ctx.fillText(sym, bx+bw/2, y0+ch/2+6);
+      SPEC.hits.push({x:bx, y:y0, w:bw, h:ch, act});
+    }
+    allies.forEach((a, i) => {
+      const x = x0 + i*(cw+gap), sel = a === t, dead = a.dead, hov = mouse.x >= x && mouse.x <= x+cw && mouse.y >= y0 && mouse.y <= y0+ch;
+      ctx.fillStyle = 'rgba(8,10,16,0.84)'; ctx.fillRect(x, y0, cw, ch);
+      const ps = cw - 10, px = x + 5, py = y0 + 5, pic = specPortrait(a.def);
+      ctx.save(); ctx.beginPath(); ctx.rect(px, py, ps, ps); ctx.clip();
+      if(pic) ctx.drawImage(pic, px, py, ps, ps);
+      else { ctx.fillStyle = a.def.color || '#555'; ctx.fillRect(px, py, ps, ps); ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.round(ps*.5) + 'px Georgia, serif'; ctx.fillText(a.def.name.charAt(0), px+ps/2, py+ps*.68); }
+      if(dead){ ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(px, py, ps, ps); ctx.fillStyle = '#ff9a8a'; ctx.font = 'bold ' + Math.round(ps*.34) + 'px Segoe UI, Arial'; ctx.fillText(Math.ceil(a.respawnTimer || 0) + 'с', px+ps/2, py+ps*.62); }
+      ctx.restore();
+      const hp = dead ? 0 : Math.max(0, Math.min(1, a.hp / Math.max(1, a.maxHp))), by = y0 + 5 + ps + 4;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(px, by, ps, 6);
+      ctx.fillStyle = hp > .5 ? '#5fe08a' : (hp > .25 ? '#ffd054' : '#ff5a4a'); ctx.fillRect(px, by, ps*hp, 6);
+      ctx.fillStyle = dead ? 'rgba(255,255,255,0.4)' : '#f0e6d2'; ctx.font = '10px Segoe UI, Arial';
+      ctx.fillText(a.def.name.length > 9 ? a.def.name.slice(0, 8) + '…' : a.def.name, x+cw/2, by + 17);
+      ctx.strokeStyle = sel ? '#ffd568' : (hov && !dead ? '#e8c984' : 'rgba(215,179,106,0.35)'); ctx.lineWidth = sel ? 2.5 : 1.2;
+      if(sel){ ctx.shadowColor = '#ffd568'; ctx.shadowBlur = 12; }
+      ctx.strokeRect(x+.5, y0+.5, cw-1, ch-1); ctx.shadowBlur = 0;
+      SPEC.hits.push({x, y:y0, w:cw, h:ch, act:'pick', ally:a});
+    });
+  }
+  /* к месту гибели */
+  const fb = {x: VW/2 - 80, y: y0 + ch + 8, w: 160, h: 26}, fh = mouse.x >= fb.x && mouse.x <= fb.x+fb.w && mouse.y >= fb.y && mouse.y <= fb.y+fb.h;
+  ctx.fillStyle = fh ? 'rgba(139,44,35,0.75)' : 'rgba(8,10,16,0.75)'; ctx.fillRect(fb.x, fb.y, fb.w, fb.h);
+  ctx.strokeStyle = 'rgba(215,179,106,0.6)'; ctx.lineWidth = 1; ctx.strokeRect(fb.x+.5, fb.y+.5, fb.w-1, fb.h-1);
+  ctx.fillStyle = '#f0e6d2'; ctx.font = 'bold 11px Segoe UI, Arial'; ctx.fillText('К МЕСТУ ГИБЕЛИ', VW/2, fb.y+17);
+  SPEC.hits.push({x:fb.x, y:fb.y, w:fb.w, h:fb.h, act:'free'});
+  ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '10px Segoe UI, Arial'; ctx.fillText('[  ]  — переключение союзников', VW/2, fb.y + fb.h + 14);
+  ctx.restore();
+}
+
 function drawHUD(){
   if(!playerHero) return;
   const h = playerHero;
@@ -18512,12 +18644,13 @@ function drawHUD(){
   drawChat();
 
   if(h.dead){
-    ctx.fillStyle = 'rgba(120,0,0,0.35)';
+    ctx.fillStyle = SPEC.active ? 'rgba(120,0,0,0.16)' : 'rgba(120,0,0,0.35)';
     ctx.fillRect(0,0,VW,VH);
     ctx.textAlign = 'center';
-    ctx.font = 'bold 44px Segoe UI, Arial';
+    ctx.font = SPEC.active ? 'bold 32px Segoe UI, Arial' : 'bold 44px Segoe UI, Arial';
     ctx.fillStyle = '#fff';
-    ctx.fillText('ВОЗРОЖДЕНИЕ ЧЕРЕЗ ' + Math.ceil(h.respawnTimer), VW/2, VH/2);
+    ctx.fillText('ВОЗРОЖДЕНИЕ ЧЕРЕЗ ' + Math.ceil(h.respawnTimer), VW/2, SPEC.active ? VH*0.82 : VH/2);
+    if(SPEC.active){ try { drawSpectatorUi(h); } catch(err) { SPEC.hits.length = 0; } }
   }
   if(killStreakBanner.t > 0){
     const fade = Math.min(1, killStreakBanner.t / 0.45);
