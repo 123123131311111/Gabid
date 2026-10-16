@@ -310,7 +310,11 @@ function handlePlayerStats(socket, stats){
   const room = roomOf(socket); const player = room?.state?.[socket.id];
   if(!room || !player || !stats) return;
   if(Number.isFinite(stats.maxHp)) player.maxHp = clamp(stats.maxHp,1,1000000);
-  if(Number.isFinite(stats.gold)) player.gold = clamp(stats.gold,0,100000000);
+  if(Number.isFinite(stats.gold)){
+    const reportedGold = clamp(stats.gold,0,100000000);
+    /* 0.9.6: после покупки варда устаревший отчёт клиента не должен «вернуть» золото */
+    if(!(Date.now() < (player.goldHoldUntil || 0) && reportedGold > player.gold)) player.gold = reportedGold;
+  }
   if(!Number.isInteger(stats.sequence) || stats.sequence <= player.lastStatsSequence ||
      stats.damageVersion !== player.damageVersion) return;
   player.lastStatsSequence = stats.sequence;
@@ -503,26 +507,119 @@ function tickTowerCombat(room, dt){
   }
 }
 
+function revivePlayer(room, player){
+  player.alive = true;
+  player.respawnTimer = 0;
+  player.dmgLog = Object.create(null);
+  player.hp = player.maxHp;
+  player.x = player.respawnX;
+  player.y = player.respawnY;
+  player.clientDriven = false;
+  player.damageVersion++;
+  player.moveTarget = null;
+  player.keys = Object.create(null);
+  player.cooldown = 0;
+  player.lastClientPositionAt=Date.now();
+  emitPlayerVitals(room,player);
+}
+/* ===== 0.9.4.9: Buyback — выкуп возрождения. Стоимость и перезарядка считаются на сервере. ===== */
+const BUYBACK_CFG = {base:150, perLevel:75, cooldown:120};
+function handleBuyback(socket, data){
+  const room = roomOf(socket); const player = room?.state?.[socket.id];
+  if(!room || !room.started || !player || player.bot) return;
+  const reply = o => socket.emit('buybackResult', o);
+  const now = Date.now();
+  if(player.alive) return reply({ok:false, reason:'alive'});
+  if(now < (player.buybackReadyAt || 0)) return reply({ok:false, reason:'cd', cd:Math.ceil((player.buybackReadyAt - now)/1000)});
+  const level = clamp(Math.round(Number(data && data.level) || 1), 1, 30);
+  const cost = BUYBACK_CFG.base + level * BUYBACK_CFG.perLevel;
+  /* золото в этой архитектуре ведёт клиент (playerStats), поэтому берём последнее сообщённое значение */
+  if(data && Number.isFinite(data.gold)) player.gold = clamp(data.gold, 0, 100000000);
+  if(player.gold < cost) return reply({ok:false, reason:'gold', cost});
+  player.gold -= cost;
+  player.buybackReadyAt = now + BUYBACK_CFG.cooldown * 1000;
+  player.buybackSeq = (player.buybackSeq || 0) + 1;
+  revivePlayer(room, player);
+  reply({ok:true, cost, id:player.buybackSeq, cd:BUYBACK_CFG.cooldown});
+}
+/* ===== 0.9.6: Observer Ward — сервер владеет покупкой, запасом, установкой и сроком действия =====
+   Варды видны только своей команде: событие ward:placed уходит игрокам команды-владельца, враг о варде не узнаёт. */
+const WARD_CFG = {cost:50, duration:150, radius:900, castRange:900, maxStack:4, maxPerTeam:6, minGap:160, baseBan:520, edge:80};
+function handleWardBuy(socket, data, ack){
+  const reply = typeof ack === 'function' ? ack : () => {};
+  const room = roomOf(socket); const player = room?.state?.[socket.id];
+  if(!room || !room.started || !player || player.bot) return reply({ok:false, reason:'state'});
+  if(!player.alive) return reply({ok:false, reason:'dead'});
+  const now = Date.now();
+  if(now - (player.wardBuyAt || 0) < 150) return reply({ok:false, reason:'busy'});
+  player.wardBuyAt = now;
+  const have = clamp(Math.floor(Number(data && data.have) || 0), 0, WARD_CFG.maxStack);
+  player.wardStock = Math.min(player.wardStock || 0, have);   /* клиент мог продать стопку */
+  if(player.wardStock >= WARD_CFG.maxStack) return reply({ok:false, reason:'full'});
+  if((Number(player.gold) || 0) < WARD_CFG.cost) return reply({ok:false, reason:'gold', cost:WARD_CFG.cost});
+  player.gold -= WARD_CFG.cost;
+  player.goldHoldUntil = now + 1500;
+  player.wardStock++;
+  player.wardRefundable = true;
+  reply({ok:true, cost:WARD_CFG.cost, stock:player.wardStock});
+}
+function handleWardDiscard(socket){   /* клиент не смог выдать предмет (слот занят) — возврат */
+  const room = roomOf(socket); const player = room?.state?.[socket.id];
+  if(!room || !player || !player.wardRefundable || !(player.wardStock > 0)) return;
+  if(Date.now() - (player.wardBuyAt || 0) > 5000) return;
+  player.wardRefundable = false;
+  player.wardStock--; player.gold += WARD_CFG.cost; player.goldHoldUntil = 0;
+}
+function handleWardPlace(socket, data, ack){
+  const reply = typeof ack === 'function' ? ack : () => {};
+  const room = roomOf(socket); const player = room?.state?.[socket.id];
+  if(!room || !room.started || !player || player.bot) return reply({ok:false, reason:'state'});
+  const rid = String(data && data.rid || '').slice(0,24);
+  if(rid && player.wardLastRid === rid) return reply(player.wardLastRes || {ok:false, reason:'dup'});   /* повтор/двойной клик */
+  const done = res => { player.wardLastRid = rid; player.wardLastRes = res; reply(res); };
+  if(!player.alive) return done({ok:false, reason:'dead'});
+  if(!(player.wardStock > 0)) return done({ok:false, reason:'stock'});
+  const x = Number(data && data.x), y = Number(data && data.y);
+  if(!Number.isFinite(x) || !Number.isFinite(y) || x < WARD_CFG.edge || y < WARD_CFG.edge ||
+     x > WORLD_SIZE - WARD_CFG.edge || y > WORLD_SIZE - WARD_CFG.edge) return done({ok:false, reason:'bounds'});
+  if(Math.hypot(x - player.x, y - player.y) > WARD_CFG.castRange + 300) return done({ok:false, reason:'far'});
+  for(const base of BASES) if(Math.hypot(x - base.x, y - base.y) < WARD_CFG.baseBan) return done({ok:false, reason:'base'});
+  for(const tower of Object.values(room.towers || {}))
+    if(tower.alive && Math.hypot(x - tower.x, y - tower.y) < 60) return done({ok:false, reason:'blocked'});
+  room.wards = room.wards || [];
+  const mine = room.wards.filter(w => w.team === player.team);
+  if(mine.length >= WARD_CFG.maxPerTeam) return done({ok:false, reason:'limit'});
+  if(mine.some(w => Math.hypot(x - w.x, y - w.y) < WARD_CFG.minGap)) return done({ok:false, reason:'near'});
+  room.wardSeq = (room.wardSeq || 0) + 1;
+  const ward = {id:'w' + room.wardSeq, team:player.team, owner:player.id, x, y, expiresAt:Date.now() + WARD_CFG.duration * 1000};
+  room.wards.push(ward);
+  player.wardStock--;
+  player.wardRefundable = false;
+  const payload = {id:ward.id, x:ward.x, y:ward.y, life:WARD_CFG.duration};
+  for(const member of humansOf(room))
+    if(member.team === player.team && member.id !== player.id) io.to(member.id).emit('ward:placed', payload);
+  done({ok:true, ward:payload});
+}
+function tickWards(room){
+  if(!room.wards || !room.wards.length) return;
+  const now = Date.now();
+  const expired = room.wards.filter(w => w.expiresAt <= now);
+  if(!expired.length) return;
+  room.wards = room.wards.filter(w => w.expiresAt > now);
+  for(const ward of expired)
+    for(const member of humansOf(room))
+      if(member.team === ward.team) io.to(member.id).emit('ward:expired', {id:ward.id});
+}
 function tickRoom(room, dt){
   if(!room.started || !room.state) return;
+  tickWards(room);
   room.tick = (room.tick || 0) + 1;
   for(const player of Object.values(room.state)){
     player.cooldown = Math.max(0, player.cooldown - dt);
     if(!player.alive){
       player.respawnTimer = Math.max(0, (player.respawnTimer || 0) - dt);
       if(player.respawnTimer > 0) continue;
-      player.alive = true;
-      player.dmgLog = Object.create(null);
-      player.hp = player.maxHp;
-      player.x = player.respawnX;
-      player.y = player.respawnY;
-      player.clientDriven = false;
-      player.damageVersion++;
-      player.moveTarget = null;
-      player.keys = Object.create(null);
-      player.cooldown = 0;
-      player.lastClientPositionAt=Date.now();
-      emitPlayerVitals(room,player);
+      revivePlayer(room, player);
       continue;
     }
     if(player.clientDriven) continue;
@@ -694,6 +791,10 @@ io.on('connection', socket => {
   });
   socket.on('playerInput', input => handleInput(socket, input));
   socket.on('playerStats', stats => handlePlayerStats(socket, stats));
+  socket.on('buyback', data => handleBuyback(socket, data));
+  socket.on('ward:buy', (data, ack) => handleWardBuy(socket, data, ack));
+  socket.on('ward:discard', () => handleWardDiscard(socket));
+  socket.on('ward:place', (data, ack) => handleWardPlace(socket, data, ack));
   socket.on('playerDamage', data => handlePlayerDamage(socket, data));
   socket.on('playerSkill', data => handlePlayerSkill(socket,data));
   socket.on('playerAnim', data => handlePlayerAnim(socket,data));

@@ -4,7 +4,28 @@
 /* ===== 0.8.3: адаптивное качество графики ===== */
 let perfLevel = 0;                      /* 0 — высокое, 1 — среднее, 2 — низкое, 3 — супер низкое */
 try { const sv = parseInt(localStorage.getItem('dota-sens-perf'), 10); if(sv >= 0 && sv <= 3) perfLevel = sv; } catch(err) {}
-window.__perfShadow = [1, 0.5, 0, 0][perfLevel];
+/* ===== 0.9.5: расширенные настройки графики (localStorage 'dota-sens-gfx') =====
+   Каждый параметр реально читается рендерером: particles — лимит и число частиц, glow — shadowBlur (свечение),
+   extras — следы атак/ауры/анимации покупки, shadows — тени юнитов, decor — окружение (туман, листва, блики), fps — счётчик. */
+const GFX_PRESETS = [   /* индекс = perfLevel: 0 высокое, 1 среднее, 2 низкое */
+  {particles:2, glow:2, extras:0, shadows:1, decor:1},
+  {particles:1, glow:1, extras:1, shadows:1, decor:1},
+  {particles:0, glow:0, extras:2, shadows:0, decor:1}
+];
+const GFX = {particles:2, glow:2, extras:0, shadows:1, decor:1, fps:0};
+function gfxPresetValues(level){ return GFX_PRESETS[clamp(level,0,2)]; }
+try {
+  const sv = JSON.parse(localStorage.getItem('dota-sens-gfx') || 'null');
+  if(sv && typeof sv === 'object'){
+    for(const k of ['particles','glow','extras']) if(sv[k] >= 0 && sv[k] <= 2) GFX[k] = sv[k] | 0;
+    for(const k of ['shadows','decor','fps']) if(sv[k] === 0 || sv[k] === 1) GFX[k] = sv[k];
+  } else Object.assign(GFX, GFX_PRESETS[perfLevel] || GFX_PRESETS[0]);
+} catch(err) {}
+function gfxSave(){ try { localStorage.setItem('dota-sens-gfx', JSON.stringify(GFX)); } catch(err) {} }
+function gfxGlowK(){ return perfLevel >= 3 ? 0 : [0, 0.5, 1][GFX.glow]; }
+function fxl(){ return perfLevel >= 3 ? 3 : GFX.extras; }          /* уровень «дополнительных эффектов» */
+const GFX_PARTICLE_MUL = [0.3, 0.58, 1];
+window.__perfShadow = gfxGlowK();
 if(perfLevel >= 1 && document.body) document.body.classList.add('perf-low');
 (function(){
   /* shadowBlur — самая дорогая операция canvas. Масштабируем её по уровню качества. */
@@ -29,10 +50,12 @@ function perfLite(){ return perfLevel >= 3; }
 let appliedRenderScale = 1;
 /* в меню разрешение полное (текст читаем), мыло включается только в матче */
 function perfRenderScale(){ return (perfLevel >= 3 && gameState !== 'menu') ? 0.5 : 1; }
-function setPerfLevel(level, silent){
+function setPerfLevel(level, silent, opts_keepGfx){
   const prevScale = perfRenderScale();
   perfLevel = clamp(level, 0, 3);
-  window.__perfShadow = [1, 0.5, 0, 0][perfLevel];
+  if(perfLevel <= 2 && !opts_keepGfx) Object.assign(GFX, gfxPresetValues(perfLevel));
+  window.__perfShadow = gfxGlowK();
+  if(!opts_keepGfx) gfxSave();
   try { localStorage.setItem('dota-sens-perf', String(perfLevel)); } catch(err) {}
   terrainFrameValid = false;
   if(document.body) document.body.classList.toggle('perf-low', perfLevel >= 1);
@@ -44,7 +67,7 @@ function setPerfLevel(level, silent){
   }
 }
 function terrainRefreshEvery(){ return perfLevel === 0 ? 3 : (perfLevel === 1 ? 4 : (perfLevel === 2 ? 6 : 12)); }
-function particleCap(){ return perfLevel === 0 ? 900 : (perfLevel === 1 ? 520 : (perfLevel === 2 ? 260 : 70)); }
+function particleCap(){ return perfLevel >= 3 ? 70 : Math.round(900 * GFX_PARTICLE_MUL[GFX.particles]); }
 function fxCap(){ return perfLevel === 0 ? 220 : (perfLevel === 1 ? 150 : (perfLevel === 2 ? 90 : 28)); }
 function perfSample(now){
   if(gameState !== 'playing' || gameTime < 4 || matchIntroStart >= 0){ perfLastCheck = 0; perfFrameCount = 0; return; }
@@ -667,7 +690,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.4.7';
+const GAME_VERSION = '0.9.6';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -754,7 +777,36 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.4.7', title:'КАМЕРА НАБЛЮДЕНИЯ ПОСЛЕ СМЕРТИ', changes:[
+  const sections = [{version:'0.9.6', title:'ВАРДЫ И КОНТРОЛЬ ОБЗОРА', changes:[
+    'В магазине появился Observer Ward (расходуемый, до 4 в стопке). Активируйте его клавишей слота, наведите круг радиуса обзора и кликните по карте в пределах дальности установки героя.',
+    'Вард — настоящий источник обзора: он открывает туман войны радиусом 900 на 150 секунд, показывает врагов в этой области и отмечается на мини-карте. Невидимых врагов он не раскрывает.',
+    'Над тотемом отображается оставшееся время, после истечения срока вард исчезает. Нельзя ставить за пределами карты, на базах, у строений, на деревьях, слишком близко к другому вард и сверх лимита 6 вардов на команду.',
+    'Онлайн: покупку, запас, установку и срок действия подтверждает сервер; варды видит только команда-владелец. Повторная отправка и двойной клик не списывают предмет дважды.'
+  ]},
+  {version:'0.9.5.5', title:'ЭВОЛЮЦИЯ КРИПОВ', changes:[
+    'Волны крипов усиливаются по ходу матча. Начало: обычные крипы. С 11-й волны (≈5 мин): +15% к здоровью и +10% к урону новых крипов. С 21-й волны (≈10 мин): +30% к здоровью и +20% к урону.',
+    'Усиление считается от базовых характеристик один раз при появлении крипа; уже вышедшие крипы не меняются, скорость, дальность атаки и маршрут остаются прежними. Усиленные (mega) крипы после падения казарм получают вдвое меньший бонус.',
+    'Крипы заметно светятся цветом команды, а на поздней стадии получают оранжевое свечение и вращающееся рунное кольцо под ногами. При переходе стадии на экране появляется короткое уведомление.',
+    'Стадия определяется номером волны, поэтому в онлайне она совпадает у всех игроков без отдельного таймера.'
+  ]},
+  {version:'0.9.5.2', title:'РЕЦЕПТЫ ПРЕДМЕТОВ', changes:[
+    'Новая система рецептов: три итоговых предмета собираются из уже существующих. Буревестник = ПТ + Бошка Семёна + 600 монет (+320 урона, +95 скорости, +90% к скорости атаки). Сердце Титана = Сатаник + Еблет Евсютина + 1000 монет (+1500 здоровья, +20 регенерации, вампиризм 35%, -15% урона от атак). Мантия Архимага = Капыта-Дерезладия + Научилсяловить + Враги-302 школы + 900 монет (+1200 маны, +25% к восстановлению маны, +25% к урону способностей, -35% к перезарядке).',
+    'В магазине у рецептов показаны компоненты (есть / нет), цена каждого, доплата за сборку, общая стоимость и недостающие предметы. На карточке — счётчик собранных компонентов.',
+    'Когда все компоненты на руках и хватает золота на доплату, артефакт собирается автоматически. Клик по артефакту в магазине докупает недостающие компоненты и собирает его одним списанием золота.',
+    'Сборка работает даже с заполненным инвентарём: итоговый предмет занимает слот компонента. Повторного списания и дублей нет, бонусы здоровья и маны компонентов снимаются при сборке и при продаже.'
+  ]},
+  {version:'0.9.5', title:'РАСШИРЕННЫЕ НАСТРОЙКИ ГРАФИКИ', changes:[
+    'Настройки → ГРАФИКА → «РАСШИРЕННАЯ»: пресеты «Низкое / Среднее / Высокое», отдельные настройки частиц, свечения, дополнительных эффектов (следы атак, ауры, анимации), теней юнитов и декоративного окружения (туман, листва, блики на воде).',
+    'Переключатель счётчика FPS (работает в меню и в матче). Кнопки «Применить» и «По умолчанию». Выбор сохраняется между запусками.',
+    'Все настройки реально меняют отрисовку. Полосы здоровья, способности и другие боевые индикаторы остаются на любом качестве.'
+  ]},
+  {version:'0.9.4.9', title:'BUYBACK — ВЫКУП ВОЗРОЖДЕНИЯ', changes:[
+    'На экране смерти появилась кнопка «ВЫКУПИТЬ ВОЗРОЖДЕНИЕ»: мгновенное возрождение за золото. Стоимость = 150 + 75 за каждый уровень героя, перезарядка 2 минуты.',
+    'На кнопке видны стоимость, текущее золото, нехватка золота и оставшееся время перезарядки. Золото списывается только при успешном выкупе, двойной клик ничего не списывает дважды.',
+    'В онлайне выкуп подтверждает сервер (стоимость и перезарядка считаются на сервере). Если не выкупать, обычный таймер смерти работает как раньше.',
+    'Анимация выкупа: золотая вспышка, кольца света и отдельный звук.'
+  ]},
+  {version:'0.9.4.7', title:'КАМЕРА НАБЛЮДЕНИЯ ПОСЛЕ СМЕРТИ', changes:[
     'После гибели героя включается режим наблюдения: камера плавно переходит к ближайшему живому союзнику и следует за ним до возрождения.',
     'Панель союзников с портретами и текущим здоровьем, кнопки «◀ ▶» (и клавиши [ и ]) для переключения, имя выбранного героя и индикатор «НАБЛЮДЕНИЕ».',
     'Если все союзники погибли, камера спокойно смотрит на вашу базу; кнопка «К месту гибели» возвращает обзор к месту смерти.',
@@ -1379,6 +1431,105 @@ SHOP_ITEMS.octarineCore = {
   hp:450, maxMp:450, mpRegen:6, cooldownReduction:0.25
 };
 SHOP_ITEM_IDS.push('octarineCore');
+/* ===== 0.9.5.2: РЕЦЕПТЫ. Три итоговых артефакта собираются из РЕАЛЬНЫХ предметов каталога. =====
+   parts — id компонентов, fee — доплата за сборку. Полная цена артефакта = цены компонентов + fee.
+   Компоненты при сборке сгорают (вместе со своими бонусами к здоровью/мане), итог даёт бонусы ровно один раз. */
+const RECIPES = {
+  stormbringer: {parts:['pt','semenHead'],               fee:600},
+  titanHeart:   {parts:['satanic','evsyutin'],           fee:1000},
+  archmageRobe: {parts:['manaHooves','manaTome','enemy302'], fee:900}
+};
+function recipePartCost(pid){ const it = SHOP_ITEMS[pid]; return it ? (it.totalCost || it.cost) : 0; }
+function recipePartName(pid){ const it = SHOP_ITEMS[pid]; return it ? it.name : pid; }
+(function buildRecipeItems(){
+  const defs = {
+    stormbringer: {name:'Буревестник', icon:'⚡', color:'#ffb347', active:false,
+      damage:320, speed:95, attackSpeedBonus:0.9,
+      stats:'Пассивно: +320 к урону обычных атак, +95 к скорости передвижения и +90% к скорости атаки.'},
+    titanHeart: {name:'Сердце Титана', icon:'♥', color:'#ff5a6e', active:false,
+      hp:1500, hpRegen:20, lifesteal:0.35, attackResist:0.15,
+      stats:'Пассивно: +1500 к максимальному и текущему здоровью, +20 к восстановлению здоровья в секунду, обычные атаки возвращают 35% нанесённого урона и -15% к урону от обычных атак.'},
+    archmageRobe: {name:'Мантия Архимага', icon:'✧', color:'#8fa8ff', active:false,
+      maxMp:1200, manaRegen:0.25, spellAmp:0.25, cooldownReduction:0.35,
+      stats:'Пассивно: +1200 к максимальной и текущей мане, +25% к восстановлению маны, +25% к урону способностей и -35% к перезарядке способностей (на предметы не влияет).'}
+  };
+  for(const id of Object.keys(RECIPES)){
+    const r = RECIPES[id], d = defs[id];
+    const total = r.parts.reduce((sum, pid) => sum + recipePartCost(pid), 0) + r.fee;
+    SHOP_ITEMS[id] = {
+      name:d.name, icon:d.icon, color:d.color, active:d.active, cost:total, totalCost:total,
+      desc:'Рецепт: ' + r.parts.map(recipePartName).join(' + ') + ' + ' + r.fee + ' монет. ' + d.stats,
+      recipe:{parts:r.parts.slice(), fee:r.fee},
+      ...Object.fromEntries(Object.entries(d).filter(([k]) => !['name','icon','color','active','stats'].includes(k)))
+    };
+    SHOP_ITEM_IDS.push(id);
+  }
+})();
+/* Состояние рецепта у героя: какие компоненты уже есть (и в каких слотах), чего не хватает, сколько нужно монет. */
+function recipeStatus(hero, id){
+  const r = RECIPES[id], used = new Set(), have = [], missing = [];
+  for(const pid of r.parts){
+    const k = hero.inventory.findIndex((it, j) => it && it.id === pid && !used.has(j));
+    if(k >= 0){ used.add(k); have.push({id:pid, idx:k}); } else missing.push(pid);
+  }
+  const missingCost = missing.reduce((sum, pid) => sum + recipePartCost(pid), 0);
+  return {have, missing, missingCost, fee:r.fee, need:missingCost + r.fee, owned:hero.inventory.some(it => it && it.id === id)};
+}
+/* ПТ сам является сборкой (Сапог Джоэла + Клыки Васьки), поэтому «докупить» его одной кнопкой нельзя. */
+function recipePartBuyable(pid){ return pid !== 'pt'; }
+/* Рецепт, который завершится при покупке предмета id (все остальные компоненты уже в инвентаре). */
+function recipeCompletedBy(hero, id){
+  for(const rid in RECIPES){
+    if(!RECIPES[rid].parts.includes(id)) continue;
+    const st = recipeStatus(hero, rid);
+    if(!st.owned && st.missing.length === 1 && st.missing[0] === id) return rid;
+  }
+  return null;
+}
+/* Снять бонусы здоровья/маны, выданные applyItemStats (при продаже и при сборке). */
+function revertItemStats(hero, id){
+  const c = SHOP_ITEMS[id]; if(!c) return;
+  if(c.hp){ hero.maxHp = Math.max(1, hero.maxHp - c.hp); hero.hp = Math.min(hero.hp, hero.maxHp); }
+  if(c.maxMp){ hero.maxMp = Math.max(0, hero.maxMp - c.maxMp); hero.mp = Math.min(hero.mp, hero.maxMp); }
+}
+/* Сборка артефакта. Всё проверяется ДО изменений: золото списывается один раз, компоненты удаляются ровно один раз,
+   итог занимает слот одного из компонентов — поэтому заполненный инвентарь не мешает (при условии, что есть хоть один компонент).
+   Недостающие покупаемые компоненты докупаются автоматически (их цена входит в need). */
+function craftRecipeItem(hero, id, auto){
+  const r = RECIPES[id], cfg = SHOP_ITEMS[id];
+  if(!r || !cfg || !hero || hero.dead || !hero.inventory) return false;
+  if(hero.inventory.some(it => it && it.id === id)){ flashMsg(hero, cfg.name + ' уже собран'); return false; }
+  const st = recipeStatus(hero, id);
+  const blocked = st.missing.filter(pid => !recipePartBuyable(pid));
+  if(blocked.length){ flashMsg(hero, 'Сначала собери: ' + blocked.map(recipePartName).join(', ')); return false; }
+  if(hero.coins < st.need){ flashMsg(hero, 'Нужно ' + st.need + ' монет'); return false; }
+  const slot = st.have.length ? Math.min(...st.have.map(p => p.idx)) : hero.inventory.findIndex(it => !it);
+  if(slot < 0){ flashMsg(hero, 'Нет свободного слота'); return false; }
+  hero.coins -= st.need;
+  for(const p of st.have){ const it = hero.inventory[p.idx]; hero.inventory[p.idx] = null; if(it) revertItemStats(hero, it.id); }
+  hero.inventory[slot] = createInventoryItem(id);
+  applyItemStats(hero, id);
+  playAbilitySound('purchase');
+  addText(hero.x, hero.y - 70, cfg.name + ' собран', cfg.color, 1.2, 15);
+  if(auto && hero === playerHero){
+    shopFx.slots[slot] = performance.now();
+    shopFx.toasts.push({kind:'ok', t:performance.now(), life:2300, title:'Собрано: ' + cfg.name, sub:'−' + st.need + ' монет', icon:hero.inventory[slot], color:cfg.color});
+    while(shopFx.toasts.length > 3) shopFx.toasts.shift();
+  }
+  return true;
+}
+/* Когда все компоненты на руках и хватает золота на доплату — артефакт собирается сам. */
+function recipeAutoCraft(hero){
+  if(!hero || hero.dead) return;
+  for(const rid in RECIPES){
+    const st = recipeStatus(hero, rid);
+    if(!st.owned && !st.missing.length && hero.coins >= st.fee) craftRecipeItem(hero, rid, true);
+  }
+}
+/* ===== 0.9.6: Observer Ward. Константы совпадают с WARD_CFG в server.js (сервер — источник истины в онлайне). ===== */
+const WARD_CFG = {cost:50, duration:150, radius:900, castRange:900, maxStack:4, maxPerTeam:6, minGap:160, baseBan:520, edge:80};
+SHOP_ITEMS.observerWard = {name:'Observer Ward', icon:'◉', cost:WARD_CFG.cost, desc:'Расходуемый предмет (до ' + WARD_CFG.maxStack + ' в стопке). Активируйте и кликните по карте в радиусе ' + WARD_CFG.castRange + ': вард откроет область радиусом ' + WARD_CFG.radius + ' на ' + WARD_CFG.duration + ' сек. Показывает врагов в тумане войны, но не раскрывает невидимых. Враг о варде не знает. До ' + WARD_CFG.maxPerTeam + ' вардов на команду.', color:'#7be9ff', active:true, ward:true};
+SHOP_ITEM_IDS.push('observerWard');
 const SHOP_ITEM_VIEWS = SHOP_ITEM_IDS.map(id => ({...SHOP_ITEMS[id], id}));
 
 /* Общие помощники для новых предметов. */
@@ -1714,18 +1865,21 @@ function sndCycle(key){
   if(SND.on) setTimeout(() => playSynthSfx(key === 'game' ? 'hit' : 'select'), 30);
 }
 function sndGameVol(){ return SND.on ? SND.game : 0; }
-const SFX_UI = {hover:1, click:1, shopHover:1, select:1, pick:1, heroPick:1, open:1, close:1, deny:1, notify:1, alert:1, purchase:0, coin:0};
+const SFX_UI = {buyback:0, scroll:1, hover:1, click:1, shopHover:1, select:1, pick:1, heroPick:1, open:1, close:1, deny:1, notify:1, alert:1, purchase:0, coin:0, sell:0, killDing:0};
 let sfxMaster = null, sfxMasterUi = null, sfxNoiseBuffer = null, sfxVoices = 0;
 const sfxLastAt = {};
-const SFX_THROTTLE = {shopHover:80, select:120, pick:90, heroPick:250, open:120, close:120, deny:220, notify:200, alert:400, hit:55, hitMagic:55, crit:120, towerDown:600, respawn:600, win:2000, lose:2000, hover:80, click:50, attack:75, shotgun:110, creepKill:60, heroKill:250, death:250, coin:70, purchase:80, cast:60, blink:80, level:120, stun:120, ultimate:200};
+const SFX_PRIORITY = {buyback:1, heroKill:1, death:1, purchase:1, sell:1, killDing:1, towerDown:1, win:1, lose:1};
+const SFX_THROTTLE = {buyback:300, scroll:30, shopHover:80, select:120, pick:90, heroPick:250, open:120, close:120, deny:220, notify:200, alert:400, hit:55, hitMagic:55, crit:120, towerDown:600, respawn:600, win:2000, lose:2000, hover:80, click:50, attack:75, shotgun:110, creepKill:60, heroKill:250, death:250, coin:70, purchase:80, sell:80, killDing:150, cast:60, blink:80, level:120, stun:120, ultimate:200};
 const SFX_PRESETS = {
-  attack:   {from:520, to:300, duration:0.07, type:'triangle', volume:0.035, noise:0.25},
-  shotgun:  {from:240, to:90,  duration:0.12, type:'triangle', volume:0.05,  noise:0.7},
+  attack:   {from:1200, to:260, duration:0.1, type:'sawtooth', volume:0.04, noise:0.5, layers:[[560,110,0,0.14,'sine',0.07]]},
+  shotgun:  {from:260, to:60,  duration:0.2, type:'sawtooth', volume:0.07,  noise:1.0, layers:[[140,36,0,0.26,'sine',0.12]]},
   cast:     {from:420, to:760, duration:0.18, type:'sine',     volume:0.04},
   blink:    {from:720, to:1320,duration:0.15, type:'sine',     volume:0.045},
   stun:     {from:220, to:90,  duration:0.28, type:'triangle', volume:0.06, noise:0.4},
   ultimate: {from:160, to:60,  duration:0.5,  type:'triangle', volume:0.075,noise:0.5},
   hover:    {from:1180,to:1320,duration:0.05, type:'sine',     volume:0.011, layers:[[1770,1900,0.008,0.04,'sine',0.005]]},
+  buyback:  {from:140, to:60, duration:0.35, type:'sine', volume:0.14, noise:0.5, layers:[[523,523,0.05,0.25,'triangle',0.05],[784,784,0.12,0.25,'triangle',0.05],[1047,1047,0.19,0.3,'triangle',0.05],[1568,1568,0.27,0.5,'sine',0.05]]},
+  scroll:   {from:900, to:560, duration:0.05, type:'triangle', volume:0.05, noise:0.5, layers:[[210,140,0,0.05,'sine',0.06]]},
   shopHover:{from:1500,to:1720,duration:0.045,type:'sine',     volume:0.011, layers:[[2250,2400,0.012,0.05,'sine',0.005]]},
   click:    {from:560, to:330, duration:0.055,type:'triangle', volume:0.034, layers:[[1900,1500,0,0.03,'sine',0.011]]},
   select:   {from:520, to:780, duration:0.16, type:'sine',     volume:0.038, layers:[[780,1170,0.06,0.2,'sine',0.032],[1560,1560,0.12,0.26,'sine',0.016]]},
@@ -1743,16 +1897,18 @@ const SFX_PRESETS = {
   respawn:  {from:400, to:800, duration:0.3,  type:'sine',     volume:0.036, layers:[[600,1200,0.1,0.35,'sine',0.026],[1500,1500,0.25,0.3,'sine',0.012]]},
   win:      {from:523, to:523, duration:0.22, type:'triangle', volume:0.05,  layers:[[659,659,0.13,0.22,'triangle',0.05],[784,784,0.26,0.24,'triangle',0.05],[1047,1047,0.4,0.7,'sine',0.055],[523,523,0.4,0.7,'sine',0.03]]},
   lose:     {from:330, to:247, duration:0.4,  type:'triangle', volume:0.045, layers:[[262,196,0.3,0.5,'triangle',0.04],[196,147,0.6,0.9,'sine',0.04]]},
-  purchase: {from:620, to:1180,duration:0.14, type:'sine',     volume:0.045},
-  coin:     {from:880, to:1480,duration:0.12, type:'sine',     volume:0.045},
-  creepKill:{from:360, to:150, duration:0.09, type:'triangle', volume:0.035, noise:0.35},
-  heroKill: {from:300, to:110, duration:0.32, type:'triangle', volume:0.065, noise:0.5, second:{from:600,to:900,delay:0.07,duration:0.2,volume:0.04}},
-  death:    {from:240, to:70,  duration:0.4,  type:'triangle', volume:0.06, noise:0.5},
+  purchase: {from:1568, to:1568,duration:0.1, type:'square', volume:0.04, noise:0.3, layers:[[2093,2093,0.08,0.34,'square',0.04],[2637,2637,0.13,0.2,'sine',0.035],[3136,3136,0.17,0.2,'sine',0.03],[3951,3951,0.21,0.2,'sine',0.022],[200,120,0,0.1,'sine',0.09]]},
+  sell:     {from:300, to:160, duration:0.1, type:'sine', volume:0.08, layers:[[2093,2093,0.02,0.12,'square',0.03],[1760,1760,0.075,0.12,'square',0.03],[1568,1568,0.13,0.12,'square',0.03],[1319,1319,0.185,0.14,'square',0.03],[1047,1047,0.24,0.18,'square',0.03]]},
+  killDing: {from:1047, to:1047,duration:0.2, type:'triangle', volume:0.06, layers:[[1319,1319,0.05,0.22,'triangle',0.06],[1568,1568,0.1,0.24,'triangle',0.06],[2093,2093,0.15,0.4,'sine',0.06],[120,45,0,0.3,'sine',0.14]]},
+  coin:     {from:1976, to:1976,duration:0.07, type:'square', volume:0.03, layers:[[2637,2637,0.07,0.24,'square',0.03],[3951,3951,0.08,0.14,'sine',0.018]]},
+  creepKill:{from:620, to:90, duration:0.15, type:'sine', volume:0.1, noise:0.6, layers:[[1100,260,0,0.09,'triangle',0.04]]},
+  heroKill: {from:180, to:42, duration:0.45, type:'sine', volume:0.15, noise:0.8, second:{from:600,to:900,delay:0.07,duration:0.2,volume:0.04}},
+  death:    {from:200, to:36,  duration:0.65, type:'sawtooth', volume:0.07, noise:0.9, layers:[[150,34,0,0.7,'sine',0.14]]},
   level:    {from:520, to:900, duration:0.18, type:'triangle', volume:0.04, layers:[[780,1170,0.09,0.2,'sine',0.03],[1170,1560,0.18,0.28,'sine',0.022]]}
 };
 function sfxBus(context, ui){
   const cur = ui ? sfxMasterUi : sfxMaster;
-  if(cur && cur.context === context) return cur;
+  if(cur && cur._sfxCtx === context) return cur;
   const input = context.createGain(); input.gain.value = 0.9;
   const filter = context.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = ui ? 7600 : 5200; filter.Q.value = 0.4;
   const comp = context.createDynamicsCompressor();
@@ -1760,7 +1916,7 @@ function sfxBus(context, ui){
   input.connect(filter); filter.connect(comp);
   sndNodeConnect.call(comp, context.destination);               /* шина подключена напрямую, как раньше */
   input.gain.value = 0.9 * (ui ? SND.ui : SND.game);
-  input.context = context; if(ui) sfxMasterUi = input; else sfxMaster = input;
+  input._sfxCtx = context; if(ui) sfxMasterUi = input; else sfxMaster = input;
   return input;
 }
 function playSynthSfx(kind, opts){
@@ -1770,7 +1926,7 @@ function playSynthSfx(kind, opts){
     const stamp = performance.now();
     const minGap = SFX_THROTTLE[kind] || 40;
     if(stamp - (sfxLastAt[kind] || -1e9) < minGap) return;       // защита от спама одного типа
-    if(sfxVoices >= 8 && kind !== 'heroKill' && kind !== 'death') return; // общий лимит голосов
+    if(sfxVoices >= 14 && !SFX_PRIORITY[kind]) return; // общий лимит голосов
     sfxLastAt[kind] = stamp;
     abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
     const context = abilityAudioContext;
@@ -1791,7 +1947,9 @@ function playSynthSfx(kind, opts){
       osc.connect(gain); gain.connect(bus);
       osc.start(t0); osc.stop(t0 + duration + 0.03);
       sfxVoices++;
-      osc.onended = () => { sfxVoices = Math.max(0, sfxVoices - 1); };
+      let freed = false;
+      const free = () => { if(!freed){ freed = true; sfxVoices = Math.max(0, sfxVoices - 1); } };
+      osc.onended = free; setTimeout(free, (delay + duration + 0.2) * 1000);
     };
     tone(preset.from, preset.to, 0, preset.duration, preset.type, preset.volume);
     if(preset.layers) for(const l of preset.layers) tone(l[0], l[1], l[2], l[3], l[4], l[5]);
@@ -1832,25 +1990,7 @@ function playSynthSfx(kind, opts){
   }, true);
 })();
 
-function playPurchaseChime(){
-  try {
-    abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-    const context=abilityAudioContext;
-    context.resume();
-    const start=context.currentTime;
-    for(const [frequency,delay,duration,volume] of [[1480,0,0.18,0.06],[1976,0.045,0.2,0.045],[2489,0.09,0.24,0.03]]){
-      const oscillator=context.createOscillator(), gain=context.createGain();
-      oscillator.type='sine';
-      oscillator.frequency.setValueAtTime(frequency,start+delay);
-      oscillator.frequency.exponentialRampToValueAtTime(frequency*0.72,start+delay+duration);
-      gain.gain.setValueAtTime(0.0001,start+delay);
-      gain.gain.exponentialRampToValueAtTime(volume,start+delay+0.008);
-      gain.gain.exponentialRampToValueAtTime(0.001,start+delay+duration);
-      oscillator.connect(gain); gain.connect(context.destination);
-      oscillator.start(start+delay); oscillator.stop(start+delay+duration+0.02);
-    }
-  } catch(err) {}
-}
+function playPurchaseChime(){ playSynthSfx('purchase'); }
 
 function playAbilitySound(kind){
   if(kind==='purchase'){ playPurchaseChime(); return; }
@@ -1905,25 +2045,7 @@ function spawnHammerTrail(x, y, color='#ffd36b'){
   fxRing(x, y, 34, color, 0.22);
 }
 
-function playKillSound(){
-  try {
-    abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-    const context = abilityAudioContext;
-    const now = context.currentTime;
-    [880, 1175, 1480].forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = index === 0 ? 'sawtooth' : 'square';
-      oscillator.frequency.setValueAtTime(frequency, now + index * 0.045);
-      gain.gain.setValueAtTime(0.0001, now + index * 0.045);
-      gain.gain.exponentialRampToValueAtTime(0.07, now + index * 0.045 + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.045 + 0.22);
-      oscillator.connect(gain); gain.connect(context.destination);
-      oscillator.start(now + index * 0.045);
-      oscillator.stop(now + index * 0.045 + 0.24);
-    });
-  } catch(err) {}
-}
+function playKillSound(){ playSynthSfx('killDing'); }
 
 /* =========================================================
    ДИКТОР: очередь фраз с приоритетами (speechSynthesis, en-US)
@@ -3028,7 +3150,7 @@ function applyDamage(target, amount, source){
   if(target.isIllusion && source && source.attack) amount *= target.damageTakenMultiplier || 1;
   if(isStructure(target) && !(source && source.attack)) return;
   if(isBuilding(target) && !canDamageStructure(target, source)) return;
-  const attackResistance = target.inventory && target.inventory.some(i => i && i.id === 'ilyaHair') ? SHOP_ITEMS.ilyaHair.attackResist : 0;
+  const attackResistance = Math.max(target.inventory && target.inventory.some(i => i && i.id === 'ilyaHair') ? SHOP_ITEMS.ilyaHair.attackResist : 0, heroHasItem(target,'titanHeart') ? SHOP_ITEMS.titanHeart.attackResist : 0);
   if(source && source.attack && target.def && target.def.id === 'savely'){
     target.savelyPhysicalHits = (target.savelyPhysicalHits || 0) + 1;
     if(target.savelyPhysicalHits % (hasScepter(target) ? 3 : 4) === 0){
@@ -3107,6 +3229,7 @@ function applyDamage(target, amount, source){
     if(shardSpell) amount *= shardSpell.val;
     if(sourceHero.spellAmp) amount *= 1 + sourceHero.spellAmp;
     if(heroHasItem(sourceHero,'kayaSange')) amount *= 1 + SHOP_ITEMS.kayaSange.spellAmp;
+    if(heroHasItem(sourceHero,'archmageRobe')) amount *= 1 + SHOP_ITEMS.archmageRobe.spellAmp;
     const heroScale = sourceHero.def.id === 'grisha'
       ? GRISHA_ABILITY_DAMAGE_MULT
       : (sourceHero.def.abilityDamageScale || 1);
@@ -3174,8 +3297,8 @@ function applyDamage(target, amount, source){
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
     target.damageContributors.set(sourceHero, (target.damageContributors.get(sourceHero) || 0) + dmg);
   }
-  if(sourceHero && sourceHero.team !== target.team && sourceHero.inventory && sourceHero.inventory.some(i => i && i.id === 'satanic') && source && source.attack){
-    sourceHero.hp = Math.min(sourceHero.maxHp, sourceHero.hp + dmg * SHOP_ITEMS.satanic.lifesteal);
+  if(sourceHero && sourceHero.team !== target.team && sourceHero.inventory && (sourceHero.inventory.some(i => i && i.id === 'satanic') || heroHasItem(sourceHero,'titanHeart')) && source && source.attack){
+    sourceHero.hp = Math.min(sourceHero.maxHp, sourceHero.hp + dmg * Math.max(heroHasItem(sourceHero,'satanic') ? SHOP_ITEMS.satanic.lifesteal : 0, heroHasItem(sourceHero,'titanHeart') ? SHOP_ITEMS.titanHeart.lifesteal : 0));
   }
   target._hpBeforeHit = target.hp;
   target.hp -= dmg;
@@ -3455,6 +3578,7 @@ function addText(x,y,str,color,life,size){
 }
 function spawnParticles(x,y,color,count=16,spread=1){
   if(perfLite()){ count = Math.ceil(count*0.25); if(count <= 0) return; }
+  else if(GFX.particles < 2){ count = Math.ceil(count * (GFX.particles === 0 ? 0.45 : 0.75)); }
   if(particles.length > particleCap()) particles.splice(0, particles.length - particleCap());
   for(let i=0;i<count;i++){
     const angle = Math.random()*Math.PI*2;
@@ -3685,7 +3809,7 @@ const ATK_STYLE = {
   ilya:{m:'blunt'}, earthshaker:{m:'blunt'}, yosyp:{m:'blunt'},
   electricGosha:{m:'spark'}, mageHunter:{m:'slash',w:0.85,magic:true}, virsudi:{m:'slash',w:0.85,magic:true}
 };
-function atkLevel(){ return ATK_CAP[perfLevel] || 0; }
+function atkLevel(){ return ATK_CAP[fxl()] || 0; }
 function atkOk(owner, target){
   if(!owner || !owner.def || atkLevel() <= 0) return false;
   if(owner.team !== 0 && owner.invisible) return false;                         /* не раскрываем скрытых врагов */
@@ -3736,12 +3860,12 @@ function atkProjectileHit(p){
   atkImpact(target, a, st.r==='bullet' ? '#fff0b8' : (owner.def.color2 || p.color), owner.def.color || p.color, st.r==='bullet' ? 'phys' : 'magic', owner);
 }
 function drawAttackTrail(p){
-  if(perfLevel >= 3 || p.kind || !p.source || !p.source.attack) return;
+  if(fxl() >= 3 || p.kind || !p.source || !p.source.attack) return;
   const owner = projectileOwner(p); if(!owner || !owner.def) return;
   if(owner.team !== 0 && owner.invisible) return;
   const st = ATK_STYLE[owner.def.id] || {r:'magic'};
   const h = p.hist || (p.hist = []), last = h[h.length-1];
-  if(!last || Math.hypot(p.x-last[0], p.y-last[1]) > 5){ h.push([p.x,p.y]); const mx = ATK_TRAIL[perfLevel]; while(h.length > mx) h.shift(); }
+  if(!last || Math.hypot(p.x-last[0], p.y-last[1]) > 5){ h.push([p.x,p.y]); const mx = ATK_TRAIL[fxl()]; while(h.length > mx) h.shift(); }
   if(h.length < 2) return;
   const c1 = owner.def.color2 || p.color, c2 = owner.def.color || p.color, n = h.length, rad = Math.max(4, p.radius || 6);
   const rainbow = ['#9eeaff','#fff1a8','#d99cff'];
@@ -3756,10 +3880,10 @@ function drawAttackTrail(p){
     } else {
       const wob = Math.sin(gameTime*14 + i*1.7) * rad*0.18*(1-f);
       const col = st.kind === 'rainbow' ? rainbow[i%3] : (f > 0.6 ? c1 : c2);
-      if(perfLevel === 0){ ctx.globalAlpha = f*0.22; ctx.strokeStyle = col; ctx.lineWidth = rad*2.2*f; ctx.beginPath(); ctx.moveTo(x0,y0+wob); ctx.lineTo(x1,y1+wob); ctx.stroke(); }
+      if(fxl() === 0){ ctx.globalAlpha = f*0.22; ctx.strokeStyle = col; ctx.lineWidth = rad*2.2*f; ctx.beginPath(); ctx.moveTo(x0,y0+wob); ctx.lineTo(x1,y1+wob); ctx.stroke(); }
       ctx.globalAlpha = f*0.6; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.5, rad*1.1*f);
       ctx.beginPath(); ctx.moveTo(x0,y0+wob); ctx.lineTo(x1,y1+wob); ctx.stroke();
-      if(perfLevel < 2 && i%3 === 0){          /* искры от следа */
+      if(fxl() < 2 && i%3 === 0){          /* искры от следа */
         ctx.globalAlpha = f*0.8; ctx.fillStyle = st.kind==='rainbow' ? rainbow[(i+1)%3] : c1;
         const sx = x0 + Math.sin(gameTime*9+i*2.3)*rad*0.9, sy = y0 + Math.cos(gameTime*8+i*1.9)*rad*0.9;
         ctx.beginPath(); ctx.arc(sx, sy, 1.2 + f*1.2, 0, Math.PI*2); ctx.fill();
@@ -3809,7 +3933,7 @@ function drawAttackFx(){
       }
       ctx.translate(-e.x, -e.y);
     } else if(e.k === 'impact'){
-      const ease = 1 - Math.pow(1-k, 3), kill = e.kill, nS = atkLevel() ? (perfLevel===0 ? (kill?14:8) : (perfLevel===1 ? (kill?9:5) : (kill?6:3))) : 0;
+      const ease = 1 - Math.pow(1-k, 3), kill = e.kill, nS = atkLevel() ? (fxl()===0 ? (kill?14:8) : (fxl()===1 ? (kill?9:5) : (kill?6:3))) : 0;
       /* вспышка и реакция цели */
       const fl = Math.max(0, 1 - k*3);
       if(fl > 0){ ctx.globalAlpha = fl*0.8; ctx.fillStyle = e.kind==='magic' ? e.c1 : '#fff6d0'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r*(0.7+k*1.2), 0, Math.PI*2); ctx.fill(); }
@@ -4244,6 +4368,7 @@ function performInventoryItemActivation(hero, index){
   const item = hero.inventory[index];
   if(!item) return false;
   if(hero.nullifyTimer > 0 && NULLIFY_BLOCKED_ITEMS.has(item.id)){ flashMsg(hero, 'Нуллификатор: предмет заблокирован'); return false; }
+  if(item.id === 'observerWard'){ if(hero === playerHero) wardTogglePlacement(index); return false; }
   if(item.id === 'dianaPants'){
     item.auraOn = !item.auraOn;
     item.auraTimer = 0;
@@ -4595,6 +4720,8 @@ function useInventoryItem(hero,index){
 function buyShopItemCore(id){
   if(!playerHero || playerHero.dead) return false;
   const item = SHOP_ITEMS[id];
+  if(RECIPES[id]) return craftRecipeItem(playerHero, id, false);
+  if(id === 'observerWard') return buyObserverWard();
   if(id === 'aghanimShard'){
     if(playerHero.shardSkill){ flashMsg(playerHero, 'Аганим шард уже изучен'); return false; }
     if(playerHero.coins < item.cost){ flashMsg(playerHero, 'Нужно ' + item.cost + ' монет'); return false; }
@@ -4618,9 +4745,15 @@ function buyShopItemCore(id){
     applyItemStats(playerHero, id);
     playAbilitySound('purchase');
     addText(playerHero.x, playerHero.y - 70, item.name + ' собран', item.color, 1.2, 15);
+    recipeAutoCraft(playerHero);
     return true;
   }
   const slot = playerHero.inventory.findIndex(i => !i);
+  if(item && slot < 0){
+    /* Инвентарь полон: компонент, который завершает рецепт, не требует слота — он сразу уходит в сборку. */
+    const completes = recipeCompletedBy(playerHero, id);
+    if(completes) return craftRecipeItem(playerHero, completes, false);
+  }
   if(!item || slot < 0){ flashMsg(playerHero, slot < 0 ? 'Нет свободного слота' : 'Нет такого предмета'); return false; }
   if(playerHero.coins < item.cost){ flashMsg(playerHero, 'Нужно ' + item.cost + ' монет'); return false; }
   playerHero.coins -= item.cost;
@@ -4630,6 +4763,7 @@ function buyShopItemCore(id){
   addText(playerHero.x, playerHero.y - 70, item.name + ' куплен', item.color, 1.2, 15);
   grishaOnBuyItem(playerHero, id);
   virsudiOnBuyItem(playerHero, id);
+  recipeAutoCraft(playerHero);
   return true;
 }
 
@@ -4645,7 +4779,7 @@ function shopFxReport(id, ok, msg, h, coinsBefore, invBefore){
     if(slot >= 0) shopFx.slots[slot] = now;
     const spent = Math.max(0, Math.round(coinsBefore - h.coins));
     const icon = slot >= 0 ? h.inventory[slot] : createInventoryItem(id);
-    const crafted = id === 'pt';
+    const crafted = id === 'pt' || !!RECIPES[id];
     shopFx.toasts.push({ kind:'ok', t:now, life:2300, title:(crafted ? 'Собрано' : 'Куплено') + ': ' + ((cfg && cfg.name) || id), sub: spent ? '−' + spent + ' монет' : '', icon, color:(cfg && cfg.color) || '#ffd568' });
   } else {
     const text = msg || (h.dead ? 'Герой мёртв — покупка недоступна' : '');
@@ -4667,7 +4801,7 @@ function buyShopItem(id){
 }
 function shownGold(h){
   const real = Math.floor(h.coins || 0);
-  if(h !== playerHero || perfLevel >= 3) return real;
+  if(h !== playerHero || fxl() >= 3) return real;
   const now = performance.now();
   if(shopFx.gold === null || Math.abs(shopFx.gold - real) < 0.6 || !shopFx.goldT || now - shopFx.goldT > 1500) shopFx.gold = real;
   else shopFx.gold += (real - shopFx.gold) * (1 - Math.exp(-Math.min(0.1,(now - shopFx.goldT)/1000) * 12));
@@ -4681,7 +4815,7 @@ function shopSlotPop(i){      /* 0..1 прогресс анимации появ
   return k < 0 ? 0 : k;
 }
 function drawShopFx(){
-  const now = performance.now(), lite = perfLevel >= 3;
+  const now = performance.now(), lite = fxl() >= 3;
   ctx.save();
   /* вспышка и частицы вокруг слота */
   for(const key in shopFx.slots){
@@ -4698,7 +4832,7 @@ function drawShopFx(){
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = 'rgba(255,214,102,'+(0.9*(1-k))+')'; ctx.lineWidth = 2;
     ctx.strokeRect(r.x - k*6, r.y - k*6, r.w + k*12, r.h + k*12);
-    const n = lite ? 0 : (perfLevel >= 2 ? 5 : (perfLevel === 1 ? 8 : 14)), e = 1 - Math.pow(1-k, 3);
+    const n = lite ? 0 : (fxl() >= 2 ? 5 : (fxl() === 1 ? 8 : 14)), e = 1 - Math.pow(1-k, 3);
     ctx.fillStyle = '#ffe28a';
     for(let p=0;p<n;p++){
       const a = p*2.399 + i, d = r.w*(0.35 + ((p*37)%10)/14)*e, s = (2.6 - ((p*13)%10)/8) * (1-k);
@@ -5407,6 +5541,12 @@ function createInventoryItem(id){
 }
 
 function applyItemStats(hero, id){
+  if(RECIPES[id]){
+    const rc = SHOP_ITEMS[id];
+    if(rc.hp){ hero.maxHp += rc.hp; hero.hp += rc.hp; }
+    if(rc.maxMp){ hero.maxMp += rc.maxMp; hero.mp += rc.maxMp; }
+    return;
+  }
   if(id === 'evsyutin'){
     hero.maxHp += SHOP_ITEMS.evsyutin.hp;
     hero.hp += SHOP_ITEMS.evsyutin.hp;
@@ -5491,6 +5631,9 @@ function isOutsideEnemyVision(unit){
     if(!observer || observer === unit || observer.dead || observer.team === unit.team || observer.team === 2) continue;
     const vision = observer.vision || 0;
     if(vision > 0 && Math.hypot(observer.x-unit.x, observer.y-unit.y) <= vision) return false;
+  }
+  for(const w of wards){
+    if(w.team !== unit.team && w.life > 0 && Math.hypot(w.x-unit.x, w.y-unit.y) <= WARD_CFG.radius) return false;
   }
   return true;
 }
@@ -5588,12 +5731,13 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=180; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
-  getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=180; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed;
     if(this.inventory && this.inventory.some(item=>item&&item.id==='joelBoots')) speed+=SHOP_ITEMS.joelBoots.speed;
     if(this.inventory && this.inventory.some(item=>item&&item.id==='pt')) speed+=60;
+    if(this.inventory && this.inventory.some(item=>item&&item.id==='stormbringer')) speed+=SHOP_ITEMS.stormbringer.speed;
     if(this.inventory && this.inventory.some(item=>item&&item.id==='ilyaHair')) speed+=SHOP_ITEMS.ilyaHair.speed;
     if(this.def&&this.def.id==='arcady'&&this.skills&&this.skills[2]) speed+=this.skills[2].level*27.5;
     const gur=this.inventory&&this.inventory.find(item=>item&&item.id==='gur');
@@ -9339,6 +9483,7 @@ class Hero extends Unit {
     }
   }
   update(dt){
+    if(this.buybackCd > 0) this.buybackCd = Math.max(0, this.buybackCd - dt);
     if(this.dead){
       for(const s of this.skills) if(s.cd > 0) s.cd = Math.max(0, s.cd - dt);
       for(const key of Object.keys(this.spellCooldowns)) this.spellCooldowns[key] = Math.max(0, this.spellCooldowns[key] - dt);
@@ -9486,7 +9631,7 @@ class Hero extends Unit {
       this.hp += heal;
       this.timurPillow = Math.max(0, this.timurPillow - dt);
     }
-    const manaBoost = this.inventory.some(i => i && i.id === 'manaTome') ? 1.10 : 1;
+    const manaBoost = Math.max(this.inventory.some(i => i && i.id === 'manaTome') ? 1.10 : 1, heroHasItem(this,'archmageRobe') ? 1 + SHOP_ITEMS.archmageRobe.manaRegen : 1);
     const refresherMp = (heroHasItem(this,'refresherOrb') ? SHOP_ITEMS.refresherOrb.mpRegen : 0) + (heroHasItem(this,'octarineCore') ? SHOP_ITEMS.octarineCore.mpRegen : 0);
     const virsudiStatDrain=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0);
     this.mp = Math.min(this.maxMp, this.mp + Math.max(0,this.mpRegen+refresherMp-virsudiStatDrain*0.1) * manaBoost * dt);
@@ -9494,6 +9639,7 @@ class Hero extends Unit {
     let regen = Math.max(0,this.hpRegen-virsudiStatDrain*0.1);
     for(const b of this.buffs) if(b.type === 'hpregen') regen += b.val;
     if(heroHasItem(this,'valakinsens')) regen += SHOP_ITEMS.valakinsens.hpRegen;
+    if(heroHasItem(this,'titanHeart')) regen += SHOP_ITEMS.titanHeart.hpRegen;
     if(heroHasItem(this,'refresherOrb')) regen += SHOP_ITEMS.refresherOrb.hpRegen;
     if(this.buffs.some(b=>b.type==='regen')) regen += this.maxHp*0.04;
     this.hp = Math.min(this.maxHp, this.hp + regen*dt*healAmpOf(this));
@@ -9686,7 +9832,7 @@ function castSkill(hero, slot, tx, ty){
     return false;
   }
   const freeCast = !!(def.freeWhen && def.freeWhen(hero));
-  const cooldownMultiplier = (1 - (hero.inventory.some(i => i && i.id === 'enemy302') ? SHOP_ITEMS.enemy302.cooldownReduction : 0))
+  const cooldownMultiplier = (1 - Math.max(hero.inventory.some(i => i && i.id === 'enemy302') ? SHOP_ITEMS.enemy302.cooldownReduction : 0, heroHasItem(hero,'archmageRobe') ? SHOP_ITEMS.archmageRobe.cooldownReduction : 0))
     * (1 - (heroHasItem(hero,'octarineCore') ? SHOP_ITEMS.octarineCore.cooldownReduction : 0));
   hero.castingSkillLevel = s.level;
   hero.scepterSkillBoost = hasScepter(hero) && (slot === 0 || slot === 1 || def.ult);
@@ -9721,14 +9867,135 @@ function castSkill(hero, slot, tx, ty){
   return castSucceeded;
 }
 
+/* ===== 0.9.4.9: BUYBACK — выкуп возрождения ===== */
+const BUYBACK_CFG = {base:150, perLevel:75, cooldown:120};   /* стоимость = base + уровень × perLevel; КД в секундах */
+let buybackPending = 0, buybackLastId = -1, buybackFlashAt = 0;
+function buybackCost(h){ return BUYBACK_CFG.base + Math.max(1, h.level | 0) * BUYBACK_CFG.perLevel; }
+function buybackState(h){
+  if(!h || !h.dead || h.type !== 'hero') return {ok:false, reason:'alive'};
+  const cost = buybackCost(h), cd = h.buybackCd || 0;
+  if(cd > 0) return {ok:false, reason:'cd', cost, cd};
+  if(h.coins < cost) return {ok:false, reason:'gold', cost, need:Math.ceil(cost - h.coins)};
+  return {ok:true, cost};
+}
+function buybackRect(){
+  const spec = typeof SPEC !== 'undefined' && SPEC.active;
+  return {w:340, h:64, x:Math.round(VW/2 - 170), y:Math.round(spec ? VH*0.82 - 104 : VH/2 + 34)};
+}
+/* Единственное место, где списывается золото и происходит возрождение: срабатывает ровно один раз */
+function buybackFinish(h, cost){
+  h.coins = Math.max(0, h.coins - cost);
+  h.buybackCd = BUYBACK_CFG.cooldown;
+  if(h.dead){
+    h.respawnTimer = 0;
+    h.onlineRespawnOk = true;
+    try { h.update(0); } finally { h.onlineRespawnOk = false; }
+  }
+  buybackFlashAt = performance.now();
+  fxRing(h.x, h.y, 120, '#ffd568', 0.7); fxRing(h.x, h.y, 220, '#fff2b0', 0.95); fxRing(h.x, h.y, 330, '#ffb347', 1.2);
+  spawnParticles(h.x, h.y, '#ffd568', 46, 1.6);
+  addText(h.x, h.y - 80, 'ВЫКУП! −' + cost, '#ffd568', 1.6, 22);
+  playSynthSfx('buyback');
+}
+function tryBuyback(){
+  const h = playerHero, now = performance.now();
+  if(!h || buybackPending && now - buybackPending < 3000) return;   /* защита от двойного клика */
+  const st = buybackState(h);
+  if(!st.ok){ playSynthSfx('deny'); return; }
+  buybackPending = now;
+  if(onlineMatchActive && typeof onlineBuybackRequest === 'function' && onlineBuybackRequest(h)) return;  /* ждём подтверждения сервера */
+  buybackPending = 0;
+  buybackFinish(h, st.cost);
+}
+function buybackApplyResult(r){
+  buybackPending = 0;
+  const h = playerHero; if(!h || !r) return;
+  if(r.ok){
+    if(r.id === buybackLastId) return;     /* повторное сообщение не списывает золото второй раз */
+    buybackLastId = r.id;
+    buybackFinish(h, Math.max(0, Number(r.cost) || 0));
+  } else {
+    if(r.reason === 'cd') h.buybackCd = Math.max(h.buybackCd || 0, Number(r.cd) || 0);
+    if(h.dead) flashMsg(h, r.reason === 'gold' ? 'Не хватает золота' : r.reason === 'cd' ? 'Выкуп на перезарядке' : 'Выкуп недоступен');
+  }
+}
+function handleBuybackClick(mx, my){
+  const h = playerHero;
+  if(!h || !h.dead) return false;
+  const r = buybackRect();
+  if(mx < r.x || mx > r.x + r.w || my < r.y || my > r.y + r.h) return false;
+  tryBuyback();
+  return true;
+}
+function drawBuybackButton(h){
+  const r = buybackRect(), st = buybackState(h), t = performance.now() / 1000;
+  const hov = mouse.x >= r.x && mouse.x <= r.x + r.w && mouse.y >= r.y && mouse.y <= r.y + r.h;
+  ctx.save();
+  const yy = r.y - (st.ok && hov ? 2 : 0);
+  if(st.ok){ ctx.shadowColor = 'rgba(255,200,80,' + (0.45 + 0.25 * Math.sin(t * 4)) + ')'; ctx.shadowBlur = hov ? 26 : 16; }
+  const g = ctx.createLinearGradient(0, yy, 0, yy + r.h);
+  if(st.ok){ g.addColorStop(0, hov ? '#ffcf5e' : '#e8a73d'); g.addColorStop(1, hov ? '#d57d25' : '#a85a1a'); }
+  else { g.addColorStop(0, '#3a3f48'); g.addColorStop(1, '#1b1e24'); }
+  ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(r.x, yy, r.w, r.h, 12); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = st.ok ? '#fff3cf' : 'rgba(255,255,255,0.22)'; ctx.lineWidth = st.ok ? 2.5 : 1.5; ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = st.ok ? '#2a1500' : 'rgba(255,255,255,0.55)'; ctx.font = 'bold 18px Segoe UI, Arial';
+  ctx.fillText('ВЫКУПИТЬ ВОЗРОЖДЕНИЕ', r.x + r.w/2, yy + 26);
+  ctx.font = 'bold 13px Segoe UI, Arial';
+  const cost = buybackCost(h);
+  let sub = 'Стоимость: ' + cost + '  •  Золото: ' + Math.floor(h.coins);
+  let subCol = st.ok ? '#3d2200' : 'rgba(255,255,255,0.5)';
+  if(st.reason === 'cd'){ const c = Math.ceil(st.cd); sub = 'Перезарядка: ' + Math.floor(c/60) + ':' + String(c%60).padStart(2,'0'); subCol = '#ffb4a8'; }
+  else if(st.reason === 'gold'){ sub = 'Не хватает ' + st.need + '  •  Стоимость: ' + cost + '  •  Золото: ' + Math.floor(h.coins); subCol = '#ff9a8a'; }
+  ctx.fillStyle = subCol; ctx.fillText(sub, r.x + r.w/2, yy + 49);
+  ctx.restore();
+}
+function drawBuybackFlash(){
+  const k = (performance.now() - buybackFlashAt) / 800;
+  if(k < 0 || k >= 1) return;
+  const a = (1 - k) * 0.55;
+  const g = ctx.createRadialGradient(VW/2, VH/2, 20, VW/2, VH/2, Math.max(VW, VH) * 0.7);
+  g.addColorStop(0, 'rgba(255,236,170,' + a + ')'); g.addColorStop(1, 'rgba(255,170,60,0)');
+  ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH); ctx.restore();
+}
 function flashMsg(hero, msg){
   if(hero === playerHero && msg) playSynthSfx('deny');
   if(shopFx.capture && hero === playerHero) shopFx.capture.msg = msg;
   addText(hero.x, hero.y - 70, msg, '#ff8080', 1.2, 15);
 }
 
+/* ===== 0.9.5.5: эволюция крипов по ходу матча =====
+   Стадия считается от НОМЕРА ВОЛНЫ (waveCount) — он растёт ровно раз в WAVE_INTERVAL и одинаков у всех клиентов онлайн,
+   отдельного таймера нет. Волна №n появляется на 8+30·(n-1) секунде: волна 11 ≈ 5:08, волна 21 ≈ 10:08.
+   Бонусы применяются один раз к базовым характеристикам при создании крипа; существующие крипы не меняются. */
+const CREEP_EVOLUTION = [
+  {from:1,  hp:1.00, dmg:1.00},
+  {from:11, hp:1.15, dmg:1.10, banner:'ВОЛНЫ КРИПОВ УСИЛЕНЫ',          color:'#ffcf5a'},
+  {from:21, hp:1.30, dmg:1.20, banner:'ВОЛНЫ КРИПОВ ДОСТИГЛИ ПИКА СИЛЫ', color:'#ff7a4a'}
+];
+function creepEvolutionStage(wave){
+  let stage = 0;
+  for(let i=1;i<CREEP_EVOLUTION.length;i++) if(wave >= CREEP_EVOLUTION[i].from) stage = i;
+  return stage;
+}
+let evolutionBanner = {text:'', color:'#ffcf5a', t:0};
+function applyCreepEvolution(creep, stage){
+  creep.evoStage = stage;
+  if(!stage) return;
+  const evo = CREEP_EVOLUTION[stage];
+  /* Усиленные (mega) крипы — осадная роль после падения казарм: бонус вдвое меньше, чтобы не раздувать их сверх меры. */
+  const k = creep.mega ? 0.5 : 1;
+  creep.maxHp = Math.round(creep.maxHp * (1 + (evo.hp - 1) * k));
+  creep.hp = creep.maxHp;
+  creep.dmg = creep.dmg * (1 + (evo.dmg - 1) * k);
+}
 function spawnWave(){
   waveCount++;
+  const stage = creepEvolutionStage(waveCount);
+  if(stage > 0 && waveCount === CREEP_EVOLUTION[stage].from){
+    evolutionBanner = {text:CREEP_EVOLUTION[stage].banner, color:CREEP_EVOLUTION[stage].color, t:3.2};
+  }
   for(const team of [0,1]){
     for(let lane=0; lane<3; lane++){
       const offsets = [
@@ -9736,8 +10003,8 @@ function spawnWave(){
         {x:rnd(-40,40), y:rnd(-40,40)},
         {x:rnd(-40,40), y:rnd(-40,40)}
       ];
-      for(let i=0;i<3;i++) units.push(new Creep(team, lane, 'melee', offsets[i]));
-      units.push(new Creep(team, lane, 'ranged', {x:rnd(-50,50), y:rnd(-50,50)}));
+      for(let i=0;i<3;i++){ const c = new Creep(team, lane, 'melee', offsets[i]); applyCreepEvolution(c, stage); units.push(c); }
+      const r = new Creep(team, lane, 'ranged', {x:rnd(-50,50), y:rnd(-50,50)}); applyCreepEvolution(r, stage); units.push(r);
     }
   }
 }
@@ -10167,7 +10434,7 @@ function startGame(playerIndex, draftPicks=null){
   MID_PUSH_TIME = gameModeCfg().midPushTime;
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
   controlledUnit=null;
-  explored = new Uint8Array(GRID*GRID);
+  explored = new Uint8Array(GRID*GRID); wardsReset();
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
    barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
   structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=PREMATCH_SECONDS; prematchLastSec=Infinity;
@@ -10288,7 +10555,7 @@ function startTestMode(playerIndex){
   stopMenuMusic();
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
   controlledUnit=null;
-  explored = new Uint8Array(GRID*GRID);
+  explored = new Uint8Array(GRID*GRID); wardsReset();
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
   barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
   structuresSwapped=false; firstBloodDone=false; resultAnnounced=false; prematchTime=0;
@@ -11321,6 +11588,7 @@ function update(dt){
   updateIdleVoice();
   updateGrishaVoice(dt);
   if(killStreakBanner.t > 0) killStreakBanner.t = Math.max(0, killStreakBanner.t - dt);
+  if(evolutionBanner.t > 0) evolutionBanner.t = Math.max(0, evolutionBanner.t - dt);
   if(rampageBanner.t > 0) rampageBanner.t = Math.max(0, rampageBanner.t - dt);
   if(gameTime > 0 && Math.floor(gameTime/120) !== Math.floor((gameTime-dt)/120)) spawnRunes();
   updateRunes(dt);
@@ -11766,6 +12034,7 @@ function update(dt){
     cam.x = VW>=WORLD ? WORLD/2 : clamp(cam.x, hw, WORLD-hw);
     cam.y = VH>=WORLD ? WORLD/2 : clamp(cam.y, hh, WORLD-hh);
   }
+  updateWards(dt);
   visionTimer -= dt;
   if(visionTimer <= 0){ visionTimer = 0.12; updateVision(); }
 }
@@ -11793,6 +12062,16 @@ function updateVision(){
       }
     }
   }
+  for(const w of wards){
+    if(w.team !== 0 || w.life <= 0) continue;
+    const R = WARD_CFG.radius, cx = Math.floor(w.x/CELL), cy = Math.floor(w.y/CELL), r = Math.ceil(R/CELL);
+    for(let j=-r;j<=r;j++) for(let i=-r;i<=r;i++){
+      const gx = cx+i, gy = cy+j;
+      if(gx<0||gy<0||gx>=GRID||gy>=GRID) continue;
+      const dx = (gx+0.5)*CELL - w.x, dy = (gy+0.5)*CELL - w.y;
+      if(dx*dx+dy*dy <= R*R) visGrid[gy*GRID+gx] = 1;
+    }
+  }
   for(const unit of units){
     if(unit.team===0 || unit.dead) continue;
     const gx=clamp(Math.floor(unit.x/CELL),0,GRID-1);
@@ -11807,6 +12086,302 @@ function isVisibleToPlayer(u){
   if(u.team===0) return true;
   if(u.type==='hero' && u.hp/u.maxHp < 0.25 && heroes.some(hero => hero.team===0 && !hero.dead && hero.def.id==='sasych')) return true;
   return visibleUnitCache.has(u);
+}
+
+/* =========================================================
+   0.9.6 — OBSERVER WARD
+   Вард — отдельный источник обзора команды. Он встроен в существующий туман войны:
+   updateVision() отмечает его клетки в visGrid (от них зависит isVisibleToPlayer и «исследованные» клетки),
+   drawFog() вырезает под ним дыру, isOutsideEnemyVision() учитывает его как наблюдателя.
+   Невидимых врагов вард НЕ раскрывает: isVisibleToPlayer() сначала проверяет u.invisible.
+   Онлайн: покупка, запас, установка и срок жизни подтверждает сервер; варды рассылаются только своей команде.
+   ========================================================= */
+let wards = [];                 /* активные варды ЛОКАЛЬНОЙ команды (враг о них не знает): {id,team,x,y,life,maxLife,born} */
+let wardPlacement = null;       /* {slot} — режим выбора места */
+let wardPlaceLockUntil = 0;     /* защита от двойного клика */
+let wardSeq = 1;
+const wardNet = {buyPending:false, placePending:false, timer:0};
+const WARD_REASONS = {
+  bounds:'За пределами карты', far:'Слишком далеко', base:'Нельзя ставить на базе', blocked:'Место занято строением',
+  tree:'Мешает дерево', near:'Рядом уже стоит вард', limit:'Лимит вардов команды (' + WARD_CFG.maxPerTeam + ')',
+  stock:'Нет вардов', gold:'Не хватает монет', full:'Максимум ' + WARD_CFG.maxStack + ' варда в стопке', dead:'Герой мёртв',
+  busy:'Подождите секунду', state:'Матч недоступен', dup:'Вард уже ставится', offline:'Нет связи с сервером'
+};
+function wardReason(code){ return WARD_REASONS[code] || 'Не удалось'; }
+function wardsReset(){ wards = []; wardPlacement = null; wardPlaceLockUntil = 0; wardNet.buyPending = wardNet.placePending = false; wardNet.timer = 0; }
+function wardCount(team){ let n = 0; for(const w of wards) if(w.team === team && w.life > 0) n++; return n; }
+function wardApi(){ return window.__shadowOnlineWard || null; }
+function wardStack(h){ return h && h.inventory ? h.inventory.find(i => i && i.id === 'observerWard') : null; }
+
+function wardPlacementCheck(x, y, hero){
+  if(!hero || hero.dead) return {ok:false, reason:wardReason('dead')};
+  if(!Number.isFinite(x) || !Number.isFinite(y) || x < WARD_CFG.edge || y < WARD_CFG.edge || x > WORLD-WARD_CFG.edge || y > WORLD-WARD_CFG.edge)
+    return {ok:false, reason:wardReason('bounds')};
+  if(Math.hypot(x-hero.x, y-hero.y) > WARD_CFG.castRange) return {ok:false, reason:wardReason('far')};
+  for(const b of BASES) if(Math.hypot(x-b.x, y-b.y) < WARD_CFG.baseBan) return {ok:false, reason:wardReason('base')};
+  for(const u of units){
+    if(u.dead || !(u.type === 'tower' || u.type === 'ancient' || u.type === 'barracks')) continue;
+    if(Math.hypot(x-u.x, y-u.y) < (u.radius || 40) + 30) return {ok:false, reason:wardReason('blocked')};
+  }
+  for(const t of trees) if(Math.hypot(x-t.x, y-t.y) < (t.radius || 24) + 16) return {ok:false, reason:wardReason('tree')};
+  for(const w of wards) if(w.team === hero.team && w.life > 0 && Math.hypot(x-w.x, y-w.y) < WARD_CFG.minGap) return {ok:false, reason:wardReason('near')};
+  if(wardCount(hero.team) >= WARD_CFG.maxPerTeam) return {ok:false, reason:wardReason('limit')};
+  return {ok:true, reason:''};
+}
+
+function wardAdd(d){
+  if(!d || wards.some(w => w.id === d.id)) return null;      /* один и тот же вард не создаётся дважды */
+  const life = Math.max(1, Number(d.life) || WARD_CFG.duration);
+  const w = {id:d.id, team:d.team|0, x:d.x, y:d.y, life, maxLife:life, born:performance.now()/1000};
+  wards.push(w);
+  fxRing(w.x, w.y, 130, '#7be9ff', 0.7);
+  fxRing(w.x, w.y, 64, '#c8f6ff', 0.45);
+  spawnParticles(w.x, w.y, '#7be9ff', 22, 1.0);
+  addText(w.x, w.y-96, 'OBSERVER WARD', '#9ff0ff', 1.2, 14);
+  return w;
+}
+function wardRemove(id, expired){
+  const i = wards.findIndex(w => w.id === id);
+  if(i < 0) return;
+  const w = wards[i]; wards.splice(i, 1);
+  if(expired && w.team === 0){ fxRing(w.x, w.y, 90, '#7be9ff', 0.5); spawnParticles(w.x, w.y, '#7be9ff', 16, 0.8); addText(w.x, w.y-70, 'ВАРД ИСТЁК', '#8fb9c4', 1.0, 13); }
+}
+/* Сетевые события: сервер присылает только варды МОЕЙ команды */
+function wardNetAdd(d){ if(d) wardAdd({id:d.id, team:0, x:d.x, y:d.y, life:d.life}); }
+function wardNetRemove(d){ if(d) wardRemove(d.id, true); }
+
+function wardGrant(){
+  const h = playerHero; if(!h) return false;
+  let item = wardStack(h), slot = item ? h.inventory.indexOf(item) : h.inventory.findIndex(i => !i);
+  if(slot < 0) return false;
+  if(!item){ item = createInventoryItem('observerWard'); item.charges = 0; h.inventory[slot] = item; }
+  if((item.charges || 0) >= WARD_CFG.maxStack) return false;
+  item.charges = (item.charges || 0) + 1;
+  shopFx.slots[slot] = performance.now();
+  return true;
+}
+function wardToast(title, sub, ok){
+  shopFx.toasts.push({kind:ok ? 'ok' : 'fail', t:performance.now(), life:ok ? 2300 : 2000, title, sub:sub||'', icon:ok ? createInventoryItem('observerWard') : null, color:ok ? '#7be9ff' : '#ff7a6a'});
+  while(shopFx.toasts.length > 3) shopFx.toasts.shift();
+}
+function buyObserverWard(){
+  const h = playerHero, cfg = SHOP_ITEMS.observerWard;
+  if(!h || h.dead) return false;
+  const stack = wardStack(h);
+  if(stack && (stack.charges || 0) >= WARD_CFG.maxStack){ flashMsg(h, wardReason('full')); return false; }
+  if(!stack && h.inventory.findIndex(i => !i) < 0){ flashMsg(h, 'Нет свободного слота'); return false; }
+  if(h.coins < cfg.cost){ flashMsg(h, 'Нужно ' + cfg.cost + ' монет'); return false; }
+  if(wardNet.buyPending) return false;                          /* двойной клик: второй запрос не уходит */
+  if(onlineMatchActive){
+    const api = wardApi();
+    if(!api || !api.ready()){ flashMsg(h, wardReason('offline')); return false; }
+    wardNet.buyPending = true; wardNet.timer = 3;
+    api.buy(stack ? (stack.charges || 0) : 0, res => {
+      wardNet.buyPending = false;
+      const me = playerHero;
+      if(!me) return;
+      if(!res || !res.ok){ flashMsg(me, wardReason(res && res.reason)); return; }
+      if(!wardGrant()){ api.discard(); flashMsg(me, 'Нет свободного слота'); return; }
+      me.coins = Math.max(0, me.coins - cfg.cost);              /* золото списывается только после подтверждения сервера */
+      playAbilitySound('purchase');
+      addText(me.x, me.y-70, cfg.name + ' куплен', cfg.color, 1.2, 15);
+      wardToast('Куплено: ' + cfg.name, '−' + cfg.cost + ' монет', true);
+    });
+    return false;                                               /* итог придёт в колбэке */
+  }
+  if(!wardGrant()) return false;
+  h.coins -= cfg.cost;
+  playAbilitySound('purchase');
+  addText(h.x, h.y-70, cfg.name + ' куплен', cfg.color, 1.2, 15);
+  return true;
+}
+
+function wardTogglePlacement(slot){
+  if(wardPlacement && wardPlacement.slot === slot){ wardPlacement = null; return; }
+  const item = playerHero && playerHero.inventory[slot];
+  if(!item || item.id !== 'observerWard' || !(item.charges > 0)){ return; }
+  if(shopOpen) shopOpen = false;
+  wardPlacement = {slot};
+  playSynthSfx('click');
+}
+function wardConsumeCharge(){
+  const h = playerHero, item = wardStack(h);
+  if(!item) return false;
+  item.charges = (item.charges || 0) - 1;
+  if(item.charges <= 0) h.inventory[h.inventory.indexOf(item)] = null;
+  return true;
+}
+/* Возвращает true, если клик обработан (даже неудачный) */
+function wardPlaceAt(x, y){
+  const h = playerHero, item = wardPlacement && h && h.inventory[wardPlacement.slot];
+  if(!item || item.id !== 'observerWard' || !(item.charges > 0)){ wardPlacement = null; return true; }
+  const now = performance.now();
+  if(now < wardPlaceLockUntil || wardNet.placePending) return true;       /* двойной клик */
+  const chk = wardPlacementCheck(x, y, h);
+  if(!chk.ok){ flashMsg(h, chk.reason); return true; }
+  wardPlaceLockUntil = now + 300;
+  if(onlineMatchActive){
+    const api = wardApi();
+    if(!api || !api.ready()){ flashMsg(h, wardReason('offline')); return true; }
+    wardNet.placePending = true; wardNet.timer = 3;
+    wardPlacement = null;
+    api.place(x, y, 'r' + (wardSeq++) + '_' + Math.floor(now), res => {
+      wardNet.placePending = false;
+      if(!res || !res.ok || !res.ward){ if(playerHero) flashMsg(playerHero, wardReason(res && res.reason)); return; }
+      if(wardConsumeCharge()) wardAdd({id:res.ward.id, team:0, x:res.ward.x, y:res.ward.y, life:res.ward.life});
+    });
+    return true;
+  }
+  wardConsumeCharge();
+  wardPlacement = null;
+  wardAdd({id:'w' + (wardSeq++), team:h.team, x, y, life:WARD_CFG.duration});
+  playAbilitySound('cast');
+  return true;
+}
+/* Мышь в режиме выбора. true — событие поглощено. */
+function wardHandleMouseDown(e, mx, my){
+  if(!wardPlacement) return false;
+  if(e.button === 2){ wardPlacement = null; return true; }
+  if(e.button !== 0) return false;
+  if(performance.now() < wardPlaceLockUntil) return true;
+  for(let i=0;i<6;i++){ const r = inventorySlotRect(i); if(mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h){ wardPlacement = null; return false; } }
+  if(handleHudClick(mx, my) || handleSkillBarClick(mx, my)) return true;
+  const w = screenToWorld(mx, my);
+  return wardPlaceAt(w.x, w.y);
+}
+window.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && wardPlacement){ wardPlacement = null; e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+
+function updateWards(dt){
+  if(wardNet.timer > 0){ wardNet.timer -= dt; if(wardNet.timer <= 0){ wardNet.buyPending = false; wardNet.placePending = false; } }
+  if(wardPlacement){
+    const it = playerHero && playerHero.inventory[wardPlacement.slot];
+    if(!playerHero || playerHero.dead || shopOpen || !it || it.id !== 'observerWard' || !(it.charges > 0)) wardPlacement = null;
+  }
+  for(let i = wards.length-1; i >= 0; i--){
+    const w = wards[i];
+    w.life -= dt;
+    if(w.life <= 0){ wardRemove(w.id, true); }
+  }
+}
+
+/* ---- рендер ---- */
+function drawWardTotem(x, y, t, o){
+  const alpha = o.alpha == null ? 1 : o.alpha, sc = o.scale || 1, lite = fxl() >= 3;
+  const bob = Math.sin(t*2.1 + x*0.01)*3.5, glow = 0.75 + 0.25*Math.sin(t*3.0 + y*0.01);
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(sc, sc);
+  ctx.globalAlpha = alpha;
+  /* тень и каменное основание */
+  ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.beginPath(); ctx.ellipse(0, 10, 24, 9, 0, 0, Math.PI*2); ctx.fill();
+  const base = ctx.createLinearGradient(0, -2, 0, 14);
+  base.addColorStop(0, '#59607e'); base.addColorStop(1, '#232638');
+  ctx.fillStyle = base; ctx.strokeStyle = '#9fb4d9'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.ellipse(0, 6, 19, 8, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  /* колонна */
+  const col = ctx.createLinearGradient(-10, 0, 10, 0);
+  col.addColorStop(0, '#1d2036'); col.addColorStop(0.5, '#4a5379'); col.addColorStop(1, '#1b1e32');
+  ctx.fillStyle = col; ctx.strokeStyle = '#8fa6d6';
+  ctx.beginPath(); ctx.moveTo(-11, 5); ctx.lineTo(-6.5, -36); ctx.lineTo(6.5, -36); ctx.lineTo(11, 5); ctx.closePath(); ctx.fill(); ctx.stroke();
+  /* светящиеся руны */
+  ctx.strokeStyle = 'rgba(123,233,255,' + (0.55*glow) + ')'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-3,-6); ctx.lineTo(0,-13); ctx.lineTo(3,-6); ctx.moveTo(0,-13); ctx.lineTo(0,-24); ctx.moveTo(-3.5,-19); ctx.lineTo(3.5,-19); ctx.stroke();
+  /* плавающий кристалл-глаз */
+  const cy = -54 + bob;
+  const halo = ctx.createRadialGradient(0, cy, 2, 0, cy, 34);
+  halo.addColorStop(0, 'rgba(150,240,255,' + (0.55*glow) + ')'); halo.addColorStop(1, 'rgba(60,160,220,0)');
+  ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, cy, 34, 0, Math.PI*2); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  const gem = ctx.createLinearGradient(0, cy-16, 0, cy+16);
+  gem.addColorStop(0, '#d9fbff'); gem.addColorStop(0.5, '#5fd2f2'); gem.addColorStop(1, '#2a6fb0');
+  ctx.fillStyle = gem; ctx.strokeStyle = '#eaffff'; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(0, cy-17); ctx.lineTo(12, cy); ctx.lineTo(0, cy+17); ctx.lineTo(-12, cy); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#062433'; ctx.beginPath(); ctx.ellipse(0, cy, 7, 3.6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#eaffff'; ctx.beginPath(); ctx.arc(Math.sin(t*0.9)*2.2, cy, 1.9, 0, Math.PI*2); ctx.fill();
+  /* маленькие частицы: поднимаются по спирали вокруг тотема */
+  if(!lite){
+    const n = fxl() >= 2 ? 4 : 7;
+    ctx.globalCompositeOperation = 'lighter';
+    for(let i=0;i<n;i++){
+      const ph = (t*0.28 + i/n) % 1, a = t*1.1 + i*(Math.PI*2/n), rr = 15 + 7*Math.sin(ph*Math.PI);
+      const px = Math.cos(a)*rr, py = 4 - ph*70 + Math.sin(a)*rr*0.3;
+      ctx.fillStyle = 'rgba(160,240,255,' + (0.85*Math.sin(ph*Math.PI)) + ')';
+      ctx.beginPath(); ctx.arc(px, py, 1.1 + (i%3)*0.5, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+function wardFmtTime(s){ s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
+function drawWards(){
+  if(!wards.length) return;
+  const t = performance.now()/1000;
+  for(const w of wards){
+    if(w.team !== 0 || w.life <= 0) continue;                /* вражеские варды не рисуются никогда */
+    if(!isWorldPointVisible(w.x, w.y, WARD_CFG.radius)) continue;
+    const age = Math.min(1, (t - w.born)/0.7), ease = 1 - Math.pow(1-age, 3);
+    const fade = Math.min(1, w.life/1.0);
+    const frac = w.life / w.maxLife, low = w.life < 15;
+    ctx.save();
+    /* граница зоны обзора */
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = 'rgba(123,233,255,' + (0.20 + 0.06*Math.sin(t*2)) + ')'; ctx.lineWidth = 2; ctx.setLineDash([16, 14]); ctx.lineDashOffset = -t*18;
+    ctx.beginPath(); ctx.arc(w.x, w.y, WARD_CFG.radius*ease, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    /* руническое кольцо на земле + дуга оставшегося времени */
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(123,233,255,0.35)'; ctx.lineWidth = 1.4; ctx.setLineDash([5, 7]); ctx.lineDashOffset = t*10;
+    ctx.beginPath(); ctx.arc(w.x, w.y+6, 34, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = low ? 'rgba(255,170,90,0.95)' : 'rgba(150,240,255,0.9)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(w.x, w.y+6, 28, -Math.PI/2, -Math.PI/2 + Math.PI*2*frac); ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+    drawWardTotem(w.x, w.y, t, {alpha:fade, scale:0.4 + 0.6*ease});
+    /* оставшееся время */
+    ctx.save();
+    ctx.globalAlpha = fade; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 13px Consolas, monospace';
+    const label = wardFmtTime(w.life), ty = w.y - 88;
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(3,10,16,0.9)'; ctx.strokeText(label, w.x, ty);
+    ctx.fillStyle = low && Math.floor(t*3)%2 ? '#ffb070' : (low ? '#ff9a55' : '#9ff0ff'); ctx.fillText(label, w.x, ty);
+    ctx.restore();
+  }
+}
+function drawWardPlacement(){
+  if(!wardPlacement || !playerHero) return;
+  const h = playerHero, t = performance.now()/1000;
+  const x = mouse.wx, y = mouse.wy, chk = wardPlacementCheck(x, y, h);
+  const rgb = chk.ok ? '123,233,255' : '255,100,100';
+  const R = WARD_CFG.radius;
+  ctx.save();
+  /* дальность установки вокруг героя */
+  ctx.strokeStyle = 'rgba(180,220,255,0.35)'; ctx.lineWidth = 1.5; ctx.setLineDash([8, 10]);
+  ctx.beginPath(); ctx.arc(h.x, h.y, WARD_CFG.castRange, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(' + rgb + ',0.4)'; ctx.setLineDash([4, 8]);
+  ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+  /* круг радиуса обзора */
+  const pulse = 1 + 0.015*Math.sin(t*4);
+  const fill = ctx.createRadialGradient(x, y, R*0.2, x, y, R*pulse);
+  fill.addColorStop(0, 'rgba(' + rgb + ',0.02)'); fill.addColorStop(0.8, 'rgba(' + rgb + ',0.10)'); fill.addColorStop(1, 'rgba(' + rgb + ',0.22)');
+  ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, R*pulse, 0, Math.PI*2); ctx.fill();
+  ctx.shadowColor = 'rgba(' + rgb + ',0.9)'; ctx.shadowBlur = 14;
+  ctx.strokeStyle = 'rgba(' + rgb + ',0.95)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, y, R*pulse, 0, Math.PI*2); ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(' + rgb + ',0.55)'; ctx.lineWidth = 1.6; ctx.setLineDash([18, 12]); ctx.lineDashOffset = -t*30;
+  ctx.beginPath(); ctx.arc(x, y, R*0.72, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.lineWidth = 2;
+  for(let i=0;i<12;i++){                                   /* вращающиеся засечки */
+    const a = t*0.35 + i*Math.PI/6;
+    ctx.beginPath(); ctx.moveTo(x+Math.cos(a)*(R-14), y+Math.sin(a)*(R-14)); ctx.lineTo(x+Math.cos(a)*(R+4), y+Math.sin(a)*(R+4)); ctx.stroke();
+  }
+  ctx.restore();
+  drawWardTotem(x, y, t, {alpha:chk.ok ? 0.72 : 0.35, scale:1});
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 14px Segoe UI, Arial';
+  const msg = chk.ok ? 'ЛКМ — установить · ПКМ / Esc — отмена' : chk.reason;
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(3,8,14,0.92)'; ctx.strokeText(msg, x, y + 34);
+  ctx.fillStyle = chk.ok ? '#bff6ff' : '#ff8a8a'; ctx.fillText(msg, x, y + 34);
+  ctx.restore();
 }
 
 function drawFog(){
@@ -11833,6 +12408,17 @@ function drawFog(){
     if(u.team!==0||u.dead) continue;
     const sx = u.x+ox, sy = u.y+oy;
     const r = u.vision;
+    if(sx<-r||sy<-r||sx>VW+r||sy>VH+r) continue;
+    const g = fogCtx.createRadialGradient(sx, sy, r*0.55, sx, sy, r);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    fogCtx.fillStyle = g;
+    fogCtx.beginPath(); fogCtx.arc(sx, sy, r, 0, Math.PI*2); fogCtx.fill();
+  }
+
+  for(const w of wards){
+    if(w.team !== 0 || w.life <= 0) continue;
+    const sx = w.x+ox, sy = w.y+oy, r = WARD_CFG.radius;
     if(sx<-r||sy<-r||sx>VW+r||sy>VH+r) continue;
     const g = fogCtx.createRadialGradient(sx, sy, r*0.55, sx, sy, r);
     g.addColorStop(0, 'rgba(0,0,0,1)');
@@ -11981,7 +12567,9 @@ canvas.addEventListener('wheel', e => {
   const {r, totalRows, visibleRows} = shopLayout();
   if(e.clientX < r.x || e.clientX > r.x+r.w || e.clientY < r.y || e.clientY > r.y+r.h) return;
   const maxScroll = Math.max(0, totalRows-visibleRows);
+  const prevRow = shopScrollRow;
   shopScrollRow = clamp(shopScrollRow + (e.deltaY > 0 ? 1 : -1), 0, maxScroll);
+  if(shopScrollRow !== prevRow) playSynthSfx('scroll');
   e.preventDefault();
 }, {passive:false});
 
@@ -12000,6 +12588,7 @@ function handleMo3giControlClick(mx,my){
 canvas.addEventListener('mousedown', e => {
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
+  if(e.button === 0 && gameState === 'playing' && handleBuybackClick(mx, my)){ e.preventDefault(); return; }
   if(e.button === 0 && gameState !== 'menu' && specHandleClick(mx, my)){ e.preventDefault(); return; }
 
   if(e.button === 1){
@@ -12026,6 +12615,8 @@ canvas.addEventListener('mousedown', e => {
   if(!playerHero || playerHero.dead) return;
   if(e.button===0 && ((shopOpen && shopHoveredId()) || pendingPurchaseId || pendingSellIndex>=0 || Array.from({length:6},(_,i)=>inventorySlotRect(i)).some(r=>mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h))) playSynthSfx('click');
   if(handleMo3giControlClick(mx,my)) return;
+  if(wardPlacement && wardHandleMouseDown(e, mx, my)){ e.preventDefault(); return; }
+  if(performance.now() < wardPlaceLockUntil && e.button === 0){ e.preventDefault(); return; }
 
   if(pendingPurchaseId){
     const panel = {x:VW/2-230,y:VH/2-125,w:460,h:250};
@@ -12045,7 +12636,7 @@ canvas.addEventListener('mousedown', e => {
     const cancel = {x:VW/2+30,y:VH/2-70,w:140,h:42};
     if(mx>=confirm.x && mx<=confirm.x+confirm.w && my>=confirm.y && my<=confirm.y+confirm.h){
       const item=playerHero.inventory[pendingSellIndex];
-      if(item){ playerHero.coins += Math.floor((SHOP_ITEMS[item.id]?.cost || 0)*0.5); playerHero.inventory[pendingSellIndex]=null; const soldHp=SHOP_ITEMS[item.id]?.hp; if(soldHp){ playerHero.maxHp=Math.max(1,playerHero.maxHp-soldHp); playerHero.hp=Math.min(playerHero.hp,playerHero.maxHp); } }
+      if(item){ playerHero.coins += Math.floor((SHOP_ITEMS[item.id]?.cost || 0)*0.5) * (item.id==='observerWard' ? Math.max(1,item.charges||1) : 1); playerHero.inventory[pendingSellIndex]=null; playSynthSfx('sell'); revertItemStats(playerHero,item.id); }
       pendingSellIndex=-1;
     } else if(mx>=cancel.x && mx<=cancel.x+cancel.w && my>=cancel.y && my<=cancel.y+cancel.h){
       pendingSellIndex=-1;
@@ -12890,6 +13481,17 @@ function drawForestCreepBody(u, col){
   ctx.save();
   ctx.scale(s,s);
   if(u.mega){ ctx.shadowColor='#ffcf5a'; ctx.shadowBlur=14; }
+  else if(u.evoStage && !perfLite()){
+    /* 0.9.5.5: стадия эволюции — свечение цвета команды, на поздней стадии ещё и руны под ногами */
+    ctx.shadowColor = u.evoStage >= 2 ? '#ff8a4a' : teamGlow; ctx.shadowBlur = u.evoStage >= 2 ? 13 : 7;
+  }
+  if(u.evoStage >= 2 && fxl() < 3){
+    ctx.save(); ctx.globalAlpha = 0.55 + Math.sin(gameTime*4 + u.x*0.01)*0.15;
+    ctx.strokeStyle = u.team===0 ? '#9dffb0' : '#ff9d7a'; ctx.lineWidth = 1.4; ctx.setLineDash([3,4]); ctx.lineDashOffset = -gameTime*14;
+    ctx.beginPath(); ctx.ellipse(0,19,19,7,0,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    for(let r=0;r<3;r++){ const a = r*Math.PI*2/3 + gameTime*1.2; ctx.beginPath(); ctx.moveTo(Math.cos(a)*19,19+Math.sin(a)*7-2); ctx.lineTo(Math.cos(a)*19,19+Math.sin(a)*7+2); ctx.stroke(); }
+    ctx.restore();
+  }
 
   // Корневидные ноги.
   ctx.fillStyle='#4a3016';
@@ -13755,11 +14357,11 @@ function drawStatusFx(u){
   if(!stun && !slow && !sil) return;
   /* только то, что попадает в экран (с запасом) */
   if(Math.abs(u.x-cam.x) > VW/2+120 || Math.abs(u.y-cam.y) > VH/2+120) return;
-  const t = gameTime, r = u.radius || 20, lite = perfLevel >= 2;
+  const t = gameTime, r = u.radius || 20, lite = fxl() >= 2;
   ctx.save();
   if(slow){
     /* ледяная крошка у ног и лёгкий голубой след */
-    const n = perfLevel >= 3 ? 0 : (lite ? 2 : 4);
+    const n = fxl() >= 3 ? 0 : (lite ? 2 : 4);
     ctx.fillStyle = 'rgba(190,235,255,0.85)';
     for(let i=0;i<n;i++){
       const ph = (t*1.1 + i/n) % 1;
@@ -13915,7 +14517,7 @@ function drawUnit(u){
       ctx.globalAlpha=0.4;
     }
   }
-  if(FX_3D && !perfLite()){ draw3DShadow(u); if(u.type==='tower'||u.type==='ancient'||u.type==='barracks') draw3DExtrude(u); }
+  if(FX_3D && !perfLite()){ if(GFX.shadows) draw3DShadow(u); if(u.type==='tower'||u.type==='ancient'||u.type==='barracks') draw3DExtrude(u); }
 
   if(walkableUnit && u.moving){
     const facing = u.facing || 0;
@@ -15596,7 +16198,7 @@ function isWorldPointVisible(x,y,padding=140){
 const AMB = { t:0, last:0, parts:[], fogSprite:null, glowSprite:null, seed:1 };
 function ambHash(a,b){ let h=(a*374761393 + b*668265263)|0; h=(h^(h>>>13))*1274126177|0; return ((h^(h>>>16))>>>0)/4294967295; }
 function ambLevel(){ /* множитель качества: 0 — выключено */
-  if(perfLevel >= 3) return 0;
+  if(perfLevel >= 3 || !GFX.decor) return 0;
   try { if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0; } catch(err) {}
   return [1, 0.55, 0.3][perfLevel] || 0;
 }
@@ -16526,6 +17128,13 @@ function drawMinimap(){
       ctx.fillRect(px-1.5, py-1.5, 3, 3);
     }
   }
+  for(const w of wards){
+    if(w.team !== 0 || w.life <= 0) continue;
+    ctx.strokeStyle = 'rgba(123,233,255,0.45)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x0+w.x*k, y0+w.y*k, WARD_CFG.radius*k, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#7be9ff';
+    ctx.beginPath(); ctx.arc(x0+w.x*k, y0+w.y*k, 3, 0, Math.PI*2); ctx.fill();
+  }
   ctx.strokeStyle = 'rgba(255,255,255,0.5)';
   ctx.lineWidth = 1.5;
   ctx.strokeRect(x0 + (cam.x-VW/2)*k, y0 + (cam.y-VH/2)*k, VW*k, VH*k);
@@ -17140,6 +17749,15 @@ function drawItemIcon(item, x, y, size){
     ctx.strokeStyle=item.id==='superBoots'?'#ffe36e':'#75e6a7'; ctx.lineWidth=Math.max(1,size*.045);
     for(let line=-1;line<=1;line++){ctx.beginPath();ctx.moveTo(-size*.16,line*size*.11-size*.2);ctx.lineTo(size*.12,line*size*.11-size*.14);ctx.stroke();}
     ctx.restore();
+  } else if(item.id === 'observerWard'){
+    ctx.save();
+    ctx.fillStyle='#2b2f4a'; ctx.strokeStyle='#8fd8ff'; ctx.lineWidth=Math.max(1.5,size*.045);
+    ctx.beginPath(); ctx.moveTo(-size*.2,size*.42); ctx.lineTo(-size*.1,-size*.05); ctx.lineTo(size*.1,-size*.05); ctx.lineTo(size*.2,size*.42); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowColor='#7be9ff'; ctx.shadowBlur=12; ctx.fillStyle='#7be9ff';
+    ctx.beginPath(); ctx.moveTo(0,-size*.46); ctx.lineTo(size*.2,-size*.24); ctx.lineTo(0,-size*.02); ctx.lineTo(-size*.2,-size*.24); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur=0; ctx.fillStyle='#06202c'; ctx.beginPath(); ctx.ellipse(0,-size*.24,size*.09,size*.05,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,-size*.24,size*.025,0,Math.PI*2); ctx.fill();
+    ctx.restore();
   } else if(item.id === 'tango'){
     ctx.save();
     ctx.fillStyle='#4d9a50'; ctx.strokeStyle='#c4ed83'; ctx.lineWidth=Math.max(1.5,size*.045);
@@ -17176,6 +17794,19 @@ function drawItemIcon(item, x, y, size){
       ctx.beginPath(); ctx.moveTo(-size*.12,line*size*.08-size*.18); ctx.lineTo(size*.15,line*size*.08-size*.13); ctx.stroke();
     }
     ctx.restore();
+  } else if(item.id === 'stormbringer'){
+    ctx.save(); ctx.shadowColor='#ffb347'; ctx.shadowBlur=12;
+    ctx.fillStyle='#ffb347'; ctx.strokeStyle='#fff1c9'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(size*.1,-size*.48); ctx.lineTo(-size*.3,size*.04); ctx.lineTo(-size*.02,size*.04); ctx.lineTo(-size*.14,size*.48); ctx.lineTo(size*.32,-size*.1); ctx.lineTo(size*.04,-size*.1); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+  } else if(item.id === 'titanHeart'){
+    ctx.save(); ctx.shadowColor='#ff5a6e'; ctx.shadowBlur=12; ctx.fillStyle='#d8344c'; ctx.strokeStyle='#ffc2ca'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(0,size*.4); ctx.bezierCurveTo(-size*.62,-size*.02,-size*.34,-size*.5,0,-size*.18); ctx.bezierCurveTo(size*.34,-size*.5,size*.62,-size*.02,0,size*.4); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle='#ffd978'; ctx.beginPath(); ctx.moveTo(-size*.22,size*.02); ctx.lineTo(0,-size*.12); ctx.lineTo(size*.22,size*.02); ctx.stroke(); ctx.restore();
+  } else if(item.id === 'archmageRobe'){
+    ctx.save(); ctx.shadowColor='#8fa8ff'; ctx.shadowBlur=12; const rg=ctx.createLinearGradient(0,-size*.45,0,size*.45); rg.addColorStop(0,'#b9c8ff'); rg.addColorStop(1,'#4a55c8');
+    ctx.fillStyle=rg; ctx.strokeStyle='#e6ebff'; ctx.lineWidth=Math.max(1.5,size*.05);
+    ctx.beginPath(); ctx.moveTo(0,-size*.46); ctx.lineTo(size*.36,size*.42); ctx.lineTo(-size*.36,size*.42); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.fillStyle='#fff6c9'; ctx.beginPath(); ctx.arc(0,size*.05,size*.1,0,Math.PI*2); ctx.fill(); ctx.restore();
   } else if(item.id === 'fangs'){
     ctx.save();
     ctx.strokeStyle='#e9edf4'; ctx.fillStyle='#bac5d4'; ctx.lineWidth=2;
@@ -17545,9 +18176,9 @@ function getShopItemDescription(item, hero, itemId=null){
    ========================================================= */
 const SHOP_TABS = ['ВСЕ','РАСХОДНИКИ','ХАРАКТЕРИСТИКИ','АКТИВНЫЕ','ОСОБЫЕ'];
 const SHOP_CATEGORY_OF = {
-  tango:1, timurPillow:1, mango:1, hatchet:1,
+  tango:1, timurPillow:1, mango:1, hatchet:1, observerWard:1,
   joelBoots:2, fangs:2, evsyutin:2, manaTome:2, manaHooves:2, brainEye:2, kinglandia:2, satanic:2, enemy302:2, semenHead:2, octarineCore:2,
-  pt:4, aghanimShard:4, aghanimScepter:4
+  pt:4, aghanimShard:4, aghanimScepter:4, stormbringer:4, titanHeart:4, archmageRobe:4
 };
 function shopItemCategory(id){ return SHOP_CATEGORY_OF[id] || 3; }
 let shopTab = 0, shopSearch = '', shopSearchFocus = false, shopSelectedId = null;
@@ -17703,6 +18334,35 @@ function drawShopTooltipBody(id, h, x, y, w, big){
   let by = tagY + 46 + lines.length * 20 + 8;
   const owned = shopOwnedCount(id);
   if(owned){ ctx.fillStyle = '#9ad7ff'; ctx.font = 'bold 12px Segoe UI, Arial'; ctx.fillText('В инвентаре: ' + owned, x + pad, by); by += 20; }
+  if(RECIPES[id]){
+    /* Рецепт: компоненты (есть/нет), доплата, полная и оставшаяся стоимость, недостающие предметы */
+    const rs = recipeStatus(h, id), r = RECIPES[id];
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x + pad, by - 6, w - pad * 2, 1);
+    ctx.fillStyle = '#ffd568'; ctx.font = 'bold 12px Segoe UI, Arial'; ctx.fillText('РЕЦЕПТ', x + pad, by + 10); by += 20;
+    const haveSet = new Set(rs.have.map(p => p.id));
+    for(const pid of r.parts){
+      const ok = haveSet.has(pid);
+      ctx.fillStyle = ok ? '#7dffb0' : '#ff8a80'; ctx.font = 'bold 13px Segoe UI, Arial';
+      ctx.fillText((ok ? '✔ ' : '✘ ') + recipePartName(pid), x + pad, by + 8);
+      ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = '12px Segoe UI, Arial'; ctx.textAlign = 'right';
+      ctx.fillText(String(recipePartCost(pid)), x + w - pad, by + 8); ctx.textAlign = 'left'; by += 19;
+    }
+    ctx.fillStyle = '#ffffff'; ctx.font = '13px Segoe UI, Arial'; ctx.fillText('+ сборка', x + pad, by + 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.textAlign = 'right'; ctx.fillText(String(r.fee), x + w - pad, by + 8); ctx.textAlign = 'left'; by += 21;
+    ctx.fillStyle = '#ffd568'; ctx.font = 'bold 13px Segoe UI, Arial'; ctx.fillText('Общая стоимость: ' + item.cost, x + pad, by + 6); by += 20;
+    if(rs.owned){ ctx.fillStyle = '#9ad7ff'; ctx.fillText('Артефакт уже собран', x + pad, by + 6); return; }
+    const blocked = rs.missing.filter(pid => !recipePartBuyable(pid));
+    if(rs.missing.length){
+      ctx.fillStyle = '#ff8a80'; ctx.font = 'bold 12px Segoe UI, Arial';
+      shopWrapLines('Не хватает: ' + rs.missing.map(recipePartName).join(', '), w - pad * 2, 3).forEach((ln, i) => ctx.fillText(ln, x + pad, by + 6 + i * 16));
+      by += 6 + Math.min(3, shopWrapLines('Не хватает: ' + rs.missing.map(recipePartName).join(', '), w - pad * 2, 3).length) * 16 + 4;
+    }
+    ctx.font = 'bold 13px Segoe UI, Arial';
+    if(blocked.length){ ctx.fillStyle = '#ff8a80'; ctx.fillText('Сначала собери: ' + blocked.map(recipePartName).join(', '), x + pad, by + 6); }
+    else if(h.coins < rs.need){ ctx.fillStyle = '#ff8a80'; ctx.fillText('Осталось доплатить: ' + rs.need + ' (не хватает ' + (rs.need - Math.floor(h.coins)) + ')', x + pad, by + 6); }
+    else { ctx.fillStyle = '#7dffb0'; ctx.fillText((rs.missing.length ? 'Докупить и собрать за ' : 'Собрать за ') + rs.need + (big ? ' — нажми' : ' — нажми ещё раз'), x + pad, by + 6); }
+    return;
+  }
   ctx.font = 'bold 13px Segoe UI, Arial';
   if(!afford){ ctx.fillStyle = '#ff8a80'; ctx.fillText('Не хватает ' + (item.cost - Math.floor(h.coins)) + ' монет', x + pad, by); }
   else { ctx.fillStyle = '#7dffb0'; ctx.fillText(big ? 'Нажми, чтобы купить' : 'Нажми ещё раз, чтобы купить', x + pad, by); }
@@ -17866,6 +18526,12 @@ function drawShop(){
     shopCoinDot(ir.x + ir.w / 2 - tw / 2 - 9, ir.y + ir.h - 12, 6);
     ctx.fillStyle = afford ? '#ffd568' : '#ff8a80'; ctx.textAlign = 'left';
     ctx.fillText(cost, ir.x + ir.w / 2 - tw / 2 + 1, ir.y + ir.h - 7);
+    if(RECIPES[id]){
+      const rs = recipeStatus(h, id), ready = !rs.missing.length;
+      ctx.fillStyle = ready ? 'rgba(46,160,90,0.92)' : 'rgba(150,100,30,0.92)'; ctx.fillRect(ir.x + 4, ir.y + 4, 24, 16);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Segoe UI, Arial'; ctx.textAlign = 'center';
+      ctx.fillText((rs.have.length) + '/' + RECIPES[id].parts.length, ir.x + 16, ir.y + 16);
+    }
     const owned = shopOwnedCount(id);
     if(owned){
       ctx.fillStyle = 'rgba(40,120,200,0.9)'; ctx.fillRect(ir.x + ir.w - 26, ir.y + 4, 22, 16);
@@ -17939,6 +18605,12 @@ function drawPurchaseConfirm(){
 }
 
 function drawKillStreakBanner(){
+  if(evolutionBanner.t > 0){
+    const fade = Math.min(1, evolutionBanner.t / 0.5, (3.2 - evolutionBanner.t) / 0.25 + 0.01);
+    ctx.save(); ctx.globalAlpha = Math.max(0, fade); ctx.textAlign = 'center'; ctx.font = 'bold 22px Segoe UI, Arial';
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 6; ctx.strokeText(evolutionBanner.text, VW/2, VH*0.2);
+    ctx.fillStyle = evolutionBanner.color; ctx.fillText(evolutionBanner.text, VW/2, VH*0.2); ctx.restore();
+  }
   if(killStreakBanner.t > 0){
     const fade = Math.min(1, killStreakBanner.t / 0.45);
     const scale = killStreakBanner.scale * (1 + Math.max(0, 0.25 - killStreakBanner.t) * 0.8);
@@ -17986,7 +18658,7 @@ function drawInventory(){
     ctx.strokeStyle=item ? (cooling?'#68717b':item.color) : 'rgba(255,255,255,0.25)'; ctx.lineWidth=item?2:1.5; ctx.strokeRect(r.x,r.y,r.w,r.h);
     ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=1; ctx.strokeRect(r.x+3,r.y+3,r.w-6,r.h-6);
     ctx.textAlign='center'; ctx.font='bold 20px Segoe UI, Arial'; ctx.fillStyle=item ? item.color : 'rgba(255,255,255,0.25)';
-    const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : item.id==='semenHead' ? '☻' : '▲') : '-';
+    const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : item.id==='semenHead' ? '☻' : item.id==='observerWard' ? '◉' : '▲') : '-';
     ctx.save();
     if(cooling) ctx.filter='grayscale(1)';
     { const pk = item ? shopSlotPop(i) : 1;
@@ -17994,7 +18666,7 @@ function drawInventory(){
         ctx.translate(r.x+r.w/2,r.y+r.h/2); ctx.scale(sc,sc); ctx.globalAlpha = Math.min(1,pk*4); ctx.translate(-(r.x+r.w/2),-(r.y+r.h/2)); }
       drawItemIcon(item,r.x+r.w/2,r.y+r.h/2,Math.min(42,r.w-10)); }
     ctx.restore();
-    if(item && item.id==='holyLocket'){
+    if(item && (item.id==='holyLocket' || item.id==='observerWard')){
       ctx.save(); ctx.textAlign='right'; ctx.textBaseline='alphabetic';
       ctx.font='bold '+Math.max(10,Math.min(14,r.w*.28))+'px Consolas, monospace';
       ctx.fillStyle='rgba(0,0,0,.65)'; ctx.fillText(String(Math.floor(item.charges||0)),r.x+r.w-4,r.y+r.h-5);
@@ -18375,7 +19047,7 @@ function drawHeroStripIcon(def,x,y,size,now,dead){
   ctx.restore();
 }
 
-/* 0.9.4.7: режим наблюдения после смерти. Камера плавно следует за живым союзником (только своя команда —
+/* 0.9.4.9: режим наблюдения после смерти. Камера плавно следует за живым союзником (только своя команда —
    видимость, туман войны и правила обзора не затрагиваются; механика смерти и возрождения не менялась). */
 const SPEC = {active:false, target:null, free:false, lastX:0, lastY:0, hits:[], portraits:{}};
 function specAllies(){ return heroes.filter(h => h.type === 'hero' && !h.isIllusion && h.team === playerHero.team && h !== playerHero); }
@@ -18651,7 +19323,9 @@ function drawHUD(){
     ctx.fillStyle = '#fff';
     ctx.fillText('ВОЗРОЖДЕНИЕ ЧЕРЕЗ ' + Math.ceil(h.respawnTimer), VW/2, SPEC.active ? VH*0.82 : VH/2);
     if(SPEC.active){ try { drawSpectatorUi(h); } catch(err) { SPEC.hits.length = 0; } }
+    if(h === playerHero) drawBuybackButton(h);
   }
+  drawBuybackFlash();
   if(killStreakBanner.t > 0){
     const fade = Math.min(1, killStreakBanner.t / 0.45);
     const scale = killStreakBanner.scale * (1 + Math.max(0, 0.25 - killStreakBanner.t) * 0.8);
@@ -18972,6 +19646,91 @@ function menuSettingsLayout(panel){
     close:{x:panel.x+(panel.w-180)/2,y:panel.y+panel.h-58,w:180,h:44}
   };
 }
+/* ===== 0.9.5: панель «Расширенная графика» ===== */
+let gfxPanelOpen = false, gfxDraft = null;
+const GFX_ROWS = [
+  {key:'preset', label:'ПРЕСЕТ КАЧЕСТВА', opts:['Низкое','Среднее','Высокое']},
+  {key:'particles', label:'ЧАСТИЦЫ', opts:['Мало','Средне','Много']},
+  {key:'glow', label:'СВЕЧЕНИЕ', opts:['Выкл','Мягкое','Полное']},
+  {key:'extras', label:'ДОП. ЭФФЕКТЫ (следы, ауры)', opts:['Минимум','Упрощённые','Полные']},
+  {key:'shadows', label:'ТЕНИ ЮНИТОВ', opts:['Выкл','Вкл']},
+  {key:'decor', label:'ДЕКОР. ОКРУЖЕНИЕ (туман)', opts:['Выкл','Вкл']},
+  {key:'fps', label:'ПОКАЗЫВАТЬ FPS', opts:['Выкл','Вкл']}
+];
+function gfxOpenPanel(){ gfxDraft = Object.assign({perf:clamp(perfLevel,0,2)}, GFX); gfxPanelOpen = true; }
+function gfxPresetOf(d){   /* какой пресет соответствует черновику (−1 — свои значения) */
+  for(let i = 0; i < 3; i++){ const pv = GFX_PRESETS[i]; if(['particles','glow','extras','shadows','decor'].every(k => d[k] === pv[k])) return 2 - i; }
+  return -1;
+}
+function gfxRowValue(row){ return row.key === 'preset' ? gfxPresetOf(gfxDraft) : (row.key === 'extras' ? 2 - gfxDraft.extras : gfxDraft[row.key]); }   /* extras хранится как 0 = полные, в панели порядок «Минимум → Полные» */
+function gfxPanelLayout(panel){
+  const top = panel.y + 92, bottom = panel.y + panel.h - 74;
+  const rowH = clamp(Math.floor((bottom - top) / GFX_ROWS.length), 34, 52);
+  const rows = GFX_ROWS.map((row, i) => {
+    const y = top + i * rowH, n = row.opts.length, gap = 6, x0 = panel.x + panel.w * 0.46, w = (panel.x + panel.w - 36 - x0 - gap * (n - 1)) / n;
+    return {row, y, h:rowH - 6, segs:row.opts.map((name, k) => ({k, name, x:x0 + k * (w + gap), y:y, w, h:rowH - 6}))};
+  });
+  const bw = Math.floor((panel.w - 72 - 20) / 3), by = panel.y + panel.h - 60;
+  return {rows, apply:{x:panel.x+36,y:by,w:bw,h:44}, reset:{x:panel.x+36+bw+10,y:by,w:bw,h:44}, back:{x:panel.x+36+(bw+10)*2,y:by,w:bw,h:44}};
+}
+function gfxPanelClick(mx, my){
+  const L = gfxPanelLayout(menuSettingsPanel());
+  const inR = r => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
+  for(const r of L.rows) for(const sg of r.segs) if(inR(sg)){
+    if(r.row.key === 'preset') Object.assign(gfxDraft, GFX_PRESETS[2 - sg.k], {perf:2 - sg.k, fps:gfxDraft.fps});
+    else gfxDraft[r.row.key] = r.row.key === 'extras' ? 2 - sg.k : sg.k;
+    return;
+  }
+  if(inR(L.apply)){ gfxApplyDraft(); return; }
+  if(inR(L.reset)){ Object.assign(gfxDraft, GFX_PRESETS[0], {perf:0, fps:0}); return; }
+  if(inR(L.back)){ gfxPanelOpen = false; }
+}
+function gfxApplyDraft(){
+  const d = gfxDraft;
+  setPerfLevel(clamp(d.perf, 0, 2), true, true);     /* базовый пресет: обновление рельефа, лимиты эффектов */
+  for(const k of ['particles','glow','extras','shadows','decor','fps']) GFX[k] = d[k];
+  window.__perfShadow = gfxGlowK();
+  gfxSave();
+  terrainFrameValid = false;
+  AMB.parts.length = 0;
+  particles.length = Math.min(particles.length, particleCap());
+  gfxAppliedAt = performance.now();
+}
+let gfxAppliedAt = 0;
+function drawGfxPanel(panel){
+  const L = gfxPanelLayout(panel);
+  ctx.save();
+  ctx.fillStyle='rgba(8,9,14,0.98)'; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
+  ctx.strokeStyle='#d7b36a'; ctx.lineWidth=2; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
+  ctx.strokeStyle='rgba(185,48,36,0.8)'; ctx.lineWidth=1; ctx.strokeRect(panel.x+10,panel.y+10,panel.w-20,panel.h-20);
+  ctx.textAlign='center'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 24px Georgia, serif';
+  ctx.fillText('РАСШИРЕННАЯ ГРАФИКА',VW/2,panel.y+52);
+  ctx.fillStyle='rgba(215,179,106,0.8)'; ctx.fillRect(panel.x+120,panel.y+64,panel.w-240,2);
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='11px Segoe UI, Arial';
+  ctx.fillText('Индикаторы боя (полосы здоровья, способности, цели) не отключаются.',VW/2,panel.y+82);
+  for(const r of L.rows){
+    const cur = gfxRowValue(r.row);
+    ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.font='bold ' + (panel.w < 480 ? 10 : 12) + 'px Segoe UI, Arial';
+    ctx.fillText(r.row.label, panel.x+36, r.y + r.h/2 + 4);
+    for(const sg of r.segs){
+      const on = cur === sg.k, hov = mouse.x>=sg.x&&mouse.x<=sg.x+sg.w&&mouse.y>=sg.y&&mouse.y<=sg.y+sg.h;
+      ctx.fillStyle = on ? 'rgba(201,77,53,0.75)' : (hov ? 'rgba(139,44,35,0.44)' : 'rgba(255,255,255,0.06)');
+      ctx.beginPath(); ctx.roundRect(sg.x,sg.y,sg.w,sg.h,7); ctx.fill();
+      ctx.strokeStyle = on ? '#ffd568' : (hov ? '#d7b36a' : 'rgba(255,255,255,0.25)'); ctx.lineWidth = on ? 2 : 1.2; ctx.stroke();
+      ctx.fillStyle = on ? '#fff' : 'rgba(255,255,255,0.75)'; ctx.font = (on ? 'bold ' : '') + (sg.w < 78 ? 10 : 12) + 'px Segoe UI, Arial'; ctx.textAlign='center';
+      ctx.fillText(sg.name, sg.x+sg.w/2, sg.y+sg.h/2+4);
+    }
+  }
+  drawMenuButton(L.apply, 'ПРИМЕНИТЬ', {primary:true, fontSize:12});
+  drawMenuButton(L.reset, 'ПО УМОЛЧАНИЮ', {fontSize:12});
+  drawMenuButton(L.back, 'НАЗАД', {fontSize:12});
+  if(performance.now() - gfxAppliedAt < 1800){
+    ctx.textAlign='center'; ctx.fillStyle='#7fe3a0'; ctx.font='bold 12px Segoe UI, Arial';
+    ctx.fillText('✓ Настройки применены и сохранены', VW/2, L.apply.y - 6);
+  }
+  ctx.restore();
+}
+function gfxEntryRect(layout){ const g = layout.gfx; return {x:g.x+g.w-170, y:g.y-2, w:170, h:20}; }
 function menuGfxSegments(layout){
   const g=layout.gfx, gap=6, top=g.y+22, h=g.h-26, w=(g.w-gap*3)/4;
   return PERF_NAMES.map((name,index)=>({index,name,x:g.x+index*(w+gap),y:top,w,h}));
@@ -19184,13 +19943,15 @@ function handleMenuClick(mx, my){
   startMenuMusic();
   const settingsButton = menuSettingsRect();
   if(mx>=settingsButton.x && mx<=settingsButton.x+settingsButton.w && my>=settingsButton.y && my<=settingsButton.y+settingsButton.h){
-    settingsOpen = !settingsOpen; playSynthSfx(settingsOpen ? 'open' : 'close');
+    settingsOpen = !settingsOpen; gfxPanelOpen = false; playSynthSfx(settingsOpen ? 'open' : 'close');
     changelogOpen = false;
     return;
   }
   if(settingsOpen){
     const panel = menuSettingsPanel();
+    if(gfxPanelOpen){ gfxPanelClick(mx, my); return; }
     const layout = menuSettingsLayout(panel);
+    { const er = gfxEntryRect(layout); if(mx>=er.x&&mx<=er.x+er.w&&my>=er.y&&my<=er.y+er.h){ gfxOpenPanel(); return; } }
     const musicToggle = layout.music;
     const touchToggle = layout.touch;
     const sndHit = layout.snd && ['on','ui','game'].find(k => { const r=layout.snd[k]; return mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h; });
@@ -22149,6 +22910,7 @@ function drawMenu(){
 
   if(settingsOpen){
     const panel = menuSettingsPanel();
+    if(gfxPanelOpen){ drawGfxPanel(panel); return; }
     ctx.save();
     ctx.fillStyle='rgba(8,9,14,0.98)';
     ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
@@ -22201,6 +22963,7 @@ function drawMenu(){
     ctx.fillText('ГРАФИКА',layout.gfx.x+2,layout.gfx.y+14);
     ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.font='12px Segoe UI, Arial';
     ctx.fillText('(в матче — F8)',layout.gfx.x+84,layout.gfx.y+14);
+    { const er=gfxEntryRect(layout); drawMenuButton(er,'РАСШИРЕННАЯ ▸',{fontSize:11,radius:5}); }
     for(const seg of menuGfxSegments(layout)){
       const on=perfLevel===seg.index;
       const hov=mouse.x>=seg.x&&mouse.x<=seg.x+seg.w&&mouse.y>=seg.y&&mouse.y<=seg.y+seg.h;
@@ -23364,8 +24127,28 @@ function drawOver(){
 let lastTime = performance.now();
 let domMatchState = false;
 let spritesWarmed = false;
+const FPSM = {last:0, frames:0, t0:0, fps:0, ms:0, worst:0};
+function fpsTick(now){
+  if(!FPSM.t0){ FPSM.t0 = now; FPSM.last = now; return; }
+  const d = now - FPSM.last; FPSM.last = now; FPSM.frames++; if(d > FPSM.worst) FPSM.worst = d;
+  const span = now - FPSM.t0;
+  if(span >= 500){ FPSM.fps = FPSM.frames * 1000 / span; FPSM.ms = span / FPSM.frames; FPSM.frames = 0; FPSM.t0 = now; FPSM.worstShown = FPSM.worst; FPSM.worst = 0; }
+}
+function drawFps(){
+  if(!GFX.fps || !FPSM.fps) return;
+  ctx.save(); ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  const txt = Math.round(FPSM.fps) + ' FPS  ' + FPSM.ms.toFixed(1) + ' мс';
+  ctx.font = 'bold 12px Consolas, monospace'; ctx.textAlign = 'right';
+  const w = ctx.measureText(txt).width + 16, x = VW - 8 - w, y = 4;
+  ctx.fillStyle = 'rgba(8,9,14,0.78)'; ctx.beginPath(); ctx.roundRect(x, y, w, 20, 5); ctx.fill();
+  ctx.strokeStyle = 'rgba(215,179,106,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = FPSM.fps >= 50 ? '#7fe3a0' : FPSM.fps >= 30 ? '#ffd568' : '#ff7b6b';
+  ctx.fillText(txt, VW - 16, y + 14);
+  ctx.restore();
+}
 function loop(now){
   try {
+    fpsTick(now);
     let dt = (now - lastTime)/1000;
     lastTime = now;
     if(dt > 0.1) dt = 0.1;
@@ -23437,7 +24220,9 @@ function loop(now){
       ctx.restore();
       drawItemRangePreview();
       try { drawAmbientWorld(); } catch(err) { console.warn('ambient fx', err); }
+      drawWards();
       drawWorldObjects();
+      drawWardPlacement();
       drawBaseOverlay();
       ctx.restore();
       drawFog();
@@ -23472,6 +24257,7 @@ function loop(now){
     ctx.textAlign = 'center';
     ctx.fillText('Восстановление игрового кадра…', VW/2, VH/2);
   } finally {
+    try { drawFps(); } catch(err) {}
     requestAnimationFrame(loop);
   }
 }
@@ -23575,6 +24361,9 @@ requestAnimationFrame(loop);
     });
     socket.on('playerSnapshot', applyRemotePlayerSnapshot);
     socket.on('playerVitals', applyLocalVitals);
+    socket.on('buybackResult', buybackApplyResult);
+    socket.on('ward:placed', d => { if(authoritativeMode) wardNetAdd(d); });
+    socket.on('ward:expired', d => { if(authoritativeMode) wardNetRemove(d); });
     socket.on('heroKill', applyHeroKill);
     socket.on('playerAnim', applyRemoteAnim);
     socket.on('playerSkill', applyRemoteSkill);
@@ -23887,6 +24676,16 @@ requestAnimationFrame(loop);
   function clearOnlineAttackTarget(){
     if(authoritativeMode) sendInput({type:'clearTarget'});
   }
+  /* 0.9.6: мост для вардов. Ответ сервера приходит через ack; клиент сам ничего не подтверждает. */
+  window.__shadowOnlineWard = {
+    ready:() => !!(socket && socket.connected && authoritativeMode),
+    buy:(have, cb) => {
+      sendPlayerStats();                                     /* сервер видит актуальное золото до покупки */
+      socket.timeout(4000).emit('ward:buy', {have}, (err, res) => cb(err ? {ok:false, reason:'offline'} : res));
+    },
+    discard:() => { if(socket && socket.connected) socket.emit('ward:discard'); },
+    place:(x, y, rid, cb) => socket.timeout(4000).emit('ward:place', {x, y, rid}, (err, res) => cb(err ? {ok:false, reason:'offline'} : res))
+  };
   window.__shadowOnlineSkillCast=sendSkillCast;
   window.__shadowOnlineAttackTarget=moveOnlineHeroToAttackRange;
   window.__shadowOnlineClearTarget=clearOnlineAttackTarget;
@@ -23981,6 +24780,12 @@ requestAnimationFrame(loop);
       damageVersion:serverDamageVersion,sequence:++statsSequence
     });
   }
+  /* Buyback: запрос серверу; золото клиент списывает только после ответа buybackResult */
+  window.onlineBuybackRequest = function(h){
+    if(!socket || !socket.connected || !authoritativeMode) return false;
+    socket.emit('buyback', {gold:h.coins, level:h.level});
+    return true;
+  };
   function sendPlayerPosition(){
     if(!socket || !socket.connected || !authoritativeMode || !playerHero || playerHero.dead) return;
     sendInput({type:'position',x:playerHero.x,y:playerHero.y,angle:playerHero.facing,
@@ -24121,6 +24926,7 @@ requestAnimationFrame(loop);
   }, true);
   canvas.addEventListener('mousedown', event => {
     if(!authoritativeMode || !playerHero) return;
+    if(event.button === 2 && wardPlacement) return;      /* ПКМ в режиме варда — только отмена, без приказа движения */
     if(event.button === 2){
       if(playerHero.attackTarget && !playerHero.attackTarget.dead)
         moveOnlineHeroToAttackRange(playerHero.attackTarget);
