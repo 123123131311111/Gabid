@@ -667,7 +667,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.4';
+const GAME_VERSION = '0.9.4.6';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -754,7 +754,37 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.4', title:'ПЕРЕРАБОТАННЫЕ БАШНИ', changes:[
+  const sections = [{version:'0.9.4.6', title:'ДИНАМИЧЕСКОЕ ГЛАВНОЕ МЕНЮ', changes:[
+    'Фон и освещение главного меню меняются вместе с выбранным режимом: TURBO — красная тема, ALL PICK — зелёная, РЕЙТИНГ — фиолетовая.',
+    'Цвет темы применяется ко всему оформлению: свет фона, подсветка центрального героя, плашка выбранного режима, кнопка «Играть», верхняя панель, вкладка-логотип, навигация и рамки.',
+    'Каждая тема имеет свою атмосферу: у TURBO — пульсирующий свет и быстрые огненные искры, у ALL PICK — спокойные светящиеся огоньки, у РЕЙТИНГА — тонкие энергетические разряды и расходящиеся кольца.',
+    'Переход между темами плавный (около 0,45 с), без вспышек и перезагрузки. Выбранный режим и его тема сохраняются при возвращении в меню. Количество частиц зависит от настроек графики.'
+  ]},
+  {version:'0.9.4.5', title:'ЗВУКОВОЙ ДИЗАЙН', changes:[
+    'Интерфейс: тихий мягкий звук наведения (с короткой задержкой, чтобы не раздражать при быстром движении мыши), приятный щелчок нажатия, отдельные звуки выбора режима, выбора и подтверждения героя, наведения на предметы магазина, открытия и закрытия меню, магазина и панелей.',
+    'Недостаточно золота или действие невозможно — короткий ненавязчивый сигнал; добавлены отдельные звуки уведомлений.',
+    'Бой: отдельные звуки физических и магических попаданий, мощный звук критических ударов и хэдшотов, разрушения башни, возрождения героя, победы и поражения; усилен звук повышения уровня. Далёкие бои звучат тише, одинаковые звуки не накладываются друг на друга.',
+    'Настройки: добавлены общий выключатель звука, отдельная громкость интерфейса и игровых эффектов (шаг 25%). Настройки сохраняются и действуют на все звуки игры, включая озвучку героев.'
+  ]},
+  {version:'0.9.4.4', title:'КРАСИВЫЕ ОБЫЧНЫЕ АТАКИ', changes:[
+    'Дальние герои: магические снаряды получили светящийся плавный шлейф цвета героя (у Гриши — переливающийся), стрелки и снайпер — тонкие трассеры; при попадании вспышка, искры и кольцо.',
+    'Ближние герои: дуги ударов мечников, тройные царапины когтистых героев, ударные волны тяжёлых бойцов и электрические разряды Электро-Гоши.',
+    'Смертельный удар получил более выразительную ударную волну. Эффекты ограничены по количеству, не дублируются и не показывают невидимых врагов; на «супер низкой» графике отключены.'
+  ]},
+  {version:'0.9.4.3', title:'ЭФФЕКТЫ ПОКУПКИ ПРЕДМЕТОВ', changes:[
+    'Покупка предмета: иконка появляется в инвентаре с анимацией, золотой вспышкой и искрами.',
+    'Компактное уведомление с иконкой и названием предмета, плавное изменение отображаемого золота.',
+    'При нехватке золота или невозможности покупки показывается понятная причина без эффекта успешной покупки. Цены и правила магазина не изменены.'
+  ]},
+  {version:'0.9.4.2', title:'ВИЗУАЛЬНЫЕ СТАТУСЫ ГЕРОЕВ', changes:[
+    'Оглушение: вращающиеся звёзды над головой. Замедление: ледяная крошка и лёгкий след у ног. Безмолвие: отдельный магический символ рядом с героем.',
+    'Эффекты включаются при фактическом получении состояния и исчезают сразу после его окончания; скрытых врагов они не раскрывают.'
+  ]},
+  {version:'0.9.4.1', title:'ЖИВОЕ ОКРУЖЕНИЕ КАРТЫ', changes:[
+    'Покачивание травы, светлячки у деревьев, лёгкий туман над рекой и в низинах, листва, пыль и угольки.',
+    'Блики на воде реки и атмосферные эффекты у логова Рошана и точек рун. Геометрия карты, столкновения и видимость не затронуты; учитываются настройки производительности.'
+  ]},
+  {version:'0.9.4', title:'ПЕРЕРАБОТАННЫЕ БАШНИ', changes:[
     'Новый облик башен: каменное основание, колонны, металлические пояса, золотые акценты и светящееся магическое ядро. Свет — резной слоновый камень с голубым ядром, Тьма — обсидиан с шипами и красным ядром. Башни второго яруса выше и богаче.',
     'Снаряды башен стали заметными: светящийся шар с хвостом и яркая вспышка с искрами в точке попадания.',
     'Реакция на урон: короткая вспышка при попадании, по мере потери здоровья ярче ядро, появляются светящиеся трещины, дым и искры.',
@@ -1639,9 +1669,46 @@ const HERO_TALENTS = {
 
 /* 0.9.2: улучшенный синтез-движок. Мастер-шина (лимитер + мягкий ФНЧ), троттлинг по типам,
    лимит одновременных голосов и кэшированный шум — звуки короткие, мягкие и не накладываются в кашу. */
-let sfxMaster = null, sfxNoiseBuffer = null, sfxVoices = 0;
+/* 0.9.4.5: звуковой дизайн. Настройки: общий выключатель, громкость интерфейса и громкость игровых эффектов.
+   Все звуки контекста abilityAudioContext проходят через выходные gain-узлы, поэтому настройки не обходятся. */
+const SND = (() => {
+  const d = {on:true, ui:1, game:1};
+  try { const v = JSON.parse(localStorage.getItem('dota-sens-snd') || 'null'); if(v) { d.on = v.on !== false; d.ui = Math.max(0, Math.min(1, +v.ui)); d.game = Math.max(0, Math.min(1, +v.game)); if(!isFinite(d.ui)) d.ui = 1; if(!isFinite(d.game)) d.game = 1; } } catch(err) {}
+  return d;
+})();
+let sndGameOut = null, sndUiOut = null;
+const sndNodeConnect = AudioNode.prototype.connect;
+function sndOutNode(context, ui){
+  const cur = ui ? sndUiOut : sndGameOut;
+  if(cur && cur.context === context) return cur;
+  const g = context.createGain(); sndNodeConnect.call(g, context.destination);
+  g.gain.value = SND.on ? (ui ? SND.ui : SND.game) : 0;
+  if(ui) sndUiOut = g; else sndGameOut = g;
+  return g;
+}
+AudioNode.prototype.connect = function(dest){
+  if(dest && typeof AudioDestinationNode !== 'undefined' && dest instanceof AudioDestinationNode && abilityAudioContext && dest.context === abilityAudioContext && this !== sndGameOut && this !== sndUiOut){
+    const args = Array.prototype.slice.call(arguments); args[0] = sndOutNode(dest.context, false);
+    return sndNodeConnect.apply(this, args);
+  }
+  return sndNodeConnect.apply(this, arguments);
+};
+function sndApply(){
+  if(sndGameOut) sndGameOut.gain.value = SND.on ? SND.game : 0;
+  if(sndUiOut) sndUiOut.gain.value = SND.on ? SND.ui : 0;
+}
+function sndSave(){ try { localStorage.setItem('dota-sens-snd', JSON.stringify(SND)); } catch(err) {} }
+function sndCycle(key){
+  if(key === 'on') SND.on = !SND.on;
+  else { const steps = [0,0.25,0.5,0.75,1]; const i = steps.findIndex(v => Math.abs(v-SND[key]) < 0.05); SND[key] = steps[(i + 1) % steps.length]; }
+  sndApply(); sndSave();
+  if(SND.on) setTimeout(() => playSynthSfx(key === 'game' ? 'hit' : 'select'), 30);
+}
+function sndGameVol(){ return SND.on ? SND.game : 0; }
+const SFX_UI = {hover:1, click:1, shopHover:1, select:1, pick:1, heroPick:1, open:1, close:1, deny:1, notify:1, alert:1, purchase:0, coin:0};
+let sfxMaster = null, sfxMasterUi = null, sfxNoiseBuffer = null, sfxVoices = 0;
 const sfxLastAt = {};
-const SFX_THROTTLE = {hover:70, click:50, attack:75, shotgun:110, creepKill:60, heroKill:250, death:250, coin:70, purchase:80, cast:60, blink:80, level:120, stun:120, ultimate:200};
+const SFX_THROTTLE = {shopHover:80, select:120, pick:90, heroPick:250, open:120, close:120, deny:220, notify:200, alert:400, hit:55, hitMagic:55, crit:120, towerDown:600, respawn:600, win:2000, lose:2000, hover:80, click:50, attack:75, shotgun:110, creepKill:60, heroKill:250, death:250, coin:70, purchase:80, cast:60, blink:80, level:120, stun:120, ultimate:200};
 const SFX_PRESETS = {
   attack:   {from:520, to:300, duration:0.07, type:'triangle', volume:0.035, noise:0.25},
   shotgun:  {from:240, to:90,  duration:0.12, type:'triangle', volume:0.05,  noise:0.7},
@@ -1649,27 +1716,47 @@ const SFX_PRESETS = {
   blink:    {from:720, to:1320,duration:0.15, type:'sine',     volume:0.045},
   stun:     {from:220, to:90,  duration:0.28, type:'triangle', volume:0.06, noise:0.4},
   ultimate: {from:160, to:60,  duration:0.5,  type:'triangle', volume:0.075,noise:0.5},
-  hover:    {from:880, to:1040,duration:0.045,type:'sine',     volume:0.02},
-  click:    {from:660, to:420, duration:0.07, type:'triangle', volume:0.04},
+  hover:    {from:1180,to:1320,duration:0.05, type:'sine',     volume:0.011, layers:[[1770,1900,0.008,0.04,'sine',0.005]]},
+  shopHover:{from:1500,to:1720,duration:0.045,type:'sine',     volume:0.011, layers:[[2250,2400,0.012,0.05,'sine',0.005]]},
+  click:    {from:560, to:330, duration:0.055,type:'triangle', volume:0.034, layers:[[1900,1500,0,0.03,'sine',0.011]]},
+  select:   {from:520, to:780, duration:0.16, type:'sine',     volume:0.038, layers:[[780,1170,0.06,0.2,'sine',0.032],[1560,1560,0.12,0.26,'sine',0.016]]},
+  pick:     {from:420, to:560, duration:0.09, type:'triangle', volume:0.03,  layers:[[840,1120,0.04,0.12,'sine',0.018]]},
+  heroPick: {from:196, to:392, duration:0.22, type:'triangle', volume:0.05,  noise:0.2, layers:[[392,784,0.05,0.3,'sine',0.04],[988,988,0.14,0.36,'sine',0.026],[1480,1480,0.2,0.4,'sine',0.014]]},
+  open:     {from:300, to:640, duration:0.14, type:'sine',     volume:0.028, noise:0.25, layers:[[900,1200,0.05,0.12,'sine',0.01]]},
+  close:    {from:640, to:290, duration:0.11, type:'sine',     volume:0.024, layers:[[420,260,0.03,0.1,'triangle',0.012]]},
+  deny:     {from:260, to:200, duration:0.09, type:'triangle', volume:0.032, layers:[[220,165,0.08,0.11,'triangle',0.028]]},
+  notify:   {from:880, to:880, duration:0.12, type:'sine',     volume:0.026, layers:[[1320,1320,0.09,0.2,'sine',0.022]]},
+  alert:    {from:660, to:660, duration:0.1,  type:'triangle', volume:0.034, layers:[[880,880,0.1,0.1,'triangle',0.03],[1100,1100,0.2,0.2,'sine',0.026]]},
+  hit:      {from:190, to:90,  duration:0.06, type:'triangle', volume:0.032, noise:0.6},
+  hitMagic: {from:720, to:320, duration:0.09, type:'sine',     volume:0.026, noise:0.15, layers:[[1440,900,0,0.07,'sine',0.01]]},
+  crit:     {from:150, to:55,  duration:0.18, type:'triangle', volume:0.06,  noise:0.85, layers:[[1400,640,0.02,0.13,'sine',0.026],[90,40,0.05,0.22,'sine',0.04]]},
+  towerDown:{from:120, to:34,  duration:0.9,  type:'triangle', volume:0.085, noise:1.0, layers:[[80,28,0.1,0.9,'sine',0.06],[300,90,0.04,0.4,'triangle',0.03]]},
+  respawn:  {from:400, to:800, duration:0.3,  type:'sine',     volume:0.036, layers:[[600,1200,0.1,0.35,'sine',0.026],[1500,1500,0.25,0.3,'sine',0.012]]},
+  win:      {from:523, to:523, duration:0.22, type:'triangle', volume:0.05,  layers:[[659,659,0.13,0.22,'triangle',0.05],[784,784,0.26,0.24,'triangle',0.05],[1047,1047,0.4,0.7,'sine',0.055],[523,523,0.4,0.7,'sine',0.03]]},
+  lose:     {from:330, to:247, duration:0.4,  type:'triangle', volume:0.045, layers:[[262,196,0.3,0.5,'triangle',0.04],[196,147,0.6,0.9,'sine',0.04]]},
   purchase: {from:620, to:1180,duration:0.14, type:'sine',     volume:0.045},
   coin:     {from:880, to:1480,duration:0.12, type:'sine',     volume:0.045},
   creepKill:{from:360, to:150, duration:0.09, type:'triangle', volume:0.035, noise:0.35},
   heroKill: {from:300, to:110, duration:0.32, type:'triangle', volume:0.065, noise:0.5, second:{from:600,to:900,delay:0.07,duration:0.2,volume:0.04}},
   death:    {from:240, to:70,  duration:0.4,  type:'triangle', volume:0.06, noise:0.5},
-  level:    {from:520, to:900, duration:0.18, type:'triangle', volume:0.04}
+  level:    {from:520, to:900, duration:0.18, type:'triangle', volume:0.04, layers:[[780,1170,0.09,0.2,'sine',0.03],[1170,1560,0.18,0.28,'sine',0.022]]}
 };
-function sfxBus(context){
-  if(sfxMaster && sfxMaster.context === context) return sfxMaster;
+function sfxBus(context, ui){
+  const cur = ui ? sfxMasterUi : sfxMaster;
+  if(cur && cur.context === context) return cur;
   const input = context.createGain(); input.gain.value = 0.9;
-  const filter = context.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 5200; filter.Q.value = 0.4;
+  const filter = context.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = ui ? 7600 : 5200; filter.Q.value = 0.4;
   const comp = context.createDynamicsCompressor();
   comp.threshold.value = -20; comp.knee.value = 18; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.12;
-  input.connect(filter); filter.connect(comp); comp.connect(context.destination);
-  input.context = context; sfxMaster = input;
+  input.connect(filter); filter.connect(comp);
+  if(ui) sndNodeConnect.call(comp, sndOutNode(context, true)); else comp.connect(context.destination);   /* игровая шина перенаправляется на gain игровых эффектов */
+  input.context = context; if(ui) sfxMasterUi = input; else sfxMaster = input;
   return input;
 }
 function playSynthSfx(kind, opts){
   try {
+    const isUi = !!SFX_UI[kind];
+    if(!SND.on || (isUi ? SND.ui : SND.game) <= 0.001) return;
     const stamp = performance.now();
     const minGap = SFX_THROTTLE[kind] || 40;
     if(stamp - (sfxLastAt[kind] || -1e9) < minGap) return;       // защита от спама одного типа
@@ -1678,7 +1765,7 @@ function playSynthSfx(kind, opts){
     abilityAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
     const context = abilityAudioContext;
     if(context.state === 'suspended') context.resume();
-    const bus = sfxBus(context);
+    const bus = sfxBus(context, isUi);
     const now = context.currentTime;
     const preset = SFX_PRESETS[kind] || SFX_PRESETS.cast;
     const vol = (opts && opts.volume != null) ? opts.volume : 1;
@@ -1697,6 +1784,7 @@ function playSynthSfx(kind, opts){
       osc.onended = () => { sfxVoices = Math.max(0, sfxVoices - 1); };
     };
     tone(preset.from, preset.to, 0, preset.duration, preset.type, preset.volume);
+    if(preset.layers) for(const l of preset.layers) tone(l[0], l[1], l[2], l[3], l[4], l[5]);
     if(preset.second) tone(preset.second.from, preset.second.to, preset.second.delay, preset.second.duration, 'sine', preset.second.volume);
     if(preset.noise){
       if(!sfxNoiseBuffer || sfxNoiseBuffer.sampleRate !== context.sampleRate){
@@ -1718,11 +1806,16 @@ function playSynthSfx(kind, opts){
 (function installUiSfx(){
   const SEL = 'button, a[href], [role="button"], .item, [class*="item"], [class*="btn"], [class*="slot"], [class*="card"], summary, select, input[type="checkbox"], input[type="button"], input[type="submit"]';
   const pick = t => (t && t.closest) ? t.closest(SEL) : null;
+  let hoverTimer = 0;
   document.addEventListener('pointerover', e => {
     if(e.pointerType === 'touch') return;
     const el = pick(e.target);
-    if(el && !el.disabled && !el.contains(e.relatedTarget)) playSynthSfx('hover');
+    if(el && !el.disabled && !el.contains(e.relatedTarget)){
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => playSynthSfx('hover'), 35);   /* пропускаем мимолётные наведения */
+    }
   }, true);
+  document.addEventListener('pointerout', e => { const el = pick(e.target); if(el && !el.contains(e.relatedTarget)) clearTimeout(hoverTimer); }, true);
   document.addEventListener('click', e => {
     const el = pick(e.target);
     if(el && !el.disabled) playSynthSfx('click');
@@ -1865,7 +1958,7 @@ function pumpAnnouncer(){
     voice.lang = 'en-US';
     voice.rate = item.rate || 0.9;
     voice.pitch = item.pitch || 0.5;
-    voice.volume = 1;
+    voice.volume = sndGameVol();
     const chosen = announcerVoice();
     if(chosen) voice.voice = chosen;
     voice.onend = finish;
@@ -1999,7 +2092,7 @@ function playKillSfx(kind, opts={}){
   const go = () => {
     try {
       const a = (killSfxCache[kind] ||= new Audio(KILL_SFX_SRC[kind])).cloneNode(true);
-      a.volume = 1;
+      a.volume = sndGameVol();
       killSfxActive.add(a);
       a.addEventListener('ended', () => killSfxActive.delete(a), {once:true});
       const pr = a.play();
@@ -2039,7 +2132,7 @@ function playGollyVoice(kind){
   }
   try {
     const a = (gollyVoiceCache[kind] ||= new Audio(GOLLY_VOICE_SRC[kind])).cloneNode(true);
-    a.volume = 1;
+    a.volume = sndGameVol();
     gollyVoiceCurrent = a; gollyVoiceCurrentKind = kind; gollyVoiceLastAt[kind] = now;
     const pr = a.play();
     if(pr && pr.catch) pr.catch(() => {});
@@ -2094,7 +2187,7 @@ function playChipVoice(kind){
   }
   try {
     const a = (chipVoiceCache[kind] ||= new Audio(CHIP_VOICE_SRC[kind])).cloneNode(true);
-    a.volume = 1;
+    a.volume = sndGameVol();
     chipVoiceCurrent = a; chipVoiceCurrentKind = kind;
     const pr = a.play();
     if(pr && pr.catch) pr.catch(() => {});
@@ -2140,7 +2233,7 @@ function playGrishaVoice(kind){
   }
   try {
     const a = (grishaVoiceCache[kind] ||= new Audio(GRISHA_VOICE_SRC[kind])).cloneNode(true);
-    a.volume = 1;
+    a.volume = sndGameVol();
     grishaVoiceCurrent = a; grishaVoiceCurrentKind = kind; grishaVoiceLastAt[kind] = now;
     const pr = a.play();
     if(pr && pr.catch) pr.catch(() => {});
@@ -2292,7 +2385,7 @@ function playVirsudiVoice(kind){
   }
   try {
     const a = (virsudiVoiceCache[kind] ||= new Audio(VIRSUDI_VOICE_SRC[kind])).cloneNode(true);
-    a.volume = 1;
+    a.volume = sndGameVol();
     virsudiVoiceCurrent = a; virsudiVoiceCurrentKind = kind; virsudiVoiceLastAt[kind] = now;
     const pr = a.play();
     if(pr && pr.catch) pr.catch(() => {});
@@ -2574,7 +2667,7 @@ function speakDraftCountdown(){
     if(!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const voice = new SpeechSynthesisUtterance('Осталось десять секунд');
-    voice.lang='ru-RU'; voice.rate=0.88; voice.pitch=1.18; voice.volume=1;
+    voice.lang='ru-RU'; voice.rate=0.88; voice.pitch=1.18; voice.volume = sndGameVol();
     const female = window.speechSynthesis.getVoices().find(item => /female|жен|anna|milena|irina|samantha/i.test(item.name+' '+item.voiceURI));
     if(female) voice.voice=female;
     window.speechSynthesis.speak(voice);
@@ -2726,7 +2819,7 @@ function speakStorePhrase(variant='chip'){
       voice.lang = 'ru-RU';
       voice.rate = settings.rate;
       voice.pitch = settings.pitch;
-      voice.volume = 1;
+      voice.volume = sndGameVol();
       const russianVoices = voices.filter(item => /^ru(?:-|_)/i.test(item.lang || ''));
       const preferred = russianVoices.find(item => settings.pattern.test(item.name+' '+item.voiceURI))
         || russianVoices[0]
@@ -3136,6 +3229,7 @@ function killUnit(u, source){
   if(u.type==='hero' && u.aegisTimer>0){ aegisRevive(u); return; }
   u.dead = true; u.hp = 0;
   if(u.ballState) u.ballState = null;
+  if(u.type === 'tower') playSynthSfx('towerDown', {volume: (playerHero && Math.hypot(u.x-playerHero.x,u.y-playerHero.y) < 1600) ? 1 : 0.45});
   if(u.type === 'hero') playSynthSfx('heroKill');
   else if(u.type === 'creep' || u.type === 'neutral') playSynthSfx('creepKill', {volume: (playerHero && Math.hypot(u.x-playerHero.x,u.y-playerHero.y) < 900) ? 1 : 0.4});
   if(u === playerHero && playerIsChip()) playChipVoice('death');
@@ -3282,6 +3376,7 @@ function killUnit(u, source){
   if(u.type === 'ancient'){
     winner = u.team === 0 ? 1 : 0;
     gameState = 'over';
+    try { playSynthSfx(winner === (playerHero ? playerHero.team : 0) ? 'win' : 'lose'); } catch(err) {}
   }
 }
 
@@ -3588,6 +3683,14 @@ function atkOk(owner, target){
   const x = target ? target.x : owner.x, y = target ? target.y : owner.y;
   return isWorldPointVisible(x, y, 160);
 }
+/* звук попадания: тише для далёких боёв, чтобы массовые схватки не превращались в кашу */
+function atkHitSound(owner, target, kind){
+  if(!playerHero) return;
+  const d = Math.min(Math.hypot(owner.x-playerHero.x, owner.y-playerHero.y), Math.hypot(target.x-playerHero.x, target.y-playerHero.y));
+  if(d > 1100) return;
+  const own = owner === playerHero || target === playerHero;
+  playSynthSfx(kind, {volume: own ? 1 : Math.max(0.25, 0.7 - d/1800)});
+}
 function atkAdd(e){
   const P = ATK.pool, cap = atkLevel();
   if(P.length >= cap) P.splice(0, P.length - cap + 1);
@@ -3603,6 +3706,7 @@ function atkMeleeSwing(owner, target){
   const st = ATK_STYLE[owner.def.id] || {m:'slash',w:1};
   const a = Math.atan2(target.y-owner.y, target.x-owner.x), R = (owner.radius||24) + 30;
   const c1 = owner.def.color2 || '#fff', c2 = owner.def.color || '#ccc';
+  atkHitSound(owner, target, st.magic ? 'hitMagic' : 'hit');
   atkAdd({k:'swing', x:owner.x, y:owner.y, a, R, m:st.m, w:st.w||1, magic:!!st.magic, c1, c2, life:st.m==='blunt'?300:230, flip:(owner.__atkFlip = !owner.__atkFlip)});
   atkImpact(target, a, c1, c2, st.magic ? 'magic' : 'phys', owner);
 }
@@ -3618,6 +3722,7 @@ function atkProjectileHit(p){
   if(!atkOk(owner, target)) return;
   const st = ATK_STYLE[owner.def.id] || {r:'magic'};
   const a = Math.atan2(target.y-owner.y, target.x-owner.x);
+  atkHitSound(owner, target, st.r === 'bullet' ? 'hit' : 'hitMagic');
   atkImpact(target, a, st.r==='bullet' ? '#fff0b8' : (owner.def.color2 || p.color), owner.def.color || p.color, st.r==='bullet' ? 'phys' : 'magic', owner);
 }
 function drawAttackTrail(p){
@@ -5714,7 +5819,7 @@ class Unit {
               shotSource.headshotSlow = 0.24 + headshotLevel * 0.045;
               shotSource.headshotAttackSlow = 0.28 + headshotLevel * 0.055;
               shotSource.headshotSlowDuration = 0.8 + headshotLevel * 0.1;
-              addText(t.x,t.y-t.radius-18,'HEADSHOT','#ffe6a3',0.65,13);
+              addText(t.x,t.y-t.radius-18,'HEADSHOT','#ffe6a3',0.65,13); playSynthSfx('crit', {volume:(this===playerHero||t===playerHero)?1:0.6});
             }
           }
           const shotColor = this.def && this.def.id === 'arcady' ? '#ff6b35' :
@@ -5769,7 +5874,7 @@ class Unit {
                if(Math.random() < critChance){
                  fangsDamageScale=[0,1.7,1.9,2.1,2.3][bladeDanceLevel] || 1.7;
                  attackDamage *= fangsDamageScale;
-                addText(t.x,t.y-t.radius-18,'КРИТ!','#fff0a8',0.7,14);
+                addText(t.x,t.y-t.radius-18,'КРИТ!','#fff0a8',0.7,14); playSynthSfx('crit', {volume:(this===playerHero||t===playerHero)?1:0.6});
                 fxRing(t.x,t.y,30,'#ffe066',0.22);
               }
             }
@@ -9231,6 +9336,7 @@ class Hero extends Unit {
       /* Онлайн: герой возрождается только по команде сервера (иначе мгновенный респавн и двойной счёт смертей) */
       if(this.respawnTimer <= 0 && (!onlineMatchActive || this.onlineRespawnOk)){
         this.dead = false;
+        if(this === playerHero) playSynthSfx('respawn');
         this.hp = this.maxHp; this.mp = this.maxMp;
         { const respawnAt = spawnPoint(this.team); this.x = respawnAt.x; this.y = respawnAt.y; }
         this.moveTarget = null; this.attackTarget = null;
@@ -9606,6 +9712,7 @@ function castSkill(hero, slot, tx, ty){
 }
 
 function flashMsg(hero, msg){
+  if(hero === playerHero && msg) playSynthSfx('deny');
   if(shopFx.capture && hero === playerHero) shopFx.capture.msg = msg;
   addText(hero.x, hero.y - 70, msg, '#ff8080', 1.2, 15);
 }
@@ -9986,7 +10093,7 @@ function draftHandleClick(mx,my){
       if(draftPlayerBlocked(r.i)) return;
       const t=performance.now(), dbl=draftLastClickIdx===r.i && t-draftLastClickT<380;
       draftLastClickIdx=r.i; draftLastClickT=t;
-      draftPlayerIndex=r.i; selectedHeroIndex=r.i; playSynthSfx('click');
+      draftPlayerIndex=r.i; selectedHeroIndex=r.i; playSynthSfx('pick');
       if(dbl) lockDraft();
       return;
     }
@@ -10043,6 +10150,7 @@ function updateDraft(dt){
 }
 
 function startGame(playerIndex, draftPicks=null){
+  playSynthSfx('heroPick');
   lastMatchStart = {idx:playerIndex, picks:draftPicks ? draftPicks.slice() : null};
   onlineMatchActive = false;
   stopMenuMusic();
@@ -16580,6 +16688,7 @@ function drawItemRangePreview(){
 function handleHudClick(mx, my){
   const button = shopButtonRect();
   if(mx>=button.x && mx<=button.x+button.w && my>=button.y && my<=button.y+button.h){
+    playSynthSfx(shopOpen ? 'close' : 'open');
     if(shopOpen) shopCloseAll(); else { shopOpen = true; shopScrollRow = 0; }
     return true;
   }
@@ -18704,11 +18813,13 @@ function menuSettingsRect(){
   return {x:VW-174,y:22,w:150,h:42};
 }
 function menuSettingsPanel(){
-  const w=Math.min(560,VW-24), h=Math.min(560,VH-24);
+  const w=Math.min(560,VW-24), h=Math.min(620,VH-24);
   return {x:(VW-w)/2,y:(VH-h)/2,w,h};
 }
 function menuSettingsLayout(panel){
   const compact=panel.h<500;
+  const dy=panel.h>=600?58:0;                 /* место под строку настроек звука */
+  const sg=8, sw=(panel.w-72-sg*2)/3;
   const columns=compact?3:(VW<430?2:3);
   const gap=VW<600?8:16;
   const rowWidth=(panel.w-72-gap*(columns-1))/columns;
@@ -18716,12 +18827,13 @@ function menuSettingsLayout(panel){
     music:{x:panel.x+36,y:panel.y+(compact?56:92),w:panel.w-72,h:compact?44:48},
     touch:{x:panel.x+36,y:panel.y+(compact?104:146),w:panel.w-72,h:compact?44:48},
     gfx:{x:panel.x+36,y:panel.y+(compact?152:200),w:panel.w-72,h:compact?52:60},
-    bindTitleY:panel.y+(compact?222:282),
-    bindHintY:panel.y+(compact?238:302),
+    snd:dy?{on:{x:panel.x+36,y:panel.y+268,w:sw,h:44},ui:{x:panel.x+36+sw+sg,y:panel.y+268,w:sw,h:44},game:{x:panel.x+36+(sw+sg)*2,y:panel.y+268,w:sw,h:44}}:null,
+    bindTitleY:panel.y+(compact?222:282)+dy,
+    bindHintY:panel.y+(compact?238:302)+dy,
     columns,
     rows:Array.from({length:6},(_,index)=>({
       x:panel.x+36+(index%columns)*(rowWidth+gap),
-      y:panel.y+(compact?244:316)+Math.floor(index/columns)*(compact?34:52),
+      y:panel.y+(compact?244:316)+dy+Math.floor(index/columns)*(compact?34:52),
       w:rowWidth,h:compact?30:44
     })),
     close:{x:panel.x+(panel.w-180)/2,y:panel.y+panel.h-58,w:180,h:44}
@@ -18870,7 +18982,7 @@ let lastIngameHoverKey='';
 function updateIngameHoverSound(){
   if(gameState==='menu' || !shopOpen){ lastIngameHoverKey=''; return; }
   const id=shopHoveredId() || '';
-  if(id && id!==lastIngameHoverKey) playSynthSfx('hover');
+  if(id && id!==lastIngameHoverKey) playSynthSfx('shopHover');
   lastIngameHoverKey=id;
 }
 function updateMenuButtonHoverSound(){
@@ -18939,7 +19051,7 @@ function handleMenuClick(mx, my){
   startMenuMusic();
   const settingsButton = menuSettingsRect();
   if(mx>=settingsButton.x && mx<=settingsButton.x+settingsButton.w && my>=settingsButton.y && my<=settingsButton.y+settingsButton.h){
-    settingsOpen = !settingsOpen;
+    settingsOpen = !settingsOpen; playSynthSfx(settingsOpen ? 'open' : 'close');
     changelogOpen = false;
     return;
   }
@@ -18948,6 +19060,8 @@ function handleMenuClick(mx, my){
     const layout = menuSettingsLayout(panel);
     const musicToggle = layout.music;
     const touchToggle = layout.touch;
+    const sndHit = layout.snd && ['on','ui','game'].find(k => { const r=layout.snd[k]; return mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h; });
+    if(sndHit){ sndCycle(sndHit); return; }
     if(mx>=musicToggle.x && mx<=musicToggle.x+musicToggle.w && my>=musicToggle.y && my<=musicToggle.y+musicToggle.h){
       setMusicEnabled(!musicEnabled);
     } else if(mx>=touchToggle.x && mx<=touchToggle.x+touchToggle.w && my>=touchToggle.y && my<=touchToggle.y+touchToggle.h){
@@ -18962,19 +19076,19 @@ function handleMenuClick(mx, my){
       }
       const layoutClose=layout.close;
       if(mx>=layoutClose.x && mx<=layoutClose.x+layoutClose.w && my>=layoutClose.y && my<=layoutClose.y+layoutClose.h){
-        settingsOpen = false; rebindSlot=-1;
+        settingsOpen = false; rebindSlot=-1; playSynthSfx('close');
       }
     }
     return;
   }
   const storeButton=menuStoreRect();
   if(menuStage==='home' && mx>=storeButton.x && mx<=storeButton.x+storeButton.w && my>=storeButton.y && my<=storeButton.y+storeButton.h){
-    storeOpen=!storeOpen; changelogOpen=false; settingsOpen=false; return;
+    storeOpen=!storeOpen; playSynthSfx(storeOpen ? 'open' : 'close'); changelogOpen=false; settingsOpen=false; return;
   }
   if(storeOpen){
     const layout=storePanelLayout();
     const inside=(rect)=>mx>=rect.x&&mx<=rect.x+rect.w&&my>=rect.y&&my<=rect.y+rect.h;
-    if(inside(layout.close)){storeOpen=false;return;}
+    if(inside(layout.close)){storeOpen=false; playSynthSfx('close'); return;}
     if(inside(layout.tabs.shop)){storeTab='shop';return;}
     if(inside(layout.tabs.inventory)){storeTab='inventory';return;}
     if(storeTab==='shop'){
@@ -19010,7 +19124,7 @@ function handleMenuClick(mx, my){
   }
   const changelogButton = menuChangelogRect();
   if(menuStage==='home' && mx>=changelogButton.x && mx<=changelogButton.x+changelogButton.w && my>=changelogButton.y && my<=changelogButton.y+changelogButton.h){
-    changelogOpen = !changelogOpen;
+    changelogOpen = !changelogOpen; playSynthSfx(changelogOpen ? 'open' : 'close');
     if(changelogOpen) changelogScroll = 0;
     return;
   }
@@ -21005,6 +21119,7 @@ function drawMenuFavoriteHero(now){
 let dsPlayMode='turbo';
 try{ const v=localStorage.getItem('dsPlayMode'); if(v==='turbo'||v==='allpick'||v==='ranked') dsPlayMode=v; }catch(err){}
 function dsSetPlayMode(id){
+  if(id !== dsPlayMode) playSynthSfx('select');
   dsPlayMode=id;
   try{ localStorage.setItem('dsPlayMode',id); }catch(err){}
 }
@@ -21319,28 +21434,107 @@ function dsDrawWarriorArt(now){
   ctx.restore();
 }
 
+/* 0.9.4.6: цветовые темы главного меню по выбранному режиму. TURBO — красная, ALL PICK — зелёная, РЕЙТИНГ — фиолетовая.
+   Цвета плавно интерполируются (~0,45 с) без вспышек; тема берётся из dsPlayMode, который уже сохраняется между входами в меню. */
+const DST_PAL = {
+  turbo:  {bg0:[11,5,7], bg1:[28,7,9], bg2:[5,2,3], glow:[200,52,30], accent:[210,75,48], accentDark:[122,29,23], accentLight:[245,201,140],
+           hot:[229,80,47], mid:[181,34,25], deep:[106,17,15], spark1:[255,106,58], spark2:[255,210,122], playBase:[42,12,8], edge1:[120,30,26], edge3:[255,120,70], hl:[230,90,50], hover:[255,138,85], ring:[232,168,90], strip:[180,35,31], playGlow:[255,90,40]},
+  allpick:{bg0:[4,12,9], bg1:[7,26,18], bg2:[2,7,5], glow:[30,190,120], accent:[38,170,110], accentDark:[14,86,58], accentLight:[170,245,205],
+           hot:[52,205,135], mid:[24,150,96], deep:[10,78,54], spark1:[90,235,170], spark2:[210,255,190], playBase:[8,32,22], edge1:[20,100,66], edge3:[90,230,160], hl:[50,200,130], hover:[110,235,170], ring:[110,225,170], strip:[28,150,98], playGlow:[60,230,150]},
+  ranked: {bg0:[9,5,16], bg1:[22,9,36], bg2:[4,2,9], glow:[140,60,230], accent:[150,80,225], accentDark:[70,28,125], accentLight:[214,185,255],
+           hot:[165,95,240], mid:[118,52,196], deep:[64,24,112], spark1:[196,120,255], spark2:[255,170,240], playBase:[26,10,44], edge1:[80,34,130], edge3:[190,110,255], hl:[160,90,240], hover:[200,140,255], ring:[190,140,250], strip:[120,56,200], playGlow:[170,100,255]}
+};
+const DST = {cur:null, from:null, mode:null, t0:0, w:{turbo:1,allpick:0,ranked:0}, wFrom:null};
+function dsThemeTick(now){
+  const mode = DST_PAL[dsPlayMode] ? dsPlayMode : 'turbo', to = DST_PAL[mode];
+  if(!DST.cur){
+    DST.cur = {}; for(const k in to) DST.cur[k] = to[k].slice();
+    DST.mode = mode; DST.w = {turbo:0,allpick:0,ranked:0}; DST.w[mode] = 1; return;
+  }
+  if(DST.mode !== mode){
+    DST.from = {}; for(const k in DST.cur) DST.from[k] = DST.cur[k].slice();
+    DST.wFrom = Object.assign({}, DST.w); DST.mode = mode; DST.t0 = now;
+  }
+  if(!DST.from) return;
+  const k = Math.min(1, Math.max(0, (now - DST.t0) / 0.45)), e = k*k*(3-2*k);
+  for(const key in to) for(let c=0;c<3;c++) DST.cur[key][c] = DST.from[key][c] + (to[key][c] - DST.from[key][c]) * e;
+  for(const m in DST.w) DST.w[m] = DST.wFrom[m] + ((m === mode ? 1 : 0) - DST.wFrom[m]) * e;
+  if(k >= 1){ DST.from = null; for(const key in to) DST.cur[key] = to[key].slice(); DST.w = {turbo:0,allpick:0,ranked:0}; DST.w[mode] = 1; }
+}
+function dsC(key, a){ const c = (DST.cur || DST_PAL.turbo)[key]; return 'rgba('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+','+(a === undefined ? 1 : a)+')'; }
 function dsCleanBackdrop(now){
+  dsThemeTick(now);
+  const q = [1, .6, .4, .25][perfLevel] || .25, W = DST.w;
   const g=ctx.createLinearGradient(0,0,0,VH);
-  g.addColorStop(0,'#0b0507'); g.addColorStop(.55,'#1c0709'); g.addColorStop(1,'#050203');
+  g.addColorStop(0,dsC('bg0')); g.addColorStop(.55,dsC('bg1')); g.addColorStop(1,dsC('bg2'));
   ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
   ctx.save(); ctx.globalCompositeOperation='lighter';
+  const pulse = 1 + W.turbo*.22*Math.sin(now*3.1) + W.ranked*.1*Math.sin(now*1.7);   /* TURBO — пульсирующее, РЕЙТИНГ — ровное свечение */
   const glows=[[.62,.78,.75,.32],[.85,.2,.55,.14],[.35,.35,.6,.1]];
   glows.forEach((o,i)=>{
     const cx=VW*(o[0]+Math.sin(now*.15+i*2)*.03), cy=VH*(o[1]+Math.cos(now*.12+i)*.03), r=Math.max(VW,VH)*o[2];
     const rg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-    rg.addColorStop(0,'rgba(200,52,30,'+o[3]+')'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    rg.addColorStop(0,dsC('glow',o[3]*pulse)); rg.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle=rg; ctx.fillRect(0,0,VW,VH);
   });
+  const speed = 1 + W.turbo*.9 - W.allpick*.35;
   for(let i=0;i<34;i++){
-    const ph=(now*(.03+dsHash(i)*.04)+dsHash(i+50))%1;
+    const ph=(now*(.03+dsHash(i)*.04)*speed+dsHash(i+50))%1;
     const x=VW*dsHash(i+100)+Math.sin(now*.6+i)*14, y=VH*(1.05-ph*1.15);
-    ctx.globalAlpha=Math.sin(ph*Math.PI)*.8; ctx.fillStyle=i%4===0?'#ffd27a':'#ff6a3a';
+    ctx.globalAlpha=Math.sin(ph*Math.PI)*.8; ctx.fillStyle=i%4===0?dsC('spark2'):dsC('spark1');
     ctx.fillRect(x,y,1.5+dsHash(i+7)*1.5,1.5+dsHash(i+7)*1.5);
   }
+  /* TURBO: быстрые огненные искры со штрихом */
+  if(W.turbo > .01){
+    const n = Math.round(20*q);
+    for(let i=0;i<n;i++){
+      const h=dsHash(i+300), ph=(now*(.1+h*.12)+dsHash(i+320))%1, x=VW*(.25+.7*dsHash(i+340))+Math.sin(now*1.4+i)*10, y=VH*(1.05-ph*1.2);
+      ctx.globalAlpha=Math.sin(ph*Math.PI)*.85*W.turbo; ctx.fillStyle=i%3?dsC('spark1'):dsC('spark2');
+      ctx.fillRect(x,y,1.8+h*1.6,5+h*9);
+    }
+  }
+  /* ALL PICK: мягкие светящиеся шарики, медленно плывущие вверх */
+  if(W.allpick > .01){
+    const n = Math.round(24*q);
+    for(let i=0;i<n;i++){
+      const h=dsHash(i+400), ph=(now*(.008+h*.012)+dsHash(i+430))%1, x=VW*dsHash(i+460)+Math.sin(now*.35+i*1.7)*28, y=VH*(1.02-ph*1.05);
+      const a=Math.sin(ph*Math.PI)*(.45+.35*Math.sin(now*1.3+i))*W.allpick;
+      ctx.globalAlpha=a*.28; ctx.fillStyle=dsC('spark1'); ctx.beginPath(); ctx.arc(x,y,7+h*5,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=a; ctx.fillStyle=dsC('spark2'); ctx.beginPath(); ctx.arc(x,y,1.4+h*1.4,0,Math.PI*2); ctx.fill();
+    }
+  }
+  /* РЕЙТИНГ: тонкие энергетические разряды, расходящееся кольцо и ромбовые искры */
+  if(W.ranked > .01){
+    const n = Math.round(6*q);
+    ctx.lineWidth=1; ctx.strokeStyle=dsC('accentLight');
+    for(let i=0;i<n;i++){
+      const h=dsHash(i+500), flick=Math.max(0,Math.sin(now*.8+i*2.1)), x0=VW*(.42+.55*h), y0=VH*(.05+.3*dsHash(i+520));
+      ctx.globalAlpha=(.05+.14*flick)*W.ranked; ctx.beginPath(); ctx.moveTo(x0,y0);
+      for(let sg=1;sg<=7;sg++) ctx.lineTo(x0+Math.sin(now*2.6+i+sg*1.3)*12, y0+sg*VH*.07);
+      ctx.stroke();
+    }
+    const rk=(now*.14)%1, rr=Math.min(VW,VH)*(.2+rk*.45);
+    ctx.globalAlpha=(1-rk)*.2*W.ranked; ctx.strokeStyle=dsC('glow'); ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(VW*.7,VH*.62,rr,0,Math.PI*2); ctx.stroke();
+    const m = Math.round(10*q);
+    for(let i=0;i<m;i++){
+      const ph=(now*(.03+dsHash(i+540)*.03)+dsHash(i+560))%1, x=VW*dsHash(i+580), y=VH*(1.04-ph*1.1), a=Math.sin(ph*Math.PI)*.8*W.ranked;
+      ctx.globalAlpha=a; ctx.fillStyle=dsC('spark1');
+      ctx.beginPath(); ctx.moveTo(x,y-3); ctx.lineTo(x+2,y); ctx.lineTo(x,y+3); ctx.lineTo(x-2,y); ctx.closePath(); ctx.fill();
+    }
+  }
   ctx.restore();
-  dsHexGrid(now,.05);
-  dsRuneRing(VW*.7,VH*.62,Math.min(VW,VH)*.5,now,.1);
+  dsHexGrid(now,.05,dsC('ring',1).replace(/,1\)$/,','));
+  dsRuneRing(VW*.7,VH*.62,Math.min(VW,VH)*.5,now,.1,dsC('ring'),dsC('spark2'));
   dsDrawWarriorArt(now);
+  /* подсветка центрального героя цветом режима (поверх готового арта, мягко) */
+  { const hx=VW*.66, hy=VH*.52, hr=VH*.62;
+    ctx.save();
+    const hg=ctx.createRadialGradient(hx,hy,0,hx,hy,hr); hg.addColorStop(0,dsC('glow',.55)); hg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation='soft-light'; ctx.fillStyle=hg; ctx.fillRect(hx-hr,hy-hr,hr*2,hr*2);
+    const hl=ctx.createRadialGradient(hx,hy+hr*.1,0,hx,hy+hr*.1,hr*.8); hl.addColorStop(0,dsC('glow',.10*pulse)); hl.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation='lighter'; ctx.fillStyle=hl; ctx.fillRect(hx-hr,hy-hr,hr*2,hr*2);
+    ctx.restore(); }
   const v=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.35,VW/2,VH/2,Math.max(VW,VH)*.8);
   v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.65)');
   ctx.fillStyle=v; ctx.fillRect(0,0,VW,VH);
@@ -21348,6 +21542,7 @@ function dsCleanBackdrop(now){
 
 function drawDotaSenseHome(){
   const s=menuScale(), now=performance.now()/1000;
+  dsThemeTick(now);
   const F=(px,w)=>(w||'')+Math.round(px*s)+'px Segoe UI, Arial';
   const barH=Math.round(46*s);
   const pf=account.profile;
@@ -21360,14 +21555,14 @@ function drawDotaSenseHome(){
   ctx.fillStyle='rgba(255,255,255,.05)'; ctx.fillRect(0,0,VW,1);
   /* 0.8.8: золотая окантовка панели с мерцающим бегущим бликом и ромбами-орнаментом */
   const edge=ctx.createLinearGradient(0,0,VW,0);
-  edge.addColorStop(0,'rgba(120,30,26,.9)'); edge.addColorStop(.25,'rgba(232,168,90,.95)'); edge.addColorStop(.5,'rgba(255,120,70,.9)'); edge.addColorStop(.75,'rgba(232,168,90,.95)'); edge.addColorStop(1,'rgba(120,30,26,.9)');
+  edge.addColorStop(0,dsC('edge1',.9)); edge.addColorStop(.25,'rgba(232,168,90,.95)'); edge.addColorStop(.5,dsC('edge3',.9)); edge.addColorStop(.75,'rgba(232,168,90,.95)'); edge.addColorStop(1,dsC('edge1',.9));
   ctx.fillStyle=edge; ctx.fillRect(0,barH-2,VW,2);
   const sweepX=((now*.12)%1.4-.2)*VW;
   const sw=ctx.createLinearGradient(sweepX-180*s,0,sweepX+180*s,0);
   sw.addColorStop(0,'rgba(255,240,200,0)'); sw.addColorStop(.5,'rgba(255,240,200,.85)'); sw.addColorStop(1,'rgba(255,240,200,0)');
   ctx.fillStyle=sw; ctx.fillRect(0,barH-2,VW,2);
   const glowB=ctx.createLinearGradient(0,barH,0,barH+Math.round(14*s));
-  glowB.addColorStop(0,'rgba(230,90,50,.22)'); glowB.addColorStop(1,'rgba(230,90,50,0)');
+  glowB.addColorStop(0,dsC('hl',.22)); glowB.addColorStop(1,dsC('hl',0));
   ctx.fillStyle=glowB; ctx.fillRect(0,barH,VW,Math.round(14*s));
   ctx.fillStyle='#ffd27a';
   for(const dx of [.5]){ const ox=VW*dx, oy=barH-1;
@@ -21375,7 +21570,7 @@ function drawDotaSenseHome(){
   /* лёгкие искры внутри панели */
   ctx.globalCompositeOperation='lighter';
   for(let i=0;i<14;i++){ const ph=(now*.08+dsHash(i+200))%1; ctx.globalAlpha=Math.sin(ph*Math.PI)*.6;
-    ctx.fillStyle=i%3?'#ff8a55':'#ffd27a'; ctx.fillRect(VW*ph,barH*dsHash(i+210),1.6,1.6); }
+    ctx.fillStyle=i%3?dsC('hover'):dsC('spark2'); ctx.fillRect(VW*ph,barH*dsHash(i+210),1.6,1.6); }
   ctx.restore();
 
   const gear=menuSettingsRect();
@@ -21385,9 +21580,9 @@ function drawDotaSenseHome(){
   const tabW=Math.round(104*s), tabX=gear.x+gear.w+Math.round(14*s), tabBottom=barH+Math.round(7*s);
   ctx.save();
   const lg=ctx.createLinearGradient(0,0,0,tabBottom);
-  lg.addColorStop(0,'#d2402a'); lg.addColorStop(1,'#6a120f');
-  ctx.shadowColor='rgba(255,70,45,.55)'; ctx.shadowBlur=14*s;
-  ctx.fillStyle=lg; ctx.strokeStyle='#f0a07e'; ctx.lineWidth=1.5;
+  lg.addColorStop(0,dsC('accent')); lg.addColorStop(1,dsC('deep'));
+  ctx.shadowColor=dsC('playGlow',.55); ctx.shadowBlur=14*s;
+  ctx.fillStyle=lg; ctx.strokeStyle=dsC('accentLight'); ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.moveTo(tabX,0); ctx.lineTo(tabX+tabW,0); ctx.lineTo(tabX+tabW-Math.round(12*s),tabBottom); ctx.lineTo(tabX+Math.round(12*s),tabBottom); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0; ctx.stroke();
   ctx.fillStyle='#fff'; ctx.save(); ctx.translate(tabX+tabW*.3,tabBottom/2); ctx.rotate(.5);
   ctx.fillRect(-2*s,-15*s,4*s,30*s); ctx.restore();
@@ -21410,15 +21605,15 @@ function drawDotaSenseHome(){
     dsRegister(r,it.a,'nav'+i);
     if(hov){
       const hg=ctx.createLinearGradient(0,0,0,barH);
-      hg.addColorStop(0,'rgba(230,90,70,0)'); hg.addColorStop(1,'rgba(230,90,70,.30)');
+      hg.addColorStop(0,dsC('hl',0)); hg.addColorStop(1,dsC('hl',.30));
       ctx.fillStyle=hg; ctx.fillRect(r.x,0,r.w,barH);
     }
-    ctx.save(); if(hov){ ctx.shadowColor='#ff8a55'; ctx.shadowBlur=12*s; }
+    ctx.save(); if(hov){ ctx.shadowColor=dsC('hover'); ctx.shadowBlur=12*s; }
     dsTxt(it.t,nx,navCy+1,navFont,hov?'#fff2d0':'#c9bdb0','left',navSp);
     ctx.restore();
     if(hov){
       const ug=ctx.createLinearGradient(nx,0,nx+w,0);
-      ug.addColorStop(0,'rgba(255,138,85,0)'); ug.addColorStop(.5,'#ffd27a'); ug.addColorStop(1,'rgba(255,138,85,0)');
+      ug.addColorStop(0,dsC('hover',0)); ug.addColorStop(.5,dsC('spark2')); ug.addColorStop(1,dsC('hover',0));
       ctx.fillStyle=ug; ctx.fillRect(nx-6*s,barH-4,w+12*s,2);
     }
     if(i<navItems.length-1){
@@ -21483,7 +21678,7 @@ function drawDotaSenseHome(){
   { const hov=dsInside(strip);
     dsRegister(strip,favDef?'favHero':'fighters','favstrip');
     ctx.fillStyle=hov?'#2a1a1d':'#150d10'; ctx.fillRect(strip.x,strip.y,strip.w,strip.h);
-    ctx.fillStyle='#b4231f'; ctx.fillRect(strip.x,strip.y,strip.w,1);
+    ctx.fillStyle=dsC('strip'); ctx.fillRect(strip.x,strip.y,strip.w,1);
     dsTxt('★',strip.x+Math.round(12*s),strip.y+strip.h/2+1,F(13),'#e65a46','left');
     dsTxt('ЛЮБИМЫЙ БОЕЦ',strip.x+Math.round(30*s),strip.y+strip.h/2+1,F(11,'bold '),'#dcd2c4','left',1);
     dsTxt(favDef?'Открыть':'Выбрать',strip.x+strip.w-Math.round(30*s),strip.y+strip.h/2+1,F(12,'bold '),hov?'#fff':'#e8c984','right');
@@ -21532,7 +21727,7 @@ function drawDotaSenseHome(){
   const foot={x:colX,y:listY+maxRows*rowH,w:colW,h:footH};
   { const hov=dsInside(foot); dsRegister(foot,'changelog','newsall');
     ctx.fillStyle=hov?'#2a1a1d':'#150d10'; ctx.fillRect(foot.x,foot.y,foot.w,foot.h);
-    ctx.fillStyle='#b4231f'; ctx.fillRect(foot.x,foot.y,foot.w,1);
+    ctx.fillStyle=dsC('strip'); ctx.fillRect(foot.x,foot.y,foot.w,1);
     dsTxt('ВСЕ ОБНОВЛЕНИЯ',foot.x+Math.round(14*s),foot.y+foot.h/2+1,F(11,'bold '),hov?'#fff':'#dcd2c4','left',1);
     dsTxt('›',foot.x+foot.w-Math.round(16*s),foot.y+foot.h/2,F(16,'bold '),'#e8c984','center'); }
 
@@ -21569,11 +21764,11 @@ function drawDotaSenseHome(){
   { const sx=trk.x+pad+window._dsSlide*segW, sy=trk.y+pad, sw=segW, sh=tabsH-pad*2;
     const pop=Math.max(0,1-modeAge*4);
     ctx.save();
-    ctx.shadowColor='rgba(230,90,60,'+(.5+pop*.4)+')'; ctx.shadowBlur=(10+pop*14)*s;
-    const tg=ctx.createLinearGradient(0,sy,0,sy+sh); tg.addColorStop(0,'#d24b30'); tg.addColorStop(1,'#7a1d17');
+    ctx.shadowColor=dsC('accent',(.5+pop*.4)); ctx.shadowBlur=(10+pop*14)*s;
+    const tg=ctx.createLinearGradient(0,sy,0,sy+sh); tg.addColorStop(0,dsC('accent')); tg.addColorStop(1,dsC('accentDark'));
     ctx.fillStyle=tg; ctx.fillRect(sx,sy,sw,sh); ctx.shadowBlur=0;
     ctx.fillStyle='rgba(255,230,190,.22)'; ctx.fillRect(sx,sy,sw,Math.round(sh*.45));
-    ctx.strokeStyle='#f5c98c'; ctx.lineWidth=1.5; ctx.strokeRect(sx+.75,sy+.75,sw-1.5,sh-1.5);
+    ctx.strokeStyle=dsC('accentLight'); ctx.lineWidth=1.5; ctx.strokeRect(sx+.75,sy+.75,sw-1.5,sh-1.5);
     ctx.restore(); }
   modes.forEach((m,i)=>{
     const r={x:trk.x+pad+i*segW,y:trk.y,w:segW,h:tabsH};
@@ -21591,17 +21786,17 @@ function drawDotaSenseHome(){
     const sc=window._dsPlayK, cx0=playR.x+playR.w/2, cy0=playR.y+playR.h/2;
     ctx.save(); ctx.translate(cx0,cy0); ctx.scale(sc,sc); ctx.translate(-cx0,-cy0);
     const R=playR, bev=Math.round(6*s);
-    ctx.shadowColor='rgba(255,90,40,'+(pr?.35:hov?.85:.3+pul*.25)+')'; ctx.shadowBlur=(hov?34:18)*s;
-    ctx.fillStyle='#2a0c08'; ctx.fillRect(R.x,R.y,R.w,R.h); ctx.shadowBlur=0;
+    ctx.shadowColor=dsC('playGlow',(pr?.35:hov?.85:.3+pul*.25)); ctx.shadowBlur=(hov?34:18)*s;
+    ctx.fillStyle=dsC('playBase'); ctx.fillRect(R.x,R.y,R.w,R.h); ctx.shadowBlur=0;
     /* золотая внешняя рамка */
     const gold=ctx.createLinearGradient(R.x,R.y,R.x+R.w,R.y+R.h);
     gold.addColorStop(0,'#fbe2a0'); gold.addColorStop(.5,'#b9852f'); gold.addColorStop(1,'#f3d38a');
     ctx.strokeStyle=gold; ctx.lineWidth=2.5; ctx.strokeRect(R.x+1.25,R.y+1.25,R.w-2.5,R.h-2.5);
     const ix=R.x+bev/2+1, iy=R.y+bev/2+1, iw=R.w-bev-2, ih=R.h-bev-2;
     const g=ctx.createLinearGradient(0,iy,0,iy+ih);
-    if(pr){ g.addColorStop(0,'#a8281c'); g.addColorStop(1,'#5a100d'); }
-    else if(hov){ g.addColorStop(0,'#ff6a3e'); g.addColorStop(.5,'#d03221'); g.addColorStop(1,'#7e1612'); }
-    else { g.addColorStop(0,'#e5502f'); g.addColorStop(.5,'#b52219'); g.addColorStop(1,'#6a110f'); }
+    if(pr){ g.addColorStop(0,dsC('mid')); g.addColorStop(1,dsC('deep')); }
+    else if(hov){ g.addColorStop(0,dsC('spark1')); g.addColorStop(.5,dsC('hot')); g.addColorStop(1,dsC('deep')); }
+    else { g.addColorStop(0,dsC('hot')); g.addColorStop(.5,dsC('mid')); g.addColorStop(1,dsC('deep')); }
     ctx.fillStyle=g; ctx.fillRect(ix,iy,iw,ih);
     ctx.fillStyle='rgba(255,235,200,.2)'; ctx.fillRect(ix,iy,iw,Math.round(ih*.42));
     ctx.strokeStyle='rgba(255,220,160,.35)'; ctx.lineWidth=1; ctx.strokeRect(ix+3.5,iy+3.5,iw-7,ih-7);
@@ -21702,9 +21897,9 @@ function drawModeBackdrop(now){
 }
 
 /* 0.8.8: новый фон меню — тёмный пурпурно-багровый градиент, северное сияние, руническое кольцо, шестигранная сетка, искры */
-function dsRuneRing(cx,cy,R,now,alpha){
+function dsRuneRing(cx,cy,R,now,alpha,col,col2){
   ctx.save(); ctx.translate(cx,cy); ctx.globalAlpha=alpha; ctx.lineWidth=1.5;
-  ctx.strokeStyle='#e8a85a';
+  ctx.strokeStyle=col||'#e8a85a';
   for(let k=0;k<3;k++){
     const r=R*(1-k*.16);
     ctx.save(); ctx.rotate(now*(k%2?-.05:.04)+k);
@@ -21715,14 +21910,14 @@ function dsRuneRing(cx,cy,R,now,alpha){
   ctx.save(); ctx.rotate(now*.03);
   for(let i=0;i<12;i++){
     const a=i*Math.PI/6; ctx.save(); ctx.rotate(a); ctx.translate(R*1.06,0);
-    ctx.fillStyle='#ffd27a'; ctx.beginPath(); ctx.moveTo(0,-7); ctx.lineTo(5,0); ctx.lineTo(0,7); ctx.lineTo(-5,0); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.fillStyle=col2||'#ffd27a'; ctx.beginPath(); ctx.moveTo(0,-7); ctx.lineTo(5,0); ctx.lineTo(0,7); ctx.lineTo(-5,0); ctx.closePath(); ctx.fill(); ctx.restore();
   }
   ctx.restore();
   ctx.restore();
 }
-function dsHexGrid(now,alpha){
+function dsHexGrid(now,alpha,colPrefix){
   const size=46, h=size*Math.sqrt(3)/2;
-  ctx.save(); ctx.strokeStyle='rgba(232,168,90,'+alpha+')'; ctx.lineWidth=1;
+  ctx.save(); ctx.strokeStyle=colPrefix?colPrefix+alpha+')':'rgba(232,168,90,'+alpha+')'; ctx.lineWidth=1;
   for(let row=-1;row<VH/h+1;row++){
     for(let col=-1;col<VW/(size*1.5)+1;col++){
       const x=col*size*1.5, y=row*h*2+(col%2?h:0);
@@ -21886,6 +22081,11 @@ function drawMenu(){
       ctx.fillText(label,seg.x+seg.w/2,seg.y+seg.h/2+4);
     }
     ctx.textAlign='left'; ctx.fillStyle='#fff1d0'; ctx.font='bold 15px Segoe UI, Arial';
+    if(layout.snd){
+      drawMenuButton(layout.snd.on, SND.on ? 'ЗВУК: ВКЛ' : 'ЗВУК: ВЫКЛ', {redBlack:SND.on, fontSize:12});
+      drawMenuButton(layout.snd.ui, 'ИНТЕРФЕЙС '+Math.round(SND.ui*100)+'%', {fontSize:12});
+      drawMenuButton(layout.snd.game, 'ЭФФЕКТЫ '+Math.round(SND.game*100)+'%', {fontSize:12});
+    }
     ctx.fillText('БИНДЫ ПРЕДМЕТОВ',panel.x+36,layout.bindTitleY);
     ctx.fillStyle='rgba(255,255,255,0.52)'; ctx.font='12px Segoe UI, Arial';
     ctx.fillText('Нажмите слот, затем нужную клавишу.',panel.x+36,layout.bindHintY);
