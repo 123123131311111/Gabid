@@ -19,7 +19,7 @@ const MAP_SCALE = 1.846;
 const mapPoint = (x,y) => ({x:(x-1800)*MAP_SCALE+WORLD_SIZE/2,y:(y-1800)*MAP_SCALE+WORLD_SIZE/2});
 const BASES = [{x:480,y:3120},{x:3120,y:480}].map(base => mapPoint(base.x,base.y));
 const SPAWN_RADIUS = 70;
-const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi'];
+const HERO_IDS = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi','olex'];
 const DEFAULT_HEROES = ['shadow','ilya','golly','pyro','warlord','grisha'];
 const makeTowerId = (team, lane, tier, base = false) => base ? `ancient:${team}` : `tower:${team}:${lane}:${tier}`;
 const TOWER_SPOTS = [
@@ -30,6 +30,8 @@ const TOWER_SPOTS = [
   {team:1,lane:1,tier:1,x:2600,y:485},{team:1,lane:1,tier:2,x:2940,y:498},
   {team:1,lane:2,tier:1,x:3110,y:3100},{team:1,lane:2,tier:2,x:3220,y:800}
 ];
+/* Баланс башен (те же числа в public/game.js → TOWER_BAL) */
+const TOWER_BAL = {dmg:66, atkTime:1.15, rangeT1:720, rangeT2:680, ancientDmg:190, rankedHpMul:2.1};
 const rooms = Object.create(null);
 const socketRooms = new Map();
 let nextBulletId = 1;
@@ -141,7 +143,7 @@ function startRoom(room){
   room.towers = Object.create(null);
   /* All Pick и рейтинг: строения прочнее, чтобы матч шёл дольше (Турбо без изменений) */
   const structHpMul = room.settings.ruleset === 'allpick' ? 2.5 : 1;
-  const towerHp = Math.round(6000 * structHpMul);
+  const towerHp = Math.round(6000 * (room.settings.ranked ? Math.min(structHpMul, TOWER_BAL.rankedHpMul) : structHpMul));   /* рейтинг: башни чуть слабее */
   for(const spot of TOWER_SPOTS){
     const towerId = makeTowerId(spot.team, spot.lane, spot.tier, false);
     const position = mapPoint(spot.x,spot.y);
@@ -152,9 +154,9 @@ function startRoom(room){
       y: position.y,
       hp: towerHp,
       maxHp: towerHp,
-      atkRange: 560,
-      dmg: 82,
-      atkTime: 1.05,
+      atkRange: spot.tier === 1 ? TOWER_BAL.rangeT1 : TOWER_BAL.rangeT2,
+      dmg: TOWER_BAL.dmg,
+      atkTime: TOWER_BAL.atkTime,
       cooldown: 0,
       targetId: null,
       alive: true,
@@ -164,8 +166,8 @@ function startRoom(room){
     };
   }
   const ancientHp = Math.round(43200 * 1.08 * structHpMul);
-  room.towers[makeTowerId(0, null, null, true)] = {id:makeTowerId(0, null, null, true),team:0,x:BASES[0].x,y:BASES[0].y,hp:ancientHp,maxHp:ancientHp,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
-  room.towers[makeTowerId(1, null, null, true)] = {id:makeTowerId(1, null, null, true),team:1,x:BASES[1].x,y:BASES[1].y,hp:ancientHp,maxHp:ancientHp,atkRange:850,dmg:220,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
+  room.towers[makeTowerId(0, null, null, true)] = {id:makeTowerId(0, null, null, true),team:0,x:BASES[0].x,y:BASES[0].y,hp:ancientHp,maxHp:ancientHp,atkRange:850,dmg:TOWER_BAL.ancientDmg,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
+  room.towers[makeTowerId(1, null, null, true)] = {id:makeTowerId(1, null, null, true),team:1,x:BASES[1].x,y:BASES[1].y,hp:ancientHp,maxHp:ancientHp,atkRange:850,dmg:TOWER_BAL.ancientDmg,atkTime:0.8,cooldown:0,targetId:null,alive:true,tier:0,facing:0};
   for(const member of Object.values(room.players)) room.state[member.id] = spawnPlayer(member);
   const roster = Object.values(room.players).map(player => ({...player, heroId:player.hero}));
   for(const member of humansOf(room))
@@ -474,11 +476,12 @@ function tickTowerCombat(room, dt){
       }
     }
     if(!target){
-      target = Object.values(room.state).find(player =>
-        player.alive &&
-        player.team !== tower.team &&
-        Math.hypot(player.x - tower.x, player.y - tower.y) <= tower.atkRange + 32
-      ) || null;
+      let bestD = Infinity;
+      for(const player of Object.values(room.state)){
+        if(!player.alive || player.team === tower.team) continue;
+        const d = Math.hypot(player.x - tower.x, player.y - tower.y);
+        if(d <= tower.atkRange + 32 && d < bestD){ bestD = d; target = player; }
+      }
     }
     tower.targetId = target ? target.id : null;
     if(!target || tower.cooldown > 0) continue;

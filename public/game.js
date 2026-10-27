@@ -558,6 +558,9 @@ const LANES = [
   [{x:720,y:3120},{x:3100,y:3120},{x:3220,y:2900},{x:3220,y:900},{x:2960,y:600}]
 ];
 
+/* Баланс башен (те же числа в server.js): урон чуть ниже прежнего, радиус достаёт до реки.
+   Мид-башни стоят в ~300–400 px от берега, поэтому внешняя бьёт на 720, внутренняя на 680. */
+const TOWER_BAL = {dmg:66, atkTime:1.15, rangeT1:720, rangeT2:680, ancientDmg:190, rankedHpMul:2.1};
 const TOWER_SPOTS = [
   /* lane 0 — мид, lane 1 — верх, lane 2 — низ.
      tier 1 — внешняя башня, tier 2 — внутренняя, ближе к трону. */
@@ -690,7 +693,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.6.2';
+const GAME_VERSION = '0.9.6';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -777,12 +780,10 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.6.2', title:'ОСОБЫЕ ПРЕДМЕТЫ: УЛУЧШЕННЫЙ БЛИНК И ЛЕЙТ-АРТЕФАКТЫ', changes:[
-    'Новый предмет «Улучшенный блинк» (рецепт: Блинк + Еблет Евсютина + 900 монет). Работает как обычный блинк (рывок до 500, КД 20 сек.), но в точке приземления наносит 650 магического урона всем врагам в радиусе 380 и даёт +650 к максимальному и текущему здоровью.',
-    'Новый предмет «Бастион Жирфсютина» (рецепт: Жирфсютин + Валакинсенс + 1200 монет). Пассивно: +3200 к здоровью и +30 к регенерации здоровья в секунду. Активный: на 5 сек. даёт +65% сопротивления урону и +100 к скорости передвижения. КД 24 сек.',
-    'Новый предмет «Дагон Бесконечности» (рецепт: Дагонская империя + Кая и Санга + 1000 монет). Пассивно: +450 к здоровью, +350 к мане и +30% к урону способностей. Активный: 3000 магического урона выбранному врагу и 1000 урона всем врагам рядом с целью. Дальность 900. КД 8 сек.',
-    'Новый предмет «Клинок Тирана» (рецепт: Кингляндия + Оторванный Глаз Мозгов + 1500 монет). Пассивно: +420 к урону атак, +260 к дальности атаки, +80 к урону способностей по врагам и 30% вампиризма от обычных атак.',
-    'Все четыре предмета находятся во вкладке «ОСОБЫЕ» магазина. Компоненты при сборке сгорают, а недостающие докупаются автоматически, как у остальных рецептов.'
+  const sections = [{version:'0.9.6.1', title:'НОВЫЙ БОЕЦ: ОЛЕКС', changes:[
+    'Новый боец Олекс — программист-контроллер с ресурсом «Энергия процессора» вместо маны: способности греют процессор, на 100% наступает перегрев и касты блокируются на 2 секунды.',
+    'Q «Строка кода» — серия из 2–3 выстрелов с замедлением; W «Вирус / Патч» — урон и мини-стан по врагу либо щит и ускорение себе и союзнику; E «Авто-турель» — лазерная турель, повторное нажатие взрывает её.',
+    'T «Отладка» — рывок со сбросом W (пятая способность, клавиша T); R «Синий экран смерти» — арена с падающим кодом: урон, запрет способностей и сбои управления.'
   ]},
   {version:'0.9.6', title:'ВАРДЫ И КОНТРОЛЬ ОБЗОРА', changes:[
     'В магазине появился Observer Ward (расходуемый, до 4 в стопке). Активируйте его клавишей слота, наведите круг радиуса обзора и кликните по карте в пределах дальности установки героя.',
@@ -1444,12 +1445,7 @@ SHOP_ITEM_IDS.push('octarineCore');
 const RECIPES = {
   stormbringer: {parts:['pt','semenHead'],               fee:600},
   titanHeart:   {parts:['satanic','evsyutin'],           fee:1000},
-  archmageRobe: {parts:['manaHooves','manaTome','enemy302'], fee:900},
-  /* 0.9.6.2: четыре особых предмета для поздней игры */
-  overBlink:    {parts:['blink','evsyutin'],             fee:900},
-  bastion:      {parts:['girfsyutin','valakinsens'],     fee:1200},
-  dagonInfinity:{parts:['dagonEmpire','kayaSange'],      fee:1000},
-  tyrantBlade:  {parts:['kinglandia','brainEye'],        fee:1500}
+  archmageRobe: {parts:['manaHooves','manaTome','enemy302'], fee:900}
 };
 function recipePartCost(pid){ const it = SHOP_ITEMS[pid]; return it ? (it.totalCost || it.cost) : 0; }
 function recipePartName(pid){ const it = SHOP_ITEMS[pid]; return it ? it.name : pid; }
@@ -1463,19 +1459,7 @@ function recipePartName(pid){ const it = SHOP_ITEMS[pid]; return it ? it.name : 
       stats:'Пассивно: +1500 к максимальному и текущему здоровью, +20 к восстановлению здоровья в секунду, обычные атаки возвращают 35% нанесённого урона и -15% к урону от обычных атак.'},
     archmageRobe: {name:'Мантия Архимага', icon:'✧', color:'#8fa8ff', active:false,
       maxMp:1200, manaRegen:0.25, spellAmp:0.25, cooldownReduction:0.35,
-      stats:'Пассивно: +1200 к максимальной и текущей мане, +25% к восстановлению маны, +25% к урону способностей и -35% к перезарядке способностей (на предметы не влияет).'},
-    overBlink: {name:'Улучшенный блинк', icon:'◈', color:'#ffb35c', active:true,
-      hp:650, range:500, cooldown:20, blastDamage:650, blastRadius:380,
-      stats:'Пассивно: +650 к максимальному и текущему здоровью. Активный: как обычный блинк (рывок до 500, КД 20 сек.), но в точке приземления наносит 650 магического урона всем врагам в радиусе 380.'},
-    bastion: {name:'Бастион Жирфсютина', icon:'⬣', color:'#ff8a5c', active:true,
-      hp:3200, hpRegen:30, activeDuration:5, cooldown:24, damageResistance:0.65, moveSpeed:100, manaCost:100,
-      stats:'Пассивно: +3200 к максимальному и текущему здоровью и +30 к регенерации здоровья в секунду. Активный: на 5 сек. даёт +65% сопротивления урону и +100 к скорости передвижения. КД 24 сек.'},
-    dagonInfinity: {name:'Дагон Бесконечности', icon:'⚡', color:'#ff3d9a', active:true,
-      hp:450, maxMp:350, spellAmp:0.30, damage:3000, splashDamage:1000, splashRadius:320, castRange:900, cooldown:8, manaCost:150,
-      stats:'Пассивно: +450 к здоровью, +350 к мане и +30% к урону способностей. Активный: 3000 магического урона выбранному врагу и 1000 урона всем врагам рядом с целью. Дальность 900. КД 8 сек.'},
-    tyrantBlade: {name:'Клинок Тирана', icon:'⚔', color:'#ffd24a', active:false,
-      damage:420, attackRange:260, spellDamage:80, lifesteal:0.30,
-      stats:'Пассивно: +420 к урону обычных атак, +260 к дальности атаки, +80 к урону способностей по врагам и 30% вампиризма от обычных атак.'}
+      stats:'Пассивно: +1200 к максимальной и текущей мане, +25% к восстановлению маны, +25% к урону способностей и -35% к перезарядке способностей (на предметы не влияет).'}
   };
   for(const id of Object.keys(RECIPES)){
     const r = RECIPES[id], d = defs[id];
@@ -1561,8 +1545,8 @@ function heroHasItem(unit, id){ return !!(unit && unit.inventory && unit.invento
 function healAmpOf(unit){ return heroHasItem(unit,'holyLocket') ? 1 + SHOP_ITEMS.holyLocket.healAmp : 1; }
 function statusResistOf(unit){ return heroHasItem(unit,'kayaSange') ? SHOP_ITEMS.kayaSange.statusResist : 0; }
 const POSITIVE_BUFF_TYPES = new Set(['armor','shardArmor','spd','as','dmg','haste','regen','hpregen','shardShield','shardBlade','shardSpell','juvsyutGuard','dawnShardShield','tribuShield','mageReflect','bladeFury','bloodrage','enchantTotem','ilyaAura','exileRage','reginaUnleash','electricOverload','virsudiAgility','virsudiMist']);
-const NEGATIVE_BUFF_TYPES = new Set(['burning','poison','vaspPoison','yosypPoison','yosypDrain','fear','shardMark','virsudiAttrLoss','virsudiTether']);
-const NULLIFY_BLOCKED_ITEMS = new Set(['bkb','zamist','superBoots','mantledSteel','timurPillow','windWaker','valakinsens','bastion']);
+const NEGATIVE_BUFF_TYPES = new Set(['burning','poison','vaspPoison','yosypPoison','yosypDrain','fear','shardMark','virsudiAttrLoss','virsudiTether','olexVirus']);
+const NULLIFY_BLOCKED_ITEMS = new Set(['bkb','zamist','superBoots','mantledSteel','timurPillow','windWaker','valakinsens']);
 /* Срывает положительные эффекты и защитные предметы (Нуллификатор, Ураган). */
 function purgePositiveEffects(unit){
   if(!unit) return;
@@ -3143,6 +3127,7 @@ const SCEPTER_UPGRADES = {
   regina:'Dispose бросает дальше, Rebound усиливает удар, Unleash даёт больше зарядов и расширяет финальную волну',
   vaspassir:'Гранаты летят дальше и оглушают на 2.5 с, копии живут дольше, ульта призывает +2 молниеносные копии',
   earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области',
+  olex:'Турель живёт 8 секунд, Синий экран смерти длится 4,5 секунды',
   savely:'Форма Трансформера длится дольше, уворот срабатывает на каждом третьем ударе и Савелий получает +30% сопротивления магии'
 };
 
@@ -3188,8 +3173,6 @@ function applyDamage(target, amount, source){
   if(zamist&&zamist.activeTimer>0) amount*=1-SHOP_ITEMS.zamist.damageResistance;
   const valakinsens=target.inventory&&target.inventory.find(item=>item&&item.id==='valakinsens');
   if(valakinsens&&valakinsens.activeTimer>0) amount*=1-SHOP_ITEMS.valakinsens.damageResistance;
-  const bastionItem=target.inventory&&target.inventory.find(item=>item&&item.id==='bastion');
-  if(bastionItem&&bastionItem.activeTimer>0) amount*=1-SHOP_ITEMS.bastion.damageResistance;
   /* Киска дианы: враги внутри круга союзного носителя наносят на 9% меньше урона */
   if(source && amount>0){
     const kittyAttacker = (source.x!==undefined && source.hp!==undefined) ? source : source.source;
@@ -3256,7 +3239,6 @@ function applyDamage(target, amount, source){
     if(sourceHero.spellAmp) amount *= 1 + sourceHero.spellAmp;
     if(heroHasItem(sourceHero,'kayaSange')) amount *= 1 + SHOP_ITEMS.kayaSange.spellAmp;
     if(heroHasItem(sourceHero,'archmageRobe')) amount *= 1 + SHOP_ITEMS.archmageRobe.spellAmp;
-    if(heroHasItem(sourceHero,'dagonInfinity')) amount *= 1 + SHOP_ITEMS.dagonInfinity.spellAmp;
     const heroScale = sourceHero.def.id === 'grisha'
       ? GRISHA_ABILITY_DAMAGE_MULT
       : (sourceHero.def.abilityDamageScale || 1);
@@ -3282,7 +3264,7 @@ function applyDamage(target, amount, source){
     : 0;
   /* Кингляндия: +50 к урону способностей по вражеским целям (не к обычным атакам — для них +250 в getDamage) */
   const kinglandiaSpellBonus = (!isAttackHit && sourceHero && sourceHero.team !== target.team && sourceHero.inventory &&
-    sourceHero.inventory.some(item => item && (item.id === 'kinglandia' || item.id === 'tyrantBlade'))) ? Math.max(heroHasItem(sourceHero,'kinglandia') ? SHOP_ITEMS.kinglandia.spellDamage : 0, heroHasItem(sourceHero,'tyrantBlade') ? SHOP_ITEMS.tyrantBlade.spellDamage : 0) : 0;
+    sourceHero.inventory.some(item => item && item.id === 'kinglandia')) ? SHOP_ITEMS.kinglandia.spellDamage : 0;
   const dianaBonus = sourceHero && sourceHero.inventory && sourceHero.inventory.some(item => item && item.id === 'dianaPants')
     ? SHOP_ITEMS.dianaPants.damage
     : 0;
@@ -3324,11 +3306,17 @@ function applyDamage(target, amount, source){
   if(sourceHero && sourceHero.type === 'hero' && sourceHero.team !== target.team && target.type === 'hero'){
     target.damageContributors.set(sourceHero, (target.damageContributors.get(sourceHero) || 0) + dmg);
   }
-  if(sourceHero && sourceHero.team !== target.team && sourceHero.inventory && (sourceHero.inventory.some(i => i && i.id === 'satanic') || heroHasItem(sourceHero,'titanHeart') || heroHasItem(sourceHero,'tyrantBlade')) && source && source.attack){
-    sourceHero.hp = Math.min(sourceHero.maxHp, sourceHero.hp + dmg * Math.max(heroHasItem(sourceHero,'satanic') ? SHOP_ITEMS.satanic.lifesteal : 0, heroHasItem(sourceHero,'titanHeart') ? SHOP_ITEMS.titanHeart.lifesteal : 0, heroHasItem(sourceHero,'tyrantBlade') ? SHOP_ITEMS.tyrantBlade.lifesteal : 0));
+  if(sourceHero && sourceHero.team !== target.team && sourceHero.inventory && (sourceHero.inventory.some(i => i && i.id === 'satanic') || heroHasItem(sourceHero,'titanHeart')) && source && source.attack){
+    sourceHero.hp = Math.min(sourceHero.maxHp, sourceHero.hp + dmg * Math.max(heroHasItem(sourceHero,'satanic') ? SHOP_ITEMS.satanic.lifesteal : 0, heroHasItem(sourceHero,'titanHeart') ? SHOP_ITEMS.titanHeart.lifesteal : 0));
   }
   target._hpBeforeHit = target.hp;
-  target.hp -= dmg;
+  let shieldAbsorbed = 0;
+  if(target.shieldHp > 0 && dmg > 0){
+    shieldAbsorbed = Math.min(target.shieldHp, dmg);
+    target.shieldHp -= shieldAbsorbed;
+    if(target.shieldHp <= 0){ target.shieldHp = 0; target.shieldT = 0; fxRing(target.x, target.y, 50, '#7ffff0', 0.25); }
+  }
+  target.hp -= (dmg - shieldAbsorbed);
   if(source && source.attack && sourceHero && sourceHero.def && sourceHero.def.id === 'yosyp' && target.buffs){
     const passive = sourceHero.skills.find(skill => skill.id === 'yosypBlowback');
     if(passive && passive.level > 0 && target.team !== sourceHero.team && !isBuilding(target)){
@@ -3407,7 +3395,7 @@ function killUnit(u, source){
   if(rewardHero && rewardHero.team !== u.team) phantomOnCreepKill(rewardHero, u);
   if(rewardHero && rewardHero.team !== u.team){
     const bountyMul = gameModeCfg().creepBountyMul;
-    const reward = u.isRoshan ? ROSHAN_REWARD : u.type === 'neutral' ? Math.round((u.bounty||70)*bountyMul) : (u.type === 'creep' ? Math.round(60*bountyMul) : (u.type === 'hero' ? 200 : 0));
+    const reward = u.isRoshan ? ROSHAN_REWARD : u.type === 'neutral' ? Math.round(70*bountyMul) : (u.type === 'creep' ? Math.round(60*bountyMul) : (u.type === 'hero' ? 200 : 0));
     if(reward){
       rewardHero.coins += reward;
       if(rewardHero === playerHero) addText(u.x, u.y - u.radius - 24, '+' + reward + ' монет', '#ffd54f', 1.1, 14);
@@ -3829,7 +3817,7 @@ const ATK_STYLE = {
   /* ranged: magic — световые снаряды, bullet — трассеры */
   pyro:{r:'magic',kind:'fire'}, arcady:{r:'bullet'}, grisha:{r:'magic',kind:'rainbow'}, golly:{r:'magic',kind:'water'},
   illusionist:{r:'magic',kind:'phantom'}, shadow:{r:'magic',kind:'fire'}, mo3gi:{r:'magic',kind:'poison'},
-  tribupainer:{r:'bullet'}, chip:{r:'magic',kind:'spark'}, sniper:{r:'bullet',long:true}, vaspassir:{r:'magic',kind:'poison'},
+  tribupainer:{r:'bullet'}, chip:{r:'magic',kind:'spark'}, sniper:{r:'bullet',long:true}, vaspassir:{r:'magic',kind:'poison'}, olex:{r:'magic',kind:'spark'},
   /* melee */
   warlord:{m:'slash',w:1.0}, juggernaut:{m:'slash',w:1.15}, savely:{m:'slash',w:0.95}, exileKnight:{m:'slash',w:0.9},
   dawnMaiden:{m:'slash',w:1.0}, sasych:{m:'claw'}, juvsyut:{m:'claw'}, malit:{m:'claw'}, regina:{m:'claw'},
@@ -4563,11 +4551,10 @@ function performInventoryItemActivation(hero, index){
     item.cooldown = cfg.cooldown;
     return true;
   }
-  if(item.id === 'blink' || item.id === 'overBlink'){
-    const blinkCfg = SHOP_ITEMS[item.id];
-    if(item.cooldown > 0){ flashMsg(hero, item.name + ' на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
+  if(item.id === 'blink'){
+    if(item.cooldown > 0){ flashMsg(hero, 'Блинк на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
     const distance = Math.hypot(mouse.wx-hero.x, mouse.wy-hero.y) || 1;
-    const range = Math.min(blinkCfg.range, distance);
+    const range = Math.min(SHOP_ITEMS.blink.range, distance);
     let tx = hero.x + (mouse.wx-hero.x) / distance * range;
     let ty = hero.y + (mouse.wy-hero.y) / distance * range;
     if(!canMoveTo(tx, ty, hero.radius)){
@@ -4584,10 +4571,9 @@ function performInventoryItemActivation(hero, index){
       tx = found.x; ty = found.y;
     }
     hero.x = clamp(tx, 60, WORLD-60); hero.y = clamp(ty, 60, WORLD-60);
-    hero.moveTarget = null; hero.attackTarget = null; item.cooldown = blinkCfg.cooldown || 20;
-    addText(hero.x, hero.y - 56, item.id === 'overBlink' ? 'УЛУЧШЕННЫЙ БЛИНК' : 'БЛИНК', item.id === 'overBlink' ? '#ffb35c' : '#8fd8ff', 1.0, 16);
+    hero.moveTarget = null; hero.attackTarget = null; item.cooldown = 20;
+    addText(hero.x, hero.y - 56, 'БЛИНК', '#8fd8ff', 1.0, 16);
     fxRing(hero.x, hero.y, 80, '#8fd8ff', 0.45);
-    if(item.id === 'overBlink') overBlinkBlast(hero, blinkCfg);
     return true;
   }
   if(item.id === 'superBoots'){
@@ -4666,40 +4652,6 @@ function performInventoryItemActivation(hero, index){
     addText(target.x, target.y - 58, 'ГУР: ПОДБРОШЕН', '#d9f2ff', 1.1, 16);
     addText(hero.x, hero.y - 80, 'ГУР АКТИВИРОВАН', '#d9f2ff', 1.0, 15);
     fxRing(target.x, target.y, 85, '#d9f2ff', 0.6);
-    return true;
-  }
-  if(item.id === 'bastion'){
-    if(item.cooldown > 0){ flashMsg(hero, 'Бастион на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
-    const bc = SHOP_ITEMS.bastion;
-    item.cooldown = bc.cooldown;
-    item.activeTimer = bc.activeDuration;
-    addText(hero.x, hero.y - 56, 'БАСТИОН: НЕПРОБИВАЕМОСТЬ', '#ff8a5c', 1.1, 16);
-    fxRing(hero.x, hero.y, 110, '#ff8a5c', 0.65);
-    fxRing(hero.x, hero.y, 65, '#ffe0c4', 0.45);
-    spawnParticles(hero.x, hero.y, '#ffb48a', 16, 1);
-    return true;
-  }
-  if(item.id === 'dagonInfinity'){
-    if(item.cooldown > 0){ flashMsg(hero, 'Дагон Бесконечности на КД ' + Math.ceil(item.cooldown) + 'с'); return false; }
-    const dc = SHOP_ITEMS.dagonInfinity;
-    const target = pickUnitAt(mouse.wx, mouse.wy);
-    if(!target || target.team === hero.team || target.dead || isBuilding(target)){
-      flashMsg(hero, 'Наведите на вражеского бойца'); return false;
-    }
-    if(Math.hypot(target.x - hero.x, target.y - hero.y) > dc.castRange + (target.radius || 0)){
-      flashMsg(hero, 'Цель слишком далеко'); return false;
-    }
-    applyDamage(target, dc.damage, {team:hero.team, source:hero, magic:true});
-    for(const u of units){
-      if(u === target || u.dead || u.team === hero.team || isBuilding(u)) continue;
-      if(Math.hypot(u.x - target.x, u.y - target.y) > dc.splashRadius + (u.radius || 0)) continue;
-      applyDamage(u, dc.splashDamage, {team:hero.team, source:hero, magic:true});
-      fxBeam(target.x, target.y, u.x, u.y, '#ff3d9a', 0.3);
-    }
-    item.cooldown = dc.cooldown;
-    addText(target.x, target.y - 56, 'ДАГОН ∞: -' + dc.damage, '#ff3d9a', 1.1, 18);
-    fxBeam(hero.x, hero.y, target.x, target.y, '#ff3d9a', 0.45);
-    fxRing(target.x, target.y, dc.splashRadius, '#ff3d9a', 0.5);
     return true;
   }
   if(item.id === 'dagonEmpire'){
@@ -5465,6 +5417,28 @@ const HERO_GUIDES = {
       "Assassinate попадает только по видимой цели — не стреляйте вслепую."
     ]
   },
+  "olex": {
+    "role": "Олекс: контроллер, урон по площади, инженер",
+    "style": "Энергия процессора вместо маны: способности греют его, на 100% — перегрев и 2 секунды без кастов. Давит в долгой драке тиками, турелью и контролем.",
+    "skills": [
+      0,
+      1,
+      2
+    ],
+    "skillNote": "Строка кода (Q) — серия выстрелов с замедлением. Вирус/Патч (W) — урон и мини-стан по врагу или щит союзнику. Авто-турель (E) — повторное нажатие взрывает её. Отладка (T) — рывок и сброс W. Синий экран смерти (R) — арена без способностей.",
+    "build": [
+      "pt",
+      "brainEye",
+      "archmageRobe",
+      "octarineCore",
+      "bkb",
+      "satanic"
+    ],
+    "tips": [
+      "Следите за шкалой процессора: серия Q + T подряд легко приводит к перегреву.",
+      "Взрывайте турель, когда враги сбились рядом с ней, а ульту кладите на место драки."
+    ]
+  },
   "vaspassir": {
     "role": "Васпассир: гоблин-ядовар, контроль и призыв",
     "style": "Хрупкий, но быстро бьёт и контролирует: гранаты оглушают толпу, копии давят числом.",
@@ -5520,10 +5494,6 @@ const GUIDE_ITEM_WHY = {
   "manaHooves": "+800 маны — для тех, кто живёт на способностях.",
   "manaTome": "+10% к восстановлению маны — дёшево и полезно в начале.",
   "blink": "Блинк: рывок на 500 — войти в драку или сбежать.",
-  "overBlink": "Блинк + Еблет: рывок с взрывом 650 урона в радиусе 380 и +650 здоровья.",
-  "bastion": "+3200 здоровья, +30 регенерации; актив: 65% сопротивления на 5 сек.",
-  "dagonInfinity": "Актив: 3000 урона цели и 1000 по области; +30% к урону способностей.",
-  "tyrantBlade": "+420 урона, +260 дальности атаки, 30% вампиризма — для керри в лейте.",
   "eggGolly": "+250 скорости на 2 сек. для рывка или отхода.",
   "superBoots": "+70 скорости и ускорение на 6 сек.",
   "disperser": "+30 скорости; жжёт ману врага и замедляет его.",
@@ -5641,19 +5611,6 @@ function applyItemStats(hero, id){
     hero.hp += SHOP_ITEMS.kayaSange.hp;
     hero.maxMp += SHOP_ITEMS.kayaSange.maxMp;
     hero.mp += SHOP_ITEMS.kayaSange.maxMp;
-  }
-}
-
-/* 0.9.6.2: Улучшенный блинк — взрыв в точке приземления по всем врагам в радиусе. */
-function overBlinkBlast(hero, cfg){
-  fxRing(hero.x, hero.y, cfg.blastRadius, '#ffb35c', 0.6);
-  fxRing(hero.x, hero.y, cfg.blastRadius * 0.55, '#fff0c2', 0.42);
-  spawnParticles(hero.x, hero.y, '#ffc47a', 24, 1.3);
-  for(const u of units){
-    if(u.dead || u.team === hero.team || isBuilding(u)) continue;
-    if(Math.hypot(u.x - hero.x, u.y - hero.y) > cfg.blastRadius + (u.radius || 0)) continue;
-    applyDamage(u, cfg.blastDamage, {team:hero.team, source:hero, magic:true});
-    if(!perfLite()) fxHit(u.x, u.y, '#ffb35c');
   }
 }
 
@@ -5803,16 +5760,15 @@ class Unit {
   getAttackRange(){
     let range=this.atkRange;
     if(this.inventory && this.inventory.some(i => i && i.id === 'brainEye')) range+=SHOP_ITEMS.brainEye.attackRange;
-    if(this.inventory && this.inventory.some(i => i && i.id === 'tyrantBlade')) range+=SHOP_ITEMS.tyrantBlade.attackRange;
     if(this.def && this.def.id === 'sniper' && this.skills && this.skills[2] && this.skills[2].level > 0){
       const takeAimLevel=this.skills[2].level;
-      range += 95 + takeAimLevel * 32;
+      range += 70 + takeAimLevel * 24;
       const takeAim=this.buffs.find(buff => buff.id === 'sniperTakeAim');
-      if(takeAim) range += takeAim.rangeBonus || (125 + takeAimLevel * 28);
+      if(takeAim) range += takeAim.rangeBonus || (95 + takeAimLevel * 22);
     }
     return range;
   }
-  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=180; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'tyrantBlade')) d+=SHOP_ITEMS.tyrantBlade.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getDamage(){ let d=this.dmg; if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=180; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
   getAttackTime(){ let m=1; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed;
@@ -5829,8 +5785,6 @@ class Unit {
     if(zamist&&zamist.activeTimer>0) speed+=SHOP_ITEMS.zamist.moveSpeed;
     const valakinsensItem=this.inventory&&this.inventory.find(item=>item&&item.id==='valakinsens');
     if(valakinsensItem&&valakinsensItem.activeTimer>0) speed+=SHOP_ITEMS.valakinsens.moveSpeed;
-    const bastionSpd=this.inventory&&this.inventory.find(item=>item&&item.id==='bastion');
-    if(bastionSpd&&bastionSpd.activeTimer>0) speed+=SHOP_ITEMS.bastion.moveSpeed;
     if(heroHasItem(this,'disperser')) speed+=SHOP_ITEMS.disperser.speed;
     if(this.buffs.some(buff=>buff.type==='haste')) speed+=180;
     const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0);
@@ -6047,7 +6001,7 @@ class Unit {
         if(this.getAttackRange()>220){
           const shotSource={team:this.team, source:this, attack:true, fangsDamageIncluded:true, dianaDamageIncluded:true};
           let shotDamage=this.getDamage();
-          if(this.def && this.def.id === 'sniper') shotDamage*=0.8;
+          if(this.def && this.def.id === 'sniper') shotDamage*=0.76;
           if(this.def && this.def.id === 'sniper' && this.skills && this.skills[1] && this.skills[1].level > 0){
             const headshotLevel=this.skills[1].level;
             if(Math.random() < Math.min(0.55, 0.20 + headshotLevel * 0.075)){
@@ -6063,8 +6017,8 @@ class Unit {
             (this.def && this.def.id === 'sniper' ? '#ffe0a0' : (this.def && this.def.id === 'vaspassir' ? '#8dff5a' :
             (this.def && this.def.id === 'shadow' ? '#ff5a1f' :
             (this.team===0 ? '#a8ffb0' : '#ffb0a8'))));
-          const projectile=spawnProjectile(this.x, this.y, t, shotDamage, shotSource, this.projColor ? 760 : 1100,
-            this.projColor || shotColor, this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : (this.def && this.def.id === 'shadow' ? 10 : 7)));
+          const projectile=spawnProjectile(this.x, this.y, t, shotDamage, shotSource, 1100,
+            shotColor, this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : (this.def && this.def.id === 'shadow' ? 10 : 7)));
           if(this.summonKind==='vaspCopy'){ projectile.vaspCopy=this; projectile.color=this.vaspOnHit==='chain'?'#9fc0ff':(this.vaspOnHit==='poison'?'#d9a0ff':(this.vaspOnHit==='stun'?'#fff06a':'#8fe8ff')); }
           projectile.headshot=!!shotSource.headshot;
           projectile.headshotSlow=shotSource.headshotSlow || 0;
@@ -6131,7 +6085,6 @@ class Unit {
           if(this.owner && this.owner.def && this.owner.def.id === 'illusionist' && this.owner.type === 'hero' && !this.isIllusion && Math.random() < PHANTOM_CHANCE) spawnPassiveIllusion(this.owner, t);
           if(this.vaspOnHit!==undefined && this.summonKind==='vaspCopy') vaspCopyHit(this,t);
           fxHit(t.x, t.y, '#ffdd88');
-          if(this.kind==='brute') bruteSlamFx(t, this);
           try { atkMeleeSwing(this, t); } catch(err) {}
         }
       }
@@ -6250,52 +6203,19 @@ class Creep extends Unit {
   }
 }
 
-/* 0.9.6.1: эффекты новых нейтралов */
-function bruteSlamFx(t, src){
-  fxRing(t.x, t.y, 70, '#c9b58a', 0.38);
-  fxRing(t.x, t.y, 38, '#ff9a4a', 0.26);
-  spawnParticles(t.x, t.y, '#9a8765', perfLite()?6:18, 0.9);
-  spawnParticles(t.x, t.y, '#ffb070', perfLite()?3:8, 0.6);
-  if(t === playerHero) playSynthSfx('crit', {volume:0.5});
-}
-function mageHitFx(t){
-  fxRing(t.x, t.y, 46, '#b46bff', 0.3);
-  fxRing(t.x, t.y, 26, '#f0d6ff', 0.2);
-  spawnParticles(t.x, t.y, '#b46bff', perfLite()?5:14, 0.7);
-  spawnParticles(t.x, t.y, '#ff7ae6', perfLite()?2:6, 0.5);
-}
-
 class NeutralCreep extends Unit {
   constructor(x, y, kind){
     const big = kind === 'big';
     const wolf = kind === 'wolf';
     const satyr = kind === 'satyr';
-    const brute = kind === 'brute', mage = kind === 'mage';
-    const stats = brute ? {radius:29,speed:62,hp:1150,dmg:64,range:105,armor:9,xp:230} :
-      mage ? {radius:17,speed:96,hp:380,dmg:30,range:480,armor:1,xp:135} :
-      big ? {radius:24,speed:72,hp:900,dmg:42,range:110,armor:8,xp:180} :
+    const stats = big ? {radius:24,speed:72,hp:900,dmg:42,range:110,armor:8,xp:180} :
       wolf ? {radius:16,speed:135,hp:300,dmg:34,range:95,armor:2,xp:120} :
       satyr ? {radius:21,speed:64,hp:650,dmg:28,range:520,armor:5,xp:160} :
       {radius:18,speed:88,hp:420,dmg:20,range:90,armor:3,xp:90};
-    super({x, y, team:2, radius:stats.radius, speed:stats.speed, hp:stats.hp, dmg:stats.dmg, atkRange:stats.range, atkTime:wolf?0.9:(brute?2.6:(mage?1.7:1.5)), armor:stats.armor, vision:520, type:'neutral', xpValue:stats.xp, hpRegen:2});
+    super({x, y, team:2, radius:stats.radius, speed:stats.speed, hp:stats.hp, dmg:stats.dmg, atkRange:stats.range, atkTime:wolf?0.9:1.5, armor:stats.armor, vision:520, type:'neutral', xpValue:stats.xp, hpRegen:2});
     this.homeX=x; this.homeY=y; this.aggroRange=420; this.kind=kind; this.respawnTimer=0;
-    /* 0.9.6.1: награда за убийство по типу (обычный нейтрал — 70) */
-    this.bounty = brute ? 120 : (mage ? 90 : 70);
-    this.kiteCd = 0; this.kiteTo = null;
-    if(mage) this.projColor = '#b46bff';
   }
-  /* Лесной чародей держит дистанцию: короткими отходами внутри «поводка» у лагеря */
-  updateMove(dt){
-    if(this.kind==='mage' && this.kiteTo && this.attackTarget && this.attackTarget.alive){
-      const saved=this.attackTarget;
-      this.attackTarget=null; this.moveTarget=this.kiteTo;
-      super.updateMove(dt);
-      this.attackTarget=saved; this.moveTarget=null;
-      return;
-    }
-    super.updateMove(dt);
-  }
-  updateAI(dt){
+  updateAI(){
     if(this.attackTarget && (!this.attackTarget.alive || this.distTo(this.attackTarget) > this.aggroRange + 180)) this.attackTarget = null;
     if(!this.attackTarget){
       let best=null, bestDistance=this.aggroRange;
@@ -6305,21 +6225,6 @@ class NeutralCreep extends Unit {
         if(distance<bestDistance){ bestDistance=distance; best=unit; }
       }
       this.attackTarget=best;
-    }
-    if(this.kind==='mage'){
-      this.kiteCd = Math.max(0, this.kiteCd - (dt||1/60));
-      const t=this.attackTarget;
-      if(t && t.alive && this.stunTimer<=0){
-        const d=this.distTo(t);
-        if(this.kiteTo){
-          if(d > this.atkRange*0.7 || Math.hypot(this.x-this.kiteTo.x,this.y-this.kiteTo.y)<12){ this.kiteTo=null; this.kiteCd=1.2; }
-        } else if(d < this.atkRange*0.45 && this.kiteCd<=0){
-          const dx=this.x-t.x, dy=this.y-t.y, n=Math.hypot(dx,dy)||1;
-          const kx=this.x+dx/n*190, ky=this.y+dy/n*190;
-          if(Math.hypot(kx-this.homeX,ky-this.homeY) < 330 && canMoveTo(kx,ky,this.radius)) this.kiteTo={x:kx,y:ky};
-          else this.kiteCd=1.2;
-        }
-      } else this.kiteTo=null;
     }
     if(this.attackTarget) this.moveTarget=null;
     else if(this.distTo({x:this.homeX,y:this.homeY})>40) this.moveTarget={x:this.homeX,y:this.homeY};
@@ -6449,10 +6354,7 @@ function spawnNeutralCamps(){
     });
     if(!farFromBases || !farFromLanes) continue;
     for(let i=0;i<camp.length;i++){
-      let kind = i === 0 ? 'big' : (i === 1 ? 'small' : (i === 2 ? 'wolf' : 'satyr'));
-      /* 0.9.6.1: Каменный громила — в боковых лагерях 3 и 5, Лесной чародей — вместо сатира в лагерях 0,1,2,4 */
-      if(i === 1 && (campIndex === 3 || campIndex === 5)) kind = 'brute';
-      if(i === 3 && (campIndex === 0 || campIndex === 1 || campIndex === 2 || campIndex === 4)) kind = 'mage';
+      const kind = i === 0 ? 'big' : (i === 1 ? 'small' : (i === 2 ? 'wolf' : 'satyr'));
       const neutral = new NeutralCreep(camp[i].x, camp[i].y, kind);
       neutral.campIndex = campIndex;
       units.push(neutral);
@@ -6804,17 +6706,45 @@ function spawnPassiveIllusion(hero, target){
   illusion.attackTarget = target;
 }
 
+/* Бой башни. Цель — ближайший к башне враг в радиусе (крипы, герои, призванные).
+   Офлайн башня бьёт всех сама. Онлайн героев бьёт сервер (иначе урон задвоится),
+   а крипы живут на клиенте — их бьёт эта функция; если сервер только что стрелял
+   по герою, башня занята и по крипам в этот момент не стреляет. */
+function towerCombatTick(tw, dt){
+  tw.fireCd = Math.max(0, (tw.fireCd || 0) - dt);
+  if(tw.fireCd > 0) return;
+  const online = onlineMatchActive;
+  if(online && gameTime - (tw.netShotT === undefined ? -99 : tw.netShotT) < tw.atkTime) return;
+  let best = null, bestD = Infinity;
+  for(const o of units){
+    if(!o || o.dead || o.hp <= 0 || o.team === tw.team || (o.team !== 0 && o.team !== 1)) continue;
+    if(isBuilding(o) || o.invulnerable) continue;
+    const isHero = o.type === 'hero';
+    if(!isHero && o.type !== 'creep' && !o.summonKind) continue;
+    if(isHero && (online || isHiddenFrom(o, tw.team))) continue;
+    const d = Math.hypot(o.x - tw.x, o.y - tw.y);
+    if(d - (o.radius || 0) > tw.atkRange) continue;
+    if(d < bestD){ bestD = d; best = o; }
+  }
+  if(!best) return;
+  tw.fireCd = tw.atkTime;
+  tw.facing = Math.atan2(best.y - tw.y, best.x - tw.x);
+  towerFireBolt({id:tw.id, angle:tw.facing, team:tw.team}, best);
+  applyDamage(best, tw.dmg, {team:tw.team, source:tw, type:'tower', attack:true, towerShot:true});
+}
+
 class Tower extends Unit {
   constructor(team, x, y, base, lane=null, tier=1){
     const hpMul = gameModeCfg().structHpMul || 1;
+    const towerHpMul = rankedOnlineMatch ? Math.min(hpMul, TOWER_BAL.rankedHpMul) : hpMul;   /* рейтинг: башни чуть слабее */
     const ancientHp = Math.round(43200 * 1.08 * hpMul);
     super({
       x, y, team,
       radius: base?46:(tier===1?19:22), speed:0,
-      hp: base?ancientHp:Math.round(6000 * hpMul),
-      dmg: base?220:82,
-      atkRange: base?850:(tier===1?560:680),
-      atkTime: base?0.8:1.05,
+      hp: base?ancientHp:Math.round(6000 * towerHpMul),
+      dmg: base?TOWER_BAL.ancientDmg:TOWER_BAL.dmg,
+      atkRange: base?850:(tier===1?TOWER_BAL.rangeT1:TOWER_BAL.rangeT2),
+      atkTime: base?0.8:TOWER_BAL.atkTime,
       armor: base?17:17,
       vision: base?1200:1050,
       type: base?'ancient':'tower',
@@ -6832,6 +6762,7 @@ class Tower extends Unit {
     this.isAttacking = false;
     // Клиент НЕ меняет HP башен локально — сервер является единственным источником правды.
     if(this.hp <= 0){ this.hp = 0; this.alive = false; this.dead = true; }
+    if(!this.dead) towerCombatTick(this, dt);
   }
   findTarget(){
     return null;
@@ -8059,7 +7990,7 @@ const SKILLS = {
   sniperShrapnel: {
     name:'Shrapnel', short:'Q', type:'point', maxLevel:4,
     cd:[0,0,0,0,0], mana:[0,80,90,100,110], range:950,
-    desc:'Выстреливает заряд в область: наносит урон и замедляет врагов. Одновременно доступны 2 заряда, каждый восстанавливается отдельно.',
+    desc:'Выстреливает заряд в область: наносит урон и замедляет врагов. Одновременно можно поставить только одну зону: новый заряд появляется после перезарядки.',
     cast(h,x,y,lvl){
       if((h.shrapnelCharges||0)<=0){ flashMsg(h,'Shrapnel: нет зарядов'); return false; }
       const radius=210+lvl*16;
@@ -8086,7 +8017,7 @@ const SKILLS = {
     desc:'Пассивно увеличивает дальность атаки. При активации на 5 секунд даёт ещё дальность и повышает скорость атаки.',
     cast(h,x,y,lvl){
       h.buffs=h.buffs.filter(buff=>buff.id!=='sniperTakeAim');
-      h.addBuff({type:'as',id:'sniperTakeAim',t:5,rangeBonus:125+lvl*28,val:0.42+lvl*0.08});
+      h.addBuff({type:'as',id:'sniperTakeAim',t:5,rangeBonus:95+lvl*22,val:0.42+lvl*0.08});
       addText(h.x,h.y-70,'TAKE AIM','#ffe4a3',1.15,17);
       fxRing(h.x,h.y,100,'#ffd27a',0.55);
     }
@@ -8388,6 +8319,387 @@ Object.assign(SKILLS, {
     }
   }
 });
+
+
+/* =========================================================
+   ОЛЕКС — боец-программист (0.9.6.1)
+   Ресурс: «Энергия процессора» 0–100% (нагрев). Каст блокируется на 2 с при перегреве.
+   ========================================================= */
+let olexTurrets = [], olexZones = [];
+const OLEX_COLOR = '#39e6ff';
+function isOlex(h){ return !!(h && h.def && h.def.id === 'olex'); }
+function olexEnemyUnit(h,u){
+  return u && !u.dead && u.team !== h.team && !isStructure(u) && !isBuilding(u) && !u.invulnerable;
+}
+function olexAddHeat(h,v){
+  if(!isOlex(h) || !(v > 0)) return;
+  if(h.olexOverheat > 0) return;
+  h.olexHeat = Math.min(100, (h.olexHeat || 0) + v);
+  if(h.olexHeat >= 100){
+    h.olexOverheat = 2;
+    addText(h.x, h.y-96, 'ПЕРЕГРЕВ!', '#ff5a40', 1.4, 19);
+    fxRing(h.x, h.y, 90, '#ff5a40', 0.6);
+    spawnParticles(h.x, h.y, '#ff8a3d', 26, 0.9);
+  }
+}
+function olexGiveShield(u,amount,time){
+  u.shieldHp = Math.max(u.shieldHp || 0, amount);
+  u.shieldT = Math.max(u.shieldT || 0, time);
+  u.shieldMax = Math.max(u.shieldMax || 0, amount);
+}
+/* мини-стан заражённого при попытке применить навык (не чаще раза в секунду) */
+function olexVirusTrigger(u){
+  const v = u.buffs && u.buffs.find(b => b.type === 'olexVirus');
+  if(!v || u.dead) return false;
+  if(gameTime - (v.lastTrigger || -9) < 1.0) return false;
+  v.lastTrigger = gameTime;
+  u.stunTimer = Math.max(u.stunTimer || 0, 0.3);
+  addText(u.x, u.y-u.radius-44, 'СБОЙ!', OLEX_COLOR, 0.8, 14);
+  fxRing(u.x, u.y, 36, OLEX_COLOR, 0.25);
+  return true;
+}
+function olexTurretOf(h){ return olexTurrets.find(t => t.owner === h && !t.dead) || null; }
+function olexEndTurret(t, byDetonation){
+  if(t.dead) return;
+  t.dead = true;
+  const s = t.owner && t.owner.skills && t.owner.skills.find(sk => sk.id === 'olexE');
+  if(s && !byDetonation) s.cd = Math.max(s.cd, SKILLS.olexE.cd[Math.max(1,s.level)] * (t.cdMult || 1));
+}
+function olexDetonate(t, byCast){
+  if(t.dead) return;
+  const h = t.owner, r = 175;
+  const dmg = abilityDamage(h, [0,90,115,140,165][Math.max(1,Math.min(4,t.lvl))]);
+  for(const u of units){
+    if(!olexEnemyUnit(h,u)) continue;
+    if(Math.hypot(u.x-t.x, u.y-t.y) < r + u.radius) applyDamage(u, dmg, h);
+  }
+  fxRing(t.x, t.y, r, '#ffb340', 0.5);
+  fxRing(t.x, t.y, r*0.6, OLEX_COLOR, 0.35);
+  spawnParticles(t.x, t.y, '#ffd27a', 34, 1.1);
+  spawnParticles(t.x, t.y, OLEX_COLOR, 18, 0.9);
+  addText(t.x, t.y-60, 'ВЗРЫВ ТУРЕЛИ', '#ffd27a', 1.0, 15);
+  olexEndTurret(t, !!byCast);
+}
+function olexTick(dt){
+  /* нагрев процессора */
+  for(const h of heroes){
+    if(!isOlex(h)) continue;
+    if(h.dead){ h.olexHeat = 0; h.olexOverheat = 0; continue; }
+    if(h.olexOverheat > 0){
+      h.olexOverheat = Math.max(0, h.olexOverheat - dt);
+      if(h.olexOverheat <= 0){ h.olexHeat = 40; fxRing(h.x, h.y, 60, OLEX_COLOR, 0.4); }
+    } else {
+      h.olexHeat = Math.max(0, (h.olexHeat || 0) - 9 * dt);
+    }
+    /* серия Q: если серия оборвалась — запускаем общую перезарядку */
+    const b = h.olexQ;
+    if(b && b.t > 0){
+      b.t -= dt;
+      if(b.t <= 0){
+        const q = h.skills[0];
+        if(b.shots > 0 && q) q.cd = Math.max(q.cd, 2.2);
+        b.shots = 0;
+      }
+    }
+  }
+  /* щиты и вирус */
+  for(const u of units){
+    if(u.dead) continue;
+    if(u.shieldHp > 0){
+      u.shieldT -= dt;
+      if(u.shieldT <= 0){ u.shieldHp = 0; u.shieldT = 0; }
+    }
+    if(u.buffs && u.buffs.length){
+      const v = u.buffs.find(b => b.type === 'olexVirus');
+      if(v){
+        v.tick = (v.tick || 0) + dt;
+        while(v.tick >= 1 && !u.dead){
+          v.tick -= 1;
+          applyDamage(u, v.val, v.source || {team:-1});
+          spawnParticles(u.x, u.y, OLEX_COLOR, 6, 0.4);
+        }
+      }
+    }
+  }
+  /* турели */
+  for(const t of olexTurrets){
+    if(t.dead) continue;
+    t.life -= dt; t.age += dt; t.atkCd -= dt;
+    if(t.owner.dead){ olexEndTurret(t, true); continue; }
+    if(t.life <= 0){
+      addText(t.x, t.y-40, 'ТУРЕЛЬ ОТКЛЮЧЕНА', '#9fb4d9', 0.8, 12);
+      spawnParticles(t.x, t.y, '#7a8aa8', 10, 0.5);
+      olexEndTurret(t, false);
+      continue;
+    }
+    let target = null, bd = 520;
+    for(const u of units){
+      if(!olexEnemyUnit(t.owner,u)) continue;
+      const d = Math.hypot(u.x-t.x, u.y-t.y) - u.radius;
+      if(d < bd){ bd = d; target = u; }
+    }
+    t.target = target;
+    if(target){ t.aim = Math.atan2(target.y-t.y, target.x-t.x); }
+    if(target && t.atkCd <= 0){
+      t.atkCd = 0.8;
+      applyDamage(target, abilityDamage(t.owner, [0,15,19,23,27][Math.max(1,Math.min(4,t.lvl))]), t.owner);
+      fxBeam(t.x, t.y-18, target.x, target.y, '#ff6a6a', 0.14);
+      fxHit(target.x, target.y, '#ff8a8a');
+    }
+  }
+  olexTurrets = olexTurrets.filter(t => !t.dead);
+  /* ульта: синий экран смерти */
+  for(const z of olexZones){
+    if(z.dead) continue;
+    const prev = z.t;
+    z.t += dt;
+    const owner = z.owner;
+    const inside = [];
+    for(const u of units){
+      if(!olexEnemyUnit(owner,u)) continue;
+      if(Math.hypot(u.x-z.x, u.y-z.y) < z.r + u.radius) inside.push(u);
+    }
+    for(const u of inside){
+      u.silenceTimer = Math.max(u.silenceTimer || 0, 0.25);   /* способности не работают */
+    }
+    /* периодический урон: каждые 0.7 с */
+    const tp = Math.floor(prev/0.7), tn = Math.floor(Math.min(z.t, z.life)/0.7);
+    if(tn > tp){
+      for(const u of inside){
+        applyDamage(u, abilityDamage(owner, z.dmg), owner);
+        fxHit(u.x, u.y, OLEX_COLOR);
+      }
+      fxRing(z.x, z.y, z.r*0.96, '#4aa8ff', 0.18);
+    }
+    /* «сбои управления»: на долю секунды герой дёргается в случайную сторону */
+    z.glitch -= dt;
+    if(z.glitch <= 0){
+      z.glitch = 0.45;
+      for(const u of inside){
+        if(u.type !== 'hero') continue;
+        if(!u.moveTarget && !u.attackTarget && !u.moving) continue;
+        const a = Math.random()*Math.PI*2;
+        u.attackTarget = null;
+        u.moveTarget = {x:clamp(u.x+Math.cos(a)*95,60,WORLD-60), y:clamp(u.y+Math.sin(a)*95,60,WORLD-60)};
+        addText(u.x, u.y-u.radius-44, 'ERR', '#7fb6ff', 0.5, 12);
+      }
+    }
+    if(z.t >= z.life || owner.dead && z.t > 0.2){ z.dead = true; fxRing(z.x, z.y, z.r, '#4aa8ff', 0.4); }
+  }
+  olexZones = olexZones.filter(z => !z.dead);
+}
+
+/* ---------- отрисовка эффектов Олекса (мировые координаты) ---------- */
+function drawOlexFx(){
+  const lite = (typeof fxl === 'function' ? fxl() : 0) >= 2;
+  /* щиты патча */
+  for(const u of units){
+    if(u.dead || !(u.shieldHp > 0)) continue;
+    const a = clamp(u.shieldHp / Math.max(1, u.shieldMax || u.shieldHp), 0.25, 1);
+    ctx.save();
+    ctx.translate(u.x, u.y);
+    ctx.globalAlpha = 0.35 + 0.3*a;
+    ctx.strokeStyle = '#7ffff0'; ctx.lineWidth = 3; ctx.shadowColor = OLEX_COLOR; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(0, -6, u.radius + 14, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 0.12 + 0.1*a; ctx.fillStyle = '#39e6ff'; ctx.fill();
+    ctx.restore();
+  }
+  /* вирус на врагах: бегущие нули и единицы */
+  for(const u of units){
+    if(u.dead || !u.buffs || !u.buffs.length) continue;
+    if(!u.buffs.some(b => b.type === 'olexVirus')) continue;
+    ctx.save();
+    ctx.font = 'bold 12px Consolas, monospace'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#7ffff0'; ctx.shadowColor = OLEX_COLOR; ctx.shadowBlur = 8;
+    for(let i=0;i<5;i++){
+      const ph = (gameTime*1.4 + i*0.2) % 1, a = i*1.26 + gameTime*2;
+      ctx.globalAlpha = 1 - ph;
+      ctx.fillText((i+Math.floor(gameTime*6))%2 ? '1' : '0', u.x + Math.cos(a)*(u.radius+6), u.y - 10 - ph*50 + Math.sin(a)*6);
+    }
+    ctx.restore();
+  }
+  /* турели */
+  for(const t of olexTurrets){
+    const grow = Math.min(1, t.age/0.35);
+    ctx.save(); ctx.translate(t.x, t.y); ctx.scale(grow, grow);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(0, 8, 22, 8, 0, 0, Math.PI*2); ctx.fill();
+    const base = ctx.createLinearGradient(0,-6,0,10); base.addColorStop(0,'#5a6a88'); base.addColorStop(1,'#232c42');
+    ctx.fillStyle = base; ctx.strokeStyle = '#9fd8ff'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(0, 4, 17, 7, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#26324c'; ctx.fillRect(-6, -18, 12, 22); ctx.strokeRect(-6, -18, 12, 22);
+    /* ствол крутится к цели */
+    const aim = t.aim || 0;
+    ctx.save(); ctx.translate(0, -20); ctx.rotate(aim);
+    ctx.fillStyle = '#3a4a6e'; ctx.fillRect(-4, -4, 24, 8);
+    ctx.fillStyle = '#ff6a6a'; ctx.shadowColor = '#ff6a6a'; ctx.shadowBlur = t.target ? 12 : 4; ctx.fillRect(18, -2, 6, 4);
+    ctx.restore();
+    ctx.fillStyle = OLEX_COLOR; ctx.shadowColor = OLEX_COLOR; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(0, -22, 5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    /* шкала оставшегося времени */
+    const f = clamp(t.life/(t.maxLife||6), 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-18, 14, 36, 4);
+    ctx.fillStyle = OLEX_COLOR; ctx.fillRect(-18, 14, 36*f, 4);
+    ctx.restore();
+  }
+  /* синий экран смерти */
+  for(const z of olexZones){
+    const k = clamp(z.t/0.35, 0, 1), fade = clamp((z.life - z.t)/0.4, 0, 1);
+    const R = z.r * (0.6 + 0.4*k);
+    ctx.save(); ctx.translate(z.x, z.y);
+    ctx.globalAlpha = 0.88*fade;
+    const g = ctx.createRadialGradient(0,0,R*0.1,0,0,R);
+    g.addColorStop(0,'rgba(10,50,200,0.55)'); g.addColorStop(0.8,'rgba(6,30,150,0.42)'); g.addColorStop(1,'rgba(40,120,255,0.55)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#7fc0ff'; ctx.lineWidth = 3; ctx.shadowColor = '#4aa8ff'; ctx.shadowBlur = 18; ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.clip();
+    /* падающий код */
+    const cols = lite ? 9 : 18;
+    ctx.font = 'bold 15px Consolas, monospace'; ctx.textAlign = 'center';
+    for(let c=0;c<cols;c++){
+      const cx = (c/(cols-1) - 0.5) * R * 1.9;
+      const speed = 70 + (c*37%60);
+      for(let r=0;r<6;r++){
+        const y = ((gameTime*speed + r*46 + c*29) % (R*2)) - R;
+        ctx.globalAlpha = fade * (0.25 + 0.6*(1 - r/6));
+        ctx.fillStyle = r === 0 ? '#ffffff' : '#8fe8ff';
+        const ch = '01{}<>;/=#$'[(Math.floor(gameTime*5) + c*3 + r*7) % 11];
+        ctx.fillText(ch, cx, y);
+      }
+    }
+    ctx.globalAlpha = fade*0.55; ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 54px Consolas, monospace'; ctx.fillText(':(', 0, -6);
+    ctx.font = 'bold 13px Consolas, monospace'; ctx.fillText('YOUR PC RAN INTO A PROBLEM', 0, 22);
+    ctx.fillText('STOP: 0x0000007B', 0, 40);
+    ctx.restore();
+  }
+}
+
+Object.assign(SKILLS, {
+  olexQ: {
+    name:'Строка кода', short:'Q', type:'point', maxLevel:4,
+    cd:[0,3,3,3,3], mana:[0,0,0,0,0], range:680, heat:8,
+    desc:'Быстрый сгусток кода бьёт первого врага на линии: 45 урона и замедление 15% на 1,5 сек. Можно выпустить серию из 2–3 выстрелов подряд (пока не перегрелся процессор), затем перезарядка 3 сек. +8% нагрева за выстрел.',
+    afterCast(h,s,slot,mult){
+      const b = h.olexQ || (h.olexQ = {shots:0, t:0});
+      if(b.t <= 0) b.shots = 0;
+      b.shots++; b.t = 1.8;
+      if(b.shots >= 3){ s.cd = 3 * mult; b.shots = 0; b.t = 0; }
+      else s.cd = 0.35;
+    },
+    cast(h,x,y,lvl){
+      let dir = Math.atan2(y-h.y, x-h.x);
+      if(!Number.isFinite(dir)) dir = h.facing || 0;
+      h.facing = dir;
+      const c = Math.cos(dir), sn = Math.sin(dir), range = 680;
+      let best = null, bestProj = 1e9;
+      for(const u of units){
+        if(!olexEnemyUnit(h,u)) continue;
+        if(u.undetectable) continue;
+        const dx = u.x-h.x, dy = u.y-h.y;
+        const proj = dx*c + dy*sn;
+        if(proj < 0 || proj > range) continue;
+        const perp = Math.abs(-dx*sn + dy*c);
+        if(perp > u.radius + 34) continue;
+        if(proj < bestProj){ bestProj = proj; best = u; }
+      }
+      const ex = best ? best.x : h.x + c*range*0.85, ey = best ? best.y : h.y + sn*range*0.85;
+      fxBeam(h.x+c*24, h.y-16+sn*24, ex, ey, '#39e6ff', 0.2);
+      spawnParticles(h.x+c*30, h.y-16+sn*30, '#aef6ff', 6, 0.35);
+      if(best){
+        applyDamage(best, abilityDamage(h,[0,45,55,65,75][lvl]), h);
+        if(!best.dead){
+          best.slow = Math.max(best.slowT > 0 ? best.slow : 0, 0.15);
+          best.slowT = Math.max(best.slowT || 0, 1.5);
+        }
+        fxHit(best.x, best.y, '#7ffff0');
+        addText(best.x, best.y-best.radius-30, '</>', '#7ffff0', 0.6, 13);
+      }
+      return true;
+    }
+  },
+  olexW: {
+    name:'Вирус / Патч', short:'W', type:'point', maxLevel:4,
+    cd:[0,7,7,7,7], mana:[0,0,0,0,0], range:650, heat:15,
+    desc:'На врага — «Вирус»: 3 сек по 20 урона каждую секунду, а первая попытка применить навык (не чаще раза в секунду) даёт мини-стан 0,3 сек. На себя или союзника — «Патч»: щит 80 и ускорение +20% на 2,5 сек. +15% нагрева.',
+    cast(h,x,y,lvl){
+      const t = pickUnitAt(x,y);
+      if(t && !t.dead && t.team !== h.team && !isStructure(t) && !isBuilding(t)){
+        if(Math.hypot(t.x-h.x,t.y-h.y) > 650 + t.radius){ flashMsg(h,'Цель слишком далеко'); return false; }
+        t.buffs = t.buffs.filter(b => b.type !== 'olexVirus');
+        t.addBuff({type:'olexVirus', t:3, tick:0, val:[0,20,25,30,35][lvl], source:h});
+        fxBeam(h.x, h.y-16, t.x, t.y, '#7ffff0', 0.35);
+        spawnParticles(t.x, t.y, '#7ffff0', 14, 0.6);
+        addText(t.x, t.y-t.radius-40, 'ВИРУС', '#7ffff0', 0.9, 15);
+        return true;
+      }
+      let ally = h;
+      if(t && !t.dead && t.team === h.team && t.type === 'hero' && Math.hypot(t.x-h.x,t.y-h.y) <= 650 + t.radius) ally = t;
+      olexGiveShield(ally, [0,80,100,120,140][lvl], 2.5);
+      ally.buffs = ally.buffs.filter(b => b.id !== 'olexPatch');
+      ally.addBuff({type:'spd', id:'olexPatch', val:0.2, t:2.5});
+      if(ally !== h) fxBeam(h.x, h.y-16, ally.x, ally.y, '#7fff9a', 0.35);
+      fxRing(ally.x, ally.y, 70, '#7fff9a', 0.45);
+      spawnParticles(ally.x, ally.y, '#9dffb4', 16, 0.7);
+      addText(ally.x, ally.y-ally.radius-44, 'ПАТЧ +'+[0,80,100,120,140][lvl], '#9dffb4', 0.9, 15);
+      return true;
+    }
+  },
+  olexE: {
+    name:'Авто-турель', short:'E', type:'point', maxLevel:4,
+    cd:[0,10,10,9,9], mana:[0,0,0,0,0], range:480, heat:18,
+    desc:'Ставит турель на 6 сек: лазер по ближайшему врагу, 15 урона каждые 0,8 сек. Повторное нажатие E взрывает турель досрочно: 90 урона в небольшой зоне. Перезарядка 10 сек начинается после исчезновения турели. +18% нагрева за установку.',
+    afterCast(h,s){ if(olexTurretOf(h)) s.cd = 0.6; },
+    cast(h,x,y,lvl){
+      const cur = olexTurretOf(h);
+      if(cur){ olexDetonate(cur, true); return true; }
+      const d = Math.hypot(x-h.x, y-h.y) || 1, k = Math.min(1, 480/d);
+      const px = clamp(h.x+(x-h.x)*k, 60, WORLD-60), py = clamp(h.y+(y-h.y)*k, 60, WORLD-60);
+      olexTurrets.push({x:px, y:py, owner:h, team:h.team, life:(hasScepter(h)?8:6), maxLife:(hasScepter(h)?8:6), age:0, atkCd:0.35, lvl, aim:Math.atan2(y-h.y,x-h.x), target:null, dead:false,
+        cdMult:1 - Math.max(heroHasItem(h,'archmageRobe') ? SHOP_ITEMS.archmageRobe.cooldownReduction : 0, h.inventory.some(i => i && i.id === 'enemy302') ? SHOP_ITEMS.enemy302.cooldownReduction : 0)});
+      fxRing(px, py, 60, OLEX_COLOR, 0.4);
+      spawnParticles(px, py, OLEX_COLOR, 14, 0.6);
+      addText(px, py-50, 'ТУРЕЛЬ', OLEX_COLOR, 0.9, 15);
+      return true;
+    }
+  },
+  olexR: {
+    name:'Синий экран смерти', short:'R', type:'point', maxLevel:3, ult:true,
+    cd:[0,75,70,65], mana:[0,0,0,0], range:420, heat:35,
+    desc:'Арена с падающим кодом на 3,5 сек. Враги внутри получают 30 урона каждые 0,7 сек (~150 всего), не могут применять способности, а их управление периодически сбоит. +35% нагрева.',
+    cast(h,x,y,lvl){
+      const d = Math.hypot(x-h.x, y-h.y) || 1, k = Math.min(1, 420/d);
+      const px = clamp(h.x+(x-h.x)*k, 60, WORLD-60), py = clamp(h.y+(y-h.y)*k, 60, WORLD-60);
+      olexZones.push({x:px, y:py, r:270, t:0, life:(hasScepter(h)?4.5:3.5), glitch:0.3, dmg:[0,30,38,46][lvl], owner:h, team:h.team, dead:false});
+      fxRing(px, py, 270, '#4aa8ff', 0.6);
+      spawnParticles(px, py, '#4aa8ff', 40, 1.2);
+      addText(px, py-90, 'СИНИЙ ЭКРАН СМЕРТИ', '#8fd0ff', 1.3, 19);
+      return true;
+    }
+  },
+  olexT: {
+    name:'Отладка', short:'T', type:'point', maxLevel:3,
+    cd:[0,8,7,6], mana:[0,0,0,0], range:300, heat:30,
+    desc:'Короткий рывок в указанную сторону и мгновенный сброс перезарядки способности W. Нагревает процессор на 30%.',
+    cast(h,x,y,lvl){
+      let dir = Math.atan2(y-h.y, x-h.x);
+      if(!Number.isFinite(dir)) dir = h.facing || 0;
+      const dist = 290;
+      const nx = clamp(h.x+Math.cos(dir)*dist, 60, WORLD-60), ny = clamp(h.y+Math.sin(dir)*dist, 60, WORLD-60);
+      fxBeam(h.x, h.y-10, nx, ny, '#39e6ff', 0.4);
+      spawnParticles(h.x, h.y, '#7ffff0', 18, 0.7);
+      h.x = nx; h.y = ny; h.facing = dir;
+      spawnParticles(nx, ny, '#7ffff0', 18, 0.7);
+      fxRing(nx, ny, 55, OLEX_COLOR, 0.35);
+      const w = h.skills.find(sk => sk.id === 'olexW');
+      if(w && w.cd > 0){ w.cd = 0; addText(h.x, h.y-84, 'W СБРОШЕН', '#9dffb4', 1.0, 14); }
+      else addText(h.x, h.y-84, 'ОТЛАДКА', OLEX_COLOR, 0.9, 14);
+      return true;
+    }
+  }
+});
+
 
 function tickVirsudiJump(hero,dt){
   const j=hero.virsudiJump;
@@ -9393,7 +9705,7 @@ const HERO_DEFS = [
     color:'#7e3f24', color2:'#ffd27a',
     baseHp:600, hpPerLvl:66, baseMp:330, mpPerLvl:40,
     baseDmg:74, dmgPerLvl:7.5, speed:158,
-    atkRange:690, atkTime:1.18, baseArmor:3, armorPerLvl:0.48,
+    atkRange:620, atkTime:1.18, baseArmor:3, armorPerLvl:0.48,
     vision:1250, hpRegen:1.6, mpRegen:2.4,
     skills:['sniperShrapnel','sniperHeadshot','sniperTakeAim','sniperAssassinate'],
     weapon:{type:'sniperRifle',color:'#d9b079',size:1.0,followFacing:true}
@@ -9417,6 +9729,15 @@ const HERO_DEFS = [
     vision:1020, hpRegen:2.2, mpRegen:2.0,
     skills:['virsudiQ','virsudiW','virsudiE','virsudiR'],
     weapon:{type:'dualBlades',color:'#a8eaff',size:1.08,followFacing:true}
+  },
+  {
+    id:'olex', name:'Олекс', title:'Боец-программист',
+    color:'#12304f', color2:'#39e6ff',
+    baseHp:660, hpPerLvl:82, baseMp:300, mpPerLvl:38,
+    baseDmg:62, dmgPerLvl:5.5, speed:165,
+    atkRange:520, atkTime:1.05, baseArmor:2, armorPerLvl:0.45,
+    vision:1100, hpRegen:1.7, mpRegen:2.2,
+    skills:['olexQ','olexW','olexE','olexR','olexT']
   }
 ];
 
@@ -9430,7 +9751,8 @@ const HERO_STAT_BALANCE = {
   dawnMaiden:[1080,137,72,3,0.92], exileKnight:[900,112,90,3.7,0.92], juvsyut:[970,128,68,3.2,0.95],
   chip:[760,90,58,3.3,1.03], savely:[970,116,80,3.4,0.94], juggernaut:[930,110,78,3,0.94],
   earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04], vaspassir:[560,64,62,3.4,1.04],
-  virsudi:[690,84,66,6.5,1]
+  virsudi:[690,84,66,6.5,1],
+  olex:[660,82,62,5.5,1]
 };
 
 for(const def of HERO_DEFS){
@@ -9477,7 +9799,7 @@ class Hero extends Unit {
     this.shadowSouls = 0;
     this.shadowCasting = false;
     this.omnislashWasActive = false;
-    this.shrapnelMaxCharges = def.id === 'sniper' ? 2 : 0;
+    this.shrapnelMaxCharges = def.id === 'sniper' ? 1 : 0;
     this.shrapnelCharges = this.shrapnelMaxCharges;
     this.shrapnelRechargeTimers = [];
     this.assassinating = false;
@@ -9488,6 +9810,7 @@ class Hero extends Unit {
     this.bikeTimer = 0;
     this.bikeHitTimer = 0;
     this.bikeShieldTimer = 0;
+    this.olexHeat = 0; this.olexOverheat = 0; this.olexQ = null;
     if(def.id === 'grisha'){
       this.orbs = ['Q','W','E'];
       this.skills[3].level = 1;
@@ -9775,7 +10098,6 @@ class Hero extends Unit {
     for(const b of this.buffs) if(b.type === 'hpregen') regen += b.val;
     if(heroHasItem(this,'valakinsens')) regen += SHOP_ITEMS.valakinsens.hpRegen;
     if(heroHasItem(this,'titanHeart')) regen += SHOP_ITEMS.titanHeart.hpRegen;
-    if(heroHasItem(this,'bastion')) regen += SHOP_ITEMS.bastion.hpRegen;
     if(heroHasItem(this,'refresherOrb')) regen += SHOP_ITEMS.refresherOrb.hpRegen;
     if(this.buffs.some(b=>b.type==='regen')) regen += this.maxHp*0.04;
     this.hp = Math.min(this.maxHp, this.hp + regen*dt*healAmpOf(this));
@@ -9849,6 +10171,7 @@ class Hero extends Unit {
 function gainXp(hero, amount){ if(hero && !hero.dead) hero.gainXp(amount); }
 
 function skillFxColor(hero, skillId){
+  if(/olex/.test(skillId)) return '#39e6ff';
   if(/juggernaut|bladeFury|healingWard|bladeDance|omnislash/.test(skillId)) return '#ffe066';
   if(/sniper|shrapnel|headshot|takeAim|assassinate/.test(skillId)) return '#ffd27a';
   if(/vasp/.test(skillId)) return '#8dff5a';
@@ -9905,6 +10228,10 @@ function castSkill(hero, slot, tx, ty){
   if(hero.silenceTimer > 0 && !s.def.passive){ flashMsg(hero, 'Вы не можете применять способности'); return false; }
 
   const def = s.def;
+  if(hero.def && hero.def.id === 'olex' && hero.olexOverheat > 0 && !def.passive){
+    flashMsg(hero, 'ПЕРЕГРЕВ ПРОЦЕССОРА ' + hero.olexOverheat.toFixed(1) + 'с'); return false;
+  }
+  if(!def.passive && olexVirusTrigger(hero)) return false;
   const isReginaTraversal = hero.def.id === 'regina' && (slot === 0 || slot === 1);
   const reginaTargetIsValid = () => {
     return !!findReginaTarget(hero, tx, ty, slot);
@@ -9984,6 +10311,8 @@ function castSkill(hero, slot, tx, ty){
       else playAbilitySound('cast');
       if(invokeSpellKey) hero.spellCooldowns[invokeSpellKey] = (INVOKE_COOLDOWNS[invokeSpellKey] || 0) * cooldownMultiplier;
       else s.cd = def.cd[s.level] * cooldownMultiplier;
+      if(typeof def.afterCast === 'function') def.afterCast(hero, s, slot, cooldownMultiplier);
+      if(def.heat && hero.def && hero.def.id === 'olex') olexAddHeat(hero, def.heat);
       const isShadowRaze = hero.def.id === 'shadow' && slot >= 0 && slot <= 2;
       if(isShadowRaze){
         spawnParticles(hero.x, hero.y, '#ff3b1f', 22, 0.75);
@@ -10568,7 +10897,7 @@ function startGame(playerIndex, draftPicks=null){
   onlineMatchActive = false;
   stopMenuMusic();
   MID_PUSH_TIME = gameModeCfg().midPushTime;
-  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
+  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; olexTurrets=[]; olexZones=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID); wardsReset();
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
@@ -10689,7 +11018,7 @@ function orientOnlineMapForTeam(globalTeam){
 function startTestMode(playerIndex){
   MID_PUSH_TIME = GAME_MODES.turbo.midPushTime;
   stopMenuMusic();
-  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
+  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; olexTurrets=[]; olexZones=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
   controlledUnit=null;
   explored = new Uint8Array(GRID*GRID); wardsReset();
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
@@ -11591,6 +11920,39 @@ function updateEnemyAI(h, dt){
     return;
   }
 
+  /* === ОЛЕКС === */
+  if(h.def.id === 'olex'){
+    if(target){
+      const d=Math.hypot(target.x-h.x,target.y-h.y);
+      const isH = target.type === 'hero';
+      const tur = olexTurretOf(h);
+      h.attackTarget=target; h.moveTarget=null;
+      const ready = i => h.skills[i] && h.skills[i].level>0 && h.skills[i].cd<=0;
+      const cool = (h.olexHeat||0) < 70;
+      if(h.olexOverheat>0){ /* перегрев: только автоатаки */ }
+      else if(tur && olexEnemyUnit(h,target) && Math.hypot(target.x-tur.x,target.y-tur.y)<150 && tur.life<5.2 && ready(2)) castSkill(h,2,tur.x,tur.y);
+      else if(ready(3) && isH && d<430) castSkill(h,3,target.x,target.y);
+      else if(h.hp/h.maxHp<0.45 && ready(1)) castSkill(h,1,h.x,h.y);
+      else if(ready(1) && d<620 && isH) castSkill(h,1,target.x,target.y);
+      else if(!tur && ready(2) && d<480 && cool) castSkill(h,2,target.x,target.y);
+      else if(ready(0) && d<660 && cool) castSkill(h,0,target.x,target.y);
+      else if(ready(4) && d<260 && (h.olexHeat||0)<60 && h.skills[1].cd>1.5){
+        const away=Math.atan2(h.y-target.y,h.x-target.x);
+        castSkill(h,4,h.x+Math.cos(away)*300,h.y+Math.sin(away)*300);
+      }
+      else if(d<240){
+        const away=Math.atan2(h.y-target.y,h.x-target.x);
+        h.attackTarget=null;
+        h.moveTarget={x:clamp(h.x+Math.cos(away)*240,80,WORLD-80),y:clamp(h.y+Math.sin(away)*240,80,WORLD-80)};
+      }
+    } else {
+      h.attackTarget=null;
+      const goal=botLaneObjective(h);
+      h.moveTarget={x:goal.x+rnd(-100,100),y:goal.y+rnd(-100,100)};
+    }
+    return;
+  }
+
   /* === ДЖАГГЕРНАУТ === */
   if(h.def.id === 'juggernaut'){
     if(target){
@@ -11760,6 +12122,7 @@ function update(dt){
   }
   updateBaseRooms(dt);
   updateMo3giMines(dt);
+  olexTick(dt);
   updateRoshan(dt);
   for(const u of units){
     if(u.type === 'neutral' && u.dead && !u.isRoshan){
@@ -11845,7 +12208,6 @@ function update(dt){
       const attackOwner=p.source && (p.source.source || p.source);
       const scepterOwner=attackOwner && attackOwner.def && attackOwner.def.id==='tribupainer' ? attackOwner : null;
       applyDamage(p.target, p.dmg * (scepterOwner && hasScepter(scepterOwner) ? 1.2 : 1), p.source || {team:p.team});
-      if(attackOwner && attackOwner.kind==='mage' && attackOwner.type==='neutral') mageHitFx(p.target);
       if(attackOwner && attackOwner.def && attackOwner.def.id==='grisha') grishaHitSparkle(p.target.x,p.target.y);
       if(p.vaspCopy && !p.target.dead) vaspCopyHit(p.vaspCopy,p.target);
       if(p.headshot && !p.target.dead){
@@ -12953,7 +13315,7 @@ window.addEventListener('keydown', e => {
     return;
   }
 
-  if(code === 'KeyT' || key === 't' || key === 'е'){
+  if((code === 'KeyT' || key === 't' || key === 'е') && !isOlex(playerHero)){
     const drone = mo3giDroneOf(playerHero);
     if(drone) toggleMo3giDroneControl(playerHero, drone);
     else flashMsg(playerHero, 'Сначала вызовите дрона');
@@ -12972,7 +13334,7 @@ window.addEventListener('keydown', e => {
     if(physicalLetter) itemSlot = inventoryBinds.indexOf(physicalLetter);
   }
   const skillKey = PHYSICAL_KEY_LETTER[code] || key;
-  const skillKeyConflict = ['q','w','e','r','f','g'].includes(skillKey);
+  const skillKeyConflict = ['q','w','e','r','t','f','g'].includes(skillKey);
   if(skillKeyConflict) itemSlot = -1;
   if(itemSlot >= 0){
     useInventoryItem(playerHero, itemSlot);
@@ -12981,7 +13343,7 @@ window.addEventListener('keydown', e => {
   }
 
   const physicalSkillKey=PHYSICAL_KEY_LETTER[code] || key;
-  const skillShort={q:'Q',й:'Q',w:'W',ц:'W',e:'E',у:'E',r:'R',к:'R',f:'F',а:'F',g:'G',п:'G'}[physicalSkillKey];
+  const skillShort={q:'Q',й:'Q',w:'W',ц:'W',e:'E',у:'E',r:'R',к:'R',t:'T',е:'T',f:'F',а:'F',g:'G',п:'G'}[physicalSkillKey];
   const slot=skillShort ? playerHero.skills.findIndex(skill=>skill.def.short===skillShort) : -1;
 
   if(slot < 0) return;
@@ -13584,7 +13946,7 @@ function drawUnitSafely(u){
 
 /* ===== 0.8.4: 3D-монстры крипов ===== */
 const UNIT_VISUAL_SCALE = 1.15;      /* все модели в матче визуально крупнее на 15% (хитбокс не меняется) */
-const NEUTRAL_MONSTER = {wolf:'mon_hound', big:'mon_golem', satyr:'mon_imp', brute:'mon_golem', mage:'mon_imp'};   /* обычный лагерь — мухомор */
+const NEUTRAL_MONSTER = {wolf:'mon_hound', big:'mon_golem', satyr:'mon_imp'};   /* обычный лагерь — мухомор */
 function unitVisualScale(u){ return portraitRenderMode ? 1 : UNIT_VISUAL_SCALE; }
 /* 0.9.1: иллюзии Иллюзиониста выглядят как сам боец — тот же 3D-спрайт, скин, подписи и полоски */
 function isIllusionClone(u){ return !!(u && u.isIllusion && u.summonKind==='illusion' && u.copyDef && u.owner); }
@@ -13602,7 +13964,7 @@ function creepMonsterDef(u){
   let id, skin;
   if(u.type === 'neutral'){
     id = NEUTRAL_MONSTER[u.kind] || 'mon_shroom';
-    skin = 't2' + ((u.kind === 'satyr' || u.kind === 'mage') ? 'r' : '');
+    skin = 't2' + (u.kind === 'satyr' ? 'r' : '');
   } else {
     /* 0.8.5: все лайновые крипы обеих команд — гоблины-копейщики (одна модель) */
     id = 'mon_goblin';
@@ -13746,39 +14108,10 @@ function drawRoshanBody(u){
   ctx.restore();
 }
 
-/* 0.9.6.1: отличительные детали поверх общей 3D-модели */
-function drawNeutralAccent(u, footY){
-  const r=u.radius, t=gameTime;
-  ctx.save();
-  if(u.kind==='brute'){
-    /* тлеющие трещины-руны на камне и оранжевое свечение под ногами */
-    const pulse=0.55+0.25*Math.sin(t*2.2+u.x*0.01);
-    ctx.globalAlpha=pulse; ctx.strokeStyle='#ff9a4a'; ctx.lineWidth=2; ctx.shadowColor='#ff7a2a'; ctx.shadowBlur=10;
-    ctx.beginPath();
-    ctx.moveTo(-r*0.35,-r*0.9); ctx.lineTo(-r*0.1,-r*0.45); ctx.lineTo(-r*0.3,-r*0.1);
-    ctx.moveTo(r*0.3,-r*0.8); ctx.lineTo(r*0.12,-r*0.35); ctx.lineTo(r*0.34,0);
-    ctx.stroke();
-    ctx.shadowBlur=0; ctx.globalAlpha=0.25; ctx.fillStyle='#ff7a2a';
-    ctx.beginPath(); ctx.ellipse(0,footY,r*1.25,r*0.6,0,0,Math.PI*2); ctx.fill();
-  } else {
-    /* два фиолетовых огонька кружат вокруг чародея */
-    ctx.shadowColor='#b46bff'; ctx.shadowBlur=12;
-    for(let i=0;i<2;i++){
-      const a=t*2.4+i*Math.PI;
-      ctx.globalAlpha=0.9; ctx.fillStyle=i?'#ff7ae6':'#d9b2ff';
-      ctx.beginPath(); ctx.arc(Math.cos(a)*r*1.1, -r*0.7+Math.sin(a)*r*0.35, 3.2, 0, Math.PI*2); ctx.fill();
-    }
-    ctx.shadowBlur=0; ctx.globalAlpha=0.22; ctx.fillStyle='#b46bff';
-    ctx.beginPath(); ctx.ellipse(0,footY,r*1.1,r*0.55,0,0,Math.PI*2); ctx.fill();
-  }
-  ctx.restore();
-}
 function drawNeutralCreepBody(u, col){
   if(u.isRoshan){ drawRoshanBody(u); return; }
   const scale=Math.max(0.72,u.radius/18);
-  const palette=u.kind==='brute'?['#8a8c94','#3b3d44']:
-    u.kind==='mage'?['#9a6bd6','#3d2a68']:
-    u.kind==='wolf'?['#b9c8d1','#637681']:
+  const palette=u.kind==='wolf'?['#b9c8d1','#637681']:
     u.kind==='satyr'?['#c7824f','#69402d']:
     u.kind==='big'?['#9a8765','#4f5148']:['#83aa61','#3f633d'];
   ctx.save();
@@ -13800,7 +14133,7 @@ function drawNeutralCreepBody(u, col){
     const body=ctx.createLinearGradient(-14,-16,14,18);
     body.addColorStop(0,palette[0]); body.addColorStop(1,palette[1]); ctx.fillStyle=body;
     ctx.beginPath();
-    if(u.kind==='big' || u.kind==='brute'){
+    if(u.kind==='big'){
       ctx.moveTo(-15,13); ctx.lineTo(-13,-8); ctx.lineTo(-7,-17); ctx.lineTo(0,-12);
       ctx.lineTo(8,-19); ctx.lineTo(15,-7); ctx.lineTo(14,13); ctx.closePath();
     } else {
@@ -14017,7 +14350,9 @@ function towerSparks(x,y,rgb,n,ang,spread){
 function towerImpact(x,y,rgb,ang){
   towerFxAdd({k:'flash',x,y,life:0.2,size:30,rgb}, true);
   towerFxAdd({k:'ring',x,y,life:0.26,size:22,rgb}, true);
-  towerSparks(x,y,rgb,5,ang,2.4);
+  towerFxAdd({k:'ring',x,y,life:0.42,size:40,rgb}, true);
+  towerFxAdd({k:'flash',x,y,life:0.09,size:18,rgb:'255,255,255'}, true);
+  towerSparks(x,y,rgb,9,ang,2.6);
 }
 /* Реакция башни на попадание (вызывается из noteStructureAttack) */
 function towerOnHit(u, source){
@@ -14042,6 +14377,9 @@ function towerFireBolt(ev, target){
   towerBolts.push({tw, ox, oy, x:ox, y:oy, target, ang:ev.angle || 0, tx:target ? target.x : ox+Math.cos(ev.angle||0)*400, ty:target ? target.y : oy+Math.sin(ev.angle||0)*400,
     t:0, life:0.22, rgb:P.boltRgb, light, trail:0, big:tw.type === 'ancient'});
   towerFxAdd({k:'flash',x:ox,y:oy,life:0.16,size:tw.radius*(tw.isBase ? 0.9 : 1.5),rgb:P.rgb}, true);
+  towerFxAdd({k:'ring',x:ox,y:oy,life:0.3,size:tw.radius*(tw.isBase ? 2.6 : 3.2),rgb:P.rgb}, true);   /* расходящееся кольцо выстрела */
+  towerFxAdd({k:'flash',x:ox,y:oy,life:0.1,size:tw.radius*(tw.isBase ? 1.6 : 2.4),rgb:'255,255,255'}, true);
+  towerSparks(ox, oy, P.rgb, 6, ev.angle, 1.3);
   return true;
 }
 /* Разрушение */
@@ -14210,7 +14548,8 @@ function drawTowerFx(){
     const g = ctx.createLinearGradient(ex, ey, b.x, b.y); g.addColorStop(0,'rgba('+b.rgb+',0)'); g.addColorStop(1,'rgba('+b.rgb+',0.85)');
     ctx.globalAlpha = 1; ctx.strokeStyle = g; ctx.lineCap = 'round'; ctx.lineWidth = b.big ? 7 : 5;
     ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(b.x, b.y); ctx.stroke();
-    towerGlow(b.x, b.y, b.big ? 26 : 18, b.rgb, 0.95);
+    towerGlow(b.x, b.y, b.big ? 34 : 25, b.rgb, 0.9);
+    towerGlow(b.x, b.y, b.big ? 18 : 12, '255,255,255', 0.8);
     ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.big ? 4 : 3, 0, Math.PI*2); ctx.fill();
     /* ромбовидный блик */
     if(b.light){ ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.moveTo(b.x,b.y-8); ctx.lineTo(b.x+2,b.y); ctx.lineTo(b.x,b.y+8); ctx.lineTo(b.x-2,b.y); ctx.closePath(); ctx.fill(); }
@@ -14772,9 +15111,8 @@ function drawUnit(u){
         let lx = 0, ly = 0, lean = 0;
         if(u.isAttacking){
           const ap = Math.sin(Math.min(1,u.attackAnimProgress)*Math.PI);
-          const hv = u.kind==='brute' ? 1.9 : 1;   /* громила бьёт тяжело: сильный замах */
-          lx = Math.cos(fa)*ap*u.radius*0.34*hv; ly = Math.sin(fa)*ap*u.radius*0.2*hv;
-          lean = Math.cos(fa)*ap*0.16*hv;
+          lx = Math.cos(fa)*ap*u.radius*0.34; ly = Math.sin(fa)*ap*u.radius*0.2;
+          lean = Math.cos(fa)*ap*0.16;
         }
         ctx.save();
         ctx.translate(lx, footY + ly);
@@ -14782,7 +15120,6 @@ function drawUnit(u){
         ctx.scale(1 - squash*0.6, 1 + squash);
         ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
         ctx.restore();
-        if(u.type==='neutral' && (u.kind==='brute' || u.kind==='mage')) drawNeutralAccent(u, footY);
       }
     }
   }
@@ -16654,6 +16991,7 @@ function drawWorldObjects(){
     ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.moveTo(0,-14); ctx.lineTo(0,14); ctx.stroke();
     ctx.restore();
   }
+  drawOlexFx();
   for(const wall of walls){
     if(wall.style === 'ice'){ drawIceWall(wall); continue; }
     ctx.save(); ctx.translate(wall.x,wall.y); ctx.rotate(wall.angle);
@@ -17975,31 +18313,6 @@ function drawItemIcon(item, x, y, size){
     ctx.fillStyle=rg; ctx.strokeStyle='#e6ebff'; ctx.lineWidth=Math.max(1.5,size*.05);
     ctx.beginPath(); ctx.moveTo(0,-size*.46); ctx.lineTo(size*.36,size*.42); ctx.lineTo(-size*.36,size*.42); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.shadowBlur=0; ctx.fillStyle='#fff6c9'; ctx.beginPath(); ctx.arc(0,size*.05,size*.1,0,Math.PI*2); ctx.fill(); ctx.restore();
-  } else if(item.id === 'overBlink'){
-    ctx.save(); ctx.rotate(-0.18); ctx.shadowColor='#ffb35c'; ctx.shadowBlur=14;
-    const og=ctx.createLinearGradient(-size*.24,-size*.45,size*.25,size*.44);
-    og.addColorStop(0,'#fff6dc'); og.addColorStop(0.3,'#ffc467'); og.addColorStop(0.7,'#e0702a'); og.addColorStop(1,'#5a1f12');
-    ctx.fillStyle=og; ctx.strokeStyle='#ffe6b0'; ctx.lineWidth=Math.max(1.5,size*.045);
-    ctx.beginPath(); ctx.moveTo(0,-size*.45); ctx.lineTo(size*.28,-size*.08); ctx.lineTo(size*.16,size*.38); ctx.lineTo(-size*.18,size*.45); ctx.lineTo(-size*.32,-size*.08); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.restore();
-    ctx.save(); ctx.strokeStyle='rgba(255,214,140,.85)'; ctx.lineWidth=Math.max(1.2,size*.04); ctx.beginPath(); ctx.arc(0,0,size*.5,0,Math.PI*2); ctx.stroke(); ctx.restore();
-  } else if(item.id === 'bastion'){
-    ctx.save(); ctx.shadowColor='#ff8a5c'; ctx.shadowBlur=12;
-    const bg=ctx.createLinearGradient(0,-size*.46,0,size*.46); bg.addColorStop(0,'#ffd2b0'); bg.addColorStop(1,'#a8402a');
-    ctx.fillStyle=bg; ctx.strokeStyle='#ffe6d2'; ctx.lineWidth=Math.max(1.5,size*.05);
-    ctx.beginPath(); ctx.moveTo(0,-size*.46); ctx.lineTo(size*.38,-size*.28); ctx.lineTo(size*.32,size*.14); ctx.lineTo(0,size*.48); ctx.lineTo(-size*.32,size*.14); ctx.lineTo(-size*.38,-size*.28); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.shadowBlur=0; ctx.fillStyle='#7a1c24'; ctx.beginPath(); ctx.moveTo(0,size*.24); ctx.bezierCurveTo(-size*.3,0,-size*.16,-size*.26,0,-size*.1); ctx.bezierCurveTo(size*.16,-size*.26,size*.3,0,0,size*.24); ctx.fill(); ctx.restore();
-  } else if(item.id === 'dagonInfinity'){
-    ctx.save(); ctx.shadowColor='#ff3d9a'; ctx.shadowBlur=14; ctx.fillStyle='#ff3d9a'; ctx.strokeStyle='#ffd0e8'; ctx.lineWidth=Math.max(1.5,size*.05);
-    ctx.beginPath(); ctx.moveTo(size*.14,-size*.5); ctx.lineTo(-size*.26,size*.04); ctx.lineTo(-size*.02,size*.04); ctx.lineTo(-size*.14,size*.5); ctx.lineTo(size*.28,-size*.08); ctx.lineTo(size*.02,-size*.08); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.shadowBlur=0; ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(1.2,size*.04); ctx.beginPath(); ctx.ellipse(-size*.18,size*.36,size*.12,size*.08,0,0,Math.PI*2); ctx.ellipse(size*.06,size*.36,size*.12,size*.08,0,0,Math.PI*2); ctx.stroke(); ctx.restore();
-  } else if(item.id === 'tyrantBlade'){
-    ctx.save(); ctx.rotate(Math.PI/4); ctx.shadowColor='#ffd24a'; ctx.shadowBlur=14;
-    const tg=ctx.createLinearGradient(0,-size*.5,0,size*.2); tg.addColorStop(0,'#ffffff'); tg.addColorStop(1,'#d9a526');
-    ctx.fillStyle=tg; ctx.strokeStyle='#fff2b8'; ctx.lineWidth=Math.max(1.5,size*.04);
-    ctx.beginPath(); ctx.moveTo(0,-size*.52); ctx.lineTo(size*.1,-size*.4); ctx.lineTo(size*.08,size*.2); ctx.lineTo(-size*.08,size*.2); ctx.lineTo(-size*.1,-size*.4); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#b8741a'; ctx.fillRect(-size*.24,size*.2,size*.48,size*.07); ctx.fillStyle='#7a1c24'; ctx.fillRect(-size*.05,size*.27,size*.1,size*.2);
-    ctx.restore();
   } else if(item.id === 'fangs'){
     ctx.save();
     ctx.strokeStyle='#e9edf4'; ctx.fillStyle='#bac5d4'; ctx.lineWidth=2;
@@ -18371,7 +18684,7 @@ const SHOP_TABS = ['ВСЕ','РАСХОДНИКИ','ХАРАКТЕРИСТИКИ
 const SHOP_CATEGORY_OF = {
   tango:1, timurPillow:1, mango:1, hatchet:1, observerWard:1,
   joelBoots:2, fangs:2, evsyutin:2, manaTome:2, manaHooves:2, brainEye:2, kinglandia:2, satanic:2, enemy302:2, semenHead:2, octarineCore:2,
-  pt:4, aghanimShard:4, aghanimScepter:4, stormbringer:4, titanHeart:4, archmageRobe:4, overBlink:4, bastion:4, dagonInfinity:4, tyrantBlade:4
+  pt:4, aghanimShard:4, aghanimScepter:4, stormbringer:4, titanHeart:4, archmageRobe:4
 };
 function shopItemCategory(id){ return SHOP_CATEGORY_OF[id] || 3; }
 let shopTab = 0, shopSearch = '', shopSearchFocus = false, shopSelectedId = null;
@@ -18851,7 +19164,7 @@ function drawInventory(){
     ctx.strokeStyle=item ? (cooling?'#68717b':item.color) : 'rgba(255,255,255,0.25)'; ctx.lineWidth=item?2:1.5; ctx.strokeRect(r.x,r.y,r.w,r.h);
     ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=1; ctx.strokeRect(r.x+3,r.y+3,r.w-6,r.h-6);
     ctx.textAlign='center'; ctx.font='bold 20px Segoe UI, Arial'; ctx.fillStyle=item ? item.color : 'rgba(255,255,255,0.25)';
-    const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : item.id==='semenHead' ? '☻' : item.id==='observerWard' ? '◉' : item.id==='overBlink' ? '◈' : item.id==='bastion' ? '⬣' : item.id==='dagonInfinity' ? '⚡' : item.id==='tyrantBlade' ? '⚔' : '▲') : '-';
+    const icon = item ? (item.id==='mango' ? '◆' : item.id==='tango' ? '♣' : item.id==='fangs' ? '✦' : item.id==='bkb' ? '✚' : item.id==='pt' ? '◆' : item.id==='blink' ? '◇' : item.id==='evsyutin' ? '♥' : item.id==='mantledSteel' ? '▣' : item.id==='manaTome' ? '✧' : item.id==='manaHooves' ? '♢' : item.id==='superBoots' ? '⬆' : item.id==='aghanimHead' ? '✹' : item.id==='ilyaHair' ? '☄' : item.id==='aghanimShard' ? '⬢' : item.id==='aghanimScepter' ? '✹' : item.id==='enemy302' ? '⌛' : item.id==='tornBrainHand' ? '☠' : item.id==='munition' ? '⚙' : item.id==='hatchet' ? '🪓' : item.id==='satanic' ? '♦' : item.id==='arcadiaScar' ? '✦' : item.id==='kinglandia' ? '♛' : item.id==='gur' ? '⬆' : item.id==='brainEye' ? '◉' : item.id==='dianaPants' ? '♡' : item.id==='girfsyutin' ? '♥' : item.id==='semenHead' ? '☻' : item.id==='observerWard' ? '◉' : '▲') : '-';
     ctx.save();
     if(cooling) ctx.filter='grayscale(1)';
     { const pk = item ? shopSlotPop(i) : 1;
@@ -19120,6 +19433,11 @@ function drawBottomHeroPanel(hero){
     ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
   };
   drawBar(layout.hp,hero.hp/hero.maxHp,'#58d86a','#1f7d33',Math.ceil(hero.hp)+' / '+Math.ceil(hero.maxHp));
+  if(hero.def && hero.def.id === 'olex'){
+    const heat = clamp((hero.olexHeat||0)/100,0,1), over = hero.olexOverheat > 0;
+    drawBar(layout.mp, heat, over ? '#ff6a4a' : (heat>0.7 ? '#ffb340' : '#39e6ff'), over ? '#8d1a10' : (heat>0.7 ? '#8a5a10' : '#12607a'),
+      over ? 'ПЕРЕГРЕВ '+hero.olexOverheat.toFixed(1)+'с' : 'ПРОЦЕССОР '+Math.round(hero.olexHeat||0)+'%');
+  } else
   drawBar(layout.mp,hero.mp/hero.maxMp,'#4d97f0','#1c4f9a',Math.ceil(hero.mp)+' / '+Math.ceil(hero.maxMp));
 
   /* разделитель между блоками */
@@ -19425,7 +19743,7 @@ function drawHUD(){
     const invokeKey = h.def.id === 'grisha' && i === 3 ? getOrbKey(h.orbs || ['Q','W','E']) : null;
     const activeCd = invokeKey ? getInvokeCooldown(h, invokeKey) : s.cd;
     const maxCd = invokeKey ? (INVOKE_COOLDOWNS[invokeKey] || 0) : (def.cd[s.level] || 0);
-    const ready = s.level>0 && activeCd<=0 && h.mp>=manaVal && !(def.mineSkill && h.mineLock);
+    const ready = s.level>0 && activeCd<=0 && h.mp>=manaVal && !(h.olexOverheat>0) && !(def.mineSkill && h.mineLock);
     const canLevel = h.canLevelSkill(i);
 
     const skillGradient=ctx.createLinearGradient(r.x,r.y,r.x+r.w,r.y+r.h);
@@ -21397,7 +21715,7 @@ async function accountRecordResult(won, matchId, ranked, stats){
 const AVATAR_DEFS = [
   {id:'pyro'},{id:'warlord'},{id:'grisha'},{id:'golly'},{id:'sasych'},
   {id:'ilya'},{id:'malit'},{id:'arcady'},{id:'illusionist'},{id:'shadow'},
-  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'vaspassir'},{id:'chip'},{id:'savely'},
+  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'vaspassir'},{id:'olex'},{id:'chip'},{id:'savely'},
   {id:'shovel', name:'Лопата', c1:'#3a2415', c2:'#d7b36a'},
   {id:'tower',  name:'Башня',  c1:'#102a4a', c2:'#8be9fd'},
   {id:'ancient',name:'Древний',c1:'#3c1010', c2:'#ff6b57'},
@@ -24541,6 +24859,8 @@ requestAnimationFrame(loop);
     socket.on('tower:shot', event => {
       if(!event || !event.id) return;
       const boltTarget = remoteHeroes.get(event.targetId) || units.find(h => h.onlinePlayerId === event.targetId);
+      const shotTower = units.find(u => (u.type === 'tower' || u.type === 'ancient') && String(u.id) === String(event.id));
+      if(shotTower){ shotTower.netShotT = gameTime; shotTower.fireCd = Math.max(shotTower.fireCd || 0, 0.2); }
       if(!towerFireBolt(event, boltTarget)) fxRing(event.x, event.y, 18, event.team === 0 ? '#8be9fd' : '#ff8a3d', 0.18);
     });
     socket.on('game_over', data => {

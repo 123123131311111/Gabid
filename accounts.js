@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 
 const NICK_RE = /^[\p{L}\p{N}_\- ]{3,16}$/u;
 const MAX_BODY = 4096;
-const AVATAR_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','mo3gi','regina','juggernaut','sniper','vaspassir','chip','savely','shovel','tower','ancient','rune','creep','virsudi']);
-const HERO_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi']);
+const AVATAR_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','mo3gi','regina','juggernaut','sniper','vaspassir','chip','savely','shovel','tower','ancient','rune','creep','virsudi','olex']);
+const HERO_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi','olex']);
 const MONGODB_URI = process.env.MONGODB_URI;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
