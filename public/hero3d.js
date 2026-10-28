@@ -3528,6 +3528,69 @@ MODELS.mon_drone=(S,d)=>{
   S.box([0,h-.12,-.3],[.1,.34,.07],tape,{shine:.6});
 };
 
+
+/* ---------- 0.9.7.4: Псих ---------- */
+MODELS.psih=(S,d,t,pose)=>{
+  const SKIN='#d8bfa8',SKIN2='#b99a86',JK='#e6e3da',JK2='#bdb9ad',STRAP='#6f6b62',BUCK='#d1ad4e',PANT='#35323f',BOOT='#17161c',HAIR=d.color2||'#b6ff3a',HAIR2='#6fd12a',BLADE='#eef2f8',DK='#1a0a14';
+  const kind=pose&&pose.kind,p=(pose&&pose.p)||0;
+  const wk=kind==='walk'?Math.sin(p*Math.PI*2):0, at=kind==='attack'?Math.sin(Math.min(1,p)*Math.PI):0;
+  const tw=Math.sin(t*7)*.025+Math.sin(t*3.1)*.02, bob=Math.sin(t*2.4)*.015;
+  for(const s of [-1,1]){
+    const sw=wk*s*.3, hip=[s*.17,1.0,0], kn=[s*.18,.56,sw*.6], an=[s*.17,.14,sw];
+    S.tube(hip,kn,.15,.12,PANT,{seg:10}); S.tube(kn,an,.12,.1,PANT,{seg:10});
+    S.ell([s*.17,.08,sw+.1],[.13,.08,.23],BOOT,{rings:5,seg:8,shine:.3});
+    S.tube([s*.18,.5,sw*.6],[s*.18,.45,sw*.6],.135,.135,STRAP,{seg:10});
+  }
+  S.ell([0,1.02,0],[.34,.16,.22],PANT,{rings:5,seg:12});
+  S.tube([0,1.0,0],[0,1.55+bob,0],.3,.36,JK,{seg:14});
+  S.ell([0,1.62+bob,0],[.44,.3,.27],JK,{rings:7,seg:14});
+  S.tube([0,1.08,0],[0,1.14,0],.37,.37,STRAP,{seg:14});
+  S.obox([-.3,1.8+bob,.2],[.3,1.28+bob,.24],.07,.025,STRAP,{});
+  S.obox([.3,1.8+bob,.2],[-.3,1.28+bob,.24],.07,.025,STRAP,{});
+  S.box([0,1.54+bob,.27],[.09,.09,.03],BUCK,{shine:.7});
+  S.box([0,1.11,.37],[.08,.07,.03],BUCK,{shine:.7});
+  /* свисающие рукава смирительной рубашки */
+  for(const s of [-1,1]){
+    const sl=Math.sin(t*2+s)*.05;
+    S.tube([s*.46,1.7+bob,-.05],[s*.62+sl,1.05,-.18],.12,.09,JK2,{seg:8});
+    S.tube([s*.62+sl,1.05,-.18],[s*.66+sl,.62,-.24],.09,.07,JK2,{seg:8});
+    S.box([s*.66+sl,.6,-.24],[.06,.04,.03],BUCK,{shine:.6});
+  }
+  /* руки с ножами */
+  for(const s of [-1,1]){
+    const a=s>0?at:at*.4, sh=[s*.46,1.7+bob,.05], el=[s*.6,1.4,.14+a*.2], hd=[s*.55-s*a*.25,1.15+a*.2,.4+a*.4+wk*s*.1];
+    S.tube(sh,el,.1,.085,SKIN,{seg:8}); S.tube(el,hd,.085,.075,SKIN,{seg:8});
+    S.tube(lerp(el,hd,.3),lerp(el,hd,.7),.095,.09,JK2,{seg:8});
+    S.ell(hd,[.08,.08,.08],SKIN2,{rings:4,seg:8});
+    const tip=[hd[0],hd[1]-.05,hd[2]+.62];
+    S.obox(hd,tip,.07,.015,BLADE,{shine:.9}); S.box([hd[0],hd[1],hd[2]+.05],[.14,.025,.03],BUCK,{shine:.6});
+    S.box([hd[0],hd[1]-.02,hd[2]+.4],[.025,.02,.05],'#8e1b1b');
+  }
+  /* голова */
+  S.tube([0,1.75+bob,0],[0,1.9+bob,.02],.12,.1,SKIN2,{seg:8});
+  const hy=2.04+bob;
+  S.ell([tw,hy,.02],[.24,.28,.25],SKIN,{rings:9,seg:16});
+  S.ell([tw,hy-.12,.1],[.17,.12,.16],SKIN,{rings:5,seg:10});
+  for(const s of [-1,1]){
+    S.ell([s*.1+tw,hy-.05,.22],[.08,.09,.03],'#ffffff',{rings:4,seg:8});
+    S.ell([s*.1+tw+Math.sin(t*9+s)*.012,hy-.05,.245],[.022,.022,.012],'#ff2a4a',{rings:3,seg:6,glow:1});
+    S.ell([s*.1+tw,hy-.15,.22],[.09,.025,.02],'#5a3a55',{rings:3,seg:6});
+    S.obox([s*.19+tw,hy+.06,.2],[s*.04+tw,hy+.1+s*.02,.24],.035,.012,DK,{});
+    S.ell([s*.26+tw,hy-.02,0],[.04,.07,.03],SKIN2,{rings:3,seg:6});
+  }
+  S.box([tw,hy-.2,.24],[.16,.025,.03],DK,{});
+  for(let i=-3;i<=3;i++) S.box([i*.04+tw,hy-.2,.255],[.02,.03,.012],'#fffbe8',{});
+  /* торчащие кислотные волосы */
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2, j=Math.sin(t*5+i)*.03;
+    S.cone([Math.cos(a)*.16+tw,hy+.2,Math.sin(a)*.16],[Math.cos(a)*.36+j+tw,hy+.5+Math.sin(i*2.3)*.1+j,Math.sin(a)*.36],.065,i%2?HAIR:HAIR2,{seg:5,glow:i%3===0?1:0});
+  }
+  /* безумные огоньки вокруг */
+  for(let i=0;i<4;i++){ const a=t*1.5+i*1.57; S.box([Math.cos(a)*.8,1.2+Math.sin(t*2+i)*.3+i*.18,Math.sin(a)*.8],[.05,.05,.05],i%2?HAIR:'#b58cff',{glow:1,rot:[a,a,0]}); }
+  function lerp(a,b,k){return [a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];}
+};
+ANIM.psih=[{kind:'attack',p:.3},{kind:'attack',p:.58},{kind:'walk',p:.25},{kind:'walk',p:.75}];
+
 /* ---- точка входа Web Worker (тот же файл, без DOM) ---- */
 if(typeof document==='undefined'&&typeof self!=='undefined'&&typeof importScripts==='function'){
   self.onmessage=function(e){

@@ -518,10 +518,11 @@ function mdThemeColor(){
 }
 G.menuDemon973 = {
   draw(cx, gy, u, now){
-    if(MD.bad >= 3 || perfLevel >= 2 || !G.Hero3D || !Hero3D.models || !Hero3D.models.menuDemon || !Hero3D.render) return false;
+    if(MD.bad >= 3 && now - (MD.badAt || 0) > 5) MD.bad = 0;
+    if(MD.bad >= 3 || perfLevel >= 3 || !G.Hero3D || !Hero3D.models || !Hero3D.models.menuDemon || !Hero3D.render) return false;
     try {
       const dispH = VH * 0.96;
-      const Hpx = Math.round(Math.min(perfLevel >= 1 ? 400 : 580, dispH * (perfLevel >= 1 ? 0.55 : 0.8)) / 4) * 4, Wpx = Math.round(Hpx * 0.92 / 4) * 4;
+      const Hpx = Math.round(Math.min(perfLevel >= 2 ? 300 : (perfLevel >= 1 ? 400 : 580), dispH * (perfLevel >= 2 ? 0.42 : (perfLevel >= 1 ? 0.55 : 0.8))) / 4) * 4, Wpx = Math.round(Hpx * 1.1 / 4) * 4;
       const D = 9, f = 0.9 * Hpx * D / 4.8, ox = 0.25 * f / D;
       if(!MD.cv || MD.W !== Wpx || MD.H !== Hpx){
         MD.cv = document.createElement('canvas'); MD.cv.width = Wpx; MD.cv.height = Hpx; MD.g = MD.cv.getContext('2d');
@@ -561,7 +562,7 @@ G.menuDemon973 = {
       ctx.restore();
       MD.bad = 0;
       return true;
-    } catch(err) { MD.bad++; console.warn('menuDemon3D', err); return false; }
+    } catch(err) { MD.bad++; MD.badAt = now; console.warn('menuDemon3D', err); return false; }
   }
 };
 
