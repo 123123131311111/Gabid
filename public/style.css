@@ -1304,3 +1304,85 @@ body.ds-home #game-tools #sensiki-btn,
 body.ds-home #game-tools #dsplus-btn { padding: 0 calc(10px * var(--ds-s)); }
 #dsplus-panel .dsp-path > li { display: flex; min-width: 0; }
 #dsplus-panel .dsp-path .dsp-step { width: 100%; box-sizing: border-box; }
+
+/* ===== 0.9.8.1.1 — Дотасенс +: новое оформление и шрифты ===== */
+:root { --dsp-head: 'Philosopher', 'Georgia', 'Times New Roman', serif; --dsp-body: 'Rubik', 'Segoe UI', 'Trebuchet MS', sans-serif; --dsp-gold: #f0c35a; --dsp-gold2: #b98a35; }
+#dsplus-panel, #dsplus-panel button, #dsplus-btn, #dsplus-toast { font-family: var(--dsp-body); }
+#game-tools #dsplus-panel {
+  width: min(600px, calc(100vw - 20px)); padding: 16px 16px 18px; border: 1px solid rgba(240,195,90,.7); border-radius: 14px;
+  background: radial-gradient(120% 60% at 50% 0%, rgba(120,72,18,.28), transparent 60%), linear-gradient(165deg, rgba(30,24,20,.985), rgba(8,7,9,.99));
+  box-shadow: 0 22px 60px rgba(0,0,0,.78), 0 0 0 1px rgba(255,214,120,.08) inset, 0 0 34px rgba(240,180,41,.14);
+  animation: dspOpen .28s cubic-bezier(.2,.8,.25,1); scrollbar-width: thin; scrollbar-color: #b98a35 rgba(255,255,255,.05);
+}
+@keyframes dspOpen { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+#dsplus-panel::-webkit-scrollbar { width: 8px; }
+#dsplus-panel::-webkit-scrollbar-track { background: rgba(255,255,255,.04); border-radius: 8px; }
+#dsplus-panel::-webkit-scrollbar-thumb { background: linear-gradient(#f0c35a,#9c6d22); border-radius: 8px; }
+#dsplus-panel .dsp-head { font-family: var(--dsp-head); font-size: 24px; letter-spacing: .08em; color: var(--dsp-gold); text-shadow: 0 0 18px rgba(240,180,41,.45); padding-bottom: 10px; border-bottom: 1px solid rgba(240,195,90,.22); }
+#dsplus-panel .dsp-head b { color: #fff3cf; text-shadow: 0 0 14px rgba(255,220,120,.9); }
+#dsplus-panel .dsp-x { border-radius: 50%; width: 32px; height: 32px; transition: background .15s, transform .15s; }
+#dsplus-panel .dsp-x:hover { background: rgba(240,180,41,.25); transform: rotate(90deg); }
+#dsplus-panel .dsp-tabs { gap: 6px; padding: 4px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: rgba(0,0,0,.3); }
+#dsplus-panel .dsp-tabs button { min-height: 34px; border: 0; border-radius: 9px; background: transparent; color: #a9a294; font-weight: 600; font-size: 12px; letter-spacing: .1em; transition: background .18s, color .18s; }
+#dsplus-panel .dsp-tabs button:hover { color: #ffe9b0; background: rgba(255,255,255,.05); }
+#dsplus-panel .dsp-tabs button.on { color: #2a1a05; background: linear-gradient(180deg,#ffd978,#c9922f); box-shadow: 0 2px 12px rgba(240,180,41,.4); }
+#dsplus-panel .dsp-section-heading { display: flex; align-items: center; gap: 10px; margin: 16px 0 8px; font-family: var(--dsp-head); font-size: 15px; letter-spacing: .1em; color: var(--dsp-gold); }
+#dsplus-panel .dsp-section-heading::after { content: ''; flex: 1; order: 1; height: 1px; background: linear-gradient(90deg, rgba(240,195,90,.5), transparent); }
+#dsplus-panel .dsp-section-heading small { order: 2; font-family: var(--dsp-body); font-size: 9px; letter-spacing: .14em; color: #9d9482; }
+#dsplus-panel .dsp-note, #dsplus-panel .dsp-foot { font-size: 12.5px; line-height: 1.55; }
+/* живая полоса драфта */
+.dsp-live { position: relative; display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 12px; overflow: hidden; border: 1px solid rgba(255,90,70,.45); border-radius: 10px; background: linear-gradient(90deg, rgba(120,20,14,.5), rgba(30,10,10,.5)); font-size: 12px; color: #f3d6cf; }
+.dsp-live b { letter-spacing: .16em; color: #ff8a78; }
+.dsp-live em { margin-left: auto; font-style: normal; font-weight: 700; font-size: 15px; color: #fff; font-variant-numeric: tabular-nums; }
+.dsp-live i { position: absolute; left: 0; bottom: 0; height: 3px; background: linear-gradient(90deg,#ff6a4d,#ffd568); transition: width .4s linear; }
+.dsp-live-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff4a36; box-shadow: 0 0 10px #ff4a36; animation: dspBlink 1s infinite; }
+@keyframes dspBlink { 50% { opacity: .25; transform: scale(.7); } }
+/* карточка «ваш выбор» */
+.dsp-mine { margin: 0 0 4px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: rgba(255,255,255,.04); }
+.dsp-mine .dsp-eyebrow { font-size: 9px; letter-spacing: .18em; color: #9d9482; }
+.dsp-mine-row { display: flex; align-items: center; gap: 9px; margin-top: 6px; }
+.dsp-mine-row b { font-family: var(--dsp-head); font-size: 18px; color: #fff3d4; }
+.dsp-mine-row em { margin-left: auto; padding: 3px 10px; border-radius: 999px; font-style: normal; font-size: 11px; font-weight: 600; background: rgba(255,255,255,.1); }
+.dsp-mine small { display: block; margin-top: 7px; font-size: 11.5px; line-height: 1.5; color: #cdc3a8; }
+.dsp-mine.great { border-color: rgba(240,195,90,.8); background: linear-gradient(135deg, rgba(240,180,41,.2), rgba(60,40,10,.4)); box-shadow: 0 0 20px rgba(240,180,41,.18); }
+.dsp-mine.great em { background: #f0c35a; color: #2a1a05; }
+.dsp-mine.good { border-color: rgba(110,210,140,.55); } .dsp-mine.good em { background: rgba(110,210,140,.25); color: #a5f0bd; }
+.dsp-mine.mid em { background: rgba(240,195,90,.2); color: #ffe0a0; }
+.dsp-mine.bad { border-color: rgba(230,90,70,.55); } .dsp-mine.bad em { background: rgba(230,90,70,.25); color: #ffb3a6; }
+/* ответ на каждого врага */
+.dsp-answers { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
+.dsp-answer { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px 8px; border: 1px solid rgba(255,255,255,.09); border-radius: 10px; background: rgba(0,0,0,.28); font-size: 11.5px; }
+.dsp-answer .dsp-hero-mark { width: 24px; height: 24px; flex: none; font-size: 9px; }
+.dsp-answer-vs { color: #d9a399; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsp-answer i { font-style: normal; color: #f0c35a; }
+.dsp-answer b { color: #b5f0c6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* карточки контрпиков */
+#dsplus-panel .dsp-pick-card { gap: 12px; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); background: linear-gradient(135deg, rgba(255,255,255,.055), rgba(255,255,255,.015)); transition: transform .18s, border-color .18s; animation: dspRise .35s both; }
+#dsplus-panel .dsp-pick-card:hover { transform: translateX(3px); border-color: rgba(240,195,90,.55); }
+#dsplus-panel .dsp-pick-card:nth-child(2) { animation-delay: .05s; } #dsplus-panel .dsp-pick-card:nth-child(3) { animation-delay: .1s; } #dsplus-panel .dsp-pick-card:nth-child(4) { animation-delay: .15s; }
+@keyframes dspRise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+#dsplus-panel .dsp-pick-card.top { border-color: rgba(240,195,90,.85); background: linear-gradient(135deg, rgba(240,180,41,.2), rgba(70,45,10,.35)); box-shadow: 0 0 22px rgba(240,180,41,.2); }
+#dsplus-panel .dsp-pick-heading b { font-family: var(--dsp-head); font-size: 17px; color: #fff3d4; }
+#dsplus-panel .dsp-pick-score { font-weight: 700; color: #ffd568; font-variant-numeric: tabular-nums; }
+#dsplus-panel .dsp-pick-meter { height: 5px; margin: 6px 0; border-radius: 4px; background: rgba(255,255,255,.09); overflow: hidden; }
+#dsplus-panel .dsp-pick-meter i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg,#c9922f,#ffe08a); transform-origin: left; animation: dspFill .7s cubic-bezier(.2,.8,.25,1); }
+@keyframes dspFill { from { transform: scaleX(0); } to { transform: none; } }
+#dsplus-panel .dsp-pick-info > small { font-size: 11.5px; line-height: 1.5; color: #cfc6ad; }
+#dsplus-panel .dsp-tags .ok { color: #8fe6ab; } #dsplus-panel .dsp-tags .no { color: #ff9d8f; } #dsplus-panel .dsp-tags .info { color: #8fd2ff; }
+#dsplus-panel .dsp-hero-chip { border-radius: 10px; font-weight: 500; }
+#dsplus-panel .dsp-hero-grid { gap: 6px; }
+#dsplus-panel .dsp-item-name, #dsplus-panel .dsp-next-body b { font-family: var(--dsp-body); }
+#dsplus-panel .dsp-next-body b { font-family: var(--dsp-head); font-size: 18px; }
+/* кнопка и всплывающая подсказка */
+#dsplus-btn .dsp-name { font-family: var(--dsp-head); font-size: 15px; letter-spacing: .06em; }
+#dsplus-btn.has-hint { animation: dspGlow 1.8s ease-in-out infinite; }
+@keyframes dspGlow { 50% { box-shadow: 0 0 22px rgba(240,195,90,.7); } }
+#dsplus-toast { position: absolute; right: 0; bottom: calc(100% + 10px); z-index: 30; width: 250px; padding: 10px 14px; border: 1px solid rgba(240,195,90,.8); border-radius: 12px; background: linear-gradient(135deg, rgba(60,40,12,.97), rgba(14,10,8,.98)); box-shadow: 0 12px 30px rgba(0,0,0,.65), 0 0 24px rgba(240,180,41,.3); color: #f7ebd0; pointer-events: none; }
+#dsplus-toast[hidden] { display: none; }
+#dsplus-toast.show { animation: dspToast .45s cubic-bezier(.2,.9,.3,1.2); }
+#dsplus-toast small { display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #c9b47c; }
+#dsplus-toast b { display: block; margin: 3px 0; font-family: var(--dsp-head); font-size: 17px; color: #ffd568; }
+#dsplus-toast span { font-size: 11.5px; color: #a5f0bd; }
+@keyframes dspToast { from { opacity: 0; transform: translateY(12px) scale(.94); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #dsplus-panel, #dsplus-panel * , #dsplus-toast, #dsplus-btn { animation: none !important; } }
+@media (max-width: 560px) { .dsp-answers { grid-template-columns: 1fr; } }

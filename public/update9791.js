@@ -1,4 +1,4 @@
-/* DotaSense 0.9.8.1 — «ДОТАСЕНС +»: контрпики и гайд по закупу.
+/* DotaSense 0.9.8.1.1 — «ДОТАСЕНС +»: контрпики и гайд по закупу (0.9.8.1.1: живые подсказки в драфте, все герои, красивое меню).
    Подключается поверх game.js, читает HERO_DEFS / HERO_GUIDES / SHOP_ITEMS и состояние матча;
    игровую покупку выполняет сам магазин, помощник только открывает его по кнопке. */
 (function(){
@@ -24,6 +24,22 @@ const DS = {
   juggernaut: {w:{melee:1, ranged:1,  tank:2,  squishy:-1}, tip:'Blade Fury даёт иммунитет к магии, Omnislash добивает. Силён против танков.'}
 };
 const DS_IDS = Object.keys(DS);
+const autoCache = {};
+/* Герои без ручной оценки получают профиль по типу атаки и запасу здоровья. */
+function dsOf(id){
+  if(DS[id]) return DS[id];
+  if(autoCache[id]) return autoCache[id];
+  const d = defById(id) || {}, tg = tagsOf(d), ranged = tg.includes('ranged'), tank = tg.includes('tank'), sq = tg.includes('squishy');
+  const w = {melee:0, ranged:0, tank:0, squishy:0};
+  if(ranged){ w.melee += 1; w.squishy += 1; }
+  else { w.tank += 1; w.squishy += 1; }
+  if(tank){ w.melee += 1; w.ranged += 1; w.squishy -= 1; }
+  if(sq){ w.melee -= 1; w.ranged += ranged ? 0 : -1; }
+  const tip = (d.title ? d.title + '. ' : '') + (ranged ? 'Дальний боец: держи дистанцию и бей из-за спин.' : 'Ближний боец: ищи вход в драку и не отрывайся от команды.') +
+    (tank ? ' Много здоровья — можно начинать бой.' : sq ? ' Мало здоровья — береги себя от фокуса.' : '');
+  return (autoCache[id] = {w, tip});
+}
+const allIds = () => (typeof HERO_DEFS !== 'undefined' ? HERO_DEFS.map(d => d.id) : DS_IDS);
 
 /* ===== Вспомогательное ===== */
 const TAG_RU = {melee:'ближний', ranged:'дальний', tank:'танк', squishy:'хрупкий'};
@@ -57,11 +73,15 @@ function counterPicks(enemyIds, allyIds){
   const allies = (allyIds || []).map(defById).filter(Boolean);
   const allyTank = allies.some(d => tagsOf(d).includes('tank'));
   const allyRanged = allies.some(d => d.atkRange > 250);
-  return DS_IDS.map(id => {
+  const drafting = inDraft();
+  return allIds().map(id => {
     const def = defById(id); if(!def) return null;
+    const hi = HERO_DEFS.indexOf(def);
+    if(drafting && hi !== draftPlayerIndex && typeof draftPlayerBlocked === 'function' && draftPlayerBlocked(hi)) return null;   /* уже занят */
+    const prof = dsOf(id);
     let score = 0; const good = [], bad = [];
     enemies.forEach(e => {
-      let s = 0; tagsOf(e).forEach(t => { s += DS[id].w[t] || 0; });
+      let s = 0; tagsOf(e).forEach(t => { s += prof.w[t] || 0; });
       score += s;
       if(s >= 2) good.push(e.name); else if(s <= -2) bad.push(e.name);
     });
@@ -69,7 +89,8 @@ function counterPicks(enemyIds, allyIds){
     const notes = [];
     if(allies.length && !allyTank && mine.includes('tank')) { score += 1.5; notes.push('в команде нет танка'); }
     if(allies.length && !allyRanged && def.atkRange > 250) { score += 1; notes.push('нужен дальний урон'); }
-    return {id, def, score, good, bad, notes};
+    if(allies.some(a => a.id === id)) { score -= 1; notes.push('такой герой уже есть у союзников'); }
+    return {id, def, score, good, bad, notes, hi};
   }).filter(Boolean).sort((a, b) => b.score - a.score);
 }
 
@@ -139,7 +160,7 @@ function itemTile(id, index, hero, compact){
 }
 function pickRows(list, n){
   return list.slice(0, n).map((c, i) => {
-    let why = DS[c.id].tip;
+    let why = dsOf(c.id).tip;
     const extra = [];
     if(c.good.length) extra.push('<span class="ok">контрит: ' + esc(c.good.join(', ')) + '</span>');
     if(c.bad.length) extra.push('<span class="no">осторожно: ' + esc(c.bad.join(', ')) + '</span>');
@@ -153,13 +174,40 @@ function pickRows(list, n){
   }).join('');
 }
 
+/* ===== Живой драфт ===== */
+function liveBar(){
+  const t = typeof draftTime === 'number' ? Math.max(0, Math.ceil(draftTime)) : 0;
+  const pct = Math.max(0, Math.min(100, t / 30 * 100));
+  return '<div class="dsp-live"><span class="dsp-live-dot"></span><b>LIVE</b><span>идёт выбор героев</span><em>' + t + ' с</em><i style="width:' + pct + '%"></i></div>';
+}
+function myPickCard(ranked){
+  if(typeof draftPlayerIndex === 'undefined' || draftPlayerIndex < 0) return '<div class="dsp-mine"><span class="dsp-eyebrow">ВАШ ВЫБОР</span><b>Герой ещё не выбран</b><small>Берите героя из списка ниже — оценка появится сразу.</small></div>';
+  const d = HERO_DEFS[draftPlayerIndex]; if(!d) return '';
+  const pos = ranked.findIndex(c => c.id === d.id), me = ranked[pos], best = ranked[0];
+  const verdict = pos < 0 ? 'нет данных' : pos === 0 ? 'лучший контрпик!' : pos < 3 ? 'хороший выбор' : pos < Math.ceil(ranked.length / 2) ? 'нормально' : 'рискованно';
+  const cls = pos === 0 ? 'great' : pos < 3 ? 'good' : pos < Math.ceil(ranked.length / 2) ? 'mid' : 'bad';
+  let why = '';
+  if(me){ if(me.good.length) why += 'контрит: ' + me.good.join(', ') + '. '; if(me.bad.length) why += 'осторожно: ' + me.bad.join(', ') + '. '; }
+  if(best && best.id !== d.id) why += 'Лучше взять: ' + best.def.name + ' (' + (best.score > 0 ? '+' : '') + best.score.toFixed(1) + ').';
+  return '<div class="dsp-mine ' + cls + '"><span class="dsp-eyebrow">ВАШ ВЫБОР</span><div class="dsp-mine-row"><span class="dsp-hero-mark" style="--hero-color:' + safeColor(d.color) + '">' + esc(initials(d.name)) + '</span><b>' + esc(d.name) + '</b><em>' + verdict + '</em></div>' + (why ? '<small>' + esc(why) + '</small>' : '') + '</div>';
+}
+function answersBlock(enemyDefs, allies){
+  if(!enemyDefs.length) return '';
+  const rows = enemyDefs.map(e => {
+    const top = counterPicks([e.id], allies)[0]; if(!top) return '';
+    return '<div class="dsp-answer"><span class="dsp-hero-mark" style="--hero-color:' + safeColor(e.color) + '">' + esc(initials(e.name)) + '</span><span class="dsp-answer-vs">' + esc(e.name) + '</span><i>→</i><span class="dsp-hero-mark" style="--hero-color:' + safeColor(top.def.color) + '">' + esc(initials(top.def.name)) + '</span><b>' + esc(top.def.name) + '</b></div>';
+  }).join('');
+  return '<div class="dsp-section-heading"><span>ОТВЕТ НА КАЖДОГО ВРАГА</span></div><div class="dsp-answers">' + rows + '</div>';
+}
+
 function renderCounter(){
   let enemies, allies, auto = false;
   if(inDraft()){ const t = draftTeams(); enemies = t.enemies; allies = t.allies; auto = true; }
   else if(inMatch()){ enemies = heroes.filter(h => h.team !== playerHero.team).map(h => h.def.id); allies = heroes.filter(h => h.team === playerHero.team && h !== playerHero).map(h => h.def.id); auto = true; }
   else { enemies = manualEnemies; allies = []; }
   const enemyDefs = enemies.map(defById).filter(Boolean);
-  let html = '<div class="dsp-context"><span>' + (inDraft() ? 'СТАДИЯ ВЫБОРА' : inMatch() ? 'СОСТАВ ПРОТИВНИКА' : 'РУЧНОЙ ВЫБОР') + '</span><small>' + enemyDefs.length + ' / 4 врага</small></div>' +
+  const drafting = inDraft();
+  let html = (drafting ? liveBar() : '') + '<div class="dsp-context"><span>' + (inDraft() ? 'СТАДИЯ ВЫБОРА' : inMatch() ? 'СОСТАВ ПРОТИВНИКА' : 'РУЧНОЙ ВЫБОР') + '</span><small>' + enemyDefs.length + ' / 4 врага</small></div>' +
     '<p class="dsp-note">' + (inDraft() ? 'Состав считывается прямо из драфта и пересчитывается после каждого выбора.' : auto ? 'Составы команд обновляются автоматически.' : 'Отметь до четырёх вражеских героев — рейтинг обновится сразу.') + '</p>';
   if(!auto){
     html += '<div class="dsp-slots">' + [0,1,2,3].map(i => {
@@ -174,8 +222,10 @@ function renderCounter(){
     '<div class="dsp-enemy-card"><span class="dsp-hero-mark" style="--hero-color:' + safeColor(d.color) + '">' + esc(initials(d.name)) + '</span><span>' + esc(d.name) + '</span><small>' + tagsOf(d).map(t => TAG_RU[t]).join(' · ') + '</small></div>'
   ).join('') : '<div class="dsp-draft-empty"><span>?</span><b>Ждём пик соперника</b><small>Подбор появится сразу после выбора героя</small></div>') + '</div>';
   if(!enemyDefs.length) return html + '<div class="dsp-empty-hint">Подсказки строятся по пикам соперника и выбранным союзникам.</div>';
-  html += '<div class="dsp-section-heading"><span>ЛУЧШИЕ КОНТРПИКИ</span><small>ОЦЕНКА ПО СОСТАВУ</small></div>' +
-    '<div class="dsp-pick-list">' + pickRows(counterPicks(enemyDefs.map(d => d.id), allies), auto ? 3 : 5) + '</div>';
+  const ranked = counterPicks(enemyDefs.map(d => d.id), allies);
+  if(drafting) html += myPickCard(ranked) + answersBlock(enemyDefs, allies);
+  html += '<div class="dsp-section-heading"><span>ЛУЧШИЕ КОНТРПИКИ</span><small>' + (drafting ? 'ОБНОВЛЯЕТСЯ LIVE' : 'ОЦЕНКА ПО СОСТАВУ') + '</small></div>' +
+    '<div class="dsp-pick-list">' + pickRows(ranked, drafting ? 4 : auto ? 3 : 5) + '</div>';
   html += '<p class="dsp-foot">Оценка учитывает тип атаки, запас здоровья и баланс своей команды.</p>';
   return html;
 }
@@ -257,21 +307,21 @@ function renderBattle(){
   html += '<div class="dsp-title">ВРАГИ</div><div class="dsp-enemies">' + alive.map(h => '<span>' + esc(h.def.name) + ' · ур.' + h.level + (h.kills ? ' · ' + h.kills + ' уб.' : '') + '</span>').join('') + (enemies.length > alive.length ? '<span class="dead">мертвы: ' + (enemies.length - alive.length) + '</span>' : '') + '</div>';
   if(alive[0] && (alive[0].kills || 0) >= 4) html += '<p class="dsp-warn">⚠ ' + esc(alive[0].def.name) + ' набрал ' + alive[0].kills + ' убийств — сконцентрируйтесь на нём.</p>';
   const g = adv.guide; if(g && g.tips && g.tips.length) html += '<p class="dsp-foot">' + esc(g.tips[Math.floor(gameTime / 60) % g.tips.length]) + '</p>';
-  if(DS[id]) html += '<p class="dsp-foot">' + esc(DS[id].tip) + '</p>';
+  html += '<p class="dsp-foot">' + esc(dsOf(id).tip) + '</p>';
   return html;
 }
 
 function renderHeroes(){
   const d = defById(pickedHero), g = (typeof HERO_GUIDES !== 'undefined' && HERO_GUIDES[pickedHero]) || null;
-  let html = heroChips([pickedHero], DS_IDS, 'hero');
+  let html = heroChips([pickedHero], allIds(), 'hero');
   if(!d) return html;
-  html += '<div class="dsp-title">' + esc(d.name) + ' — ' + esc(g ? g.role : d.title) + '</div><p class="dsp-note">' + esc(DS[pickedHero].tip) + '</p>';
+  html += '<div class="dsp-title">' + esc(d.name) + ' — ' + esc(g ? g.role : d.title) + '</div><p class="dsp-note">' + esc(dsOf(pickedHero).tip) + '</p>';
   if(g){
     html += '<div class="dsp-section-heading"><span>ЗАКУП ПО ПОРЯДКУ</span></div><ol class="dsp-path">' + g.build.map((id, i) => stepTile(id, i, null, null, null)).join('') + '</ol>';
     html += '<p class="dsp-foot">' + esc(g.skillNote || '') + '</p>';
   }
   /* Против кого силён / слаб */
-  const w = DS[pickedHero].w, strong = [], weak = [];
+  const w = dsOf(pickedHero).w, strong = [], weak = [];
   Object.keys(w).forEach(t => { if(w[t] >= 1) strong.push(TAG_RU[t]); if(w[t] <= -1) weak.push(TAG_RU[t]); });
   html += '<p class="dsp-note"><span class="ok">Силён против: ' + (strong.join(', ') || '—') + '</span><br><span class="no">Слабее против: ' + (weak.join(', ') || '—') + '</span></p>';
   return html;
@@ -281,7 +331,7 @@ function render(force){
   if(panel.hidden) return;
   const match = inMatch();
   const sig = [tab, match, inDraft(), pickedHero, manualEnemies.join(','),
-    inDraft() ? draftBotIndices.join(',') : '',
+    inDraft() ? draftBotIndices.join(',') + '|' + draftPlayerIndex + '|' + Math.ceil(draftTime) : '',
     match ? [Math.floor(playerHero.coins || 0), Math.floor((playerHero.hp || 0) / 40), playerHero.inventory.map(i => i && i.id).join(','), heroes.map(h => (h.dead ? 'd' : 'a') + (h.kills || 0) + 'l' + h.level).join(',')].join('|') : ''].join('#');
   if(!force && sig === lastSig) return;
   lastSig = sig;
@@ -365,10 +415,41 @@ function updateHint(){
   btn.classList.toggle('has-hint', hint);
   if(caption) caption.textContent = text;
 }
+/* Всплывающая подсказка у кнопки и метки ★ на карточках героев при новых пиках врага. */
+const toast = document.createElement('div');
+toast.id = 'dsplus-toast'; toast.hidden = true; box.appendChild(toast);
+let toastTimer = 0, seenEnemies = '', autoOpened = false;
+function showToast(html){
+  if(!panel.hidden) return;   /* панель открыта — она и так обновляется вживую */
+  toast.innerHTML = html; toast.hidden = false;
+  toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 6000);
+}
+function liveDraft(){
+  const t = draftTeams();
+  const sig = t.enemies.join(',');
+  if(!t.enemies.length){ window.dsDraftRank = null; seenEnemies = sig; return; }
+  const ranked = counterPicks(t.enemies, t.allies);
+  const rank = {}; ranked.slice(0, 3).forEach((c, i) => { rank[c.hi] = i + 1; });
+  window.dsDraftRank = rank;
+  if(sig !== seenEnemies){
+    const before = seenEnemies ? seenEnemies.split(',') : [];
+    const added = t.enemies.filter((id, i) => before[i] !== id);
+    seenEnemies = sig;
+    const top = ranked[0];
+    if(top){
+      const names = added.map(id => (defById(id) || {}).name).filter(Boolean);
+      showToast('<small>' + (names.length === 1 ? 'Враг выбрал: ' + esc(names[0]) : 'Состав врагов обновлён') + '</small><b>Контрпик: ' + esc(top.def.name) + '</b>' + (top.good.length ? '<span>контрит ' + esc(top.good.join(', ')) + '</span>' : ''));
+    }
+  }
+  if(!autoOpened){ autoOpened = true; setOpen(true); }
+}
 setInterval(() => {
   const drafting = inDraft();
-  if(!drafting && wasDraft) setOpen(false);
+  if(!drafting && wasDraft){ setOpen(false); window.dsDraftRank = null; toast.hidden = true; seenEnemies = ''; autoOpened = false; }
+  if(drafting && !wasDraft){ seenEnemies = ''; autoOpened = false; }
   wasDraft = drafting;
+  try { if(drafting) liveDraft(); } catch(err) {}
   updateHint();
   render(false);
 }, 400);
