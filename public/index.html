@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.9.7.9.1</title>
-<link rel="stylesheet" href="./style.css?v=0.9.7.9.1">
+<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.9.8.0</title>
+<link rel="stylesheet" href="./style.css?v=0.9.8.0">
 </head>
 <body>
 <div id="boot-loader" aria-live="polite" aria-label="Загрузка игры">
@@ -32,19 +32,21 @@
     <div class="boot-bar"><span id="boot-fill"></span></div>
     <div class="boot-row"><span id="boot-tip" class="boot-text">Загрузка мира...</span><span id="boot-pct">0%</span></div>
   </div>
-  <div class="boot-version">ВЕРСИЯ 0.9.7.9.1</div>
+  <div class="boot-version">ВЕРСИЯ 0.9.8.0</div>
 </div>
 <div id="topbar">
   <button id="online-entry" type="button">ОНЛАЙН 3 НА 3</button>
   <output id="online-counter" aria-live="polite">Онлайн: —</output>
   <button id="leaderboard-open" type="button">МИРОВОЙ ТОП · ПОБЕДЫ</button>
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-    <symbol id="sensik-shard" viewBox="0 0 24 24">
-      <polygon points="12,1 5,9 12,12" fill="#c9f8ff"/><polygon points="12,1 19,9 12,12" fill="#6fd6f5"/>
-      <polygon points="5,9 12,12 10,23" fill="#3a8fd0"/><polygon points="19,9 14,23 10,23 12,12" fill="#6a5fe0"/>
-      <polygon points="12,1 19,9 14,23 10,23 5,9" fill="none" stroke="#e9fcff" stroke-width=".9" stroke-linejoin="round"/>
-    </symbol>
-  </defs></svg>
+</div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="sensik-shard" viewBox="0 0 24 24">
+    <polygon points="12,1 5,9 12,12" fill="#c9f8ff"/><polygon points="12,1 19,9 12,12" fill="#6fd6f5"/>
+    <polygon points="5,9 12,12 10,23" fill="#3a8fd0"/><polygon points="19,9 14,23 10,23 12,12" fill="#6a5fe0"/>
+    <polygon points="12,1 19,9 14,23 10,23 5,9" fill="none" stroke="#e9fcff" stroke-width=".9" stroke-linejoin="round"/>
+  </symbol>
+</defs></svg>
+<nav id="game-tools" aria-label="Игровые помощники">
   <div id="sensiki-box" hidden>
     <button id="sensiki-btn" type="button" aria-expanded="false" aria-controls="sensiki-panel" title="Сенсики и ежедневное задание">
       <svg class="sk-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#sensik-shard"></use></svg>
@@ -52,14 +54,14 @@
     </button>
     <div id="sensiki-panel" role="dialog" aria-label="Сенсики и ежедневное задание" hidden></div>
   </div>
-</div>
-<div id="dsplus-box">
-  <button id="dsplus-btn" type="button" aria-expanded="false" aria-controls="dsplus-panel" title="Дотасенс + (F2): контрпик и советы по закупу">
-    <svg class="dsp-icon" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="dsp-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2b0"/><stop offset=".55" stop-color="#f0b429"/><stop offset="1" stop-color="#b9770e"/></linearGradient></defs><circle cx="12" cy="12" r="10.5" fill="url(#dsp-g)" stroke="#fff0c7" stroke-width="1"/><path d="M12 6v12M6 12h12" stroke="#2a1a02" stroke-width="3" stroke-linecap="round"/></svg>
-    <span class="dsp-col"><small>ДОТАСЕНС</small><span>+</span></span>
-  </button>
-  <div id="dsplus-panel" role="dialog" aria-label="Дотасенс +" hidden></div>
-</div>
+  <div id="dsplus-box">
+    <button id="dsplus-btn" type="button" aria-expanded="false" aria-controls="dsplus-panel" title="Дотасенс + (F2): контрпик и советы по закупу">
+      <svg class="dsp-icon" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="dsp-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2b0"/><stop offset=".55" stop-color="#f0b429"/><stop offset="1" stop-color="#b9770e"/></linearGradient></defs><circle cx="12" cy="12" r="10.5" fill="url(#dsp-g)" stroke="#fff0c7" stroke-width="1"/><path d="M12 6v12M6 12h12" stroke="#2a1a02" stroke-width="3" stroke-linecap="round"/></svg>
+      <span class="dsp-col"><small>ДОТАСЕНС</small><span>+</span></span>
+    </button>
+    <div id="dsplus-panel" role="dialog" aria-label="Дотасенс +" hidden></div>
+  </div>
+</nav>
 <canvas id="game" tabindex="0"></canvas>
 <section id="leaderboard-modal" hidden>
   <div class="leaderboard-panel" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
@@ -193,13 +195,13 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="./hero3d.js?v=0.9.7.9.1"></script>
-<script src="./game.js?v=0.9.7.9.1"></script>
-<script src="./demon3d.js?v=0.9.7.9.1"></script>
-<script src="./update973.js?v=0.9.7.9"></script>
-<script src="./update974.js?v=0.9.7.9-fx"></script>
-<script src="./update979.js?v=0.9.7.9"></script>
-<script src="./update9791.js?v=0.9.7.9.1"></script>
+<script src="./hero3d.js?v=0.9.8.0"></script>
+<script src="./game.js?v=0.9.8.0"></script>
+<script src="./demon3d.js?v=0.9.8.0"></script>
+<script src="./update973.js?v=0.9.8.0"></script>
+<script src="./update974.js?v=0.9.8.0"></script>
+<script src="./update979.js?v=0.9.8.0"></script>
+<script src="./update9791.js?v=0.9.8.0"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
