@@ -704,7 +704,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.8.0';
+const GAME_VERSION = '0.9.8.1';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -791,7 +791,13 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.8.0', title:'ДОТАСЕНС + И ГАЙД ПО ЗАКУПУ', changes:[
+  const sections = [{version:'0.9.8.1', title:'ДОТАСЕНС + ВПИСАН В МЕНЮ', changes:[
+    '«Сенсики» и «Дотасенс +» больше не лежат поверх меню: в главном меню они встроены прямо в верхнюю панель, а рейтинг и счётчик онлайна сдвигаются, чтобы ничего не перекрывалось.',
+    'В выборе героя кнопка Дотасенс + переехала в правый нижний угол, рядом с «Мировым топом», и не закрывает слоты команд и кнопку настроек.',
+    'Панель больше не открывается сама и не закрывается при клике по героям: можно спокойно выбирать и смотреть, как меняются контрпики. Закрыть — крестик, Esc или F2. Когда враги уже выбраны, кнопка подсвечивается и показывает лучший контрпик.',
+    'Закуп в бою переделан: следующий предмет с описанием, полоской золота и кнопкой «Купить», путь сборки со ступенями и пометками «куплено», ситуативные предметы тоже покупаются в один клик прямо из панели.',
+    'Ручной выбор врагов: четыре слота, крупная сетка героев и кнопка «Сбросить».'
+  ]},{version:'0.9.8.0', title:'ДОТАСЕНС + И ГАЙД ПО ЗАКУПУ', changes:[
     '«Сенсики» и «Дотасенс +» собраны в одну аккуратную панель меню; помощник остаётся доступен и во время матча.',
     'Во время выбора героя Дотасенс + автоматически открывает контрпики по уже выбранным врагам и составу союзников.',
     'Контрпики получили карточки героев, шкалу оценки и понятные пометки, почему герой подходит против выбранного состава.',
@@ -20772,6 +20778,7 @@ function drawStorePanel(){
 }
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.9.8.1',title:'ДОТАСЕНС + ВПИСАН В МЕНЮ',description:'Сенсики и Дотасенс + встроены в верхнюю панель меню и больше ничего не перекрывают. Панель подсказок удобнее при выборе героя, а закуп в бою можно сделать одной кнопкой прямо из неё.',compactDescription:'Дотасенс + в меню и покупка из панели.'},
   {version:'0.9.8.0',title:'ДОТАСЕНС + И ГАЙД ПО ЗАКУПУ',description:'«Сенсики» и «Дотасенс +» собраны в одну панель. Во время драфта помощник сам показывает контрпики, а в матче — гайд по стартовым предметам, сборке и следующей покупке.',compactDescription:'Контрпики и гайд по закупу в стиле Dota Plus.'},
   {version:'0.9.7.9',title:'СЕНСИКИ',description:'Новая валюта — осколки Сенсики: +500 за каждую победу, счётчик справа сверху в меню и ежедневное задание «Охотник за головами» с наградой в 300 Сенсиков.',compactDescription:'Сенсики и ежедневное задание.'},
   {version:'0.9.1',title:'БАЛАНС САСЫЧА И ПРЕДМЕТОВ',description:'Сасыч стал быстрее: Thirst растёт с уровнем, Bloodrage усилен. Изменены Клыки Васьки, Кингляндия и Бошка Семёна, а в магазине появился Octarine Core.',compactDescription:'Баланс Сасыча, предметов и Octarine Core.'},
@@ -23364,11 +23371,16 @@ function dsCleanBackdrop(now){
   ctx.fillStyle=v; ctx.fillRect(0,0,VW,VH);
 }
 
+const dsBarSync={h:0,s:0};
 function drawDotaSenseHome(){
   const s=menuScale(), now=performance.now()/1000;
   dsThemeTick(now);
   const F=(px,w)=>(w||'')+Math.round(px*s)+'px Segoe UI, Arial';
   const barH=Math.round(46*s);
+  if(dsBarSync.h!==barH||dsBarSync.s!==s){
+    dsBarSync.h=barH; dsBarSync.s=s;
+    const rs=document.documentElement.style; rs.setProperty('--ds-bar-h',barH+'px'); rs.setProperty('--ds-s',String(s));
+  }
   const pf=account.profile;
 
   /* ---------- ВЕРХНЯЯ ПАНЕЛЬ ---------- */
@@ -23421,7 +23433,7 @@ function drawDotaSenseHome(){
     {t:'МИРОВОЙ ТОП',a:'leaderboard'},{t:'ПРОФИЛЬ',a:'account'}
   ];
   let nx=tabX+tabW+Math.round(46*s);
-  const navGap=Math.round(36*s), navCy=Math.round(barH/2);
+  const navGap=Math.round(30*s), navCy=Math.round(barH/2);
   navItems.forEach((it,i)=>{
     const w=dsTxtW(it.t,navFont,navSp);
     const r={x:nx-8*s,y:0,w:w+16*s,h:barH};
@@ -23449,8 +23461,8 @@ function drawDotaSenseHome(){
 
   /* правая часть панели: онлайн · W-L · MMR */
   const rankRating=pf&&Number.isFinite(pf.rating)?pf.rating:0;
-  let rx=VW-Math.round(18*s);
-  { const rw=Math.round(150*s), r={x:rx-rw,y:0,w:rw,h:barH};
+  let rx=VW-Math.round(18*s)-Math.round(window.dsToolsReserve||0);
+  { const rw=Math.round(136*s), r={x:rx-rw,y:0,w:rw,h:barH};
     const hov=dsInside(r); dsRegister(r,'account','mmr');
     dsMedal(r.x+rw-Math.round(17*s),Math.round(barH*.5)-1,Math.round(13*s),pf?String(pf.level):null);
     const tx=r.x+rw-Math.round(46*s);

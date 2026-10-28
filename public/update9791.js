@@ -1,4 +1,4 @@
-/* DotaSense 0.9.8.0 — «ДОТАСЕНС +»: контрпики и гайд по закупу.
+/* DotaSense 0.9.8.1 — «ДОТАСЕНС +»: контрпики и гайд по закупу.
    Подключается поверх game.js, читает HERO_DEFS / HERO_GUIDES / SHOP_ITEMS и состояние матча;
    игровую покупку выполняет сам магазин, помощник только открывает его по кнопке. */
 (function(){
@@ -121,7 +121,7 @@ function heroChips(selected, onlyIds, kind){
   const ids = onlyIds || (typeof HERO_DEFS !== 'undefined' ? HERO_DEFS.map(d => d.id) : []);
   return '<div class="dsp-hero-grid">' + ids.map(id => {
     const d = defById(id); if(!d) return '';
-    return '<button type="button" class="dsp-hero-chip' + (selected.includes(id) ? ' on' : '') + '" data-kind="' + kind + '" data-id="' + id + '" aria-pressed="' + selected.includes(id) + '">' +
+    return '<button type="button" class="dsp-hero-chip' + (selected.includes(id) ? ' on' : (kind === 'enemy' && selected.length >= 4 ? ' full' : '')) + '" data-kind="' + kind + '" data-id="' + id + '" aria-pressed="' + selected.includes(id) + '">' +
       '<span class="dsp-hero-mark" style="--hero-color:' + safeColor(d.color) + '">' + esc(initials(d.name)) + '</span><span>' + esc(d.name) + '</span></button>';
   }).join('') + '</div>';
 }
@@ -161,7 +161,15 @@ function renderCounter(){
   const enemyDefs = enemies.map(defById).filter(Boolean);
   let html = '<div class="dsp-context"><span>' + (inDraft() ? 'СТАДИЯ ВЫБОРА' : inMatch() ? 'СОСТАВ ПРОТИВНИКА' : 'РУЧНОЙ ВЫБОР') + '</span><small>' + enemyDefs.length + ' / 4 врага</small></div>' +
     '<p class="dsp-note">' + (inDraft() ? 'Состав считывается прямо из драфта и пересчитывается после каждого выбора.' : auto ? 'Составы команд обновляются автоматически.' : 'Отметь до четырёх вражеских героев — рейтинг обновится сразу.') + '</p>';
-  if(!auto) html += heroChips(manualEnemies, null, 'enemy');
+  if(!auto){
+    html += '<div class="dsp-slots">' + [0,1,2,3].map(i => {
+      const d = defById(manualEnemies[i]);
+      return d ? '<button type="button" class="dsp-slot" data-kind="enemy" data-id="' + d.id + '" title="Убрать"><span class="dsp-hero-mark" style="--hero-color:' + safeColor(d.color) + '">' + esc(initials(d.name)) + '</span><span>' + esc(d.name) + '</span></button>'
+               : '<div class="dsp-slot"><span>Слот ' + (i + 1) + '</span></div>';
+    }).join('') + '</div>' +
+    '<div class="dsp-section-heading"><span>ВРАЖЕСКИЕ ГЕРОИ</span>' + (manualEnemies.length ? '<button type="button" class="dsp-reset" data-act="reset">СБРОСИТЬ</button>' : '<small>ВЫБЕРИ ДО 4</small>') + '</div>' +
+    heroChips(manualEnemies, null, 'enemy');
+  }
   else html += '<div class="dsp-enemy-strip">' + (enemyDefs.length ? enemyDefs.map(d =>
     '<div class="dsp-enemy-card"><span class="dsp-hero-mark" style="--hero-color:' + safeColor(d.color) + '">' + esc(initials(d.name)) + '</span><span>' + esc(d.name) + '</span><small>' + tagsOf(d).map(t => TAG_RU[t]).join(' · ') + '</small></div>'
   ).join('') : '<div class="dsp-draft-empty"><span>?</span><b>Ждём пик соперника</b><small>Подбор появится сразу после выбора героя</small></div>') + '</div>';
@@ -170,6 +178,37 @@ function renderCounter(){
     '<div class="dsp-pick-list">' + pickRows(counterPicks(enemyDefs.map(d => d.id), allies), auto ? 3 : 5) + '</div>';
   html += '<p class="dsp-foot">Оценка учитывает тип атаки, запас здоровья и баланс своей команды.</p>';
   return html;
+}
+
+let buyMsg = null;   // {text, bad}
+function canBuy(id, coins){
+  const it = SHOP_ITEMS[id]; if(!it || coins === null) return false;
+  if(typeof RECIPES !== 'undefined' && RECIPES[id]) return true;
+  return coins >= (it.cost || 0);
+}
+function doBuy(id){
+  if(!inMatch() || playerHero.dead || typeof buyShopItem !== 'function') return;
+  const it = SHOP_ITEMS[id]; if(!it) return;
+  const before = Math.floor(playerHero.coins || 0);
+  let ok = false;
+  try { ok = !!buyShopItem(id); } catch(err) { ok = false; }
+  if(ok) buyMsg = {text:'Куплено: ' + it.name, bad:false};
+  else buyMsg = {text: before < (it.cost || 0) ? 'Не хватает ' + ((it.cost || 0) - before) + ' золота' : 'Покупка не удалась — проверь слоты инвентаря', bad:true};
+  clearTimeout(doBuy.t); doBuy.t = setTimeout(() => { buyMsg = null; render(true); }, 2600);
+  render(true);
+}
+function stepTile(id, i, hero, nextId, coins){
+  const item = SHOP_ITEMS[id]; if(!item) return '';
+  const owned = hero && typeof heroHasItem === 'function' && heroHasItem(hero, id);
+  const can = !owned && canBuy(id, coins);
+  const cost = itemCost(id);
+  const inner = '<span class="dsp-item-step">' + (owned ? '✓' : i + 1) + '</span>' +
+    '<span class="dsp-item-icon" style="--item-color:' + safeColor(item.color) + '">' + esc(item.icon || '◇') + '</span>' +
+    '<span class="dsp-item-name">' + esc(item.name) + '</span>' +
+    '<span class="dsp-item-cost"><i aria-hidden="true">●</i> ' + (cost || '—') + '</span>';
+  const cls = 'dsp-step' + (owned ? ' owned' : '') + (id === nextId ? ' next' : '') + (can ? ' can' : '');
+  if(owned || !hero) return '<li><div class="' + cls + '" title="' + esc(item.desc || item.name) + '">' + inner + '</div></li>';
+  return '<li><button type="button" class="' + cls + '" data-buy="' + id + '" title="' + esc((item.desc || item.name) + ' — нажми, чтобы купить') + '">' + inner + '</button></li>';
 }
 
 function renderBattle(){
@@ -185,28 +224,35 @@ function renderBattle(){
   const coreItems = adv.guide ? adv.guide.build.filter(item => SHOP_ITEMS[item]) : [];
   const next = adv.rows[0] || null;
   const nextItem = next && SHOP_ITEMS[next.id];
-  const affordable = nextItem && adv.coins !== null && adv.coins >= itemCost(next.id);
+  const coins = adv.coins;
   let html = '<div class="dsp-battle-head"><div><div class="dsp-eyebrow">DOTA PLUS GUIDE</div><div class="dsp-battle-title">' + esc(adv.def.name) + ' · ' + esc(adv.guide ? adv.guide.role : adv.def.title) + '</div></div>' +
-    '<div class="dsp-gold"><span>ЗОЛОТО</span><b>● ' + adv.coins + '</b></div></div>' +
-    '<div class="dsp-build-layout"><section class="dsp-build-column"><div class="dsp-section-heading"><span>СТАРТОВЫЕ ПРЕДМЕТЫ</span></div>' +
-    (startItems.length ? '<div class="dsp-item-grid start">' + startItems.map((item, i) => itemTile(item, i, playerHero, false)).join('') + '</div>' : '<p class="dsp-note">Стартовый закуп для героя не задан.</p>') +
-    '<div class="dsp-section-heading"><span>СБОРКА ПО ПОРЯДКУ</span></div>' +
-    (coreItems.length ? '<div class="dsp-item-grid">' + coreItems.map((item, i) => itemTile(item, i, playerHero, false)).join('') + '</div>' : '<p class="dsp-note">Сборка для героя пока не задана.</p>') +
-    '</section><section class="dsp-purchase-column"><div class="dsp-section-heading"><span>КУПИТЬ СЛЕДУЮЩИМ</span><small>' + (next ? 'ПРИОРИТЕТ' : 'ГОТОВО') + '</small></div>';
+    '<div class="dsp-gold"><span>ЗОЛОТО</span><b><i class="dsp-coin"></i>' + coins + '</b></div></div>';
+  if(buyMsg) html += '<div class="dsp-msg' + (buyMsg.bad ? ' bad' : '') + '" role="status">' + esc(buyMsg.text) + '</div>';
+
   if(next && nextItem){
-    html += '<div class="dsp-next-item"><span class="dsp-item-icon large" style="--item-color:' + safeColor(nextItem.color) + '">' + esc(nextItem.icon || '◇') + '</span>' +
-      '<div class="dsp-next-info"><b>' + esc(nextItem.name) + '</b><span>● ' + itemCost(next.id) + ' монет</span><small>' + esc(next.why) + '</small></div>' +
-      (affordable ? '<span class="dsp-afford">ХВАТАЕТ</span>' : '<span class="dsp-short">' + (adv.coins === null ? '' : '−' + (itemCost(next.id) - adv.coins)) + '</span>') + '</div>' +
-      '<button type="button" class="dsp-shop-button" data-act="shop">ОТКРЫТЬ МАГАЗИН <span>↗</span></button>';
+    const cost = itemCost(next.id), ready = canBuy(next.id, coins), pct = cost ? Math.max(0, Math.min(100, coins / cost * 100)) : 100;
+    const isRecipe = typeof RECIPES !== 'undefined' && RECIPES[next.id];
+    html += '<section class="dsp-next' + (ready ? ' ready' : '') + '"><span class="dsp-item-icon large" style="--item-color:' + safeColor(nextItem.color) + '">' + esc(nextItem.icon || '◇') + '</span>' +
+      '<div class="dsp-next-body"><span class="dsp-eyebrow">КУПИТЬ СЛЕДУЮЩИМ</span><b>' + esc(nextItem.name) + '</b>' +
+      (nextItem.desc ? '<span class="dsp-next-desc">' + esc(nextItem.desc) + '</span>' : '') +
+      '<span class="dsp-next-why">' + esc(next.why) + '</span>' +
+      '<div class="dsp-progress" role="progressbar" aria-valuemin="0" aria-valuemax="' + cost + '" aria-valuenow="' + Math.min(coins, cost) + '"><i style="width:' + pct + '%"></i></div>' +
+      '<span class="dsp-progress-label">' + (ready ? 'Золота хватает' : 'Не хватает ' + Math.max(0, cost - coins)) + ' · цена ' + cost + '</span></div>' +
+      '<button type="button" class="dsp-buy" data-buy="' + next.id + '"' + (ready ? '' : ' disabled') + '>' + (isRecipe ? 'СОБРАТЬ' : 'КУПИТЬ') + '<small>● ' + cost + '</small></button></section>';
   } else html += '<div class="dsp-empty-hint">Все рекомендации по сборке уже куплены.</div>';
+
+  html += '<div class="dsp-section-heading"><span>ПУТЬ СБОРКИ</span><small>НАЖМИ НА ПРЕДМЕТ, ЧТОБЫ КУПИТЬ</small></div>' +
+    (coreItems.length ? '<ol class="dsp-path">' + coreItems.map((item, i) => stepTile(item, i, playerHero, next && next.id, coins)).join('') + '</ol>' : '<p class="dsp-note">Сборка для героя пока не задана.</p>');
+  if(startItems.length) html += '<div class="dsp-section-heading"><span>СТАРТОВЫЕ ПРЕДМЕТЫ</span></div><ol class="dsp-path">' + startItems.map((item, i) => stepTile(item, i, playerHero, null, coins)).join('') + '</ol>';
+
   const situational = adv.rows.slice(next ? 1 : 0);
-  html += '<div class="dsp-section-heading situational"><span>ПО СИТУАЦИИ</span></div>' +
+  html += '<div class="dsp-section-heading"><span>ПО СИТУАЦИИ</span></div>' +
     (situational.length ? '<div class="dsp-situational-list">' + situational.map(row => {
-      const item = SHOP_ITEMS[row.id];
-      const enough = adv.coins !== null && adv.coins >= itemCost(row.id);
-      return '<div class="dsp-situational-item"><span class="dsp-item-icon mini" style="--item-color:' + safeColor(item.color) + '">' + esc(item.icon || '◇') + '</span><div><b>' + esc(item.name) + '</b><small>' + esc(row.why) + '</small></div><i>' + itemCost(row.id) + (adv.coins !== null ? (enough ? ' ✓' : ' · мало золота') : '') + '</i></div>';
-    }).join('') + '</div>' : '<p class="dsp-note">Пока нет ситуативных покупок.</p>') +
-    '</section></div>';
+      const item = SHOP_ITEMS[row.id], c = itemCost(row.id), can = canBuy(row.id, coins);
+      return '<div class="dsp-situational-item"><span class="dsp-item-icon mini" style="--item-color:' + safeColor(item.color) + '">' + esc(item.icon || '◇') + '</span><div><b>' + esc(item.name) + '</b><small>' + esc(row.why) + '</small></div>' +
+        '<div class="dsp-sit-side"><i>● ' + c + '</i><button type="button" class="dsp-buy mini" data-buy="' + row.id + '"' + (can ? '' : ' disabled') + '>КУПИТЬ</button></div></div>';
+    }).join('') + '</div>' : '<p class="dsp-note">Пока нет ситуативных покупок.</p>');
+
   const alive = enemies.filter(h => !h.dead).sort((a, b) => (b.kills || 0) - (a.kills || 0));
   html += '<div class="dsp-title">ВРАГИ</div><div class="dsp-enemies">' + alive.map(h => '<span>' + esc(h.def.name) + ' · ур.' + h.level + (h.kills ? ' · ' + h.kills + ' уб.' : '') + '</span>').join('') + (enemies.length > alive.length ? '<span class="dead">мертвы: ' + (enemies.length - alive.length) + '</span>' : '') + '</div>';
   if(alive[0] && (alive[0].kills || 0) >= 4) html += '<p class="dsp-warn">⚠ ' + esc(alive[0].def.name) + ' набрал ' + alive[0].kills + ' убийств — сконцентрируйтесь на нём.</p>';
@@ -221,7 +267,7 @@ function renderHeroes(){
   if(!d) return html;
   html += '<div class="dsp-title">' + esc(d.name) + ' — ' + esc(g ? g.role : d.title) + '</div><p class="dsp-note">' + esc(DS[pickedHero].tip) + '</p>';
   if(g){
-    html += '<div class="dsp-title">ЗАКУП ПО ПОРЯДКУ</div><div class="dsp-item-grid">' + g.build.map((id, i) => itemTile(id, i, null, false)).join('') + '</div>';
+    html += '<div class="dsp-section-heading"><span>ЗАКУП ПО ПОРЯДКУ</span></div><ol class="dsp-path">' + g.build.map((id, i) => stepTile(id, i, null, null, null)).join('') + '</ol>';
     html += '<p class="dsp-foot">' + esc(g.skillNote || '') + '</p>';
   }
   /* Против кого силён / слаб */
@@ -261,6 +307,8 @@ btn.addEventListener('click', () => setOpen(panel.hidden));
 panel.addEventListener('click', e => {
   const t = e.target.closest('button'); if(!t) return;
   if(t.dataset.act === 'close') return setOpen(false);
+  if(t.dataset.act === 'reset'){ manualEnemies = []; return render(true); }
+  if(t.dataset.buy){ if(!t.disabled) doBuy(t.dataset.buy); return; }
   if(t.dataset.act === 'shop'){
     if(inMatch() && typeof shopOpen !== 'undefined'){
       shopOpen = true;
@@ -281,24 +329,47 @@ panel.addEventListener('click', e => {
   if(t.dataset.kind === 'hero'){ pickedHero = t.dataset.id; render(true); }
 });
 document.addEventListener('pointerdown', e => {
-  if(!panel.hidden && !inMatch() && !box.contains(e.target)) setOpen(false);   /* в бою панель не закрывается кликами по карте */
+  if(!panel.hidden && !inMatch() && !inDraft() && !box.contains(e.target)) setOpen(false);   /* в бою и в драфте панель не закрывается кликами по игре */
 });
 window.addEventListener('keydown', e => {
   if(e.key === 'F2'){ e.preventDefault(); setOpen(panel.hidden); }
-  else if(e.key === 'Escape' && !panel.hidden && !inMatch()) setOpen(false);
+  else if(e.key === 'Escape' && !panel.hidden && !inMatch()){ setOpen(false); btn.focus(); }
 });
 
-/* Во время драфта помощник открывается один раз, сразу после появления первых пиков. */
-let wasDraft = false;
+/* Положение кнопок: в верхней панели главного меню, справа внизу в выборе героя, сверху в матче. */
+const tools = document.getElementById('game-tools');
+const caption = document.getElementById('dsplus-caption');
+function menuOther(){ return typeof gameState !== 'undefined' && gameState === 'menu' && typeof menuStage !== 'undefined' && menuStage !== 'home' && window.innerWidth >= 900 && window.innerHeight >= 560; }
+function syncDock(){
+  document.body.classList.toggle('ds-dock-bottom', menuOther());
+  window.dsToolsReserve = (tools && document.body.classList.contains('ds-home')) ? tools.offsetWidth : 0;
+}
+if(tools && typeof ResizeObserver === 'function') new ResizeObserver(syncDock).observe(tools);
+setInterval(syncDock, 120);
+
+/* Подсказка на кнопке: лучший контрпик в драфте, «можно купить» в бою. */
+let wasDraft = false, hintSig = '';
+function updateHint(){
+  let hint = false, text = 'ПОМОЩНИК';
+  try {
+    if(inDraft()){
+      const t = draftTeams();
+      if(t.enemies.length){ const top = counterPicks(t.enemies, t.allies)[0]; if(top){ hint = true; text = 'КОНТРПИК: ' + top.def.name.toUpperCase(); } }
+    } else if(inMatch()){
+      const adv = itemAdvice(playerHero.def.id, heroes.filter(h => h.team !== playerHero.team).map(h => h.def.id), true);
+      const n = adv.rows[0];
+      if(n && !playerHero.dead && canBuy(n.id, adv.coins)){ hint = true; text = 'МОЖНО КУПИТЬ'; }
+    }
+  } catch(err) {}
+  const sig = hint + text; if(sig === hintSig) return; hintSig = sig;
+  btn.classList.toggle('has-hint', hint);
+  if(caption) caption.textContent = text;
+}
 setInterval(() => {
   const drafting = inDraft();
-  if(drafting && !wasDraft){
-    tab = 'counter';
-    setOpen(true);
-  } else if(!drafting && wasDraft){
-    setOpen(false);
-  }
+  if(!drafting && wasDraft) setOpen(false);
   wasDraft = drafting;
+  updateHint();
   render(false);
 }, 400);
 })();

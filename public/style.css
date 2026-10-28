@@ -1150,3 +1150,157 @@ body.in-match #game-tools #dsplus-btn small { display: block; }
   #game-tools #dsplus-panel,
   #game-tools #sensiki-panel { max-height: calc(100vh - 70px); }
 }
+
+/* ===== 0.9.8.1: Дотасенс + вписан в меню ===== */
+:root { --ds-bar-h: 46px; --ds-s: 1; }
+#game-tools .dsp-name { font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+#game-tools .dsp-name b { color: #f0b429; font-size: 15px; }
+#game-tools #sensiki-amount { font-size: 15px; font-weight: 800; }
+#game-tools #dsplus-btn .dsp-col small { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#game-tools #dsplus-btn.has-hint::after {
+  content: ''; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%;
+  background: #ffd568; box-shadow: 0 0 8px #ffd568; animation: dsp-pulse 1.8s ease-in-out infinite;
+}
+#game-tools #dsplus-btn { position: relative; }
+@keyframes dsp-pulse { 50% { opacity: .35; transform: scale(.75); } }
+
+/* главное меню: кнопки живут внутри верхней панели */
+body.ds-home #game-tools {
+  top: 0; right: 0; height: calc(var(--ds-bar-h) - 2px); padding: 0; gap: 0;
+  border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none;
+}
+body.ds-home #game-tools #sensiki-box,
+body.ds-home #game-tools #dsplus-box { margin: 0; padding: 0; border: 0; display: flex; }
+body.ds-home #game-tools #dsplus-box { border-left: 1px solid rgba(232,168,90,.28); }
+body.ds-home #game-tools #sensiki-btn,
+body.ds-home #game-tools #dsplus-btn {
+  height: 100%; min-height: 0; padding: 0 calc(16px * var(--ds-s)); border: 0; border-radius: 0;
+  background: transparent; position: relative;
+}
+body.ds-home #game-tools #sensiki-btn::before,
+body.ds-home #game-tools #dsplus-btn::before {
+  content: ''; position: absolute; left: 8%; right: 8%; bottom: 0; height: 2px; opacity: 0;
+  background: linear-gradient(90deg, transparent, #ffd27a, transparent); transition: opacity .16s;
+}
+body.ds-home #game-tools #sensiki-btn:hover,
+body.ds-home #game-tools #sensiki-btn:focus-visible,
+body.ds-home #game-tools #dsplus-btn:hover,
+body.ds-home #game-tools #dsplus-btn:focus-visible,
+body.ds-home #game-tools #dsplus-btn[aria-expanded="true"],
+body.ds-home #game-tools #sensiki-btn[aria-expanded="true"] {
+  border: 0; background: linear-gradient(180deg, rgba(255,150,80,0), rgba(255,150,80,.28));
+}
+body.ds-home #game-tools #sensiki-btn:hover::before,
+body.ds-home #game-tools #dsplus-btn:hover::before,
+body.ds-home #game-tools #dsplus-btn[aria-expanded="true"]::before,
+body.ds-home #game-tools #sensiki-btn[aria-expanded="true"]::before { opacity: 1; }
+body.ds-home #game-tools .sk-icon,
+body.ds-home #game-tools .dsp-icon { width: calc(22px * var(--ds-s)); height: calc(22px * var(--ds-s)); }
+body.ds-home #game-tools .dsp-name { font-size: calc(13px * var(--ds-s)); }
+body.ds-home #game-tools #dsplus-btn.has-hint::after { top: 22%; right: 7px; }
+body.ds-home #game-tools #sensiki-panel,
+body.ds-home #game-tools #dsplus-panel { top: 100%; margin-top: 2px; border-top: 2px solid #d7b36a; border-radius: 0 0 4px 4px; }
+body.ds-home #game-tools #dsplus-panel { width: min(620px, calc(100vw - 20px)); max-height: calc(100vh - var(--ds-bar-h) - 20px); }
+
+/* выбор героя и другие подменю: пилюля справа внизу, как «Мировой топ» */
+body.ds-dock-bottom #game-tools {
+  top: auto; bottom: max(20px, env(safe-area-inset-bottom)); right: max(20px, env(safe-area-inset-right));
+  padding: 3px; border: 1px solid rgba(215,179,106,.78); border-radius: 14px;
+  background: linear-gradient(180deg, rgba(43,36,27,.96), rgba(12,12,15,.98));
+  box-shadow: 0 6px 18px rgba(0,0,0,.48), inset 0 0 0 1px rgba(255,230,177,.08);
+}
+body.ds-dock-bottom #game-tools #sensiki-btn,
+body.ds-dock-bottom #game-tools #dsplus-btn { min-height: 44px; border-radius: 11px; }
+body.ds-dock-bottom #game-tools #sensiki-panel,
+body.ds-dock-bottom #game-tools #dsplus-panel { top: auto; bottom: calc(100% + 12px); }
+body.ds-dock-bottom #game-tools #dsplus-panel { width: min(480px, calc(100vw - 20px)); max-height: calc(100vh - 130px); }
+body.ds-dock-bottom #dsplus-panel .dsp-pick-list { grid-template-columns: 1fr; }
+body.ds-dock-bottom #game-tools #dsplus-btn small { display: block; }
+
+/* ---- панель: общий вид ---- */
+#dsplus-panel .dsp-head span { font: 800 13px 'Trebuchet MS','Segoe UI',sans-serif; letter-spacing: .14em; }
+#dsplus-panel .dsp-tabs button { min-height: 36px; font-size: 11px; transition: background .15s, color .15s; }
+#dsplus-panel .dsp-tabs button:hover:not(.on) { background: rgba(255,255,255,.08); color: #e8dcc0; }
+#dsplus-panel button:focus-visible { outline: 2px solid #ffd568; outline-offset: 1px; }
+
+/* ручной выбор врагов */
+#dsplus-panel .dsp-slots { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; margin: 8px 0 10px; }
+#dsplus-panel .dsp-slot {
+  display: flex; min-height: 46px; align-items: center; gap: 7px; padding: 5px 7px; min-width: 0;
+  border: 1px dashed rgba(214,181,116,.3); background: rgba(255,255,255,.025); color: #8d8b85; font: 600 10px 'Trebuchet MS',sans-serif;
+}
+#dsplus-panel button.dsp-slot { cursor: pointer; text-align: left; border-style: solid; border-color: rgba(214,95,78,.45); background: linear-gradient(135deg,rgba(76,32,32,.35),rgba(14,16,18,.8)); color: #efe3d2; }
+#dsplus-panel button.dsp-slot:hover { border-color: #ff8a7a; }
+#dsplus-panel .dsp-slot .dsp-hero-mark { width: 28px; height: 28px; flex: none; grid-row: auto; }
+#dsplus-panel .dsp-slot span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#dsplus-panel .dsp-reset { padding: 3px 9px; cursor: pointer; border: 1px solid rgba(255,255,255,.16); border-radius: 3px; background: rgba(0,0,0,.3); color: #cfc7b7; font: 700 9px 'Trebuchet MS',sans-serif; letter-spacing: .08em; }
+#dsplus-panel .dsp-reset:hover { border-color: #d7b36a; color: #fff0c7; }
+#dsplus-panel .dsp-hero-grid { grid-template-columns: repeat(auto-fill,minmax(122px,1fr)); max-height: 230px; gap: 6px; }
+#dsplus-panel .dsp-hero-chip { padding: 5px; min-height: 38px; transition: border-color .15s, background .15s; }
+#dsplus-panel .dsp-hero-chip:hover { border-color: rgba(215,179,106,.6); background: rgba(255,255,255,.07); }
+#dsplus-panel .dsp-hero-chip.on::after { content: '✓'; margin-left: auto; color: #ffd568; font-size: 12px; }
+#dsplus-panel .dsp-hero-chip.full:not(.on) { opacity: .4; cursor: not-allowed; }
+
+/* закуп в бою */
+#dsplus-panel .dsp-coin { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 50%; background: radial-gradient(circle at 35% 30%,#fff2b0,#f0b429 60%,#b9770e); box-shadow: 0 0 6px rgba(240,180,41,.6); }
+#dsplus-panel .dsp-next {
+  position: relative; display: grid; grid-template-columns: 74px minmax(0,1fr) auto; align-items: center; gap: 14px; margin-bottom: 12px; padding: 12px;
+  border: 1px solid rgba(217,180,92,.6); background: linear-gradient(115deg,rgba(96,70,32,.45),rgba(13,15,16,.96) 70%); box-shadow: inset 3px 0 #d3a84f;
+}
+#dsplus-panel .dsp-next.ready { box-shadow: inset 3px 0 #7ee08f, 0 0 18px rgba(126,224,143,.12); border-color: rgba(126,224,143,.55); }
+#dsplus-panel .dsp-next .dsp-item-icon.large { width: 72px; height: 66px; font-size: 34px; }
+#dsplus-panel .dsp-next-body { display: grid; gap: 4px; min-width: 0; }
+#dsplus-panel .dsp-next-body .dsp-eyebrow { font-size: 9px; }
+#dsplus-panel .dsp-next-body b { color: #f6ecd6; font: 700 16px Georgia,serif; }
+#dsplus-panel .dsp-next-desc { color: #b9b2a4; font-size: 10px; line-height: 1.4; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#dsplus-panel .dsp-next-why { color: #e0c27a; font-size: 10px; line-height: 1.4; }
+#dsplus-panel .dsp-progress { position: relative; height: 6px; margin-top: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
+#dsplus-panel .dsp-progress i { display: block; height: 100%; background: linear-gradient(90deg,#9a492f,#e5ba62); transition: width .3s; }
+#dsplus-panel .dsp-next.ready .dsp-progress i { background: linear-gradient(90deg,#3f9a56,#9bf0a8); }
+#dsplus-panel .dsp-progress-label { color: #98958d; font: 700 9px Consolas,monospace; }
+#dsplus-panel .dsp-buy {
+  display: grid; min-width: 104px; min-height: 52px; place-items: center; gap: 1px; padding: 6px 12px; cursor: pointer;
+  border: 1px solid #f2dcaa; border-radius: 3px; background: linear-gradient(180deg,#b78a42,#6a4a1f); color: #fff3cf;
+  font: 800 11px 'Trebuchet MS',sans-serif; letter-spacing: .1em; text-shadow: 0 1px 3px #000; transition: filter .15s, transform .1s;
+}
+#dsplus-panel .dsp-buy small { font: 700 10px Consolas,monospace; letter-spacing: 0; opacity: .9; }
+#dsplus-panel .dsp-buy:hover:not(:disabled) { filter: brightness(1.18); }
+#dsplus-panel .dsp-buy:active:not(:disabled) { transform: translateY(1px); }
+#dsplus-panel .dsp-buy:disabled { cursor: not-allowed; border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: #8f8b82; text-shadow: none; }
+#dsplus-panel .dsp-buy.mini { min-width: 0; min-height: 28px; padding: 3px 9px; font-size: 9px; }
+#dsplus-panel .dsp-msg { margin: 0 0 10px; padding: 7px 10px; border-left: 2px solid #7ee08f; background: rgba(126,224,143,.1); color: #d8ffdf; font-size: 11px; }
+#dsplus-panel .dsp-msg.bad { border-color: #ff8a7a; background: rgba(255,138,122,.1); color: #ffd0c8; }
+#dsplus-panel .dsp-path { display: grid; grid-template-columns: repeat(auto-fill,minmax(92px,1fr)); gap: 6px; margin: 6px 0 12px; padding: 0; list-style: none; }
+#dsplus-panel .dsp-step {
+  position: relative; display: grid; grid-template-rows: 44px auto auto; justify-items: center; gap: 4px; min-width: 0; padding: 18px 4px 6px; cursor: default;
+  border: 1px solid rgba(255,255,255,.1); background: linear-gradient(160deg,rgba(39,43,43,.9),rgba(12,14,14,.98)); color: inherit; font-family: inherit; text-align: center;
+}
+#dsplus-panel button.dsp-step { cursor: pointer; }
+#dsplus-panel button.dsp-step:hover { border-color: rgba(215,179,106,.7); }
+#dsplus-panel .dsp-step .dsp-item-step { top: 4px; left: 4px; display: grid; width: 15px; height: 15px; place-items: center; border-radius: 50%; background: rgba(215,179,106,.2); color: #f0d393; }
+#dsplus-panel .dsp-step.owned { opacity: .5; }
+#dsplus-panel .dsp-step.owned .dsp-item-step { background: rgba(50,105,70,.85); color: #d8ffdf; }
+#dsplus-panel .dsp-step.next { border-color: #d7b36a; box-shadow: 0 0 0 1px rgba(215,179,106,.35), 0 0 14px rgba(215,179,106,.22); }
+#dsplus-panel .dsp-step.can::after { content: ''; position: absolute; right: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: #7ee08f; box-shadow: 0 0 6px #7ee08f; }
+#dsplus-panel .dsp-step .dsp-item-icon { width: 44px; height: 40px; font-size: 21px; }
+#dsplus-panel .dsp-situational-item { grid-template-columns: 40px minmax(0,1fr) auto; }
+#dsplus-panel .dsp-situational-item .dsp-sit-side { display: grid; gap: 4px; justify-items: end; }
+#dsplus-panel .dsp-situational-item .dsp-sit-side i { color: #b9aa80; font: 9px Consolas,monospace; font-style: normal; }
+#dsplus-panel .dsp-item-grid.start { grid-template-columns: repeat(auto-fill,minmax(92px,1fr)); }
+@media (max-width: 560px) {
+  #dsplus-panel .dsp-next { grid-template-columns: 56px minmax(0,1fr); }
+  #dsplus-panel .dsp-next .dsp-buy { grid-column: 1 / -1; }
+  #dsplus-panel .dsp-slots { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { #game-tools #dsplus-btn.has-hint::after { animation: none; } }
+body.ds-home #game-tools #sensiki-btn small,
+body.ds-home #game-tools #dsplus-btn small { display: none; }
+body.ds-home #game-tools #sensiki-btn,
+body.ds-home #game-tools #dsplus-btn { padding: 0 calc(12px * var(--ds-s)); }
+body.ds-home #game-tools .dsp-col, body.ds-home #game-tools .sk-col { justify-content: center; }
+body.ds-dock-bottom #game-tools #dsplus-box .dsp-col { padding-right: 12px; }
+body.ds-dock-bottom #game-tools #dsplus-panel { max-height: calc(100vh - 230px); }
+body.ds-home #game-tools #sensiki-btn,
+body.ds-home #game-tools #dsplus-btn { padding: 0 calc(10px * var(--ds-s)); }
+#dsplus-panel .dsp-path > li { display: flex; min-width: 0; }
+#dsplus-panel .dsp-path .dsp-step { width: 100%; box-sizing: border-box; }
