@@ -888,3 +888,48 @@ body.ds-home #leaderboard-open { display: none !important; }
   #sensiki-box { top: 72px; right: max(12px, env(safe-area-inset-right)); }
   .sensiki-toast { top: 126px; right: 12px; }
 }
+
+/* ===== 0.9.7.9.1: Дотасенс + ===== */
+#dsplus-box { position: fixed; top: max(18px, env(safe-area-inset-top)); right: var(--dsp-right, 20px); z-index: 22; font-family: Consolas, monospace; }
+body.in-match #dsplus-box { top: 10px; right: 12px; }
+#dsplus-panel[hidden] { display: none; }
+#dsplus-btn { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 14px 0 9px; cursor: pointer; color: #ffe9a8;
+  border: 1px solid rgba(240,180,41,.85); border-radius: 12px; font: 700 15px Consolas, monospace;
+  background: linear-gradient(180deg, rgba(48,34,10,.97), rgba(16,11,4,.98)); box-shadow: 0 6px 18px rgba(0,0,0,.5), inset 0 0 14px rgba(240,180,41,.16);
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease; }
+#dsplus-btn:hover, #dsplus-btn:focus-visible { filter: brightness(1.18); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,.55), 0 0 18px rgba(240,180,41,.4); }
+body.in-match #dsplus-btn { min-height: 34px; padding: 0 10px 0 7px; opacity: .88; }
+.dsp-icon { width: 26px; height: 26px; flex: none; filter: drop-shadow(0 0 6px rgba(240,180,41,.7)); }
+#dsplus-btn .dsp-col { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+#dsplus-btn small { font-size: 9px; letter-spacing: .14em; color: #d9b25c; margin-bottom: 3px; }
+body.in-match #dsplus-btn small { display: none; }
+#dsplus-panel { position: absolute; top: calc(100% + 8px); right: 0; width: min(360px, calc(100vw - 24px)); max-height: min(72vh, 620px); overflow-y: auto;
+  padding: 12px; color: #f3e6c2; border: 1px solid rgba(240,180,41,.7); border-radius: 12px;
+  background: linear-gradient(180deg, rgba(30,22,8,.98), rgba(10,8,5,.98)); box-shadow: 0 14px 38px rgba(0,0,0,.65); }
+.dsp-head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; letter-spacing: .12em; color: #f0b429; }
+.dsp-head b { color: #fff0c7; }
+.dsp-x { border: 0; background: none; color: #d9b25c; font-size: 22px; cursor: pointer; line-height: 1; }
+.dsp-tabs { display: flex; gap: 6px; margin: 10px 0; }
+.dsp-tabs button { flex: 1; min-height: 30px; cursor: pointer; border: 1px solid rgba(240,180,41,.35); border-radius: 8px; background: rgba(255,255,255,.04); color: #d9c48a; font: 700 11px Consolas, monospace; letter-spacing: .08em; }
+.dsp-tabs button.on { background: rgba(240,180,41,.22); border-color: #f0b429; color: #fff0c7; }
+.dsp-title { margin: 12px 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .14em; color: #f0b429; }
+.dsp-note, .dsp-foot { margin: 6px 0; font-size: 12px; line-height: 1.45; color: #d8ccb0; }
+.dsp-foot { color: #a89c7e; font-size: 11px; }
+.dsp-warn { margin: 8px 0; padding: 6px 8px; border-radius: 8px; background: rgba(220,70,50,.18); border: 1px solid rgba(220,70,50,.5); font-size: 12px; }
+.dsp-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+.dsp-chip { padding: 4px 8px; cursor: pointer; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.05); color: #e6dcc0; font: 600 11px Consolas, monospace; }
+.dsp-chip.on { background: rgba(240,180,41,.28); border-color: #f0b429; color: #fff0c7; }
+.dsp-row { margin: 6px 0; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+.dsp-row.top { border-color: rgba(240,180,41,.7); background: rgba(240,180,41,.1); }
+.dsp-row-h { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.dsp-row-h span { color: #b9aa80; font-size: 11px; }
+.dsp-row small { display: block; margin-top: 4px; font-size: 11px; line-height: 1.4; color: #cfc4a5; }
+.dsp-tags { margin-top: 3px; font-size: 11px; }
+.dsp-row em { margin-left: 6px; font-style: normal; }
+.ok { color: #7ee08f; } .no { color: #ff8a7a; } .info { color: #8fd8ff; }
+.dsp-enemies { display: flex; flex-wrap: wrap; gap: 5px; font-size: 11px; }
+.dsp-enemies span { padding: 3px 7px; border-radius: 6px; background: rgba(255,255,255,.07); }
+.dsp-enemies i { color: #9b8f70; font-style: normal; }
+.dsp-enemies .dead { color: #8a8f99; }
+.dsp-build { margin: 6px 0; padding-left: 20px; font-size: 12px; line-height: 1.7; }
+.dsp-build i { color: #b9aa80; font-style: normal; font-size: 11px; }

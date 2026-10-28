@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.9.7.9</title>
-<link rel="stylesheet" href="./style.css?v=0.9.7.9">
+<title>DotaSense 3 — HTML5 • DOTA 4v4 / Онлайн 3v3 • 0.9.7.9.1</title>
+<link rel="stylesheet" href="./style.css?v=0.9.7.9.1">
 </head>
 <body>
 <div id="boot-loader" aria-live="polite" aria-label="Загрузка игры">
@@ -32,7 +32,7 @@
     <div class="boot-bar"><span id="boot-fill"></span></div>
     <div class="boot-row"><span id="boot-tip" class="boot-text">Загрузка мира...</span><span id="boot-pct">0%</span></div>
   </div>
-  <div class="boot-version">ВЕРСИЯ 0.9.7.9</div>
+  <div class="boot-version">ВЕРСИЯ 0.9.7.9.1</div>
 </div>
 <div id="topbar">
   <button id="online-entry" type="button">ОНЛАЙН 3 НА 3</button>
@@ -52,6 +52,13 @@
     </button>
     <div id="sensiki-panel" role="dialog" aria-label="Сенсики и ежедневное задание" hidden></div>
   </div>
+</div>
+<div id="dsplus-box">
+  <button id="dsplus-btn" type="button" aria-expanded="false" aria-controls="dsplus-panel" title="Дотасенс + (F2): контрпик и советы по закупу">
+    <svg class="dsp-icon" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="dsp-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2b0"/><stop offset=".55" stop-color="#f0b429"/><stop offset="1" stop-color="#b9770e"/></linearGradient></defs><circle cx="12" cy="12" r="10.5" fill="url(#dsp-g)" stroke="#fff0c7" stroke-width="1"/><path d="M12 6v12M6 12h12" stroke="#2a1a02" stroke-width="3" stroke-linecap="round"/></svg>
+    <span class="dsp-col"><small>ДОТАСЕНС</small><span>+</span></span>
+  </button>
+  <div id="dsplus-panel" role="dialog" aria-label="Дотасенс +" hidden></div>
 </div>
 <canvas id="game" tabindex="0"></canvas>
 <section id="leaderboard-modal" hidden>
@@ -186,12 +193,13 @@
   </div>
 </section>
 <script src="/socket.io/socket.io.js"></script>
-<script src="./hero3d.js?v=0.9.7.9"></script>
-<script src="./game.js?v=0.9.7.9"></script>
+<script src="./hero3d.js?v=0.9.7.9.1"></script>
+<script src="./game.js?v=0.9.7.9.1"></script>
 <script src="./demon3d.js?v=0.9.7.9.1"></script>
 <script src="./update973.js?v=0.9.7.9"></script>
 <script src="./update974.js?v=0.9.7.9-fx"></script>
 <script src="./update979.js?v=0.9.7.9"></script>
+<script src="./update9791.js?v=0.9.7.9.1"></script>
 <script>
 (() => {
   const picker = document.getElementById('mode-picker');
