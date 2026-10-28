@@ -695,7 +695,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.6';
+const GAME_VERSION = '0.9.7.3';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -782,7 +782,15 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.7', title:'БАЛАНС ОЛЕКСА И 5 НОВЫХ ПРЕДМЕТОВ', changes:[
+  const sections = [{version:'0.9.7.3', title:'ЗВУК И ОГОНЬ', changes:[
+    'Главное меню: центральный герой теперь настоящая 3D-модель — Владыка Пламени с рогами, плащом, огненной гривой, глефой и шаром пламени. Он дышит, плащ и огонь живут, а сам демон поворачивается вслед за курсором. Цвет подсветки меняется вместе с режимом игры.',
+    'Меню: косые лучи света, светящийся туман у пола, боке-угольки ближнего плана с параллаксом и огонёк под курсором.',
+    'Звуки боя: удары (обычные, тяжёлые, по башням), залпы башен и снарядов, взрывы и ударные волны, звуки огня, льда и молний у заклинаний, лечение, прирост маны, щиты, баффы и дебаффы, подбор и появление рун, установка вардов, использование предметов, новый уровень, возрождение, шаги и сердцебиение при низком здоровье. Громкость зависит от расстояния до вашего героя.',
+    'Эффекты боя: искры и вспышки при ударах, магические круги под кастером (больше у ультимейтов), столбы света при новом уровне, возрождении и подборе рун, зелёные «плюсы» лечения, монеты с убитых крипов, души погибших героев, ударные волны и трещины в земле при разрушении башен.',
+    'Тряска экрана при тяжёлых ударах, смерти героев и падении башен; красная пульсирующая виньетка при низком здоровье и при тяжёлом уроне; цветные вспышки на ультимейты, новый уровень и убийства; маркеры кликов для движения и атаки; предупреждение «ПОД АТАКОЙ!» и сигнал, когда бьют вашу башню.',
+    'Все новые эффекты учитывают настройки графики: на низких пресетах тряска и украшения отключаются автоматически.'
+  ]},
+  {version:'0.9.7', title:'БАЛАНС ОЛЕКСА И 5 НОВЫХ ПРЕДМЕТОВ', changes:[
     'Олекс: Q «Строка кода» без перезарядки, каждый выстрел греет процессор на 7%. Синий экран смерти: перезарядка 60/54/48 сек, арена держится 5 сек (6,5 со скипетром) — больше суммарного урона.',
     'Иллюзионист: клонов можно выбрать все сразу (клавиша T или двойной клик по клону) и командовать ими группой; клоны полупрозрачны для самого Иллюзиониста и его команды, враги видят обычных бойцов. Боты не отличают клонов от оригинала и путаются.',
     'Снайпер: дальность атаки уменьшена (база 620 → 400, Take Aim даёт меньше).',
@@ -23114,6 +23122,8 @@ function dsDrawWarriorArt(now){
   ctx.drawImage(dsArt.parts[0],0,0); ctx.restore();
   ctx.globalAlpha=1;
   ctx.globalCompositeOperation='source-over';
+  /* 0.9.7.3: центральный герой — живая 3D-модель (update973.js); если недоступна, рисуется прежний 2D-арт */
+  if(!(window.menuDemon973 && menuDemon973.draw(cx,gy,u,now))){
   /* тело: дыхание и покачивание */
   ctx.save(); ctx.translate(cx,gy); ctx.rotate(sway*.006); ctx.scale(1,1+breathe*.006); ctx.translate(-cx,-gy);
   ctx.drawImage(dsArt.parts[1],0,0);
@@ -23134,6 +23144,7 @@ function dsDrawWarriorArt(now){
   bgl.addColorStop(0,'rgba(255,170,90,'+(.35+.2*Math.sin(now*2.4))+')'); bgl.addColorStop(1,'rgba(255,60,20,0)');
   ctx.fillStyle=bgl; ctx.fillRect(bx-u*22,by-u*22,u*44,u*44);
   ctx.restore();
+  }
   /* спиральные искры вокруг демона */
   ctx.globalCompositeOperation='lighter';
   for(let i=0;i<46;i++){
@@ -24978,6 +24989,14 @@ function drawFps(){
   ctx.fillText(txt, VW - 16, y + 14);
   ctx.restore();
 }
+
+/* 0.9.7.3: безопасные заглушки для update973.js (звуки, эффекты боя, тряска экрана) */
+function fx973SX(){ return window.__fx973 ? window.__fx973.sx : 0; }
+function fx973SY(){ return window.__fx973 ? window.__fx973.sy : 0; }
+function fx973World(){ if(window.__fx973) window.__fx973.drawWorld(); }
+function fx973Post(){ if(window.__fx973) window.__fx973.drawPost(); }
+function fx973Tick(dt){ if(window.__fx973) window.__fx973.tick(dt); }
+
 function loop(now){
   try {
     fpsTick(now);
@@ -25019,13 +25038,14 @@ function loop(now){
         } catch(err) {}
       }
       update(dt);
+      fx973Tick(dt);
       if(!Number.isFinite(cam.x) || !Number.isFinite(cam.y)){
         cam.x = playerHero && Number.isFinite(playerHero.x) ? playerHero.x : WORLD/2;
         cam.y = playerHero && Number.isFinite(playerHero.y) ? playerHero.y : WORLD/2;
         cameraManual = false;
       }
       ctx.save();
-      ctx.translate(-cam.x + VW/2, -cam.y + VH/2);
+      ctx.translate(-cam.x + VW/2 + fx973SX(), -cam.y + VH/2 + fx973SY());
       terrainFrameIndex++;
       /* 0.8.3: рельеф рисуется в отдельный слой с запасом по краям и обновляется раз в N кадров;
          между обновлениями слой просто сдвигается вслед за камерой. */
@@ -25048,16 +25068,18 @@ function loop(now){
       }
       ctx.save();
       ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0);
-      ctx.drawImage(terrainFrameCanvas, Math.round(terrainCamX - cam.x - TERRAIN_MARGIN), Math.round(terrainCamY - cam.y - TERRAIN_MARGIN));
+      ctx.drawImage(terrainFrameCanvas, Math.round(terrainCamX - cam.x - TERRAIN_MARGIN + fx973SX()), Math.round(terrainCamY - cam.y - TERRAIN_MARGIN + fx973SY()));
       ctx.restore();
       drawItemRangePreview();
       try { drawAmbientWorld(); } catch(err) { console.warn('ambient fx', err); }
       drawWards();
       drawWorldObjects();
+      fx973World();
       drawWardPlacement();
       drawBaseOverlay();
       ctx.restore();
       drawFog();
+      fx973Post();
       drawMinimap();
       drawHUD();
       drawTouchControls();
