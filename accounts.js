@@ -8,6 +8,15 @@ const HERO_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','mal
 const MONGODB_URI = process.env.MONGODB_URI;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+/* ===== 0.9.7.9: Сенсики (валюта-осколки) и ежедневное задание ===== */
+const SHARDS_PER_WIN = 500;
+const DAILY_QUEST = { id: 'hero_hunter', title: 'Охотник за головами', desc: 'Убей 10 героев за день (в любых матчах)', target: 10, reward: 300 };
+const MAX_QUEST_KILLS_PER_MATCH = 30;
+const dayKey = (time = Date.now()) => {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(time)); }
+  catch(err) { return new Date(time).toISOString().slice(0, 10); }
+};
+
 const participantSchema = new mongoose.Schema({
   nick: { type: String, maxlength: 24, default: '' },
   heroId: { type: String, maxlength: 40, default: '' },
@@ -51,6 +60,12 @@ const accountSchema = new mongoose.Schema({
   deaths: { type: Number, default: 0 },
   heroStats: { type: Map, of: Number, default: {} },
   history: { type: [matchSchema], default: [] },
+  shards: { type: Number, min: 0, default: 0 },
+  daily: {
+    day: { type: String, default: '' },
+    kills: { type: Number, min: 0, default: 0 },
+    claimed: { type: Boolean, default: false }
+  },
   avatar: { type: String, default: '' },
   recent: { type: [String], default: [] },
   times: { type: [Number], default: [] },
@@ -105,6 +120,21 @@ const publicProfile = acc => ({
   frame: (acc.level || 0) >= 25 ? 'legend' : (acc.level || 0) >= 10 ? 'dominion' : (acc.level || 0) >= 5 ? 'veteran' : 'iron'
 });
 
+function dailyState(acc){
+  const today = dayKey();
+  const daily = acc.daily || {};
+  const fresh = daily.day === today;
+  const progress = fresh ? Math.min(DAILY_QUEST.target, Math.max(0, daily.kills || 0)) : 0;
+  const claimed = fresh && daily.claimed === true;
+  return {
+    id: DAILY_QUEST.id, title: DAILY_QUEST.title, desc: DAILY_QUEST.desc,
+    target: DAILY_QUEST.target, reward: DAILY_QUEST.reward,
+    progress, claimed, ready: !claimed && progress >= DAILY_QUEST.target, day: today
+  };
+}
+/* Профиль владельца: публичные поля + личные (Сенсики и задание). В таблицу лидеров это не попадает. */
+const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc) });
+
 async function makeSession(key){
   const token = crypto.randomBytes(24).toString('hex');
   await Session.create({ token, accountKey: key, created: Date.now() });
@@ -158,7 +188,7 @@ const routes = {
     const salt = crypto.randomBytes(16).toString('hex');
     try {
       const acc = await Account.create({ nick, nickKey, salt, hash: hashPassword(body.password, salt) });
-      return [200, { token: await makeSession(nickKey), profile: publicProfile(acc) }];
+      return [200, { token: await makeSession(nickKey), profile: ownProfile(acc) }];
     } catch(err) {
       if(err && err.code === 11000) return [409, { error: 'Этот ник уже занят' }];
       throw err;
@@ -172,19 +202,19 @@ const routes = {
     const given = Buffer.from(hashPassword(body.password, acc.salt), 'hex');
     const real = Buffer.from(acc.hash, 'hex');
     if(given.length !== real.length || !crypto.timingSafeEqual(given, real)) return [401, { error: 'Неверный ник или пароль' }];
-    return [200, { token: await makeSession(acc.nickKey), profile: publicProfile(acc) }];
+    return [200, { token: await makeSession(acc.nickKey), profile: ownProfile(acc) }];
   },
 
   async me(body){
     const auth = await authed(body);
-    return auth ? [200, { profile: publicProfile(auth.acc) }] : [401, { error: 'Сессия истекла, войди заново' }];
+    return auth ? [200, { profile: ownProfile(auth.acc) }] : [401, { error: 'Сессия истекла, войди заново' }];
   },
 
   async career(body){
     const auth = await authed(body);
     if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
     return [200, {
-      profile: publicProfile(auth.acc),
+      profile: ownProfile(auth.acc),
       history: auth.acc.history.slice(0, 20).map(match => ({
         ...match.toObject(),
         participants: match.participants.map(player => player.toObject())
@@ -225,7 +255,7 @@ const routes = {
       await Account.updateOne({ _id: auth.acc._id }, { $set: { nick } });
     }
     const updated = await Account.findById(auth.acc._id);
-    return [200, { profile: publicProfile(updated) }];
+    return [200, { profile: ownProfile(updated) }];
   },
 
   async avatar(body){
@@ -235,7 +265,27 @@ const routes = {
     if(id && !AVATAR_IDS.has(id)) return [400, { error: 'Неизвестная аватарка' }];
     await Account.updateOne({ _id: auth.acc._id }, { $set: { avatar: id } });
     const updated = await Account.findById(auth.acc._id);
-    return [200, { profile: publicProfile(updated) }];
+    return [200, { profile: ownProfile(updated) }];
+  },
+
+  async claimdaily(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const today = dayKey();
+    const claimed = await Account.findOneAndUpdate({
+      _id: auth.acc._id,
+      'daily.day': today,
+      'daily.claimed': { $ne: true },
+      'daily.kills': { $gte: DAILY_QUEST.target }
+    }, {
+      $set: { 'daily.claimed': true },
+      $inc: { shards: DAILY_QUEST.reward }
+    }, { new: true });
+    if(!claimed){
+      const current = await Account.findById(auth.acc._id);
+      return [200, { profile: ownProfile(current), claimed: false }];
+    }
+    return [200, { profile: ownProfile(claimed), claimed: true, reward: DAILY_QUEST.reward }];
   },
 
   async result(body){
@@ -244,7 +294,7 @@ const routes = {
     const now = Date.now();
     const matchId = typeof body.matchId === 'string' && /^[a-z0-9]{6,40}$/i.test(body.matchId) ? body.matchId : null;
     const account = auth.acc;
-    if(matchId && account.recent.includes(matchId)) return [200, { profile: publicProfile(account), ignored: true }];
+    if(matchId && account.recent.includes(matchId)) return [200, { profile: ownProfile(account), ignored: true }];
 
     const inputStats = body.stats && typeof body.stats === 'object' ? body.stats : {};
     const heroId = HERO_IDS.has(inputStats.heroId) ? inputStats.heroId : '';
@@ -269,7 +319,7 @@ const routes = {
     const duration = Math.round(clamp(Number(inputStats.duration) || 0, 0, 86400));
 
     const recentTimes = account.times.filter(time => now - time < 3600000);
-    if(recentTimes.length >= 40) return [200, { profile: publicProfile(account), ignored: true }];
+    if(recentTimes.length >= 40) return [200, { profile: ownProfile(account), ignored: true }];
 
     if(!account.xp && account.level > 0){
       await Account.updateOne({ _id: account._id, xp: 0 }, { $set: { xp: account.level * 500 } });
@@ -280,7 +330,7 @@ const routes = {
         _id: auth.session._id,
         $or: [{ lastResult: { $exists: false } }, { lastResult: { $lt: now - 60000 } }]
       }, { $set: { lastResult: now } }, { new: true }).lean();
-      if(!session) return [200, { profile: publicProfile(account), ignored: true }];
+      if(!session) return [200, { profile: ownProfile(account), ignored: true }];
     }
 
     const won = body.won === true;
@@ -288,6 +338,11 @@ const routes = {
     const ratingChange = body.ranked === true ? (won ? 50 : -40) : 0;
     const filter = { _id: account._id };
     if(matchId) filter.recent = { $ne: matchId };
+    /* Сенсики: +500 за победу. Ежедневное задание считает убийства героев за текущие сутки (Киев). */
+    const shardsGained = won ? SHARDS_PER_WIN : 0;
+    const today = dayKey();
+    const questKills = Math.min(kills, MAX_QUEST_KILLS_PER_MATCH);
+    const sameDay = account.daily && account.daily.day === today;
     const update = {
       $inc: {
         wins: won ? 1 : 0,
@@ -296,10 +351,13 @@ const routes = {
         kills,
         deaths,
         rating: ratingChange,
+        shards: shardsGained,
+        ...(sameDay ? { 'daily.kills': questKills } : {}),
         ...(heroId ? { ['heroStats.' + heroId]: 1 } : {})
       },
       $set: {
-        times: recentTimes.concat(now)
+        times: recentTimes.concat(now),
+        ...(sameDay ? {} : { 'daily.day': today, 'daily.kills': questKills, 'daily.claimed': false })
       },
       $push: {
         history: { $each: [{
@@ -311,7 +369,7 @@ const routes = {
     if(matchId) update.$push.recent = { $each: [matchId], $slice: -60 };
     const updated = await Account.findOneAndUpdate(filter, update, { new: true });
 
-    if(!updated) return [200, { profile: publicProfile(await Account.findById(account._id)), ignored: true }];
+    if(!updated) return [200, { profile: ownProfile(await Account.findById(account._id)), ignored: true }];
     const earnedLevel = Math.floor((updated.xp || 0) / 500);
     if(earnedLevel > updated.level){
       await Account.updateOne({ _id: updated._id }, { $max: { level: earnedLevel } });
@@ -321,7 +379,7 @@ const routes = {
       await Account.updateOne({ _id: updated._id, rating: { $lt: 0 } }, { $set: { rating: 0 } });
       updated.rating = 0;
     }
-    return [200, { profile: publicProfile(updated) }];
+    return [200, { profile: ownProfile(updated) }];
   }
 };
 

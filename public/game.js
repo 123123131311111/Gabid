@@ -629,6 +629,9 @@ const SKIN_DEFS = [
   {id:'voidPhantom', name:'ФАНТОМ ПУСТОТЫ', heroId:null, accent:'#b07cff', border:'#6f45b8', previewHero:'shadow',
    desc:'Тёмный образ из пустоты: фиолетовое тело и ярко светящиеся акценты у любого героя. Не меняет характеристики.', hint:'Виден на любом выбранном герое.'}
 ];
+/* 0.9.8: ИММОРТАЛКИ — дополнительные предметы-украшения (kind:'acc'). Надеваются независимо от скина, снимаются в инвентаре. */
+SKIN_DEFS.push({id:'chipParrot', kind:'acc', immortal:true, name:'КОРОЛЕВСКИЙ АРА', heroId:'chip', accent:'#ffcf5a', border:'#ff9d2e', previewHero:'chip', previewSkin:'+parrot',
+  desc:'Иммортал для Чипа: яркий попугай-ара сидит на плече короля, качается, крутит головой и взмахивает крыльями. Не меняет характеристики.', hint:'Виден на Чипе. Можно надеть и снять в любой момент.'});
 const SKIN_BY_ID = {};
 for(const sk of SKIN_DEFS) SKIN_BY_ID[sk.id] = sk;
 let skinsOwned = {};
@@ -641,15 +644,21 @@ try {
     for(const sk of SKIN_DEFS) if(savedCosmetics.skinsOwned[sk.id] === true) skinsOwned[sk.id] = true;
   }
   if(savedCosmetics.redReginaEquipped === true && skinsOwned.reginaRed) skinEquippedId = 'reginaRed';
-  if(typeof savedCosmetics.skinEquipped === 'string' && skinsOwned[savedCosmetics.skinEquipped] && SKIN_BY_ID[savedCosmetics.skinEquipped]) skinEquippedId = savedCosmetics.skinEquipped;
+  if(typeof savedCosmetics.skinEquipped === 'string' && skinsOwned[savedCosmetics.skinEquipped] && SKIN_BY_ID[savedCosmetics.skinEquipped] && !SKIN_BY_ID[savedCosmetics.skinEquipped].kind) skinEquippedId = savedCosmetics.skinEquipped;
 } catch(err) {}
 /* Скин, который реально применяется к данному герою (или null). */
+function baseSkin(id){ return id ? String(id).split('+')[0] || null : null; }
+let accEquipped = {};
+try { const sc = JSON.parse(localStorage.getItem('shadowRampageCosmetics') || '{}'); if(sc.accEquipped && sc.accEquipped.chipParrot === true) accEquipped.chipParrot = true; } catch(err) {}
 function activeSkinFor(heroId){
   const sk = skinEquippedId && SKIN_BY_ID[skinEquippedId];
-  if(!sk || !skinsOwned[sk.id]) return null;
-  if(sk.heroId && sk.heroId !== heroId) return null;
-  return sk.id;
+  let base = null;
+  if(sk && skinsOwned[sk.id] && !sk.kind && (!sk.heroId || sk.heroId === heroId)) base = sk.id;
+  /* иммортал-аксессуар: skinId = «скин+parrot» (рендер читает суффикс) */
+  if(heroId === 'chip' && skinsOwned.chipParrot && accEquipped.chipParrot) return (base || '') + '+parrot';
+  return base;
 }
+function isCosmeticEquipped(sk){ return sk.kind==='acc' ? !!accEquipped[sk.id] : skinEquippedId===sk.id; }
 let storePhraseOwned = false;
 let storeChipOwned = false;
 let storeAudioOwned = false;
@@ -695,7 +704,7 @@ const activeTouches = new Map();
 let scoreboardOpen = false;
 let changelogPage = 0;
 const CHANGELOG_PAGE_SIZE = 4;
-const GAME_VERSION = '0.9.7.4';
+const GAME_VERSION = '0.9.7.9';
 const CHANGELOG_HISTORY = [
   'Обновление 0.7.8: исправлена ульта Сасыча (Разрыв наносит урон за каждый шаг цели, боты стараются стоять на месте), базы стали огромными и красивыми, добавлены комнаты возрождения: регенерация только внутри комнаты, вражеские бойцы там попадают под жёсткий обстрел башен',
   'Баланс 0.7.7: ультимейт Джувсюта «Большой обед» переработан — съедает лесного крипа или героя с HP ≤ 200 и навсегда получает здоровье и урон, перезарядка 10/8/5 с, без маны; «Разбег» усилен; боты фармят ультом',
@@ -782,7 +791,20 @@ const CHANGELOG_HISTORY = [
   'Обновление 0.1.9: Иллюзионист, плотные леса и руны усилений'
 ];
 const CHANGELOG = (() => {
-  const sections = [{version:'0.9.7.4', title:'ПСИХ', changes:[
+  const sections = [{version:'0.9.7.9', title:'СЕНСИКИ', changes:[
+    'Новая валюта «Сенсики» — осколки силы. Счётчик отображается в меню справа сверху, а баланс хранится в аккаунте на сервере.',
+    'За каждую победу в матче (с ботами или игроками) начисляется 500 Сенсиков. После матча появляется уведомление о получении.',
+    'Ежедневное задание «Охотник за головами»: убей 10 героев за день в любых матчах и забери 300 Сенсиков. Прогресс и кнопка награды — в панели под счётчиком. Задание обновляется в 00:00 по Киеву.',
+    'Баланс Сенсиков также показывается в профиле игрока.'
+  ]},{version:'0.9.8', title:'НОВЫЙ МАГАЗИН И ИММОРТАЛКА', changes:[
+    'Магазин полностью переоформлен: золотая рамка, градиентные карточки с подсветкой, мерцающие искры, плашки статуса и новая вкладка «★ ИММОРТАЛКИ».',
+    'Первая иммортальная вещь — «Королевский ара» для Чипа: попугай сидит на плече короля, покачивается, поворачивает голову и взмахивает крыльями.',
+    'Попугая можно забрать в магазине, а в инвентаре надеть и снять в любой момент. Он работает вместе с любым скином и не меняет характеристики.'
+  ]},{version:'0.9.7.5', title:'ЧУМНОЙ ПСИХ', changes:[
+    'Псих получил новую 3D-модель — чумной доктор: кожаный клюв с «молнией», круглые янтарные очки, широкополая шляпа, чёрный плащ с капюшоном, деревянный крест, чеснок на поясе и чёрные перчатки.',
+    'Ульта Психа «Мы — одно целое»: копиями нельзя управлять — ни кликом, ни группой. Они сами рыщут по карте, ищут вражеских героев и нападают на них (каждая копия выбирает свою цель; если героев рядом нет — идут по разным точкам патруля).',
+    'Эффекты Психа: ульта открывает ритуальный круг, вокруг героя раскрываются могилы, и копии по очереди вылезают из земли (комья, трещины, рука, тусклый свет); «Тишина в голове» оставляет призрачный след и дым; «Привет сзади» — шлейф рывка и порезы на жертве; вокруг Психа и его копий — аура безумия, краснеющая при низком здоровье. Всё отключается в настройках эффектов.'
+  ]},{version:'0.9.7.4', title:'ПСИХ', changes:[
     'Новый герой — Псих (безумный убийца): Q «Тишина в голове» — невидимость, вражеские герои его не видят; W «Безумие» — пассивно +скорость атаки и меньше получаемого урона; E «Привет сзади» — появляется за спиной ближайшего врага и наносит огромный урон под громкий звук; R «Мы — одно целое» — 6 копий на 25 секунд, которые преследуют врагов по всей карте.',
     'Три новых особых предмета в магазине (вкладка «Особые»): Часы Хроноса — массовый стан и урон, Коса Жнеца — урон по площади, лечение и +160 к урону, Перо Феникса — +350 здоровья, неуязвимость и огненная волна.',
     'Исправлено: 3D-герой в главном меню больше не пропадает после просадок FPS и на низких настройках графики, а рамка модели больше не обрезается.',
@@ -3069,14 +3091,16 @@ function saveSkinState(){
   try {
     localStorage.setItem('shadowRampageCosmetics',JSON.stringify({
       skinsOwned:skinsOwned, skinEquipped:skinEquippedId,
-      redReginaOwned:!!skinsOwned.reginaRed, redReginaEquipped:skinEquippedId==='reginaRed'
+      redReginaOwned:!!skinsOwned.reginaRed, redReginaEquipped:skinEquippedId==='reginaRed',
+      accEquipped:accEquipped
     }));
   } catch(err) {}
 }
 
 function setSkinEquipped(skinId, equipped){
   if(!skinsOwned[skinId]) return;
-  skinEquippedId = equipped ? skinId : (skinEquippedId === skinId ? null : skinEquippedId);
+  if(SKIN_BY_ID[skinId] && SKIN_BY_ID[skinId].kind === 'acc'){ accEquipped[skinId] = !!equipped; }
+  else skinEquippedId = equipped ? skinId : (skinEquippedId === skinId ? null : skinEquippedId);
   if(playerHero) playerHero.skinId = activeSkinFor(playerHero.def.id);
   saveSkinState();
 }
@@ -6712,10 +6736,10 @@ function getControlledUnit(){
   return controlledUnit && controlledUnit.alive ? controlledUnit : playerHero;
 }
 /* ---- Иллюзионист: групповое управление клонами ---- */
-function aliveClones(hero){ return units.filter(u => u.isIllusion && u.owner === hero && !u.dead && u.summonKind === 'illusion'); }
+function aliveClones(hero){ return units.filter(u => u.isIllusion && u.owner === hero && !u.dead && u.summonKind === 'illusion' && !u.noPlayerControl); }
 function activeControlGroup(){
   if(!controlGroup.length) return null;
-  controlGroup = controlGroup.filter(u => u && !u.dead && u.isIllusion);
+  controlGroup = controlGroup.filter(u => u && !u.dead && u.isIllusion && !u.noPlayerControl);
   if(!controlGroup.length){ controlledUnit = null; return null; }
   return controlGroup;
 }
@@ -13467,7 +13491,7 @@ canvas.addEventListener('mousedown', e => {
     if(tgt && tgt.isMo3giDrone && tgt.owner===playerHero){
       toggleMo3giDroneControl(playerHero,tgt); return;
     }
-    if(tgt && tgt.isIllusion && tgt.owner===playerHero){
+    if(tgt && tgt.isIllusion && tgt.owner===playerHero && !tgt.noPlayerControl){
       /* двойной клик по клону — выбрать всех клонов сразу */
       if(lastCloneClick.u && gameTime-lastCloneClick.t < 0.4 && selectAllClones()){ lastCloneClick={u:null,t:0}; return; }
       lastCloneClick={u:tgt,t:gameTime};
@@ -15273,7 +15297,7 @@ function drawUnit(u){
     ctx.restore();
   }
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
-    const heroAccent = u.skinId === 'reginaRed' ? '#ff344f' : (u.skinId === 'goldChampion' ? '#ffd34f' : (u.skinId === 'voidPhantom' ? '#b07cff' : (heroLikeDef(u).color2 || col)));
+    const bsk = baseSkin(u.skinId); const heroAccent = bsk === 'reginaRed' ? '#ff344f' : (bsk === 'goldChampion' ? '#ffd34f' : (bsk === 'voidPhantom' ? '#b07cff' : (heroLikeDef(u).color2 || col)));
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = heroAccent;
@@ -15358,7 +15382,7 @@ function drawUnit(u){
     if(perfLite()) anim3d = null;      /* супер низкая: без анимаций моделей — статичные спрайты */
     if(u.bikeTimer > 0 && hd.id === 'mo3gi') anim3d = null;   /* на байке боец сидит, не шагает */
     let spriteDef = hd;
-    if(u.skinId && u.skinId !== hd.skinId && SKIN_BY_ID[u.skinId]){
+    if(u.skinId && u.skinId !== hd.skinId && (SKIN_BY_ID[baseSkin(u.skinId)] || String(u.skinId).indexOf('+parrot')>=0)){
       if(!u._skinDefCache || u._skinDefCache.skinId !== u.skinId) u._skinDefCache = {...hd, skinId:u.skinId};
       spriteDef = u._skinDefCache;
     }
@@ -20584,63 +20608,168 @@ function menuGfxSegments(layout){
 function menuStoreRect(){ if(menuWide()) return DS_OFFSCREEN; return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
 /* 0.9.0: карточки скинов (магазин и инвентарь) */
 function skinPreviewDef(sk){
-  const base=HERO_DEFS.find(h=>h.id===(sk.previewHero||'shadow'))||HERO_DEFS[0];
-  return sk.previewColor ? {...base,color:sk.previewColor,color2:sk.previewColor2||base.color2,skinId:sk.id} : {...base,skinId:sk.id};
+  const base=HERO_DEFS.find(h=>h.id===(sk.previewHero||'shadow'))||HERO_DEFS[0], sid=sk.previewSkin||sk.id;
+  const cu=sk.kind==='acc';
+  return sk.previewColor ? {...base,color:sk.previewColor,color2:sk.previewColor2||base.color2,skinId:sid} : {...base,skinId:sid,closeUp:cu};
+}
+function storeRR(x,y,w,h,r){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); }
+function storeShopList(){ return SKIN_DEFS.filter(sk=>storeCategory==='immortal' ? sk.kind==='acc' : !sk.kind); }
+function storeVisibleList(){ return storeTab==='shop' ? storeShopList() : SKIN_DEFS.filter(sk=>skinsOwned[sk.id]); }
+function storePill(x,y,w,text,col,fill){
+  ctx.fillStyle=fill; storeRR(x,y,w,20,10); ctx.fill(); ctx.strokeStyle=col; ctx.lineWidth=1.2; ctx.stroke();
+  ctx.fillStyle=col; ctx.font='bold 11px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText(text,x+w/2,y+14); ctx.textAlign='left';
 }
 function drawSkinCards(layout,list,mode){
+  const now=performance.now()/1000;
   list.forEach((sk,index)=>{
     const card=layout.skinCards[index]; if(!card) return;
-    const selected=SKIN_DEFS[storeSelectedSkin]===sk;
-    const owned=!!skinsOwned[sk.id], equipped=skinEquippedId===sk.id;
-    ctx.fillStyle='rgba(24,16,25,0.96)'; ctx.fillRect(card.x,card.y,card.w,card.h);
-    ctx.strokeStyle=equipped?'#72e6a5':sk.border; ctx.lineWidth=selected?3.5:1.5; ctx.strokeRect(card.x,card.y,card.w,card.h);
-    if(selected){ ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(card.x,card.y,card.w,card.h); }
-    const texW=Math.min(84,card.w*0.24);
-    drawHeroTexture(skinPreviewDef(sk),card.x+8,card.y+4,texW,card.h-8,performance.now()/1000);
-    const dx=card.x+texW+18, dw=card.x+card.w-dx-10;
-    ctx.textAlign='left'; ctx.fillStyle=sk.accent; ctx.font='bold '+Math.min(16,Math.max(12,dw/12))+'px Segoe UI, Arial';
-    ctx.fillText(sk.name,dx,card.y+22);
-    ctx.fillStyle='rgba(255,240,235,0.72)'; ctx.font='12px Segoe UI, Arial';
-    const lines=wrapMenuText(mode==='inventory'?sk.hint:sk.desc,dw,'12px Segoe UI, Arial').slice(0,card.h>=80?3:2);
-    lines.forEach((line,li)=>ctx.fillText(line,dx,card.y+40+li*15));
-    ctx.font='bold 12px Segoe UI, Arial';
-    if(mode==='inventory'){ ctx.fillStyle=equipped?'#72e6a5':'rgba(255,255,255,0.6)'; ctx.fillText(equipped?'СКИН ПРИМЕНЁН':'ГОТОВ К ПРИМЕНЕНИЮ',dx,card.y+card.h-8); }
-    else { ctx.fillStyle=owned?'#72e6a5':'#78e6a8'; ctx.fillText(owned?'ПОЛУЧЕНО':'БЕСПЛАТНО',dx,card.y+card.h-8); }
+    const selected=SKIN_DEFS[storeSelectedSkin]===sk, owned=!!skinsOwned[sk.id], equipped=isCosmeticEquipped(sk), imm=!!sk.immortal;
+    ctx.save();
+    if(selected||imm){ ctx.shadowColor=sk.accent; ctx.shadowBlur=selected?24:12; }
+    const g=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
+    g.addColorStop(0,imm?'rgba(78,42,12,0.97)':'rgba(38,28,60,0.97)'); g.addColorStop(1,'rgba(12,10,24,0.97)');
+    ctx.fillStyle=g; storeRR(card.x,card.y,card.w,card.h,12); ctx.fill(); ctx.shadowBlur=0;
+    ctx.strokeStyle=equipped?'#72e6a5':(selected?sk.accent:sk.border); ctx.lineWidth=selected?2.6:1.4; ctx.stroke();
+    const texW=sk.kind==='acc'?Math.min(210,card.w*0.34):Math.min(112,card.w*0.28), px=card.x+8, py=card.y+5, ph=card.h-10;
+    const hg=ctx.createRadialGradient(px+texW/2,py+ph*0.55,4,px+texW/2,py+ph*0.55,Math.max(texW,ph)*0.75);
+    hg.addColorStop(0,sk.accent+'66'); hg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=hg; storeRR(px,py,texW,ph,9); ctx.fill();
+    ctx.save(); storeRR(px,py,texW,ph,9); ctx.clip();
+    drawHeroTexture(skinPreviewDef(sk),px,py,texW,ph,now);
+    ctx.restore();
+    if(imm){
+      ctx.save(); storeRR(card.x,card.y,card.w,card.h,12); ctx.clip();
+      const sx=card.x+(((now*0.3)%1.7)-0.35)*card.w, sg=ctx.createLinearGradient(sx-50,0,sx+50,0);
+      sg.addColorStop(0,'rgba(255,220,120,0)'); sg.addColorStop(.5,'rgba(255,220,120,0.14)'); sg.addColorStop(1,'rgba(255,220,120,0)');
+      ctx.fillStyle=sg; ctx.fillRect(card.x,card.y,card.w,card.h); ctx.restore();
+    }
+    const dx=card.x+texW+22, dw=card.x+card.w-dx-12;
+    ctx.textAlign='left'; ctx.font='bold 10px Segoe UI, Arial'; ctx.fillStyle=imm?'#ffb347':'#b79cff';
+    ctx.fillText(imm?'★ ИММОРТАЛ • ПРЕДМЕТ ДЛЯ ЧИПА':(sk.heroId?'СКИН ДЛЯ ГЕРОЯ':'СКИН ДЛЯ ВСЕХ БОЙЦОВ'),dx,card.y+17);
+    ctx.fillStyle=sk.accent; ctx.font='bold '+Math.min(17,Math.max(12,dw/13))+'px Georgia, serif';
+    ctx.fillText(sk.name,dx,card.y+38);
+    ctx.fillStyle='rgba(255,240,235,0.74)'; ctx.font='12px Segoe UI, Arial';
+    const maxL=card.h>=125?3:(card.h>=96?2:1);
+    wrapMenuText(mode==='inventory'?sk.hint:sk.desc,dw,'12px Segoe UI, Arial').slice(0,maxL).forEach((line,li)=>ctx.fillText(line,dx,card.y+55+li*15));
+    const by=card.y+card.h-27;
+    if(mode==='inventory') equipped ? storePill(dx,by,150,imm?'● НАДЕТО':'● ПРИМЕНЁН','#72e6a5','rgba(40,120,80,0.35)') : storePill(dx,by,150,'ГОТОВ К ПРИМЕНЕНИЮ','rgba(255,255,255,0.7)','rgba(255,255,255,0.07)');
+    else owned ? storePill(dx,by,130,'✓ ПОЛУЧЕНО','#72e6a5','rgba(40,120,80,0.35)') : storePill(dx,by,130,'БЕСПЛАТНО','#ffd568','rgba(160,110,20,0.35)');
+    ctx.restore();
   });
 }
-function storePanelLayout(){
-  const width=Math.max(0,Math.min(660,VW-24)), height=Math.max(0,Math.min(560,VH-24));
+function storePanelLayout(count){
+  const width=Math.max(0,Math.min(680,VW-24)), height=Math.max(0,Math.min(600,VH-24));
   const panel={x:(VW-width)/2,y:(VH-height)/2,w:width,h:height};
   const tabGap=10, tabWidth=(width-48-tabGap)/2;
   const tabs={
-    shop:{x:panel.x+24,y:panel.y+76,w:tabWidth,h:38},
-    inventory:{x:panel.x+24+tabWidth+tabGap,y:panel.y+76,w:tabWidth,h:38}
+    shop:{x:panel.x+24,y:panel.y+82,w:tabWidth,h:38},
+    inventory:{x:panel.x+24+tabWidth+tabGap,y:panel.y+82,w:tabWidth,h:38}
   };
-  const categoryGap=8, categoryWidth=(width-48-categoryGap)/2;
+  const categoryGap=8, categoryWidth=(width-48-categoryGap*2)/3;
+  const cy=panel.y+130;
   const categories={
-    skins:{x:panel.x+24,y:panel.y+124,w:categoryWidth,h:30},
-    phrases:{x:panel.x+24+categoryWidth+categoryGap,y:panel.y+124,w:categoryWidth,h:30}
+    skins:{x:panel.x+24,y:cy,w:categoryWidth,h:30},
+    immortal:{x:panel.x+24+categoryWidth+categoryGap,y:cy,w:categoryWidth,h:30},
+    phrases:{x:panel.x+24+(categoryWidth+categoryGap)*2,y:cy,w:categoryWidth,h:30}
   };
-  const phraseGap=8, phraseWidth=(width-48-phraseGap*2)/3;
-  const phraseHeight=Math.min(76,Math.max(40,(height-245)/3));
+  const phraseGap=8, phraseWidth=(width-48-phraseGap*2)/3, top=panel.y+172;
+  const phraseHeight=Math.min(76,Math.max(40,(height-250)/3));
   const phraseCards=STORE_PHRASE_CARDS.map((card,index)=>({
     x:panel.x+24+(index%3)*(phraseWidth+phraseGap),
-    y:panel.y+166+Math.floor(index/3)*(phraseHeight+phraseGap),w:phraseWidth,h:phraseHeight
+    y:top+Math.floor(index/3)*(phraseHeight+phraseGap),w:phraseWidth,h:phraseHeight
   }));
+  const n=Math.max(1,count||1), gap=8, avail=Math.max(60,height-172-112);
+  const h=Math.min(n<=2?150:128,Math.max(46,Math.floor((avail-gap*(n-1))/n)));
   return {
     panel,tabs,categories,phraseCards,
-    skinCard:{x:panel.x+24,y:panel.y+166,w:width-48,h:Math.max(72,height-270)},
-    skinCards:(()=>{
-      const gap=8, top=panel.y+166, avail=Math.max(60,height-166-112);
-      const h=Math.max(46,Math.floor((avail-gap*(SKIN_DEFS.length-1))/SKIN_DEFS.length));
-      return SKIN_DEFS.map((sk,index)=>({x:panel.x+24,y:top+index*(h+gap),w:width-48,h}));
-    })(),
+    skinCards:Array.from({length:n},(_,i)=>({x:panel.x+24,y:top+i*(h+gap),w:width-48,h})),
     action:{x:panel.x+24,y:panel.y+height-104,w:width-48,h:42},
     close:{x:panel.x+24,y:panel.y+height-54,w:width-48,h:40}
   };
 }
+function drawStorePanel(){
+  const list=storeVisibleList(), layout=storePanelLayout(list.length), panel=layout.panel, now=performance.now()/1000;
+  ctx.fillStyle='rgba(2,4,12,0.74)'; ctx.fillRect(0,0,VW,VH);
+  const vg=ctx.createRadialGradient(VW/2,VH/2,40,VW/2,VH/2,Math.max(VW,VH)*0.7);
+  vg.addColorStop(0,'rgba(90,55,130,0.20)'); vg.addColorStop(1,'rgba(0,0,0,0.35)'); ctx.fillStyle=vg; ctx.fillRect(0,0,VW,VH);
+  ctx.save();
+  ctx.shadowColor='rgba(255,170,60,0.38)'; ctx.shadowBlur=36;
+  const pg=ctx.createLinearGradient(0,panel.y,0,panel.y+panel.h);
+  pg.addColorStop(0,'#201a40'); pg.addColorStop(.45,'#101329'); pg.addColorStop(1,'#080a18');
+  ctx.fillStyle=pg; storeRR(panel.x,panel.y,panel.w,panel.h,16); ctx.fill(); ctx.shadowBlur=0;
+  const top=ctx.createRadialGradient(VW/2,panel.y,10,VW/2,panel.y,panel.w*0.6);
+  top.addColorStop(0,'rgba(255,200,100,0.22)'); top.addColorStop(1,'rgba(255,200,100,0)');
+  ctx.fillStyle=top; storeRR(panel.x,panel.y,panel.w,panel.h,16); ctx.fill();
+  for(let i=0;i<18;i++){
+    const sx=panel.x+((i*0.618+0.07)%1)*panel.w, sy=panel.y+((i*0.381+0.11)%1)*panel.h, tw=Math.pow(0.5+0.5*Math.sin(now*1.5+i*1.9),3);
+    ctx.globalAlpha=0.55*tw; ctx.fillStyle='#ffe9a6'; const r=1+tw*2;
+    ctx.fillRect(sx-r,sy-0.5,r*2,1); ctx.fillRect(sx-0.5,sy-r,1,r*2);
+  }
+  ctx.globalAlpha=1;
+  const fg=ctx.createLinearGradient(panel.x,panel.y,panel.x+panel.w,panel.y+panel.h);
+  fg.addColorStop(0,'#ffe9a6'); fg.addColorStop(.5,'#c9872b'); fg.addColorStop(1,'#ffd568');
+  ctx.strokeStyle=fg; ctx.lineWidth=2.6; storeRR(panel.x,panel.y,panel.w,panel.h,16); ctx.stroke();
+  ctx.strokeStyle='rgba(255,213,104,0.26)'; ctx.lineWidth=1; storeRR(panel.x+7,panel.y+7,panel.w-14,panel.h-14,11); ctx.stroke();
+  ctx.fillStyle='#ffd568';
+  for(const [cx,cy] of [[panel.x+7,panel.y+7],[panel.x+panel.w-7,panel.y+7],[panel.x+7,panel.y+panel.h-7],[panel.x+panel.w-7,panel.y+panel.h-7]]){
+    ctx.beginPath(); ctx.moveTo(cx,cy-6); ctx.lineTo(cx+6,cy); ctx.lineTo(cx,cy+6); ctx.lineTo(cx-6,cy); ctx.closePath(); ctx.fill();
+  }
+  ctx.textAlign='center';
+  const tg=ctx.createLinearGradient(0,panel.y+14,0,panel.y+46);
+  tg.addColorStop(0,'#fff6cf'); tg.addColorStop(.55,'#ffcf5a'); tg.addColorStop(1,'#d9902a');
+  ctx.shadowColor='rgba(255,170,50,0.6)'; ctx.shadowBlur=14; ctx.fillStyle=tg; ctx.font='bold 30px Georgia, serif';
+  ctx.fillText('МАГАЗИН',VW/2,panel.y+44); ctx.shadowBlur=0;
+  const lw=Math.min(120,panel.w*0.18);
+  for(const s of [-1,1]){ const lg=ctx.createLinearGradient(VW/2+s*96,0,VW/2+s*(96+lw),0); lg.addColorStop(0,'rgba(255,213,104,0.85)'); lg.addColorStop(1,'rgba(255,213,104,0)');
+    ctx.fillStyle=lg; ctx.fillRect(Math.min(VW/2+s*96,VW/2+s*(96+lw)),panel.y+36,lw,1.5); }
+  ctx.fillStyle='rgba(255,236,200,0.62)'; ctx.font='12px Segoe UI, Arial'; ctx.fillText('Скины и иммортальные предметы коллекции',VW/2,panel.y+64);
+  drawMenuButton(layout.tabs.shop,'МАГАЗИН',{active:storeTab==='shop'});
+  drawMenuButton(layout.tabs.inventory,'ИНВЕНТАРЬ',{active:storeTab==='inventory'});
+  if(storeTab==='shop'){
+    drawMenuButton(layout.categories.skins,'СКИНЫ',{active:storeCategory==='skins'});
+    drawMenuButton(layout.categories.immortal,'★ ИММОРТАЛКИ',{active:storeCategory==='immortal'});
+    drawMenuButton(layout.categories.phrases,'ФРАЗЫ',{active:storeCategory==='phrases'});
+  }
+  if(storeTab==='shop' && storeCategory==='phrases'){
+    STORE_PHRASE_CARDS.forEach((card,index)=>{
+      const rect=layout.phraseCards[index], owned=isStorePhraseOwned(card.id);
+      const g=ctx.createLinearGradient(rect.x,rect.y,rect.x,rect.y+rect.h); g.addColorStop(0,'rgba(34,40,66,0.96)'); g.addColorStop(1,'rgba(16,18,34,0.96)');
+      ctx.fillStyle=g; storeRR(rect.x,rect.y,rect.w,rect.h,10); ctx.fill();
+      ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=1.6; ctx.stroke();
+      ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(card.title,rect.x+9,rect.y+20);
+      ctx.fillStyle='rgba(255,255,255,0.88)'; ctx.font='11px Segoe UI, Arial';
+      wrapMenuText(card.desc,rect.w-18,'11px Segoe UI, Arial').slice(0,2).forEach((line,li)=>ctx.fillText(line,rect.x+9,rect.y+38+li*13));
+      ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 10px Segoe UI, Arial'; ctx.fillText(owned?'✓ ПОЛУЧЕНО':'БЕСПЛАТНО',rect.x+9,rect.y+rect.h-8);
+    });
+  } else if(list.length){
+    if(!list.includes(SKIN_DEFS[storeSelectedSkin])) storeSelectedSkin=SKIN_DEFS.indexOf(list[0]);
+    drawSkinCards(layout,list,storeTab==='shop'?'shop':'inventory');
+    if(storeTab==='shop' && list.length<=2 && list.every(sk=>sk.kind==='acc')){
+      const last=layout.skinCards[list.length-1], ty=last.y+last.h+34;
+      ctx.textAlign='center'; ctx.fillStyle='rgba(255,213,104,0.72)'; ctx.font='bold 13px Segoe UI, Arial';
+      ctx.fillText('★ ИММОРТАЛЬНЫЕ ПРЕДМЕТЫ ★',VW/2,ty);
+      ctx.fillStyle='rgba(255,236,200,0.55)'; ctx.font='12px Segoe UI, Arial';
+      ctx.fillText('Забери предмет здесь, а надеть или снять его можно во вкладке «ИНВЕНТАРЬ».',VW/2,ty+22);
+      ctx.fillText('Предмет можно носить вместе с любым скином, он не влияет на бой.',VW/2,ty+40);
+    }
+    const sel=SKIN_DEFS[storeSelectedSkin];
+    if(storeTab==='shop') drawMenuButton(layout.action,skinsOwned[sel.id]?'ПОЛУЧЕНО • В ИНВЕНТАРЕ':'ЗАБРАТЬ БЕСПЛАТНО',{primary:!skinsOwned[sel.id]});
+    else { const eq=isCosmeticEquipped(sel), acc=sel.kind==='acc';
+      drawMenuButton(layout.action,eq?(acc?'СНЯТЬ ПРЕДМЕТ':'СНЯТЬ СКИН'):(acc?'НАДЕТЬ ПРЕДМЕТ':'ПРИМЕНИТЬ СКИН'),{primary:!eq}); }
+  } else {
+    ctx.textAlign='center'; ctx.fillStyle='#dce5ef'; ctx.font='bold 17px Segoe UI, Arial';
+    ctx.fillText('ИНВЕНТАРЬ ПОКА ПУСТ',VW/2,panel.y+panel.h*0.58);
+    ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='13px Segoe UI, Arial';
+    ctx.fillText('Заберите скин или иммортальный предмет в магазине.',VW/2,panel.y+panel.h*0.58+25);
+    drawMenuButton(layout.action,'ОТКРЫТЬ МАГАЗИН',{primary:true});
+  }
+  drawMenuButton(layout.close,'ЗАКРЫТЬ',{active:true});
+  ctx.restore();
+}
 
 const UPDATE_SPOTLIGHT = [
+  {version:'0.9.7.9',title:'СЕНСИКИ',description:'Новая валюта — осколки Сенсики: +500 за каждую победу, счётчик справа сверху в меню и ежедневное задание «Охотник за головами» с наградой в 300 Сенсиков.',compactDescription:'Сенсики и ежедневное задание.'},
+  {version:'0.9.8',title:'НОВЫЙ МАГАЗИН И ИММОРТАЛКА',description:'Магазин стал красивее, а у Чипа появилась первая иммортальная вещь — Королевский ара. Попугай сидит на плече, его можно надеть и снять в инвентаре.',compactDescription:'Новый магазин и попугай для Чипа.'},
   {version:'0.9.1',title:'БАЛАНС САСЫЧА И ПРЕДМЕТОВ',description:'Сасыч стал быстрее: Thirst растёт с уровнем, Bloodrage усилен. Изменены Клыки Васьки, Кингляндия и Бошка Семёна, а в магазине появился Octarine Core.',compactDescription:'Баланс Сасыча, предметов и Octarine Core.'},
   {version:'0.9.0',title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ',description:'Три новых предмета — Валакинсенс, Торированная бошка и Киска дианы, а в магазине скинов появились два новых образа: Золотой Чемпион и Фантом Пустоты.',compactDescription:'3 предмета и 2 новых скина.'},
   {version:'0.8.3',title:'ЛЮБИМЫЙ БОЕЦ И ОПТИМИЗАЦИЯ',description:'Любимого героя можно поставить в центр меню. Новый красно-чёрный экран загрузки, новый фон выбора режима, река без деревьев и серьёзная оптимизация: игра стала заметно меньше лагать.',compactDescription:'Любимый боец в меню, новая загрузка, оптимизация.'},
@@ -20826,39 +20955,33 @@ function handleMenuClick(mx, my){
     storeOpen=!storeOpen; playSynthSfx(storeOpen ? 'open' : 'close'); changelogOpen=false; settingsOpen=false; return;
   }
   if(storeOpen){
-    const layout=storePanelLayout();
+    const list=storeVisibleList(), layout=storePanelLayout(list.length);
     const inside=(rect)=>mx>=rect.x&&mx<=rect.x+rect.w&&my>=rect.y&&my<=rect.y+rect.h;
     if(inside(layout.close)){storeOpen=false; playSynthSfx('close'); return;}
     if(inside(layout.tabs.shop)){storeTab='shop';return;}
     if(inside(layout.tabs.inventory)){storeTab='inventory';return;}
     if(storeTab==='shop'){
       if(inside(layout.categories.skins)){storeCategory='skins';return;}
+      if(inside(layout.categories.immortal)){storeCategory='immortal';return;}
       if(inside(layout.categories.phrases)){storeCategory='phrases';return;}
       if(storeCategory==='phrases'){
         for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
           if(inside(layout.phraseCards[index])){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
         }
-      } else {
-        for(let index=0;index<SKIN_DEFS.length;index++){
-          if(inside(layout.skinCards[index])){storeSelectedSkin=index;return;}
-        }
-        if(inside(layout.action)){
-          const sk=SKIN_DEFS[storeSelectedSkin];
-          if(sk && !skinsOwned[sk.id]){ skinsOwned[sk.id]=true; saveSkinState(); }
-          return;
-        }
+        return;
       }
-    } else {
-      const ownedList=SKIN_DEFS.filter(sk=>skinsOwned[sk.id]);
-      for(let index=0;index<ownedList.length;index++){
-        if(inside(layout.skinCards[index])){storeSelectedSkin=SKIN_DEFS.indexOf(ownedList[index]);return;}
-      }
-      if(inside(layout.action)){
-        if(ownedList.length){
-          const sk=ownedList.includes(SKIN_DEFS[storeSelectedSkin])?SKIN_DEFS[storeSelectedSkin]:ownedList[0];
-          setSkinEquipped(sk.id, skinEquippedId!==sk.id);
-        } else { storeTab='shop'; storeCategory='skins'; }
-      }
+    }
+    for(let index=0;index<list.length;index++){
+      if(inside(layout.skinCards[index])){storeSelectedSkin=SKIN_DEFS.indexOf(list[index]);return;}
+    }
+    if(inside(layout.action)){
+      if(storeTab==='shop'){
+        const sk=SKIN_DEFS[storeSelectedSkin];
+        if(sk && list.includes(sk) && !skinsOwned[sk.id]){ skinsOwned[sk.id]=true; saveSkinState(); playSynthSfx('click'); }
+      } else if(list.length){
+        const sk=list.includes(SKIN_DEFS[storeSelectedSkin])?SKIN_DEFS[storeSelectedSkin]:list[0];
+        setSkinEquipped(sk.id, !isCosmeticEquipped(sk));
+      } else { storeTab='shop'; storeCategory='skins'; }
     }
     return;
   }
@@ -21219,13 +21342,13 @@ function drawHeroTexture(def, x, y, w, h, now, large=false){
   // 0.8.2: новые 3D-модели бойцов вместо старых иконок (кэшируются, чтобы не жрать FPS)
   if(window.Hero3D && Hero3D.has && Hero3D.has(def.id)){
     const pw=Math.max(8,Math.round(w)), ph=Math.max(8,Math.round(h));
-    const key=def.id+'|'+(def.skinId||'')+'|'+def.color+'|'+def.color2+'|'+pw+'x'+ph+(large?'L':'');
+    const key=def.id+'|'+(def.skinId||'')+'|'+def.color+'|'+def.color2+'|'+pw+'x'+ph+(large?'L':'')+(def.closeUp?'C':'');
     let cv=HERO_PORTRAIT_CACHE[key];
     if(!cv){
       try{
         cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
         const c2=cv.getContext('2d');
-        Hero3D.draw(c2,def,0,0,pw,ph,{yaw:-0.5,pitch:0.22,zoom:1.12,t:0.3,ss:1.5});
+        Hero3D.draw(c2,def,0,0,pw,ph,def.closeUp ? {yaw:0.45,pitch:0.18,zoom:2.5,t:1.3,ss:1.5,dx:0.15,cy:0.95,noPedestal:true} : {yaw:-0.5,pitch:0.22,zoom:1.12,t:0.3,ss:1.5});
       }catch(err){ cv=null; }
       if(cv) HERO_PORTRAIT_CACHE[key]=cv;
     }
@@ -21434,52 +21557,6 @@ function drawDraftSkillPanel(now){
     ctx.fillStyle='rgba(255,255,255,0.62)'; ctx.font='10px Segoe UI, Arial';
     wrapMenuText(skill.desc || 'Описание отсутствует.',panel.w-78,'10px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,panel.x+56,y+34+lineIndex*12));
   });
-  ctx.restore();
-}
-
-function drawStorePanel(){
-  const layout=storePanelLayout(), panel=layout.panel;
-  ctx.fillStyle='rgba(0,0,0,0.62)'; ctx.fillRect(0,0,VW,VH);
-  ctx.save();
-  ctx.fillStyle='rgba(7,12,22,0.98)'; ctx.fillRect(panel.x,panel.y,panel.w,panel.h);
-  ctx.strokeStyle='#e15b55'; ctx.lineWidth=2.5; ctx.strokeRect(panel.x,panel.y,panel.w,panel.h);
-  ctx.textAlign='center'; ctx.fillStyle='#f2e2bd'; ctx.font='bold 25px Georgia, serif'; ctx.fillText('МАГАЗИН',VW/2,panel.y+40);
-  ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='12px Segoe UI, Arial'; ctx.fillText('Косметика и предметы коллекции',VW/2,panel.y+59);
-  drawMenuButton(layout.tabs.shop,'МАГАЗИН',{active:storeTab==='shop'});
-  drawMenuButton(layout.tabs.inventory,'ИНВЕНТАРЬ',{active:storeTab==='inventory'});
-
-  if(storeTab==='shop'){
-    drawMenuButton(layout.categories.skins,'СКИНЫ',{active:storeCategory==='skins'});
-    drawMenuButton(layout.categories.phrases,'ФРАЗЫ',{active:storeCategory==='phrases'});
-    if(storeCategory==='skins'){
-      drawSkinCards(layout,SKIN_DEFS,'shop');
-      const sk=SKIN_DEFS[storeSelectedSkin]||SKIN_DEFS[0];
-      drawMenuButton(layout.action,skinsOwned[sk.id]?'ПОЛУЧЕНО • В ИНВЕНТАРЕ':'ЗАБРАТЬ БЕСПЛАТНО',{primary:!skinsOwned[sk.id]});
-    } else {
-      STORE_PHRASE_CARDS.forEach((card,index)=>{
-        const rect=layout.phraseCards[index], owned=isStorePhraseOwned(card.id);
-        ctx.fillStyle='rgba(24,31,48,0.95)'; ctx.fillRect(rect.x,rect.y,rect.w,rect.h);
-        ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=2; ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
-        ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(card.title,rect.x+8,rect.y+20);
-        ctx.fillStyle='#fff'; ctx.font='11px Segoe UI, Arial';
-        wrapMenuText(card.desc,rect.w-16,'11px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,rect.x+8,rect.y+39+lineIndex*13));
-        ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 10px Segoe UI, Arial'; ctx.fillText(owned?'ПОЛУЧЕНО':'БЕСПЛАТНО',rect.x+8,rect.y+rect.h-8);
-      });
-    }
-  } else if(SKIN_DEFS.some(sk=>skinsOwned[sk.id])){
-    const ownedList=SKIN_DEFS.filter(sk=>skinsOwned[sk.id]);
-    if(!ownedList.includes(SKIN_DEFS[storeSelectedSkin])) storeSelectedSkin=SKIN_DEFS.indexOf(ownedList[0]);
-    drawSkinCards(layout,ownedList,'inventory');
-    const sel=SKIN_DEFS[storeSelectedSkin];
-    drawMenuButton(layout.action,skinEquippedId===sel.id?'СНЯТЬ СКИН':'ПРИМЕНИТЬ СКИН',{primary:skinEquippedId!==sel.id});
-  } else {
-    ctx.textAlign='center'; ctx.fillStyle='#dce5ef'; ctx.font='bold 17px Segoe UI, Arial';
-    ctx.fillText('ИНВЕНТАРЬ ПОКА ПУСТ',VW/2,panel.y+panel.h*0.58);
-    ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='13px Segoe UI, Arial';
-    ctx.fillText('Заберите бесплатный скин в магазине.',VW/2,panel.y+panel.h*0.58+25);
-    drawMenuButton(layout.action,'ОТКРЫТЬ МАГАЗИН',{primary:true});
-  }
-  drawMenuButton(layout.close,'ЗАКРЫТЬ',{active:true});
   ctx.restore();
 }
 
@@ -23431,6 +23508,7 @@ function drawDotaSenseHome(){
 
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
+    {tag:'0.9.7.5',title:'Псих: чумной доктор',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
     {tag:'0.9.7.4',title:'Новый герой: Псих',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
     {tag:'0.9.7.4',title:'3 особых предмета',art:'item',itemId:'reaperScythe',action:'store',kind:'магазин'},
     {tag:'0.9.1',title:'Octarine Core: новый предмет',art:'item',itemId:'octarineCore',action:'store',kind:'магазин'},
