@@ -575,6 +575,8 @@ const TOWER_SPOTS = [
 let units = [], heroes = [], projectiles = [], aoes = [], walls = [], trees = [], fxs = [], particles = [], texts = [], runes = [], grassBends = [];
 let mo3giMines = [];
 let controlledUnit = null;
+let controlGroup = [];            /* Иллюзионист: выбранная группа клонов (приказы идут всем сразу) */
+let lastCloneClick = {u:null,t:0};
 let cam = {x:WORLD/2, y:WORLD/2};
 let playerHero = null, enemyHero = null;
 let gameTime = 0, waveTimer = 8, waveCount = 0;
@@ -781,7 +783,9 @@ const CHANGELOG_HISTORY = [
 ];
 const CHANGELOG = (() => {
   const sections = [{version:'0.9.7', title:'БАЛАНС ОЛЕКСА И 5 НОВЫХ ПРЕДМЕТОВ', changes:[
-    'Олекс: Q «Строка кода» больше не нагревает процессор. Синий экран смерти: перезарядка 60/54/48 сек, арена держится 5 сек (6,5 со скипетром) — больше суммарного урона.',
+    'Олекс: Q «Строка кода» без перезарядки, каждый выстрел греет процессор на 7%. Синий экран смерти: перезарядка 60/54/48 сек, арена держится 5 сек (6,5 со скипетром) — больше суммарного урона.',
+    'Иллюзионист: клонов можно выбрать все сразу (клавиша T или двойной клик по клону) и командовать ими группой; клоны полупрозрачны для самого Иллюзиониста и его команды, враги видят обычных бойцов. Боты не отличают клонов от оригинала и путаются.',
+    'Снайпер: дальность атаки уменьшена (база 620 → 400, Take Aim даёт меньше).',
     'Олекс: E «Авто-турель» теперь стоит 15 секунд (18 со скипетром).',
     'Новые крафтовые предметы (собираются из существующих): Супер-блинк (Блинк + Дагонская империя) — телепорт на 750 и взрыв 500 урона с замедлением; Палач Королей (Кингляндия + Бошка Семёна) — урон, скорость атаки и вампиризм.',
     'Эгида Вечности (Жирфсютин + БКБ) — 2600 здоровья, регенерация и защита от атак; Корона Колдуна (Octarine Core + Кая и Санга) — +40% урона способностей и -40% КД; Сапоги Урагана (Супер сапог + Яйцо-голли) — скорость и защита по активу.'
@@ -792,6 +796,8 @@ const CHANGELOG = (() => {
     'T «Отладка» — рывок со сбросом W (пятая способность, клавиша T); R «Синий экран смерти» — арена с падающим кодом: урон, запрет способностей и сбои управления.'
   ]},
   {version:'0.9.6', title:'ВАРДЫ И КОНТРОЛЬ ОБЗОРА', changes:[
+    'Джувсют получил новую 3D-модель: гладкое пузо без «текстурок» и плоских полос, перекрёстные ремни с медальоном, широкий пояс с пряжкой, меховая юбка, меховой воротник, наплечники с костяными шипами, повязка с пучком, бивни и золотые серьги, шипастые наручи и дубина с железными кольцами. Образ и роль бойца те же.',
+    'У Джувсюта новые анимации: удар дубиной с замахом, таран плечом, «Сало-щит» с позой силача, «Разбег» с ударами в грудь, а ультимейт «Большой обед» показывает, как он ревёт, хватает маленького врага, жуёт, глотает и хлопает себя по пузу. Только визуал, механика способностей не менялась.',
     'В магазине появился Observer Ward (расходуемый, до 4 в стопке). Активируйте его клавишей слота, наведите круг радиуса обзора и кликните по карте в пределах дальности установки героя.',
     'Вард — настоящий источник обзора: он открывает туман войны радиусом 900 на 150 секунд, показывает врагов в этой области и отмечается на мини-карте. Невидимых врагов он не раскрывает.',
     'Над тотемом отображается оставшееся время, после истечения срока вард исчезает. Нельзя ставить за пределами карты, на базах, у строений, на деревьях, слишком близко к другому вард и сверх лимита 6 вардов на команду.',
@@ -1702,6 +1708,150 @@ const CREATOR_BUILDS = {
       {name:'РАННЯЯ ИГРА',items:[['fangs','Клыки усиливают каждый быстрый удар и урон от Q/W.'],['pt','Собери ПТ из Сапога Джоэла, Клыков Васьки и 200 монет: это главный темп Ригины.']]},
       {name:'CORE',items:[['munition','Активация превращает заряды ярости в почти непрерывный шквал ударов.'],['arcadiaScar','Даёт большое окно урона и скорострельности для финального удара серии.'],['satanic','Здоровье и вампиризм помогают не прерывать серию под фокусом.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['bkb','Защищает Ригину во время прыжка и всей яростной серии.'],['kinglandia','Максимально усиливает каждый удар и волну на последнем заряде.'],['aghanimScepter','Увеличивает запас зарядов и радиус финальной волны ульты.']]}
+    ]
+  },
+  pyro: {
+    title:'Пиро  /  Огненный маг-нюкер',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['mango','Мана на Огненные шары: именно они фармят и бьют с дистанции.'],['tango','Дешёвое лечение, чтобы держаться на линии без возвращений.']]},
+      {name:'РАННЯЯ ИГРА',items:[['manaTome','Больше маны — больше шаров подряд.'],['joelBoots','Скорость помогает отходить от врагов и держать дистанцию.']]},
+      {name:'CORE',items:[['archmageRobe','Мана, +25% урона способностей и -35% КД: главный предмет нюкера.'],['dagonEmpire','1200 урона одним кликом добивает бегущего героя.'],['kayaSange','Здоровье, мана и +18% к урону способностей в одном предмете.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['sorcererCrown','-40% КД и +40% урона способностей — метеоры летят почти без пауз.'],['refresherOrb','Второй Метеор подряд решает затянувшуюся драку.'],['aghanimScepter','Усиливает уникальную механику Пиро.']]}
+    ]
+  },
+  sasych: {
+    title:'Сасыч  /  Кровавый охотник',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение для первых размен в ближнем бою.'],['joelBoots','Скорость, чтобы догонять раненых врагов.']]},
+      {name:'РАННЯЯ ИГРА',items:[['fangs','+20 урона и +5 к способностям — сразу чувствуется в размене.'],['pt','ПТ: урон, скорость и темп атак для кровавой охоты.']]},
+      {name:'CORE',items:[['satanic','Вампиризм и 660 здоровья держат в драке дольше.'],['arcadiaScar','Окно огромного урона и скорости атаки для добивания.'],['bkb','Нужен, чтобы дойти до цели под контролем.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['kingSlayer','+420 урона, скорость атаки и вампиризм — вторая жизнь охотника.'],['gur','Подбросить цель и не дать убежать.'],['aghanimScepter','Усиление уникальной механики героя.']]}
+    ]
+  },
+  illusionist: {
+    title:'Иллюзионист  /  Повелитель отражений',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение на линии, пока копии бьют за вас.'],['mango','Мана для частых Двойников.']]},
+      {name:'РАННЯЯ ИГРА',items:[['joelBoots','Скорость — копии копируют её, вся группа быстрее.'],['fangs','Урон оригинала передаётся копиям.']]},
+      {name:'CORE',items:[['pt','ПТ даёт копиям урон и скорость атаки.'],['aghanimHead','Окно взрывного урона для всей толпы клонов.'],['mantledSteel','Ещё три тела поверх иллюзий — враги теряются, кого бить.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['bkb','Защищает оригинал, пока копии разбирают цели.'],['kingSlayer','Урон и вампиризм переходят в копии.'],['aghanimScepter','+1 иллюзия в Гранд-финале.']]}
+    ]
+  },
+  electricGosha: {
+    title:'Электрический Гоша  /  Манёвр и молния',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['mango','Мана на частые копии и шары молнии.'],['tango','Лечение для безопасного фарма.']]},
+      {name:'РАННЯЯ ИГРА',items:[['manaTome','Больше маны — больше прокаста.'],['joelBoots','Скорость усиливает манёвры вокруг цели.']]},
+      {name:'CORE',items:[['kayaSange','Здоровье, мана и усиление способностей.'],['blink','Вход в драку и выход из неё.'],['pt','Урон и скорость атак для Overload.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['superBlink','Блинк с взрывом: входишь и сразу бьёшь 500 по области.'],['sorcererCrown','-40% КД на Вихрь и копии.'],['bkb','Защита, пока шар молнии добивает цели.']]}
+    ]
+  },
+  mo3gi: {
+    title:'Мо3ги  /  Военный инженер',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение, пока мины и дрон делают работу.'],['mango','Мана на дронов и мины.']]},
+      {name:'РАННЯЯ ИГРА',items:[['joelBoots','Скорость для безопасных позиций.'],['brainEye','+210 дальности — стреляй и ставь мины издалека.']]},
+      {name:'CORE',items:[['pt','Урон и темп атак для дальнего боя.'],['semenHead','+100 урона за недорого.'],['manaHooves','+800 маны на дронов и мины.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['kinglandia','+250 урона и +50 к способностям — дрон бьёт ещё больнее.'],['bkb','Защищает ключевого дальнобойщика.'],['aghanimShard','Дополнительный навык для зонного контроля.']]}
+    ]
+  },
+  yosyp: {
+    title:'Йосып  /  Зелёный токсик',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение на линии.'],['timurPillow','Дешёвые 600 HP за 10 секунд.']]},
+      {name:'РАННЯЯ ИГРА',items:[['joelBoots','Скорость, чтобы удерживать врага в лужах.'],['evsyutin','+500 здоровья для затяжной драки.']]},
+      {name:'CORE',items:[['satanic','Вампиризм и 660 здоровья — пока яд тикает, ты пьёшь HP.'],['ilyaHair','Стан на 4 секунды — идеальная пара к Зелёному отсосу.'],['bkb','Не даёт сбить канал ульты.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['eternalAegis','2600 здоровья и защита от атак — не умирать в центре драки.'],['girfsyutin','+1800 здоровья, чтобы переждать фокус.'],['disperser','Замедление врага и скорость для себя.']]}
+    ]
+  },
+  juvsyut: {
+    title:'Жувсют  /  Жирный громила',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение, пока ешь лесных крипов.'],['timurPillow','Дешёвое восстановление между драками.']]},
+      {name:'РАННЯЯ ИГРА',items:[['evsyutin','+500 здоровья — основа танка.'],['joelBoots','Скорость для толчка.']]},
+      {name:'CORE',items:[['satanic','Вампиризм и здоровье.'],['pt','Урон и темп для Разбега.'],['bkb','Позволяет дойти и толкнуть.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['eternalAegis','Танк с 2600 здоровья и -25% урона атак.'],['girfsyutin','+1800 здоровья.'],['gur','Подбросить и добить.']]}
+    ]
+  },
+  chip: {
+    title:'Чип  /  Король золотой арены',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['mango','Мана на приказы и монеты.'],['tango','Лечение на линии.']]},
+      {name:'РАННЯЯ ИГРА',items:[['manaTome','Больше регена маны.'],['joelBoots','Скорость для позиции.']]},
+      {name:'CORE',items:[['kayaSange','Здоровье, мана и урон способностей.'],['dagonEmpire','1200 урона — добить цель после Королевского приказа.'],['enemy302','-30% КД на контроль и монету.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['sorcererCrown','-40% КД и +40% урона способностей.'],['superBlink','Блинк с взрывом для входа.'],['refresherOrb','Второй Тронный переворот решает бой.']]}
+    ]
+  },
+  savely: {
+    title:'Савелий  /  Толстый трансформер',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение на линии.'],['timurPillow','Дешёвое лечение между драками.']]},
+      {name:'РАННЯЯ ИГРА',items:[['evsyutin','+500 здоровья.'],['joelBoots','Скорость для входа.']]},
+      {name:'CORE',items:[['satanic','Вампиризм и 660 здоровья в форме Трансформера.'],['zamist','65% защиты на 10 секунд — непробиваемый танк.'],['bkb','Не даёт остановить форму.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['eternalAegis','2600 здоровья и -25% урона атак: вместе с уворотом почти бессмертен.'],['kingSlayer','Превращает танка в убийцу.'],['aghanimScepter','Усиление уворота и формы Трансформера.']]}
+    ]
+  },
+  juggernaut: {
+    title:'Джаггернаут  /  Классический carry',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение на линии.'],['joelBoots','Скорость для сближения.']]},
+      {name:'РАННЯЯ ИГРА',items:[['fangs','Урон в атаке и способностях.'],['pt','ПТ — основа carry.']]},
+      {name:'CORE',items:[['arcadiaScar','Окно взрывного урона для Омнислэша.'],['bkb','Защита от контроля в вихре клинков.'],['satanic','Вампиризм для затяжных драк.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['kingSlayer','+420 урона, скорость атаки и вампиризм — карри на максимум.'],['tornBrainHand','Телепорт к цели и 350 урона.'],['kinglandia','+250 к атаке и +50 к способностям.']]}
+    ]
+  },
+  earthshaker: {
+    title:'Шмедик  /  Инициатор',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение на линии.'],['timurPillow','Дешёвое лечение.']]},
+      {name:'РАННЯЯ ИГРА',items:[['joelBoots','Скорость для захода.'],['evsyutin','+500 здоровья — ты первый в драке.']]},
+      {name:'CORE',items:[['blink','Заход в толпу для Echo Slam.'],['kayaSange','Здоровье и усиление способностей.'],['bkb','Чтобы дойти и кастовать под контролем.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['superBlink','Блинк с взрывом на 500 — вход становится уроном.'],['eternalAegis','Танк с 2600 здоровья.'],['refresherOrb','Второй Echo Slam подряд.']]}
+    ]
+  },
+  sniper: {
+    title:'Снайпер  /  Дальний carry',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение для безопасного фарма.'],['mango','Мана на Shrapnel.']]},
+      {name:'РАННЯЯ ИГРА',items:[['joelBoots','Скорость для отхода.'],['fangs','Урон Headshot растёт.']]},
+      {name:'CORE',items:[['pt','Урон и скорость атаки — основа.'],['brainEye','+210 дальности возвращает снайперу его главное оружие.'],['semenHead','+100 урона за недорого.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['kingSlayer','Урон, скорость атаки и вампиризм для хрупкого стрелка.'],['satanic','Здоровье и вампиризм — чтобы пережить заход.'],['bkb','Не даёт убить с контроля.']]}
+    ]
+  },
+  vaspassir: {
+    title:'Васпассир  /  Гоблин-ядовар',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение на линии.'],['mango','Мана на гранаты.']]},
+      {name:'РАННЯЯ ИГРА',items:[['joelBoots','Скорость и отход.'],['fangs','Урон копиям и оригиналу.']]},
+      {name:'CORE',items:[['pt','ПТ: урон и скорость для Лихорадки.'],['semenHead','+100 урона.'],['kayaSange','Здоровье и усиление способностей.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['kingSlayer','Копии бьют сильнее вместе с оригиналом.'],['bkb','Защищает ядовара под контролем.'],['aghanimScepter','Усиление копий.']]}
+    ]
+  },
+  virsudi: {
+    title:'Вирсуди  /  Мобильный инициатор',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение — Q тратит 16% HP.'],['joelBoots','Скорость для прыжков.']]},
+      {name:'РАННЯЯ ИГРА',items:[['fangs','Урон в Q и атаке.'],['evsyutin','+500 здоровья компенсирует траты Q.']]},
+      {name:'CORE',items:[['pt','ПТ — урон и темп.'],['satanic','Вампиризм возвращает потраченное здоровье.'],['bkb','Не даёт сорвать прыжок.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['kingSlayer','+420 урона и вампиризм для затяжной драки.'],['eternalAegis','2600 здоровья и защита от атак.'],['aghanimScepter','Усиление уникальной механики.']]}
+    ]
+  },
+  olex: {
+    title:'Олекс  /  Программист-контроллер',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение на линии; ресурс Олекса — процессор, а не мана.'],['timurPillow','Дешёвые 600 HP между драками.']]},
+      {name:'РАННЯЯ ИГРА',items:[['joelBoots','Скорость, чтобы держать дистанцию.'],['brainEye','+210 дальности для безопасного Q без КД.']]},
+      {name:'CORE',items:[['archmageRobe','+25% урона способностей и -35% КД — турель и ульта чаще.'],['kayaSange','Здоровье и +18% урона способностей.'],['octarineCore','-25% КД на способности и предметы.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['sorcererCrown','-40% КД и +40% урона способностей: Синий экран смерти почти всегда готов.'],['aghanimScepter','Турель живёт 18 секунд, ульта дольше.'],['bkb','Защита, пока арена ульты работает.']]}
+    ]
+  },
+  malit: {
+    title:'Малит  /  Тяжёлый ближний боец',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение для первых размен вплотную.'],['joelBoots','Скорость помогает быстро войти с Рюкзаком.']]},
+      {name:'РАННЯЯ ИГРА',items:[['fangs','Урон в атаке и способностях.'],['pt','ПТ: урон и скорость атаки для Тяжёлого разгона.'],['evsyutin','+500 здоровья для ближнего боя.']]},
+      {name:'CORE',items:[['satanic','Вампиризм и здоровье в центре драки.'],['brainAss','Две секунды бешеного урона для добивания после Подброса.'],['bkb','Позволяет дойти до цели и крутить Лазерный круг.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['kingSlayer','+420 урона, скорость атаки и вампиризм.'],['eternalAegis','2600 здоровья — вращаться в лазерном круге дольше.'],['gur','Ещё один подброс для добивания.']]}
     ]
   }
 };
@@ -5476,7 +5626,7 @@ const HERO_GUIDES = {
   },
   "sniper": {
     "role": "Снайпер: дальний carry",
-    "style": "Огромная дальность и урон, но очень мало здоровья. Держитесь позади команды.",
+    "style": "Большая дальность и урон, но очень мало здоровья. Держитесь позади команды.",
     "skills": [
       1,
       0,
@@ -5504,7 +5654,7 @@ const HERO_GUIDES = {
       1,
       2
     ],
-    "skillNote": "Строка кода (Q) — серия выстрелов с замедлением. Вирус/Патч (W) — урон и мини-стан по врагу или щит союзнику. Авто-турель (E) — повторное нажатие взрывает её. Отладка (T) — рывок и сброс W. Синий экран смерти (R) — арена без способностей на 5 сек.",
+    "skillNote": "Строка кода (Q) — выстрелы без перезарядки по 7% нагрева, с замедлением. Вирус/Патч (W) — урон и мини-стан по врагу или щит союзнику. Авто-турель (E) — повторное нажатие взрывает её. Отладка (T) — рывок и сброс W. Синий экран смерти (R) — арена без способностей на 5 сек.",
     "build": [
       "pt",
       "brainEye",
@@ -5514,7 +5664,7 @@ const HERO_GUIDES = {
       "satanic"
     ],
     "tips": [
-      "Следите за шкалой процессора: Q его не греет, а вот W, E, T и R — греют, не спамьте их подряд.",
+      "Следите за шкалой процессора: Q без КД, но каждый выстрел греет на 7% — не спамьте им до перегрева.",
       "Взрывайте турель, когда враги сбились рядом с ней, а ульту кладите на место драки."
     ]
   },
@@ -5841,9 +5991,9 @@ class Unit {
     if(this.inventory && this.inventory.some(i => i && i.id === 'brainEye')) range+=SHOP_ITEMS.brainEye.attackRange;
     if(this.def && this.def.id === 'sniper' && this.skills && this.skills[2] && this.skills[2].level > 0){
       const takeAimLevel=this.skills[2].level;
-      range += 70 + takeAimLevel * 24;
+      range += 40 + takeAimLevel * 14;
       const takeAim=this.buffs.find(buff => buff.id === 'sniperTakeAim');
-      if(takeAim) range += takeAim.rangeBonus || (95 + takeAimLevel * 22);
+      if(takeAim) range += takeAim.rangeBonus || (60 + takeAimLevel * 14);
     }
     return range;
   }
@@ -6518,7 +6668,18 @@ class TimedSummon extends Unit {
   updateAI(dt){
     this.life -= dt;
     if(this.life <= 0){ this.dead = true; return; }
-    if(this.isIllusion && this.playerControlled) return;
+    if(this.isIllusion && this.playerControlled){
+      if(this.attackTarget && (this.attackTarget.dead || this.distTo(this.attackTarget) > 900)) this.attackTarget = null;
+      if(!this.moveTarget && !this.attackTarget){
+        let near=null, bd=(this.atkRange||400)+80;
+        for(const unit of units){
+          if(unit.dead || unit.team===this.team || unit.team===2 || isHiddenFrom(unit,this.team)) continue;
+          const dd=this.distTo(unit); if(dd<bd){ bd=dd; near=unit; }
+        }
+        if(near) this.attackTarget=near;
+      }
+      return;
+    }
     if(!this.attackTarget || this.attackTarget.dead || this.distTo(this.attackTarget) > 850){
       let target=null, best=850;
       for(const unit of units){
@@ -6535,6 +6696,38 @@ class TimedSummon extends Unit {
 
 function getControlledUnit(){
   return controlledUnit && controlledUnit.alive ? controlledUnit : playerHero;
+}
+/* ---- Иллюзионист: групповое управление клонами ---- */
+function aliveClones(hero){ return units.filter(u => u.isIllusion && u.owner === hero && !u.dead && u.summonKind === 'illusion'); }
+function activeControlGroup(){
+  if(!controlGroup.length) return null;
+  controlGroup = controlGroup.filter(u => u && !u.dead && u.isIllusion);
+  if(!controlGroup.length){ controlledUnit = null; return null; }
+  return controlGroup;
+}
+function releaseCloneControl(){
+  for(const u of controlGroup) u.playerControlled = false;
+  if(controlledUnit && controlledUnit.isIllusion) controlledUnit.playerControlled = false;
+  controlGroup = []; controlledUnit = playerHero;
+}
+function selectAllClones(){
+  if(!playerHero || playerHero.dead) return false;
+  const clones = aliveClones(playerHero);
+  if(!clones.length){ flashMsg(playerHero, 'Нет клонов для выбора'); return false; }
+  if(controlledUnit && controlledUnit.isIllusion) controlledUnit.playerControlled = false;
+  for(const u of controlGroup) u.playerControlled = false;
+  controlGroup = clones;
+  for(const u of clones) u.playerControlled = true;
+  controlledUnit = clones[0];
+  addText(playerHero.x, playerHero.y-84, 'ВЫБРАНО КЛОНОВ: '+clones.length, '#e8d4ff', 1.0, 15);
+  for(const u of clones) fxRing(u.x, u.y, 38, '#e8d4ff', 0.4);
+  return true;
+}
+/* приказ всем выбранным: точки движения раскладываются кольцом, чтобы клоны не слипались */
+function groupOrder(control, fn){
+  const g = activeControlGroup();
+  if(!g || !g.includes(control)){ fn(control, 0, 1); return; }
+  g.forEach((u,i)=>fn(u,i,g.length));
 }
 
 function mo3giDroneOf(hero){
@@ -8098,7 +8291,7 @@ const SKILLS = {
     desc:'Пассивно увеличивает дальность атаки. При активации на 5 секунд даёт ещё дальность и повышает скорость атаки.',
     cast(h,x,y,lvl){
       h.buffs=h.buffs.filter(buff=>buff.id!=='sniperTakeAim');
-      h.addBuff({type:'as',id:'sniperTakeAim',t:5,rangeBonus:95+lvl*22,val:0.42+lvl*0.08});
+      h.addBuff({type:'as',id:'sniperTakeAim',t:5,rangeBonus:60+lvl*14,val:0.42+lvl*0.08});
       addText(h.x,h.y-70,'TAKE AIM','#ffe4a3',1.15,17);
       fxRing(h.x,h.y,100,'#ffd27a',0.55);
     }
@@ -8660,15 +8853,8 @@ function drawOlexFx(){
 Object.assign(SKILLS, {
   olexQ: {
     name:'Строка кода', short:'Q', type:'point', maxLevel:4,
-    cd:[0,3,3,3,3], mana:[0,0,0,0,0], range:680, heat:0,
-    desc:'Быстрый сгусток кода бьёт первого врага на линии: 45 урона и замедление 15% на 1,5 сек. Можно выпустить серию из 2–3 выстрелов подряд (пока не перегрелся процессор), затем перезарядка 3 сек. Не нагревает процессор.',
-    afterCast(h,s,slot,mult){
-      const b = h.olexQ || (h.olexQ = {shots:0, t:0});
-      if(b.t <= 0) b.shots = 0;
-      b.shots++; b.t = 1.8;
-      if(b.shots >= 3){ s.cd = 3 * mult; b.shots = 0; b.t = 0; }
-      else s.cd = 0.35;
-    },
+    cd:[0,0.1,0.1,0.1,0.1], mana:[0,0,0,0,0], range:680, heat:7,
+    desc:'Быстрый сгусток кода бьёт первого врага на линии: 45 урона и замедление 15% на 1,5 сек. Без перезарядки — стреляйте сколько хватит процессора: каждый выстрел греет его на 7%.',
     cast(h,x,y,lvl){
       let dir = Math.atan2(y-h.y, x-h.x);
       if(!Number.isFinite(dir)) dir = h.facing || 0;
@@ -9786,7 +9972,7 @@ const HERO_DEFS = [
     color:'#7e3f24', color2:'#ffd27a',
     baseHp:600, hpPerLvl:66, baseMp:330, mpPerLvl:40,
     baseDmg:74, dmgPerLvl:7.5, speed:158,
-    atkRange:620, atkTime:1.18, baseArmor:3, armorPerLvl:0.48,
+    atkRange:400, atkTime:1.18, baseArmor:3, armorPerLvl:0.48,
     vision:1250, hpRegen:1.6, mpRegen:2.4,
     skills:['sniperShrapnel','sniperHeadshot','sniperTakeAim','sniperAssassinate'],
     weapon:{type:'sniperRifle',color:'#d9b079',size:1.0,followFacing:true}
@@ -10980,7 +11166,7 @@ function startGame(playerIndex, draftPicks=null){
   stopMenuMusic();
   MID_PUSH_TIME = gameModeCfg().midPushTime;
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; olexTurrets=[]; olexZones=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
-  controlledUnit=null;
+  controlledUnit=null; controlGroup=[];
   explored = new Uint8Array(GRID*GRID); wardsReset();
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
    barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
@@ -11101,7 +11287,7 @@ function startTestMode(playerIndex){
   MID_PUSH_TIME = GAME_MODES.turbo.midPushTime;
   stopMenuMusic();
   units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; olexTurrets=[]; olexZones=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
-  controlledUnit=null;
+  controlledUnit=null; controlGroup=[];
   explored = new Uint8Array(GRID*GRID); wardsReset();
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
   barracksDestroyed=[0,0]; megaCreeps=[false,false]; recentKills=[];
@@ -11193,7 +11379,7 @@ function switchTestControl(hero){
   hero.skinId = activeSkinFor(hero.def.id);
   hero.coins = 99999;
   playerHero = hero;
-  controlledUnit = null; inspectUnit = null;
+  controlledUnit = null; controlGroup = []; inspectUnit = null;
   shopOpen = false; shopGuideOpen = false; pendingPurchaseId = null; pendingSellIndex = -1;
   talentOpen = false; talentChoices = []; talentHero = null; talentTreeOpen = false;
   cam.x = hero.x; cam.y = hero.y; cameraManual = false;
@@ -11525,13 +11711,19 @@ function botFightOdds(h, enemy){
 }
 
 /* Ближайший видимый вражеский боец (раненых предпочитаем). */
+/* боты видят у клона здоровье оригинала */
+function botHpSrc(u){ return isIllusionClone(u) ? u.owner : u; }
 function botPickVisibleEnemy(h){
   let best = null, bestScore = Infinity;
-  for(const u of heroes){
-    if(!u || u.dead || u.team === h.team || u.isIllusion || u.invulnerable || u.windTimer > 0 || isHiddenFrom(u, h.team)) continue;
+  /* клоны Иллюзиониста для ботов неотличимы от настоящих бойцов (здоровье берётся у оригинала) — они путаются и тратят время на копии */
+  for(const u of units){
+    if(!u || u.dead || u.team === h.team || u.invulnerable || u.windTimer > 0 || isHiddenFrom(u, h.team)) continue;
+    const clone = isIllusionClone(u);
+    if(!(clone || (u.type === 'hero' && !u.isIllusion))) continue;
     const d = Math.hypot(u.x - h.x, u.y - h.y);
     if(d > h.vision) continue;
-    const score = d + (u.hp / Math.max(1, u.maxHp)) * 250;
+    const src = clone ? u.owner : u;
+    const score = d + (src.hp / Math.max(1, src.maxHp)) * 250;
     if(score < bestScore){ bestScore = score; best = u; }
   }
   return best;
@@ -11654,7 +11846,7 @@ function botTacticalLayer(h){
   if(h.botHeal){
     const close = botPickVisibleEnemy(h);
     /* Добить почти мёртвого врага, который стоит вплотную, — выгоднее, чем бежать. */
-    if(close && close.hp < close.maxHp * 0.2 && close.hp < h.hp * 0.5 &&
+    if(close && botHpSrc(close).hp < botHpSrc(close).maxHp * 0.2 && botHpSrc(close).hp < h.hp * 0.5 &&
        Math.hypot(close.x - h.x, close.y - h.y) < 300){
       res.target = close;
       return res;
@@ -11691,7 +11883,7 @@ function botTacticalLayer(h){
   if(enemy){
     const odds = botFightOdds(h, enemy);
     const need = (h.botFightUntil || 0) > gameTime ? BOT_DISENGAGE_ODDS : BOT_ENGAGE_ODDS;
-    const lowFoe = enemy.hp < enemy.maxHp * 0.3;
+    const lowFoe = botHpSrc(enemy).hp < botHpSrc(enemy).maxHp * 0.3;
     const cornered = Math.hypot(enemy.x - h.x, enemy.y - h.y) < 320 && (enemy.speed || 0) >= (h.speed || 0) * 0.95;
     if(odds >= need || (lowFoe && odds >= need * 0.7) || cornered){
       h.botFightUntil = gameTime + 2.5;
@@ -13262,15 +13454,19 @@ canvas.addEventListener('mousedown', e => {
       toggleMo3giDroneControl(playerHero,tgt); return;
     }
     if(tgt && tgt.isIllusion && tgt.owner===playerHero){
+      /* двойной клик по клону — выбрать всех клонов сразу */
+      if(lastCloneClick.u && gameTime-lastCloneClick.t < 0.4 && selectAllClones()){ lastCloneClick={u:null,t:0}; return; }
+      lastCloneClick={u:tgt,t:gameTime};
+      for(const u of controlGroup) u.playerControlled=false;
+      controlGroup=[];
       if(controlledUnit && controlledUnit.isIllusion) controlledUnit.playerControlled=false;
       controlledUnit=tgt;
       tgt.playerControlled=true;
-      addText(tgt.x,tgt.y-52,'ИЛЛЮЗИЯ ПОД КОНТРОЛЕМ','#e8d4ff',0.9,13);
+      addText(tgt.x,tgt.y-52,'ИЛЛЮЗИЯ ПОД КОНТРОЛЕМ (2 клика / T — все клоны)','#e8d4ff',0.9,13);
       return;
     }
     if(tgt===playerHero && controlledUnit && controlledUnit.isIllusion){
-      controlledUnit.playerControlled=false;
-      controlledUnit=playerHero;
+      releaseCloneControl();
       return;
     }
     if(tgt && tgt.team !== playerHero.team && !tgt.dead){
@@ -13281,8 +13477,7 @@ canvas.addEventListener('mousedown', e => {
         control.moveTarget = {x:tgt.x, y:tgt.y};
         addText(control.x, control.y - 48, 'ЦЕЛЬ ЗАХВАЧЕНА','#b9ffd0',0.8,13);
       } else {
-        control.attackTarget = tgt;
-        control.moveTarget = null;
+        groupOrder(control,(u)=>{ u.attackTarget = tgt; u.moveTarget = null; });
       }
       if(isBuilding(tgt) && !canDamageStructure(tgt, null, true)){
         addText(tgt.x, tgt.y - 58, structureBlockReason(tgt), '#ffcc70', 1.4, 14);
@@ -13292,8 +13487,11 @@ canvas.addEventListener('mousedown', e => {
     } else if(tgt && !tgt.dead){
       inspectUnit = tgt;
     } else {
-      control.attackTarget = null;
-      control.moveTarget = {x:w.x, y:w.y};
+      groupOrder(control,(u,i,n)=>{
+        u.attackTarget = null;
+        const a=i/Math.max(1,n)*Math.PI*2, r=n>1?38+n*4:0;
+        u.moveTarget = {x:clamp(w.x+Math.cos(a)*r,60,WORLD-60), y:clamp(w.y+Math.sin(a)*r,60,WORLD-60)};
+      });
       if(control === playerHero) gollyOnMoveClick();
       if(typeof window.__shadowOnlineClearTarget === 'function') window.__shadowOnlineClearTarget();
       fxRing(w.x, w.y, 26, '#7fffa0', 0.35);
@@ -13397,6 +13595,11 @@ window.addEventListener('keydown', e => {
     return;
   }
 
+  if((code === 'KeyT' || key === 't' || key === 'е') && playerHero.def && playerHero.def.id === 'illusionist'){
+    if(activeControlGroup() || (controlledUnit && controlledUnit.isIllusion)) releaseCloneControl(); else selectAllClones();
+    e.preventDefault();
+    return;
+  }
   if((code === 'KeyT' || key === 't' || key === 'е') && !isOlex(playerHero)){
     const drone = mo3giDroneOf(playerHero);
     if(drone) toggleMo3giDroneControl(playerHero, drone);
@@ -15200,8 +15403,16 @@ function drawUnit(u){
         ctx.translate(lx, footY + ly);
         ctx.rotate(sway + lean);
         ctx.scale(1 - squash*0.6, 1 + squash);
+        /* клоны полупрозрачны для хозяина и его команды — враги видят их как обычного бойца */
+        if(isIllusionClone(u) && playerHero && u.team === playerHero.team) ctx.globalAlpha *= 0.5;
         ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
         ctx.restore();
+        if(isIllusionClone(u) && playerHero && u.team === playerHero.team){
+          const sel = controlGroup.includes(u) || controlledUnit === u;
+          ctx.save(); ctx.strokeStyle = sel ? '#ffffff' : '#d8b4ff'; ctx.shadowColor = '#d8b4ff'; ctx.shadowBlur = sel ? 14 : 6;
+          ctx.globalAlpha = sel ? 0.95 : 0.55; ctx.lineWidth = sel ? 3 : 1.5; ctx.setLineDash(sel ? [] : [5,5]);
+          ctx.beginPath(); ctx.ellipse(0, footY, u.radius*1.15, u.radius*0.58, 0, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+        }
       }
     }
   }

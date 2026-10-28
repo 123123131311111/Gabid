@@ -182,7 +182,13 @@ function face3(S,y,w,z,o){
   S.ell([0,y-.07,z+.044],[.032,.026,.03],skin,{rings:5,seg:8,shine:.3});
   for(const sx of [-1,1]) S.ell([sx*.026,y-.078,z+.038],[.014,.012,.012],'#6a3a30',{rings:3,seg:5});
   const lip=o.lip||'#8a3b3b', m=o.mouth||'smile';
-  if(m==='grin'){
+  if(m==='grin'&&o.gape>.02){
+    const g=Math.min(1,o.gape), yc=y-.14-.02*g, ry=.02+.058*g, rx=.075+.035*g;
+    S.ell([0,yc,z-.028],[rx,ry,.04],'#2a0e12',{rings:5,seg:10});
+    S.ell([0,yc-ry*.35,z-.012],[rx*.62,ry*.5,.02],'#c4505a',{rings:3,seg:8});
+    S.ell([0,yc+ry*.62,z-.01],[rx*.82,.014,.014],'#fbfbf2',{rings:3,seg:8,shine:.5});
+    S.ell([0,yc-ry*.7,z-.01],[rx*.7,.012,.012],'#fbfbf2',{rings:3,seg:8,shine:.5});
+  } else if(m==='grin'){
     S.box([0,y-.125,z-.002],[.15,.036,.025],'#2a0e12');
     S.box([0,y-.112,z+.012],[.14,.014,.01],'#fbfbf2');
     S.box([0,y-.135,z+.012],[.12,.012,.01],'#fbfbf2');
@@ -219,9 +225,11 @@ function man(S,o){
     S.box(add([s*gap,.025,.1],D),[.3*b,.05,.52],'#14141a',{rot:[tilt,0,0]});
   }
   S.ell([0,hipY+.02,0],[.45*b,.17,.3*b],lg);
+  if(!o.noTorso){
   S.tube([0,hipY,0],[0,1.35,0],.34*b,.4*b,cl,{seg:16});
   S.ell([0,1.38,0],[.47*b,.5,.31*b],cl,{rings:10,seg:18});
   S.ell([0,1.62,.06],[.4*b,.2,.24*b],cl,{rings:6,seg:14});
+  }
   if(o.chest){
     S.ell([0,1.47,.17*b],[.37*b,.3,.17*b],o.chest,{rings:7,seg:12,shine:.55});
     S.box([0,1.48,.33*b],[.05,.5,.04],o.chestTrim||trim,{shine:.6});
@@ -950,33 +958,202 @@ MODELS.exileKnight=(S,d,t)=>{
   hold(S,_h11,'R');
 };
 
-MODELS.juvsyut=(S,d,t)=>{
-  const sk='#f2a36f';
-  man(S,{face:true,bulk:1.5,gap:.23,hipY:.8,cloth:'#7b432d',skin:sk,headY:1.95,shY:1.5,armR:[1.0,1.0,.3],armL:[-1.0,1.0,.3],glove:sk,belt:'#ffd568',legs:'#4a2a1c',trim:'#ffd568',bracer:'#3a2a1c',knee:'#4a2a1c',pad:'#3a2a1c',padTrim:'#ffd568',fo:{eye:'#3a2a1c',angry:.35,mouth:'grin',lip:'#6a2a22',brow:'#2a1008',cheeks:'#e08a60'},headW:1.05,arm:sk,forearm:sk});
-  S.ell([0,1.12,.15],[.95,.8,.72],'#7b432d',{rings:9,seg:14});
-  S.ell([0,1.5,.25],[.7,.36,.45],'#5a2f1d',{rings:7,seg:12});
-  for(let i=0;i<4;i++) S.box([0,1.7-i*.2,.62],[.7-i*.05,.04,.03],'#ffd568',{shine:.7});
-  S.box([0,1.0,.82],[.34,.2,.04],'#ffd568',{shine:.7}); G(S,[0,1.0,.85],.06,'#c0392b',{glow:0,shine:.7});
-  for(let i=0;i<4;i++){ S.box([(i-1.5)*.3,.45,.55],[.22,.5,.05],'#5a2f1d',{rot:[-.15,0,(i-1.5)*.06]}); }
-  S.tube([0,2.2,0],[0,2.28,0],.34,.34,'#c0392b',{seg:14,shine:.4});
-  S.tube([-.3,2.0,.0],[.3,2.0,.0],.02,.02,'#c0392b',{seg:5});
-  S.box([-.35,2.2,-.15],[.1,.06,.5],'#c0392b',{rot:[0,0,-.5]});
-  S.cone([0,2.22,0],[0,2.62,-.1],.12,'#2a1008',{seg:6}); 
-  for(const s of [-1,1]){
-    S.ring([s*.34,1.9,0],.08,.02,'#ffd568',{axis:'x',n:8,shine:.8});
-    S.cone([s*.08,1.8,.27],[s*.1,1.98,.31],.04,'#fbfbf2',{seg:5,shine:.5});
-    S.ell([s*.8,1.8,0],[.34,.24,.34],'#3a2a1c',{rings:6,seg:12,shine:.4});
-    for(let k=0;k<3;k++) S.cone([s*(.72+k*.08),1.95,(k-1)*.12],[s*(.78+k*.1),2.3,(k-1)*.15],.07,'#d6c7a0',{seg:5,shine:.5});
-    for(let k=0;k<3;k++) S.cone([s*1.0+(k-1)*.12,.9,.3],[s*1.0+(k-1)*.14,.9,.55],.035,'#8a8a8a',{seg:5,shine:.8});
+/* ---------- Джувсют 2.0 ----------
+   Пузо — одна гладкая сфера; пояс, ремни, юбка и «наклейки» не плоские коробки,
+   а лоскуты, натянутые прямо на поверхность эллипсоида (jvQuad), поэтому ничего
+   не торчит и не мерцает. Голова вынесена над пузом, чтобы было видно рот и бивни. */
+const JV={skin:'#f0a068',skinD:'#d98456',lea:'#6b3a24',leaD:'#3d2314',leaL:'#8f5233',belt:'#3a2412',
+  gold:'#ffd568',goldD:'#d9a441',bone:'#f6eed8',boneD:'#cfc29b',fur:'#d2a873',furD:'#a07a4c',furL:'#ecc994',
+  red:'#c0392b',redD:'#8e2a1f',iron:'#aab2ba',ironD:'#656d76',wood:'#d69a61',woodD:'#a8693a',dark:'#2a1008'};
+const JV_BC=[0,1.0,.15], JV_BR=[.94,.72,.74];
+function jvPt(th,ph,k){ k=k||1; const c=JV_BC,r=JV_BR; return [c[0]+r[0]*k*Math.sin(th)*Math.cos(ph), c[1]+r[1]*k*Math.cos(th), c[2]+r[2]*k*Math.sin(th)*Math.sin(ph)]; }
+function jvNm(th,ph){ const r=JV_BR; return norm([Math.sin(th)*Math.cos(ph)/r[0],Math.cos(th)/r[1],Math.sin(th)*Math.sin(ph)/r[2]]); }
+/* лоскут на поверхности пуза; uv — 4 точки [тета, фи] */
+function jvQuad(S,uv,k,color,o){
+  o=o||{};
+  const P=uv.map(q=>jvPt(q[0],q[1],k)), N=uv.map(q=>jvNm(q[0],q[1]));
+  const mx=uv.reduce((a,q)=>[a[0]+q[0]/uv.length,a[1]+q[1]/uv.length],[0,0]);
+  S.face(P,JV_BC,color,o.glow,jvNm(mx[0],mx[1]),o.shine,N);
+}
+function jvBand(S,th0,th1,ph0,ph1,n,k,color,o){
+  for(let j=0;j<n;j++){ const a=ph0+(ph1-ph0)*j/n, b=ph0+(ph1-ph0)*(j+1)/n;
+    jvQuad(S,[[th0,a],[th0,b],[th1,b],[th1,a]],k,color,o); }
+}
+function jvStrip(S,p0,p1,w,n,k,color,o){
+  const pts=[];
+  for(let i=0;i<=n;i++){
+    const u=i/n, th=p0[0]+(p1[0]-p0[0])*u, ph=p0[1]+(p1[1]-p0[1])*u, sn=Math.max(.3,Math.sin(th));
+    const dth=p1[0]-p0[0], dph=(p1[1]-p0[1])*sn, l=Math.hypot(dth,dph)||1;
+    const qt=-dph/l*w, qp=dth/l*w/sn;
+    pts.push([[th-qt,ph-qp],[th+qt,ph+qp]]);
   }
-  for(let i=0;i<7;i++){ const a=-.9+i*.3; S.ell([Math.sin(a)*.28,1.78+Math.cos(a)*-.04,.3-Math.abs(a)*.1],[.04,.07,.03],'#e9d9b0',{rings:4,seg:6,shine:.6}); }
-  S.tube([.0,1.84,.26],[0,1.65,.34],.01,.01,'#3a2a1c',{seg:4});
-  const _h12=hmark(S);
-  S.tube([1.0,.45,.35],[1.15,2.0,.4],.1,.2,'#d69a61'); S.ell([1.15,2.05,.4],[.2,.14,.2],'#d69a61');
-  S.tube([1.02,.7,.36],[1.05,.8,.36],.14,.14,'#3a2a1c',{seg:8});
-  for(let i=0;i<5;i++){const a=i*1.26; S.cone([1.15+Math.cos(a)*.15,1.8+(i%2)*.15,.4+Math.sin(a)*.15],[1.15+Math.cos(a)*.36,1.8+(i%2)*.15,.4+Math.sin(a)*.36],.05,'#8a8a8a',{seg:5,shine:.8});}
-  S.cone([1.15,2.15,.4],[1.15,2.45,.4],.07,'#8a8a8a',{seg:5,shine:.8});
-  hold(S,_h12,'R');
+  for(let i=0;i<n;i++) jvQuad(S,[pts[i][0],pts[i+1][0],pts[i+1][1],pts[i][1]],k,color,o);
+}
+/* кожаный язычок юбки: прямоугольник + остриё */
+function jvTab(S,th0,th1,phc,hw,k,color,trim){
+  const thm=th0+(th1-th0)*.55;
+  jvQuad(S,[[th0,phc-hw],[th0,phc+hw],[thm,phc+hw],[thm,phc-hw]],k,color,{shine:.2});
+  S.face([jvPt(thm,phc-hw,k),jvPt(thm,phc+hw,k),jvPt(th1,phc,k)],JV_BC,color,0,jvNm((thm+th1)/2,phc),.2,[jvNm(thm,phc-hw),jvNm(thm,phc+hw),jvNm(th1,phc)]);
+  jvQuad(S,[[thm-.03,phc-hw],[thm-.03,phc+hw],[thm,phc+hw],[thm,phc-hw]],k+.006,trim,{shine:.7});
+}
+/* маленькая жертва для «Большого обеда» */
+function jvVictim(S,pos,sc,t,fear){
+  const w=Math.sin(t*22)*.22*fear, cw=Math.cos(w), sw=Math.sin(w);
+  const V=(x,y,z)=>[pos[0]+(x*cw-y*sw)*sc, pos[1]+(x*sw+y*cw)*sc, pos[2]+z*sc];
+  const e=(x,y,z,rx,ry,rz,col,o)=>S.ell(V(x,y,z),[rx*sc,ry*sc,rz*sc],col,o);
+  e(0,0,0,.2,.23,.17,'#78b04a',{rings:6,seg:10});
+  e(0,-.03,.1,.13,.15,.08,'#a6d46f',{rings:4,seg:8});
+  e(0,.28,.02,.17,.15,.15,'#8cc457',{rings:6,seg:10});
+  e(0,.22,.15,.06,.045,.025,'#3a1010',{rings:3,seg:6});
+  for(const s of [-1,1]){
+    e(s*.075,.31,.14,.05,.055,.035,'#ffffff',{rings:4,seg:7,shine:.5});
+    e(s*.075,.31,.17,.022,.03,.02,'#111111',{rings:3,seg:5});
+    S.cone(V(s*.1,.4,0),V(s*.15,.55,0),.04*sc,'#e8e0c8',{seg:5});
+    S.tube(V(s*.19,.08,0),V(s*.3+Math.sin(t*18+s)*.07,.22+Math.cos(t*18+s)*.08,.05),.035*sc,.03*sc,'#78b04a',{seg:5});
+    S.tube(V(s*.08,-.17,0),V(s*.11,-.36+Math.sin(t*20+s*2)*.05,.02),.045*sc,.04*sc,'#5d8f38',{seg:5});
+  }
+}
+const jvSm=(x,a,b)=>{ const u=Math.max(0,Math.min(1,(x-a)/(b-a))); return u*u*(3-2*u); };
+MODELS.juvsyut=(S,d,t)=>{
+  const C=JV, HY=2.02;
+  const ga=AXC&&AXC.ga, gk=ga?ga.kind:'idle', gp=ga?ga.p:0, gs=ga&&ga.slot!=null?(((ga.slot|0)%4)+4)%4:-1;
+  const ult=gk==='cast'&&gs===3;
+  /* раскрытие рта: рёв, откусывание, жевание, отрыжка */
+  let gape=0;
+  if(ult) gape=.85*bell(gp,.143,.07)+bell(gp,.571,.085)+jvSm(gp,.62,.67)*(1-jvSm(gp,.80,.84))*(.28+.12*Math.sin((gp-.62)*70))+.45*bell(gp,.857,.05);
+  /* пузо дышит, пружинит при ходьбе, ударах и глотке */
+  let bk=.012*Math.sin(t*1.6), bky=bk*.6;
+  if(gk==='walk'){ bk=.022*Math.sin(gp*Math.PI*4); bky=-bk*.5; }
+  else if(gk==='attack'){ bk=.05*bell(gp,.6,.1); bky=-bk*.7; }
+  else if(gk==='cast'){
+    if(gs===0){ bk=.07*bell(gp,.5,.1); bky=-bk*.7; }
+    else if(gs===1){ bk=.08*bell(gp,.45,.22); bky=bk*.4; }
+    else if(gs===2){ bk=.035*(bell(gp,.286,.05)+bell(gp,.571,.05)); bky=-bk; }
+    else { bk=.09*bell(gp,.714,.07)+.03*bell(gp,.5,.1); bky=bk*.45; }
+  }
+  const BR0=JV_BR.slice(); JV_BR[0]*=1+bk; JV_BR[1]*=1+bky; JV_BR[2]*=1+bk;
+  try{
+  man(S,{face:true,bulk:1.5,gap:.23,hipY:.8,cloth:C.skin,skin:C.skin,headY:HY,shY:1.5,armR:[1.0,1.0,.3],armL:[-1.0,1.0,.3],glove:C.skin,nobelt:true,noTorso:true,legs:'#4a2a1c',cuff:C.fur,trim:C.gold,bracer:C.leaD,knee:'#4a2a1c',pad:C.leaD,padTrim:C.gold,fo:{eye:'#3a2a1c',angry:-.3,mouth:'grin',gape,lip:'#6a2a22',brow:'#2a1008',cheeks:'#e08a60'},headW:1.05,arm:C.skin,forearm:C.skin});
+
+  /* --- пузо --- */
+  S.ell(JV_BC,JV_BR,C.skin,{rings:14,seg:24});
+  G(S,jvPt(1.38,Math.PI/2,1.0),.06,'#b5653d',{glow:0,rings:4,seg:8,shine:.1}); // пупок
+
+  /* --- перекрёстные ремни через пузо + медальон --- */
+  const PI=Math.PI;
+  for(const sg of [-1,1]){
+    const p0=[.6,PI/2-sg*.8], p1=[1.75,PI/2+sg*.62];
+    jvStrip(S,p0,p1,.075,9,1.03,C.lea,{shine:.2});
+    jvStrip(S,p0,p1,.018,9,1.037,C.goldD,{shine:.6});
+    for(let i=1;i<9;i+=2){ const u=i/9; G(S,jvPt(p0[0]+(p1[0]-p0[0])*u,p0[1]+(p1[1]-p0[1])*u,1.065),.03,C.gold,{glow:0,rings:3,seg:6,shine:.8}); }
+  }
+  { const m=jvPt(1.25,PI/2,1.075);
+    S.ell(m,[.14,.14,.04],C.goldD,{rings:6,seg:12,shine:.7});
+    S.ell([m[0],m[1],m[2]+.02],[.105,.105,.035],C.gold,{rings:6,seg:12,shine:.8});
+    G(S,[m[0],m[1],m[2]+.05],.045,C.red,{glow:0,rings:4,seg:8,shine:.8}); }
+
+  /* --- широкий пояс с пряжкой --- */
+  jvBand(S,1.74,1.98,0,PI*2,30,1.045,C.belt,{shine:.25});
+  jvBand(S,1.74,1.765,0,PI*2,30,1.055,C.gold,{shine:.6});
+  jvBand(S,1.955,1.98,0,PI*2,30,1.055,C.gold,{shine:.6});
+  for(let i=0;i<22;i++){ const ph=i/22*PI*2; if(Math.abs(Math.sin(ph-PI/2))>.97&&Math.cos(ph-PI/2)>0) continue;
+    G(S,jvPt(1.86,ph,1.075),.028,C.gold,{glow:0,rings:3,seg:5,shine:.8}); }
+  { const q=jvPt(1.86,PI/2,1.095);
+    S.box([q[0],q[1],q[2]],[.4,.3,.07],C.goldD,{shine:.7});
+    S.box([q[0],q[1],q[2]+.03],[.33,.23,.05],C.gold,{shine:.8});
+    S.box([q[0],q[1],q[2]+.06],[.22,.14,.03],C.redD,{shine:.5});
+    G(S,[q[0],q[1],q[2]+.085],.05,C.red,{glow:0,rings:5,seg:8,shine:.9}); }
+
+  /* --- меховая юбка и кожаные язычки --- */
+  for(let i=0;i<24;i++){ const ph=i/24*PI*2;
+    S.ell(jvPt(2.0,ph,1.07),[.13,.12,.13],i%2?C.fur:C.furL,{rings:4,seg:7,shine:.15}); }
+  for(let i=0;i<9;i++){ const ph=PI/2+(i-4)*.31;
+    jvTab(S,1.95,2.62,ph,.15,1.05,i%2?C.lea:C.leaL,C.gold);
+    jvTab(S,1.95,2.62,ph+PI,.15,1.05,i%2?C.lea:C.leaL,C.gold); }
+  /* трофей на поясе: куриная ножка (в тему «Большого обеда») */
+  { const hp=jvPt(1.95,PI-.15,1.08);
+    S.tube(hp,[hp[0],hp[1]-.12,hp[2]],.025,.025,C.leaD,{seg:5});
+    S.ell([hp[0],hp[1]-.3,hp[2]],[.15,.19,.15],'#c8672e',{rings:6,seg:10,shine:.35});
+    S.ell([hp[0]-.04,hp[1]-.26,hp[2]+.07],[.07,.09,.05],'#eaa35f',{rings:4,seg:6,shine:.5});
+    S.tube([hp[0],hp[1]-.44,hp[2]],[hp[0],hp[1]-.64,hp[2]],.045,.04,C.bone,{seg:7,shine:.4});
+    S.ell([hp[0]-.04,hp[1]-.66,hp[2]],[.055,.05,.05],C.bone,{rings:4,seg:6});
+    S.ell([hp[0]+.04,hp[1]-.66,hp[2]],[.055,.05,.05],C.bone,{rings:4,seg:6}); }
+
+  /* --- меховой воротник на плечах --- */
+  for(let i=0;i<18;i++){ const ph=i/18*PI*2;
+    S.ell(jvPt(.66,ph,1.06),[.16,.12,.16],i%2?C.fur:C.furL,{rings:4,seg:7,shine:.15}); }
+
+  /* --- наплечники с костяными шипами --- */
+  for(const s of [-1,1]){
+    const cx=s*.84, cy=1.7;
+    S.ell([cx,cy,0],[.37,.27,.37],C.lea,{rings:9,seg:16,shine:.3});
+    S.ell([cx,cy+.1,0],[.28,.19,.28],C.leaL,{rings:7,seg:14,shine:.3});
+    S.tube([cx,cy-.19,0],[cx,cy-.12,0],.3,.3,C.gold,{seg:18,shine:.75});
+    for(let a=0;a<6;a++){ const an=a/6*PI*2+.3; G(S,[cx+Math.cos(an)*.37,cy-.03,Math.sin(an)*.37],.03,C.gold,{glow:0,rings:3,seg:5,shine:.8}); }
+    for(let i=0;i<5;i++){ const an=i/5*PI*2+.4, ca=Math.cos(an), sa=Math.sin(an);
+      S.cone([cx+ca*.16,cy+.22,sa*.16],[cx+ca*.3+s*.05,cy+.5-(i%2)*.1,sa*.3],.065,i%2?C.bone:C.boneD,{seg:6,shine:.5}); }
+    S.cone([cx,cy+.25,0],[cx+s*.03,cy+.7,0],.085,C.bone,{seg:7,shine:.5});
+    G(S,[cx,cy+.26,0],.06,C.gold,{glow:0,rings:4,seg:8,shine:.8});
+  }
+
+  /* --- голова: повязка, пучок, серьги, бивни, борода --- */
+  S.tube([0,HY+.15,0],[0,HY+.25,0],.268,.185,C.red,{seg:18,shine:.35});
+  S.ell([0,HY+.2,.238],[.055,.055,.03],C.gold,{rings:5,seg:10,shine:.8});
+  G(S,[0,HY+.2,.262],.026,C.red,{glow:0,rings:3,seg:6,shine:.9});
+  S.ell([0,HY+.2,-.24],[.075,.065,.06],C.redD,{rings:5,seg:8});
+  S.tube([-.02,HY+.19,-.26],[.13,HY-.1,-.52],.05,.03,C.red,{seg:6});
+  S.tube([.02,HY+.19,-.26],[-.1,HY-.04,-.5],.05,.03,C.redD,{seg:6});
+  S.ell([0,HY+.33,-.03],[.12,.1,.12],C.dark,{rings:6,seg:10,shine:.3});
+  S.tube([0,HY+.27,-.03],[0,HY+.31,-.03],.118,.118,C.gold,{seg:12,shine:.8});
+  S.cone([0,HY+.38,-.03],[0,HY+.7,-.1],.095,C.dark,{seg:7,shine:.3});
+  for(const s of [-1,1]){
+    S.ring([s*.345,HY-.05,0],.085,.022,C.gold,{axis:'x',n:12,shine:.8});
+    G(S,[s*.345,HY-.14,0],.032,C.red,{glow:0,rings:3,seg:6,shine:.8});
+    S.tube([s*.085,HY-.17,.26],[s*.115,HY-.03,.3],.052,.033,C.bone,{seg:7,shine:.5});
+    S.cone([s*.115,HY-.03,.3],[s*.1,HY+.08,.31],.033,C.bone,{seg:7,shine:.5});
+  }
+  for(let i=0;i<7;i++){ const a=-.9+i*.3; S.ell([Math.sin(a)*.26,HY-.24+Math.cos(a)*-.02,.26-Math.abs(a)*.1],[.045,.08,.035],C.bone,{rings:4,seg:6,shine:.5}); }
+  S.cone([0,HY-.2,.24],[0,HY-.3,.3],.06,C.bone,{seg:7,shine:.5});
+
+  /* --- левая рука: шипастый наруч --- */
+  const _hL=hmark(S);
+  for(let k=-1;k<=1;k++) S.cone([-1.1,1.07,.28+k*.09],[-1.3,1.1+k*.02,.28+k*.14],.04,C.iron,{seg:6,shine:.9});
+  hold(S,_hL,'L');
+
+  /* --- правая рука: шипастый наруч и дубина --- */
+  const _hR0=hmark(S);
+  for(let k=-1;k<=1;k++) S.cone([1.1,1.07,.28+k*.09],[1.3,1.1+k*.02,.28+k*.14],.04,C.iron,{seg:6,shine:.9});
+  hold(S,_hR0,'R');
+  const _hR=hmark(S);
+  const A=[1.0,.45,.35], B=[1.15,2.0,.4], P=f=>lerp(A,B,f);
+  const [ux,,uz]=basisY(sub(B,A)), axv=norm(sub(B,A));
+  const RS=[[0,.085],[.22,.1],[.4,.12],[.62,.15],[.82,.19],[.96,.22]];
+  const rad=f=>{ for(let i=1;i<RS.length;i++) if(f<=RS[i][0]){ const u=(f-RS[i-1][0])/(RS[i][0]-RS[i-1][0]); return RS[i-1][1]+(RS[i][1]-RS[i-1][1])*u; } return RS[RS.length-1][1]; };
+  for(let i=1;i<RS.length;i++) S.tube(P(RS[i-1][0]),P(RS[i][0]),RS[i-1][1],RS[i][1],i%2?C.wood:'#e0a56d',{seg:16,shine:.25});
+  S.ell(P(.97),[.21,.16,.21],C.wood,{rings:7,seg:14,shine:.25});
+  for(const f of [.6,.84,.94]) S.tube(P(f-.025),P(f+.025),rad(f)+.018,rad(f)+.018,C.ironD,{seg:16,shine:.8});
+  S.tube(P(.25),P(.43),rad(.3)+.014,rad(.4)+.014,'#3a2a1c',{seg:12,shine:.3});
+  for(const f of [.25,.43]) S.tube(P(f-.012),P(f+.012),rad(f)+.024,rad(f)+.024,C.gold,{seg:12,shine:.8});
+  G(S,P(-.01),.1,C.goldD,{glow:0,rings:5,seg:10,shine:.8});
+  for(let k=0;k<12;k++){ const f=.5+k*.04, an=k*2.4, dr=add(mul(ux,Math.cos(an)),mul(uz,Math.sin(an)));
+    const base=add(P(f),mul(dr,rad(f)*.9)); S.cone(base,add(add(base,mul(dr,.26)),mul(axv,.06)),.055,C.iron,{seg:6,shine:.9}); }
+  S.cone(P(1.0),add(P(1.0),mul(axv,.34)),.085,C.iron,{seg:7,shine:.9});
+  /* в ульте дубина втыкается в землю и ждёт, пока он поест */
+  if(ult&&gp>=.27&&gp<.86&&AXC&&AXC.cur){ const sv=AXC.cur.R; AXC.cur.R=[.9,.55,.85]; hold(S,_hR,'R'); AXC.cur.R=sv; }
+  else hold(S,_hR,'R');
+
+  /* --- «Большой обед»: жертва в руках --- */
+  if(ult&&AXC&&AXC.cur){
+    const R=AXC.cur.R, L=AXC.cur.L, mid=[(R[0]+L[0])/2,(R[1]+L[1])/2,(R[2]+L[2])/2];
+    const ground=[0,.3,1.45];
+    let pos=null, sc=.8;
+    if(gp<.3) pos=add(ground,[Math.sin(t*9)*.03,0,0]);
+    else if(gp<.43){ const u=jvSm(gp,.3,.43); pos=lerp(ground,add(mid,[0,.02,.02]),u); }
+    else if(gp<.62) pos=add(mid,[0,.02,.02]);
+    else if(gp<.72){ const u=jvSm(gp,.62,.72); pos=lerp(add(mid,[0,0,0]),[0,HY-.2,.34],u); sc=.8*(1-.8*u); }
+    if(pos) jvVictim(S,pos,sc,t,1);
+  }
+  }finally{ JV_BR[0]=BR0[0]; JV_BR[1]=BR0[1]; JV_BR[2]=BR0[2]; }
 };
 
 /* ---------- ЧИП: скелетная анимация посоха ----------
@@ -2747,9 +2924,11 @@ function autoAnim(id,cfg){
   gaReg(id,cfg);
   MODELS[id]=(S,d,t,pose)=>{
     const ga=gaState(id,pose,t);
-    AXC={cur:{R:ga.R,L:ga.L},idle:cfg.idle,b:cfg.b,shY:cfg.shY};
+    AXC={cur:{R:ga.R,L:ga.L},idle:cfg.idle,b:cfg.b,shY:cfg.shY,ga};
+    const m0=S.faces.length;
     try{ orig(S,d,t,pose); } finally { AXC=null; }
     gaFx(S,ga);
+    if(cfg.post) cfg.post(S,ga,m0);
   };
 }
 autoAnim('warlord',   {walkArm:.1, att:'slashR', hit:.5, casts:['sweep','raise','stab','whirl'], rings:[1,3], ringR:1.35, hands:'R', trailOff:[0,.7,.3], col:['#4fc3f7','#e1f5fe']});
@@ -2761,43 +2940,252 @@ autoAnim('illusionist',{walkArm:.1,att:'throw',  hit:.52,ranged:1, casts:['clap'
 autoAnim('yosyp',     {walkArm:.1, att:'slashR', hit:.5, casts:['sweep','ldown','raise'], rings:[1,2], ringR:1.3, hands:'R', trailOff:[0,.5,.1], col:['#a7ff70','#eaffcf']});
 autoAnim('dawnMaiden',{walkArm:.08,att:'slashR', hit:.5, casts:['sweep','throw','raise','raise'], rings:[0,2,3], ringR:1.5, hands:'R', trailOff:[0,.6,.1], col:['#ffe39a','#fff8e0']});
 autoAnim('exileKnight',{walkArm:.08,att:'slashR',hit:.5, casts:['stab','sweep','raise','whirl'], rings:[2,3], ringR:1.45, hands:'R', trailOff:[0,.9,.2], col:['#ff707a','#ffe0e2']});
-autoAnim('juvsyut',   {walkArm:.1, att:'punch',  hit:.5, casts:['bigrecoil','guard','whirl','raise'], rings:[0,2,3], ringR:1.6, hands:'R', trailOff:[0,.5,0], col:['#ffd568','#fff3b0']});
+/* Джувсют: свои позы (дубина, таран, «сало-щит», разбег, «Большой обед») */
+const JV_ST={
+  club:I=>[[.286,[.8,2.3,-.35],[-.6,1.5,.3],E_out],[.429,[.65,1.7,.5],[-.5,1.35,.6],E_in],[.571,[.45,1.0,1.25],[-.45,1.2,.9],E_in],[.714,[.6,1.2,.9],[-.5,1.25,.7],E_out]],
+  ram:I=>[[.143,[.95,1.05,-.5],[-.95,1.05,-.5],E_out],[.286,[1.0,1.0,-.6],[-1.0,1.0,-.6],E_lin],[.429,[.7,1.35,1.2],[-.7,1.35,1.2],E_in],[.571,[.6,1.4,1.05],[-.6,1.4,1.05],E_out],[.78,[.6,1.3,.85],[-.6,1.3,.85],E_lin]],
+  flex:I=>[[.143,[.7,1.0,.65],[-.7,1.0,.65],E_out],[.286,[1.15,1.95,.1],[-1.15,1.95,.1],E_out],[.429,[1.05,2.05,.2],[-1.05,2.05,.2],E_io],[.571,[1.15,1.95,.1],[-1.15,1.95,.1],E_io],[.78,[1.1,1.9,.15],[-1.1,1.9,.15],E_lin]],
+  pound:I=>[[.143,[1.0,1.7,.4],[-1.0,1.7,.4],E_out],[.286,[.25,1.45,.72],[-.25,1.45,.72],E_in],[.429,[1.0,1.7,.4],[-1.0,1.7,.4],E_out],[.571,[.25,1.45,.72],[-.25,1.45,.72],E_in],[.714,[.8,1.15,-.55],[-.8,1.15,-.55],E_out],[.857,[.7,1.3,.95],[-.7,1.15,-.35],E_in]],
+  feast:I=>[[.143,[.55,1.9,0],[-1.3,1.8,.1],E_out],[.286,[.9,.55,.85],[-.5,.85,1.3],E_in],[.429,[.45,.8,1.3],[-.45,.8,1.3],E_out],[.571,[.26,1.95,.6],[-.26,1.95,.6],E_io],[.714,[.6,1.2,.7],[-.3,1.1,.8],E_io],[.857,[.9,.55,.85],[-.5,1.25,.85],E_io]]
+};
+function jvPost(S,ga,m0){
+  const p=ga.p, k=ga.kind, sl=ga.slot==null?0:(((ga.slot|0)%4)+4)%4;
+  let rx=0, ry=0, rz=0;
+  if(k==='walk'){ const ph=p*Math.PI*2; rz=Math.sin(ph)*.035; ry=Math.sin(ph)*.05; }
+  else if(k==='attack') rx=-.07*bell(p,.286,.12)+.11*bell(p,.58,.12);
+  else if(k==='cast'){
+    if(sl===0) rx=-.06*bell(p,.2,.1)+.14*bell(p,.5,.14);
+    else if(sl===1) rx=-.05*bell(p,.43,.2);
+    else if(sl===2) rx=-.03*bell(p,.2,.1)+.12*bell(p,.78,.12);
+    else rx=-.09*bell(p,.143,.08)+.08*bell(p,.36,.1)-.1*bell(p,.571,.08)-.05*bell(p,.714,.06);
+  }
+  if(!rx&&!ry&&!rz) return;
+  const kk=S.sc, pv=[0,.25*kk,0], R=[rx,ry,rz];
+  for(let i=m0;i<S.faces.length;i++){
+    const f=S.faces[i], mv=q=>add(rotEuler(sub(q,pv),R),pv);
+    f.p=f.p.map(mv); f.c=mv(f.c);
+    if(f.nm) f.nm=rotEuler(f.nm,R);
+    if(f.vn) f.vn=f.vn.map(v=>rotEuler(v,R));
+  }
+}
+autoAnim('juvsyut',   {walkArm:.1, att:JV_ST.club, hit:.58, casts:[JV_ST.ram,JV_ST.flex,JV_ST.pound,JV_ST.feast], rings:[0,1,2,3], ringR:1.6, hands:'R', trailOff:[0,.5,0], col:['#ffd568','#fff3b0'], post:jvPost});
 autoAnim('savely',    {walkArm:.1, att:'punch',  hit:.5, casts:['guard','raise','throw','raise'], rings:[1,3], ringR:1.6, hands:'R', trail:'none', col:['#ffcc66','#fff3c4']});
 autoAnim('juggernaut',{walkArm:.1, att:'slashR', hit:.5, casts:['whirl','lup','sweep','flurry'], rings:[0,3], ringR:1.35, hands:'R', trailOff:[0,.9,.2], col:['#ffe7a2','#ffffff']});
 autoAnim('sniper',    {walkArm:.05,att:'recoil', hit:.4, ranged:1, casts:['throw','recoil','aim','bigrecoil'], rings:[2], ringR:1.2, hands:'R', trail:'none', col:['#ffd27a','#fff3c4']});
 
-/* ---------- Олекс — боец-программист (0.9.6.1) ---------- */
+/* ---------- Олекс — боец-программист (0.9.8: ноутбук, печать, анимации под каждый скилл) ---------- */
+const OL={CY:'#39e6ff',CYL:'#aef6ff',BL:'#4aa8ff',GR:'#7fff9a',HOOD:'#16233d',HOODD:'#0d1628',DARK:'#0b1020',SK:'#e8b894',HAIR:'#2a1c14'};
+const olKb=(C,pit,x,z,y)=>add(C,rotEuler([x,y==null?.07:y,z],[pit,0,0]));
+function olPose(rp,t0){
+  const t=t0+(rp.p||0)*5;   /* фаза печати зависит от кадра анимации */
+  const k=rp.kind, p=rp.p||0, sl=rp.slot|0, br=Math.sin(t*1.6);
+  const P={C:[-.1,1.2+.012*br,.52],pit:.2,phi:1.75,hR:null,hL:null,lean:0,type:.35,flash:0,holo:1,fx:0,k,p,sl,
+    off:[0,0,0],cable:1,ghost:0,rise:0};
+  const typeR=(am,sp)=>{ const q=t*(sp||12); return olKb(P.C,P.pit,.14+.1*Math.sin(q*.7)*am,-.02+.07*Math.cos(q*.9)*am,.07+.035*am*Math.abs(Math.sin(q))); };
+  const typeL=(am,sp)=>{ const q=t*(sp||12)+1.7; return olKb(P.C,P.pit,-.16+.1*Math.sin(q*.8)*am,-.01+.06*Math.cos(q)*am,.07+.03*am*Math.abs(Math.sin(q*1.1))); };
+  const cradleL=()=>add(P.C,rotEuler([-.3,-.1,-.02],[P.pit,0,0]));
+  const walkLike=()=>{ P.hR=typeR(P.type,10); P.hL=cradleL(); };
+  if(k==='walk'){
+    const ph=p*Math.PI*2;
+    P.C=[-.1,1.2+.035*Math.abs(Math.sin(ph))-.0,.5+.02*Math.sin(ph)]; P.pit=.2+.02*Math.sin(ph*2); P.lean=.07; P.type=.55;
+    walkLike();
+  } else if(k==='attack'){
+    /* замах: ноут вперёд, руки взлетают → бешеная печать → удар по Enter → сгусток кода летит вперёд */
+    P.lean=RK(p,[[0,0],[.3,-.03],[.5,.16,E_in],[.8,.06],[1,0]]);
+    P.C=RK(p,[[0,P.C],[.25,[0,1.38,.6]],[.5,[0,1.4,.66]],[.62,[0,1.4,.8],E_in],[1,P.C]]);
+    P.pit=RK(p,[[0,.2],[.3,.38],[.62,.3],[1,.2]]);
+    P.phi=RK(p,[[0,1.75],[.3,1.9],[1,1.75]]);
+    P.type=RK(p,[[0,.4],[.2,1],[.48,1],[.6,.2],[1,.4]]);
+    P.hL=olKb(P.C,P.pit,-.18+.06*Math.sin(t*20),.0,.08+.03*Math.abs(Math.sin(t*23)));
+    if(p<.22){ P.hR=RK(p,[[0,typeR(.4,10)],[.22,[.55,1.95,.5]]]); P.hL=RK(p,[[0,cradleL()],[.22,P.hL]]); }
+    else if(p<.5) P.hR=olKb(P.C,P.pit,.15+.1*Math.sin(t*22),-.02+.06*Math.cos(t*25),.07+.04*Math.abs(Math.sin(t*26)));
+    else P.hR=RK(p,[[.5,olKb(P.C,P.pit,.2,-.04,.2)],[.56,olKb(P.C,P.pit,.24,-.06,.03),E_in],[.8,olKb(P.C,P.pit,.2,-.02,.14)],[1,typeR(.4,10)]]);
+    P.flash=bell(p,.58,.09); P.fx=p>.55&&p<.95?(p-.55)/.4:0;
+  } else if(k==='cast'&&sl===0){
+    /* Q — «Строка кода»: ноут к цели, быстрая печать, Enter, луч символов */
+    P.lean=RK(p,[[0,0],[.35,-.02],[.55,.14],[1,0]]);
+    P.C=RK(p,[[0,P.C],[.3,[0,1.42,.7]],[.7,[0,1.42,.78]],[1,P.C]]); P.pit=RK(p,[[0,.2],[.3,.34],[1,.2]]); P.phi=1.9;
+    P.type=RK(p,[[0,.4],[.2,1],[.45,1],[.55,.1],[1,.4]]);
+    P.hL=olKb(P.C,P.pit,-.2,.0,.09);
+    P.hR=p<.5?olKb(P.C,P.pit,.15+.1*Math.sin(t*24),-.02+.06*Math.cos(t*27),.07+.04*Math.abs(Math.sin(t*26))):RK(p,[[.5,olKb(P.C,P.pit,.2,-.04,.2)],[.56,olKb(P.C,P.pit,.24,-.06,.03),E_in],[.85,olKb(P.C,P.pit,.2,-.02,.14)],[1,typeR(.4,10)]]);
+    P.flash=bell(p,.56,.08); P.fx=p>.52?cl01((p-.52)/.4):0;
+  } else if(k==='cast'&&sl===1){
+    /* W — «Вирус / Патч»: ноут на правой руке, левая выбрасывает руны вперёд */
+    P.lean=RK(p,[[0,0],[.45,.1],[1,0]]);
+    P.C=RK(p,[[0,P.C],[.25,[.32,1.2,.46]],[.8,[.32,1.2,.46]],[1,P.C]]); P.pit=.2; P.phi=1.8;
+    P.hR=olKb(P.C,P.pit,.0,.1,-.06);
+    P.hL=RK(p,[[0,cradleL()],[.35,[-.55,1.75,.55]],[.55,[-.4,1.62,1.25],E_in],[.85,[-.4,1.6,1.2]],[1,cradleL()]]);
+    P.type=.2; P.flash=bell(p,.56,.1); P.fx=p>.5?cl01((p-.5)/.45):0;
+  } else if(k==='cast'&&sl===2){
+    /* E — «Авто-турель»: приседает, ставит ноут на землю, печатает — над ним вырастает голограмма-турель */
+    P.lean=RK(p,[[0,0],[.3,.3],[.8,.3],[1,0]]);
+    P.C=RK(p,[[0,P.C],[.3,[0,.16,.95]],[.85,[0,.16,.95]],[1,P.C]]); P.pit=RK(p,[[0,.2],[.3,.04],[.85,.04],[1,.2]]); P.phi=1.75; P.holo=0;
+    P.hR=olKb(P.C,P.pit,.14+.1*Math.sin(t*22),-.02+.05*Math.cos(t*25),.07+.04*Math.abs(Math.sin(t*26)));
+    P.hL=olKb(P.C,P.pit,-.16+.1*Math.sin(t*20+1),-.01+.05*Math.cos(t*23),.07+.04*Math.abs(Math.sin(t*28)));
+    P.type=1; P.flash=bell(p,.6,.1); P.fx=cl01((p-.3)/.45); P.cable=0;
+  } else if(k==='cast'&&sl===3){
+    /* R — «Синий экран смерти»: ноут над головой, огромный синий экран, кольцо кода по земле */
+    P.lean=RK(p,[[0,0],[.35,-.14],[.75,-.1],[1,0]]);
+    P.C=RK(p,[[0,P.C],[.38,[0,2.62,.12]],[.85,[0,2.62,.12]],[1,P.C]]); P.pit=RK(p,[[0,.2],[.38,-.35],[.85,-.35],[1,.2]]); P.phi=RK(p,[[0,1.75],[.4,1.95],[1,1.75]]);
+    P.hR=olKb(P.C,P.pit,.3,.0,-.08); P.hL=olKb(P.C,P.pit,-.3,.0,-.08);
+    P.type=0; P.holo=0; P.flash=bell(p,.55,.12); P.fx=cl01((p-.3)/.4); P.cable=0;
+  } else if(k==='cast'&&sl===4){
+    /* T — «Отладка»: ноут закрыт и прижат к боку, рывок вперёд со шлейфом */
+    P.lean=RK(p,[[0,0],[.3,.28],[.7,.34],[1,0]]);
+    P.C=RK(p,[[0,P.C],[.25,[-.44,1.12,.02]],[.8,[-.44,1.12,.02]],[1,P.C]]); P.pit=RK(p,[[0,.2],[.25,1.5],[.8,1.5],[1,.2]]); P.phi=RK(p,[[0,1.75],[.25,.12],[.8,.12],[1,1.75]]);
+    P.hL=RK(p,[[0,cradleL()],[.25,[-.5,1.1,.3]],[.8,[-.5,1.1,.3]],[1,cradleL()]]);
+    P.hR=RK(p,[[0,typeR(.4,10)],[.3,[.55,1.5,.95]],[.7,[.5,1.4,.9]],[1,typeR(.4,10)]]);
+    P.type=0; P.holo=0; P.flash=bell(p,.35,.12); P.ghost=bell(p,.5,.28); P.cable=0; P.fx=cl01(p/.6);
+  } else {
+    P.type=.45; walkLike();
+  }
+  if(!P.hR||!P.hL) walkLike();
+  return P;
+}
+/* ноутбук: основание + откидная крышка; снаружи светится знак, внутри — экран */
+function olLaptop(S,C,pit,phi,t,P){
+  const BASE='#2a3550', LID='#1c2640', W=.66, D=.46;
+  S.box(C,[W,.04,D],BASE,{rot:[pit,0,0],shine:.5});
+  S.box(add(C,rotEuler([0,.022,-.02],[pit,0,0])),[W*.9,.01,D*.62],'#0e1526',{rot:[pit,0,0]});            // клавиатура
+  for(let i=0;i<4;i++) S.box(add(C,rotEuler([0,.03,-.14+i*.06],[pit,0,0])),[W*.82,.008,.028],i%2?'#46557c':'#3a4668',{rot:[pit,0,0]});
+  S.box(add(C,rotEuler([0,.026,.14],[pit,0,0])),[.2,.006,.08],'#1a2238',{rot:[pit,0,0]});                    // тачпад
+  S.box(add(C,rotEuler([-W/2+.01,.0,0],[pit,0,0])),[.02,.03,D*.9],P&&P.k==='cast'?OL.CY:'#39e6ff',{rot:[pit,0,0],glow:1}); // неоновая кромка
+  const hinge=add(C,rotEuler([0,.02,D/2-.01],[pit,0,0])), th=phi-Math.PI, d=[0,Math.sin(phi),-Math.cos(phi)];
+  const dir=rotEuler(d,[pit,0,0]), lc=add(hinge,mul(dir,D/2));
+  /* внутренняя нормаль (экран смотрит на героя): */
+  const inn=norm(rotEuler([0,-Math.cos(phi),-Math.sin(phi)],[pit,0,0])), out=mul(inn,-1);
+  S.box(lc,[W,.035,D],LID,{rot:[pit+th,0,0],shine:.5});
+  if(phi>.4){
+    const sc=add(lc,mul(inn,.022));
+    const fl=P?P.flash:0;
+    S.box(sc,[W*.9,.008,D*.86],fl>.2?'#e8ffff':'#0c2c52',{rot:[pit+th,0,0],glow:1});
+    for(let i=0;i<5;i++){ const w=.14+((i*53+Math.floor(t*2))%5)*.07, along=D*.2+i*.07;
+      S.box(add(add(hinge,mul(dir,along)),mul(inn,.03)),[w,.006,.022],i%2?OL.CYL:OL.CY,{rot:[pit+th,0,0],glow:1}); }
+    const lg=add(lc,mul(out,.022));
+    S.ell(lg,[.07,.07,.012],OL.CY,{glow:1,rings:4,seg:10,rot:[pit+th+Math.PI/2,0,0]});
+  }
+  return {lid:lc,inn,out,hinge,dir};
+}
+function olHolo(S,pos,w,h,t,col,mode,sc){
+  sc=sc==null?1:sc; if(sc<.02) return;
+  const W=w*sc,H=h*sc;
+  S.box(pos,[W,H,.02],mode==='bsod'?'#06197a':'#0a2a4a',{glow:mode==='bsod'?0:1,shine:.3});
+  S.box(add(pos,[0,0,.012]),[W*.96,H*.94,.008],mode==='bsod'?'#0b2fb4':'#0f3d66',{glow:mode==='bsod'?0:1,shine:.2});
+  S.box(add(pos,[0,H*.5,0]),[W*1.04,.02*sc,.03],col,{glow:1}); S.box(add(pos,[0,-H*.5,0]),[W*1.04,.02*sc,.03],col,{glow:1});
+  S.box(add(pos,[-W*.5,0,0]),[.02*sc,H,.03],col,{glow:1}); S.box(add(pos,[W*.5,0,0]),[.02*sc,H,.03],col,{glow:1});
+  if(mode==='bsod'){
+    /* грустный смайлик «:(» и строки текста */
+    S.box(add(pos,[-W*.28,H*.18,.02]),[W*.05,H*.14,.01],'#f4fbff',{glow:1}); S.box(add(pos,[-W*.12,H*.18,.02]),[W*.05,H*.14,.01],'#f4fbff',{glow:1});
+    S.box(add(pos,[-W*.2,H*.0,.02]),[W*.2,H*.04,.01],'#f4fbff',{glow:1,rot:[0,0,.0]});
+    S.box(add(pos,[-W*.31,H*-.04,.02]),[W*.04,H*.1,.01],'#f4fbff',{glow:1}); S.box(add(pos,[-W*.09,H*-.04,.02]),[W*.04,H*.1,.01],'#f4fbff',{glow:1});
+    for(let i=0;i<4;i++) S.box(add(pos,[-W*.12+((i*37)%3)*W*.04,-H*(.22+i*.1),.02]),[W*(.56-((i*29)%4)*.08),H*.04,.01],'#cfe6ff',{glow:1});
+  } else {
+    for(let i=0;i<6;i++){ const ww=W*(.25+((i*37+Math.floor(t*3+i))%5)*.12), sh=((t*.8+i*.17)%1);
+      S.box(add(pos,[-W*.42+ww/2,H*.38-i*H*.14,.016]),[ww,H*.05,.008],i%3===0?OL.GR:(i%2?OL.CYL:OL.CY),{glow:1}); }
+  }
+}
 MODELS.olex=(S,d,t,pose)=>{
-  const HOOD='#1b2a44',HOODD='#111c30',JEAN='#222a3a',CY='#39e6ff',CYL='#aef6ff',SK='#e8b894',HAIR='#2a1c14',SHOE='#e8e8ee',DARK='#0e1422';
-  man(S,{face:true,cloth:HOOD,arm:HOOD,legs:JEAN,boots:SHOE,toe:'#bfc6d4',belt:DARK,nopouch:true,trim:CY,cuff:CY,skin:SK,hair:HAIR,
-    armR:[.58,1.3,.5],armL:[-.55,1.28,.5],bracer:DARK,
+  const {CY,CYL,BL,GR,HOOD,HOODD,DARK,SK,HAIR}=OL;
+  const rp=rigResolve(pose,t,'ol',5), P=olPose(rp,t);
+  const m0=S.faces.length;
+  man(S,{face:true,cloth:HOOD,arm:HOOD,forearm:HOOD,legs:'#1a2236',boots:'#f2f4fa',toe:CY,belt:DARK,nopouch:true,trim:CY,cuff:CY,skin:SK,hair:HAIR,fringe:HAIR,
+    glove:'#2a3550',bracer:CY,knee:'#26334f',armR:P.hR,armL:P.hL,walk:rp.kind==='walk'?rp.p*Math.PI*2:null,
     fo:{eye:'#2a3a5a',angry:0,mouth:'smile',brow:HAIR}});
-  /* капюшон и наушники */
-  S.ell([0,2.02,-.12],[.33,.27,.3],HOOD,{rings:7,seg:14});
-  S.tube([-.3,2.02,0],[.3,2.02,0],.06,.06,DARK,{seg:8});
-  for(const s of [-1,1]){ S.ell([s*.3,2.0,0],[.07,.14,.14],DARK,{rings:5,seg:8,shine:.4}); S.ell([s*.34,2.0,0],[.02,.09,.09],CY,{glow:1,rings:4,seg:8}); }
-  /* очки-дисплей */
-  S.box([0,2.03,.27],[.44,.1,.04],CY,{glow:1,shine:.7});
-  S.box([0,2.03,.285],[.4,.06,.02],CYL,{glow:1});
-  /* худи: шнурки и карман */
-  S.box([0,1.3,.34],[.5,.2,.05],HOODD);
-  S.tube([-.08,1.55,.34],[-.08,1.38,.38],.015,.015,CYL,{seg:4}); S.tube([.08,1.55,.34],[.08,1.38,.38],.015,.015,CYL,{seg:4});
-  S.box([.2,1.5,.35],[.14,.1,.02],CY,{glow:1});   /* значок «</>» */
-  /* рюкзак с серверной стойкой и вентилятором */
-  S.box([0,1.5,-.45],[.66,.85,.3],DARK);
-  for(let i=0;i<4;i++){ S.box([0,1.2+i*.2,-.61],[.5,.05,.02],CY,{glow:i%2===0}); }
-  S.ell([.0,1.62,-.62],[.17,.17,.03],'#222a3a',{rings:5,seg:12});
-  for(let i=0;i<3;i++){ const a=t*9+i*2.094; S.tube([0,1.62,-.65],[Math.cos(a)*.15,1.62+Math.sin(a)*.15,-.65],.015,.015,CYL,{seg:4}); }
-  S.tube([-.22,1.95,-.45],[-.22,2.45,-.45],.025,.025,CYL,{glow:1,seg:5});
-  S.ell([-.22,2.48,-.45],[.05,.05,.05],'#ff4b4b',{glow:1,rings:4,seg:6});
-  /* голографический экран с кодом возле правой руки */
-  const hy=1.78+Math.sin(t*2)*.05;
-  S.box([.95,hy,.45],[.62,.42,.03],'#0c2a44',{glow:1,rot:[0,-.5,0]});
-  for(let i=0;i<4;i++){ const w=.14+((i*37)%5)*.06; S.box([.95-.02*i,hy+.13-i*.085,.47],[w,.025,.02],i%2?CYL:CY,{glow:1,rot:[0,-.5,0]}); }
-  /* плавающие символы вокруг */
-  for(let i=0;i<5;i++){ const a=t*1.3+i*1.256, r=1.15; S.box([Math.cos(a)*r,1.2+Math.sin(t*1.7+i)*.25+i*.1,Math.sin(a)*r],[.07,.07,.02],i%2?CY:CYL,{glow:1,rot:[0,a,0]}); }
+  /* капюшон: объёмный, с неоновой каймой */
+  S.ell([0,2.0,-.14],[.36,.3,.34],HOOD,{rings:8,seg:16});
+  S.ell([0,2.2,-.06],[.3,.14,.3],HOOD,{rings:5,seg:12});
+  S.ring([0,2.0,.1],.31,.022,CY,{axis:'z',n:22,glow:1});
+  S.tube([-.31,1.82,.06],[-.31,1.66,.12],.035,.03,CY,{glow:1,seg:6}); S.tube([.31,1.82,.06],[.31,1.66,.12],.035,.03,CY,{glow:1,seg:6});
+  /* наушники с неоном */
+  S.tube([-.31,2.03,0],[.31,2.03,0],.05,.05,DARK,{seg:8});
+  for(const s of [-1,1]){ S.ell([s*.31,2.0,0],[.085,.16,.16],DARK,{rings:5,seg:10,shine:.5}); S.ell([s*.365,2.0,0],[.025,.1,.1],CY,{glow:1,rings:4,seg:8});
+    S.tube([s*.33,1.93,.1],[s*.2,1.82,.26],.012,.012,CY,{glow:1,seg:4}); S.ell([s*.19,1.82,.27],[.03,.03,.03],CYL,{glow:1,rings:3,seg:6}); }
+  /* AR-очки: рамка и светящиеся стёкла, в стёклах бегут строки */
+  S.box([0,2.04,.28],[.5,.12,.045],DARK,{shine:.7});
+  for(const s of [-1,1]){ S.box([s*.12,2.04,.30],[.2,.085,.02],'#0f4a78',{glow:1}); S.box([s*.12,2.05+.015*Math.sin(t*5+s),.315],[.15,.012,.01],CYL,{glow:1}); }
+  S.box([0,2.04,.31],[.04,.05,.02],CY,{glow:1});
+  /* худи: логотип, шнурки, карман, схемы на плечах и рукавах */
+  S.box([0,1.28,.345],[.52,.2,.05],HOODD);
+  S.tube([-.08,1.58,.33],[-.08,1.4,.39],.014,.014,CYL,{seg:4}); S.tube([.08,1.58,.33],[.08,1.4,.39],.014,.014,CYL,{seg:4});
+  S.ell([-.08,1.39,.39],[.02,.02,.02],CY,{glow:1,rings:3,seg:6}); S.ell([.08,1.39,.39],[.02,.02,.02],CY,{glow:1,rings:3,seg:6});
+  S.box([.2,1.5,.36],[.14,.1,.02],CY,{glow:1,shine:.7}); S.box([.2,1.5,.375],[.09,.03,.01],DARK);
+  for(const s of [-1,1]){ S.box([s*.3,1.62,.3],[.012,.22,.01],CY,{glow:1,rot:[0,0,s*.5]}); S.box([s*.46,1.45,.1],[.012,.3,.012],CY,{glow:1,rot:[.1,0,s*.12]}); }
+  /* бейдж на шнурке */
+  S.tube([-.12,1.7,.3],[0,1.38,.4],.008,.008,CY,{glow:1,seg:3}); S.tube([.12,1.7,.3],[0,1.38,.4],.008,.008,CY,{glow:1,seg:3});
+  S.box([0,1.31,.4],[.12,.15,.012],'#e8f4ff',{shine:.6}); S.box([0,1.33,.41],[.07,.03,.006],CY,{glow:1});
+  /* штаны: неоновые лампасы */
+  for(const s of [-1,1]) S.box([s*.35,.7,.04],[.014,.55,.02],CY,{glow:1,shine:.5});
+  /* рюкзак с мини-сервером, вентилятором и антенной */
+  S.box([0,1.5,-.46],[.68,.88,.3],DARK);
+  S.box([0,1.5,-.62],[.6,.78,.03],'#18223a');
+  for(let i=0;i<4;i++){ S.box([0,1.18+i*.2,-.64],[.5,.05,.02],CY,{glow:(Math.floor(t*3)+i)%2===0?1:0}); }
+  S.ell([0,1.62,-.65],[.17,.17,.03],'#222a3a',{rings:5,seg:12});
+  for(let i=0;i<3;i++){ const a=t*9+i*2.094; S.tube([0,1.62,-.67],[Math.cos(a)*.15,1.62+Math.sin(a)*.15,-.67],.015,.015,CYL,{seg:4}); }
+  S.tube([-.22,1.95,-.46],[-.22,2.5,-.46],.025,.025,CYL,{glow:1,seg:5});
+  S.ell([-.22,2.53,-.46],[.05,.05,.05],Math.sin(t*6)>0?'#ff4b4b':'#7a1f1f',{glow:1,rings:4,seg:6});
+  S.tube([.2,1.95,-.46],[.28,2.3,-.46],.02,.02,CY,{glow:1,seg:5});
+  for(const s of [-1,1]) S.tube([s*.3,1.82,-.2],[s*.3,1.3,-.34],.025,.025,'#0e1526',{seg:5});
+  /* ноутбук и кабель от рюкзака */
+  const L=olLaptop(S,P.C,P.pit,P.phi,t,P);
+  if(P.cable>0){
+    const a=[.3,1.28,-.36], b=[.62,1.05,.0], c=add(P.C,rotEuler([.3,0,.12],[P.pit,0,0]));
+    let prev=a; for(let i=1;i<=6;i++){ const u=i/6, q=add(add(mul(a,(1-u)*(1-u)),mul(b,2*u*(1-u))),mul(c,u*u)); S.tube(prev,q,.014,.014,CY,{glow:1,seg:4}); prev=q; }
+  }
+  /* голографический экран над ноутом, повёрнут к зрителю */
+  if(P.holo>0){ const hy=P.C[1]+.62+Math.sin(t*2)*.03; olHolo(S,[P.C[0]+.92,hy+.45,P.C[2]-.05],.56,.34,t,CY,'code',P.holo*(rp.kind==='attack'||rp.kind==='cast'?1.15:1)); }
+  /* пальцы-искры при печати */
+  if(P.type>.5){ for(let i=0;i<3;i++){ const q=(t*5+i/3)%1; G(S,add(olKb(P.C,P.pit,.0+i*.14,-.04,.1),[0,q*.25,q*.1]),.022*(1-q),i%2?CYL:CY); } }
+  /* общий наклон корпуса */
+  if(P.lean) xfGroup(S,m0,[0,0,0],mkRot(P.lean,0,0),[0,0,0]);
+  /* ---- эффекты способностей ---- */
+  const fwd=(z,y,x)=>{ const R=mkRot(P.lean,0,0); return R([x||0,y,z]); };
+  const k=rp.kind, sl=rp.slot|0;
+  if(k==='attack'||(k==='cast'&&sl===0)){
+    if(P.fx>0){ const n=7; for(let i=0;i<n;i++){ const u=P.fx*1.3-i*.09; if(u<0||u>1) continue; const z=.95+u*3.6;
+      const col=i%2?CYL:CY, w=.2*(1-u*.4);
+      S.box(fwd(z,1.5+.05*Math.sin(i*3+t*20)),[w,w*.6,.04],col,{glow:1,rot:[0,0,u*3+i]});
+      if(i===0) G(S,fwd(z,1.5),.1,'#ffffff'); } }
+    if(P.flash>.2) G(S,fwd(.95,1.52),.16*P.flash,'#e8ffff');
+  }
+  if(k==='cast'&&sl===1&&P.fx>0){
+    const u=P.fx;
+    for(let i=0;i<14;i++){ const a=i*.9+t*6, r=.12+u*.35, z=1.2+u*1.9*((i%5)/5+.35);
+      S.box(fwd(z,1.6+Math.sin(a)*r,-.4+Math.cos(a)*r),[.07,.07,.02],i%2?GR:CY,{glow:1,rot:[0,0,a]}); }
+    floorFx(S,()=>{ S.ring([0,.015,0],.9*u+.2,.03,GR,{glow:1,n:30}); });
+    G(S,[-.4,1.6,1.22],.1+.12*P.flash,GR);
+  }
+  if(k==='cast'&&sl===2){
+    const u=P.fx, tx=P.C[0], tz=P.C[2]+.05;
+    if(u>0){ const g=E_out(u), y0=.28;
+      S.ell([tx,y0+.06,tz],[.2*g,.07*g,.2*g],'#25345a',{glow:0,rings:4,seg:12});
+      S.box([tx,y0+.2*g,tz],[.2*g,.2*g,.2*g],'#2c3d68',{glow:0,shine:.5});
+      S.ell([tx,y0+.42*g,tz],[.13*g,.1*g,.13*g],CY,{glow:1,rings:4,seg:10});
+      S.tube([tx,y0+.42*g,tz],[tx,y0+.46*g,tz+.45*g],.03*g,.022*g,CYL,{glow:1,seg:6});
+      for(let i=0;i<6;i++){ const a=i/6*Math.PI*2+t*3; S.box([tx+Math.cos(a)*.3*g,y0+.05+((t*1.5+i/6)%1)*.5,tz+Math.sin(a)*.3*g],[.04,.04,.01],i%2?CYL:CY,{glow:1,rot:[0,a,0]}); }
+      floorFx(S,()=>{ S.ring([tx,.015,tz],.35+.5*u,.03,CY,{glow:1,n:26}); }); }
+  }
+  if(k==='cast'&&sl===3){
+    const u=P.fx, sc=E_out(u);
+    olHolo(S,fwd(.6,3.7,0),1.9,1.1,t,BL,'bsod',sc);
+    floorFx(S,()=>{ for(const j of [0,.15]){ const q=cl01(u-j); S.ring([0,.015,0],.4+2.2*q,.05*(1-q*.6)+.015,j?BL:CYL,{glow:1,n:44}); } });
+    for(let i=0;i<22;i++){ const a=i*2.4+.5, rr=.8+((i*37)%7)*.28, ph=(t*1.1+i*.173)%1;
+      if(u<.15) continue; S.box([Math.cos(a)*rr,3.3-ph*3.2,Math.sin(a)*rr],[.05,.1,.02],i%3?BL:CYL,{glow:1}); }
+    G(S,fwd(.12,2.7,0),.22*P.flash+.06*u,'#cfe6ff');
+  }
+  if(k==='cast'&&sl===4){
+    const g=P.ghost;
+    if(g>.03){ for(let i=1;i<=7;i++){ const z=-.25-i*.4*g, a=(1-i/8)*g;
+      S.box([0,1.5-i*.04,z],[.16*a+.03,.55*a+.06,.03],i%2?CY:CYL,{glow:1}); S.box([0,.7,z],[.14*a+.03,.5*a+.06,.03],CY,{glow:1}); } }
+    G(S,[.5,1.5,.95],.1+.14*P.flash,CYL);
+    floorFx(S,()=>{ S.ring([0,.015,0],.5+.7*P.fx,.04,CY,{glow:1,n:24}); });
+    for(let i=0;i<10;i++){ const q=(t*2+i/10)%1; S.box([Math.sin(i*5)*.4,.2+q*1.6,-.2-q*1.2*g],[.05,.05,.02],i%2?CYL:CY,{glow:1}); }
+  }
+  /* парящие символы кода вокруг: в бою вращаются быстрее */
+  const hot=rp.kind==='idle'||rp.kind==='walk'?1:1.8;
+  for(let i=0;i<5;i++){ const a=t*1.2*hot+i*1.256, r=1.1+.05*Math.sin(t*2+i); S.box([Math.cos(a)*r,1.1+Math.sin(t*1.7+i)*.25+i*.14,Math.sin(a)*r],[.07,.07,.02],i%2?CY:CYL,{glow:1,rot:[0,a,0]}); }
 };
-autoAnim('olex',{walkArm:.08,att:'throw',hit:.5,ranged:1,casts:['recoil','clap','lup','raise','lpoint'],rings:[3],ringR:1.4,hands:'none',trail:'none',col:['#39e6ff','#e8ffff']});
+ANIM.olex=[{kind:'attack',p:.3},{kind:'attack',p:.58},{kind:'walk',p:.25},{kind:'walk',p:.75},
+  {kind:'cast',slot:0,p:.6},{kind:'cast',slot:1,p:.6},{kind:'cast',slot:2,p:.6},{kind:'cast',slot:3,p:.5},{kind:'cast',slot:3,p:.8},{kind:'cast',slot:4,p:.5}];
 
 /* ---------- 0.8.8: Васпассир — худой лысый зелёный гоблин с огромными ушами и зелёным посохом с кристаллом ---------- */
 const VASP_PAL={
