@@ -7,12 +7,7 @@ try { const sv = parseInt(localStorage.getItem('dota-sens-perf'), 10); if(sv >= 
 /* ===== 0.9.5: расширенные настройки графики (localStorage 'dota-sens-gfx') =====
    Каждый параметр реально читается рендерером: particles — лимит и число частиц, glow — shadowBlur (свечение),
    extras — следы атак/ауры/анимации покупки, shadows — тени юнитов, decor — окружение (туман, листва, блики), fps — счётчик. */
-const GFX_PRESETS = [   /* индекс = perfLevel: 0 высокое, 1 среднее, 2 низкое */
-  {particles:2, glow:2, extras:0, shadows:1, decor:1},
-  {particles:1, glow:1, extras:1, shadows:1, decor:1},
-  {particles:0, glow:0, extras:2, shadows:0, decor:1}
-];
-const GFX = {particles:2, glow:2, extras:0, shadows:1, decor:1, fps:0};
+/* GFX_PRESETS, GFX, gfxSave, GFX_PARTICLE_MUL, PERF_NAMES — в js/data/graphics-settings.js (грузится перед game.js) */
 function gfxPresetValues(level){ return GFX_PRESETS[clamp(level,0,2)]; }
 try {
   const sv = JSON.parse(localStorage.getItem('dota-sens-gfx') || 'null');
@@ -21,10 +16,8 @@ try {
     for(const k of ['shadows','decor','fps']) if(sv[k] === 0 || sv[k] === 1) GFX[k] = sv[k];
   } else Object.assign(GFX, GFX_PRESETS[perfLevel] || GFX_PRESETS[0]);
 } catch(err) {}
-function gfxSave(){ try { localStorage.setItem('dota-sens-gfx', JSON.stringify(GFX)); } catch(err) {} }
 function gfxGlowK(){ return perfLevel >= 3 ? 0 : [0, 0.5, 1][GFX.glow]; }
 function fxl(){ return perfLevel >= 3 ? 3 : GFX.extras; }          /* уровень «дополнительных эффектов» */
-const GFX_PARTICLE_MUL = [0.3, 0.58, 1];
 window.__perfShadow = gfxGlowK();
 if(perfLevel >= 1 && document.body) document.body.classList.add('perf-low');
 (function(){
@@ -44,7 +37,6 @@ if(perfLevel >= 1 && document.body) document.body.classList.add('perf-low');
 const TERRAIN_MARGIN = 96;
 let terrainCamX = 0, terrainCamY = 0;
 let perfNoticeText = '', perfNoticeUntil = 0, perfLastCheck = 0, perfFrameCount = 0;
-const PERF_NAMES = ['Высокая', 'Средняя', 'Низкая', 'Супер низкая'];
 /* Супер низкая: рендер в половинном разрешении (мыльно, зато без лагов) и режим «лайт» для эффектов */
 function perfLite(){ return perfLevel >= 3; }
 let appliedRenderScale = 1;
@@ -20298,27 +20290,7 @@ let accountCareerLoading = false;
 let leaderboardLoading = false;
 let leaderboardError = '';
 let selectedLeaderboardProfile = null;
-const ACCOUNT_RANKS = [[0,'Новобранец'],[3,'Страж'],[6,'Рыцарь'],[10,'Герольд'],[15,'Защитник'],[25,'Легенда'],[40,'Божество'],[60,'Бессмертный']];
-function accountRank(level){
-  let name = ACCOUNT_RANKS[0][1];
-  for(const [min, title] of ACCOUNT_RANKS) if(level >= min) name = title;
-  return name;
-}
-const MMR_RANKS = ['РЕКРУТ','СТРАЖ','РЫЦАРЬ','ГЕРОЛЬД','ЗАЩИТНИК','ЛЕГЕНДА','БОЖЕСТВО','ТИТАН'];
-/* 100 MMR = одна звезда, 5 звёзд = ранг (500 MMR). С 4000 MMR — БЕССМЕРТНЫЙ. */
-function accountRatingRank(rating){
-  rating = Math.max(0, Math.floor(rating || 0));
-  const tier = Math.floor(rating / 500);
-  if(tier >= MMR_RANKS.length) return 'БЕССМЕРТНЫЙ';
-  return MMR_RANKS[tier] + ' ' + (Math.floor((rating % 500) / 100) + 1);
-}
-function refreshOnlineEntryLabel(){
-  if(!onlineEntryElement) return;
-  const profile=account.profile;
-  if(!profile){ onlineEntryElement.textContent='ОНЛАЙН 3 НА 3 · ВОЙДИ ДЛЯ РЕЙТИНГА'; return; }
-  const rating=Number.isFinite(profile.rating)?profile.rating:0;
-  onlineEntryElement.textContent='ОНЛАЙН · '+accountRatingRank(rating)+' · '+rating+' MMR';
-}
+/* [перенесено → js/ui/account-display.js] */
 function accountStore(key, value){
   try { if(value == null) localStorage.removeItem(key); else localStorage.setItem(key, value); }
   catch(err) {}
@@ -20389,293 +20361,11 @@ async function accountApi(name, payload){
   }
   return data;
 }
-function careerHeroName(id){
-  const hero = HERO_DEFS.find(def => def.id === id);
-  return hero ? hero.name : (id || 'Неизвестный боец');
-}
-function careerNode(tag, className, text){
-  const node = document.createElement(tag);
-  if(className) node.className = className;
-  if(text != null) node.textContent = text;
-  return node;
-}
-function renderCareerPanel(){
-  const panel = document.getElementById('career-panel');
-  if(!panel) return;
-  panel.hidden = !account.profile;
-  if(!account.profile) return;
-
-  const profile = account.profile;
-  const summary = document.getElementById('career-summary');
-  const favorites = document.getElementById('career-favorites');
-  const history = document.getElementById('career-history');
-  const xp = document.getElementById('career-xp');
-  summary.replaceChildren(); favorites.replaceChildren(); history.replaceChildren();
-  history.appendChild(careerNode('p','career-local-note','Подробности новых матчей сохраняются в этом браузере.'));
-  xp.textContent = (profile.xp || 0) % 500 + ' / 500 XP';
-
-  [
-    ['МАТЧИ',profile.matches || 0],['ПОБЕДЫ',profile.wins || 0],['ПОРАЖЕНИЯ',profile.losses || 0],
-    ['УБИЙСТВА',profile.kills || 0],['СМЕРТИ',profile.deaths || 0],['MMR',profile.rating || 0]
-  ].forEach(([label,value])=>{
-    const cell=careerNode('div','career-stat');
-    cell.append(careerNode('b','',String(value)),careerNode('span','',label));
-    summary.appendChild(cell);
-  });
-
-  const favoritesList = profile.favoriteHeroes || [];
-  if(!favoritesList.length) favorites.appendChild(careerNode('span','career-empty','Сыграй первый матч'));
-  else favoritesList.forEach(hero=>favorites.appendChild(careerNode('span','career-favorite',careerHeroName(hero.heroId)+' · '+hero.games)));
-
-  if(!accountCareer.history.length){
-    history.appendChild(careerNode('div','career-empty','История появится после первой завершённой игры.'));
-  } else accountCareer.history.forEach(match=>{
-    const details=careerNode('details','career-match'+(match.won?'':' loss'));
-    const summaryNode=careerNode('summary');
-    const playedAt=Number(match.playedAt);
-    const date=Number.isFinite(playedAt) && playedAt > 0 ? new Date(playedAt).toLocaleDateString('ru-RU') : 'Дата не указана';
-    const participants=Array.isArray(match.participants) ? match.participants : [];
-    const matchWorth=match.netWorth != null && match.netWorth !== '' && Number.isFinite(Number(match.netWorth))
-      ? Number(match.netWorth).toLocaleString('ru-RU')+' зол.' : '—';
-    summaryNode.append(
-      careerNode('span','career-match-title',careerHeroName(match.heroId)+' · '+date),
-      careerNode('span','career-match-score',`${match.kills ?? '—'}/${match.deaths ?? '—'}/${match.assists ?? '—'} · ${matchWorth}`)
-    );
-    details.appendChild(summaryNode);
-    const body=careerNode('div','career-match-body');
-    const report=careerNode('div','career-report');
-    const initialParticipant=participants.find(player=>player && player.heroId===match.heroId) || participants[0] || null;
-    let selectedParticipant=initialParticipant;
-    const teamLabel=team=>team===0?'СИЛЫ СВЕТА':team===1?'СИЛЫ ТЬМЫ':team==null?'КОМАНДА':'КОМАНДА '+String(team);
-    const hasValue=value=>value != null && value !== '' && Number.isFinite(Number(value));
-    const displayNumber=value=>hasValue(value) ? Number(value).toLocaleString('ru-RU') : '—';
-    const hasLegacyData=!hasValue(match.duration) ||
-      participants.some(player=>player && (!hasValue(player.level) || !Array.isArray(player.items)));
-
-    const main=careerNode('section','career-report-main');
-    const identity=careerNode('div','career-report-identity');
-    const portrait=careerNode('canvas','career-report-portrait');
-    portrait.width=240; portrait.height=240;
-    portrait.setAttribute('aria-label','Портрет бойца');
-    const identityText=careerNode('div','career-report-name');
-    const heroTitle=careerNode('strong','career-report-hero');
-    const nickTitle=careerNode('span','career-report-nick');
-    identityText.append(heroTitle,nickTitle);
-    const levelBadge=careerNode('span','career-level-badge');
-    identity.append(portrait,levelBadge,identityText);
-    const stats=careerNode('div','career-report-stats');
-    const itemsHeading=careerNode('div','career-report-items-heading','КУПЛЕННЫЕ ПРЕДМЕТЫ');
-    const items=careerNode('div','career-report-items');
-    const detailMeta=careerNode('div','career-report-meta');
-    const legacy=careerNode('p','career-legacy-note');
-    legacy.textContent='Архивный матч: в старой записи часть игровых данных не сохранялась.';
-    legacy.hidden=!hasLegacyData;
-    const perfHeading=careerNode('div','career-report-items-heading','ДЕЙСТВИЯ ИГРОКА В ЭТОМ МАТЧЕ');
-    const perf=careerNode('div','career-perf');
-    const avgBox=careerNode('div','career-avg');
-    main.append(identity,stats,itemsHeading,items,perfHeading,perf,avgBox,detailMeta,legacy);
-    report.appendChild(main);
-
-    const roster=careerNode('section','career-report-roster');
-    const rosterHeading=careerNode('div','career-report-roster-heading','СОСТАВЫ МАТЧА');
-    const rosterTeams=careerNode('div','career-report-teams');
-    const teamBuckets=new Map();
-    participants.forEach(player=>{
-      if(!player) return;
-      const key=String(player.team == null ? 'unknown' : player.team);
-      if(!teamBuckets.has(key)) teamBuckets.set(key,{team:player.team,players:[]});
-      teamBuckets.get(key).players.push(player);
-    });
-    if(match.winnerTeam != null && !teamBuckets.has(String(match.winnerTeam))) teamBuckets.set(String(match.winnerTeam),{team:match.winnerTeam,players:[]});
-    const orderedTeams=Array.from(teamBuckets.values()).sort((a,b)=>{
-      const aa=Number(a.team), bb=Number(b.team);
-      return Number.isFinite(aa)&&Number.isFinite(bb)?aa-bb:String(a.team).localeCompare(String(b.team));
-    });
-    orderedTeams.forEach(bucket=>{
-      const team=careerNode('div','career-roster-team'+(bucket.team===match.winnerTeam?' winner':''));
-      const label=careerNode('div','career-team-label');
-      label.append(careerNode('strong','',teamLabel(bucket.team)),bucket.team===match.winnerTeam?careerNode('small','','ПОБЕДИТЕЛЬ'):careerNode('small','',''));
-      team.appendChild(label);
-      bucket.players.forEach(player=>{
-        const row=careerNode('button','career-participant'+(player===selectedParticipant?' selected':'')+(player.team===match.winnerTeam?' winner':''));
-        row.type='button';
-        row.setAttribute('aria-pressed',player===selectedParticipant?'true':'false');
-        const miniPortrait=careerNode('canvas','career-participant-portrait');
-        miniPortrait.width=52; miniPortrait.height=52;
-        if(typeof window.__renderHeroPortrait==='function') window.__renderHeroPortrait(miniPortrait,player.heroId);
-        const playerText=careerNode('span','career-participant-name');
-        playerText.append(careerNode('strong','',player.nick || careerHeroName(player.heroId)),careerNode('small','',careerHeroName(player.heroId)));
-        const playerScore=careerNode('span','career-participant-kda',`${player.kills ?? '—'}/${player.deaths ?? '—'}/${player.assists ?? '—'}`);
-        row.append(miniPortrait,playerText,playerScore);
-        row.addEventListener('click',event=>{
-          event.preventDefault();
-          selectedParticipant=player;
-          renderSelected();
-          rosterTeams.querySelectorAll('.career-participant').forEach(button=>{
-            const active=button===row;
-            button.classList.toggle('selected',active);
-            button.setAttribute('aria-pressed',active?'true':'false');
-          });
-        });
-        team.appendChild(row);
-      });
-      rosterTeams.appendChild(team);
-    });
-    if(!participants.length) rosterTeams.appendChild(careerNode('div','career-empty','Состав матча не сохранён.'));
-    roster.append(rosterHeading,rosterTeams);
-    report.appendChild(roster);
-
-    function renderSelected(){
-      const player=selectedParticipant;
-      const heroId=player ? player.heroId : match.heroId;
-      heroTitle.textContent=careerHeroName(heroId);
-      nickTitle.textContent=player ? (player.nick || 'Игрок')+' · '+teamLabel(player.team) : 'Боец матча';
-      if(typeof window.__renderHeroPortrait==='function') window.__renderHeroPortrait(portrait,heroId);
-      stats.replaceChildren();
-      const k=player ? player.kills : match.kills, d=player ? player.deaths : match.deaths, a=player ? player.assists : match.assists;
-      [
-        ['УБИЙСТВА',k ?? '—','career-stat-kills'],
-        ['СМЕРТИ',d ?? '—','career-stat-deaths'],
-        ['ПОМОЩЬ',a ?? '—','career-stat-assists'],
-        ['УРОВЕНЬ',player && player.level != null ? player.level : '—',''],
-        ['ЗОЛОТО',player && player.gold != null ? displayNumber(player.gold) : '—',''],
-        ['ЦЕННОСТЬ',displayNumber(player && player.netWorth != null ? player.netWorth : match.netWorth),'']
-      ].forEach(([label,value,className])=>{
-        const stat=careerNode('div','career-report-stat '+className);
-        stat.append(careerNode('b','',String(value)),careerNode('span','',label));
-        stats.appendChild(stat);
-      });
-      items.replaceChildren();
-      levelBadge.textContent=player && player.level != null ? String(player.level) : '—';
-      const slots=player && Array.isArray(player.items) ? player.items.slice(0,6) : [];
-      for(let i=0;i<6;i++){
-        const item=slots[i];
-        const itemDef=item ? SHOP_ITEMS[item] : null;
-        const slot=careerNode('div','career-item-slot'+(item?' filled':''));
-        slot.title=itemDef ? itemDef.name : item ? String(item) : 'Пустой слот';
-        if(itemDef){
-          slot.style.setProperty('--item-color',itemDef.color || '#d6c49a');
-          const icon=careerNode('canvas','career-item-icon');
-          icon.width=96; icon.height=96;
-          icon.setAttribute('aria-label',itemDef.name);
-          const drawn=typeof window.__renderItemIcon==='function' && window.__renderItemIcon(icon,item);
-          if(drawn) slot.appendChild(icon);
-          else {
-            const glyph=careerNode('span','career-item-glyph',itemDef.icon || '◇');
-            glyph.style.color=itemDef.color || '#d6c49a';
-            slot.appendChild(glyph);
-          }
-          slot.appendChild(careerNode('span','career-item-name',itemDef.name || String(item)));
-        } else if(item) slot.appendChild(careerNode('span','career-item-name',String(item)));
-        items.appendChild(slot);
-      }
-      /* Шкалы 0–10: насколько игрок выделялся среди всех участников матча */
-      perf.replaceChildren();
-      const bestOf=key=>Math.max(1,...participants.map(p=>Number(p && p[key]) || 0));
-      const netValue=player && player.netWorth != null ? player.netWorth : match.netWorth;
-      [['УБИЙСТВА','kills',k,'kills'],['СМЕРТИ','deaths',d,'deaths'],['ПОМОЩЬ','assists',a,'assists'],['БОГАТСТВО','netWorth',netValue,'gold']].forEach(([label,key,value,cls])=>{
-        const num=Number(value) || 0;
-        const ratio=Math.max(0,Math.min(1,num/bestOf(key)));
-        const row=careerNode('div','career-perf-row '+cls);
-        const track=careerNode('div','career-perf-track');
-        const fill=careerNode('i','career-perf-fill');
-        fill.style.width=Math.max(3,Math.round(ratio*100))+'%';
-        track.appendChild(fill);
-        row.append(careerNode('span','career-perf-label',label),track,careerNode('b','career-perf-value',(ratio*10).toFixed(1)));
-        perf.appendChild(row);
-      });
-      /* Сравнение со средними результатами на этом герое (только для самого владельца аккаунта) */
-      avgBox.replaceChildren();
-      const sameHero=accountCareer.history.filter(m=>m && m !== match && m.heroId===heroId && m.kills != null);
-      const isOwner=player && player===initialParticipant && heroId===match.heroId;
-      avgBox.hidden=!(isOwner && sameHero.length);
-      if(!avgBox.hidden){
-        const mean=key=>sameHero.reduce((sum,m)=>sum+(Number(m[key])||0),0)/sameHero.length;
-        avgBox.appendChild(careerNode('div','career-avg-title','ВАШИ СРЕДНИЕ ПОКАЗАТЕЛИ НА ЭТОМ ГЕРОЕ · '+sameHero.length+' МАТЧ.'));
-        const grid=careerNode('div','career-avg-grid');
-        [['УБИЙСТВ','kills',k,false],['СМЕРТЕЙ','deaths',d,true],['ПОМОЩИ','assists',a,false],['ЦЕННОСТЬ','netWorth',netValue,false]].forEach(([label,key,value,inverse])=>{
-          const average=mean(key);
-          const diff=(Number(value)||0)-average;
-          const good=inverse ? diff<=0 : diff>=0;
-          const cell=careerNode('div','career-avg-cell');
-          const shown=Math.abs(average)>=100 ? Math.round(average).toLocaleString('ru-RU') : (Math.round(average*10)/10).toString();
-          const delta=Math.abs(diff)>=100 ? Math.round(diff).toLocaleString('ru-RU') : (Math.round(diff*10)/10).toString();
-          cell.append(
-            careerNode('span','career-avg-label',label),
-            careerNode('b','',shown),
-            careerNode('em',good?'up':'down',(diff>=0?'+':'')+delta)
-          );
-          grid.appendChild(cell);
-        });
-        avgBox.appendChild(grid);
-      }
-      const duration=Number(match.duration);
-      const durationText=hasValue(match.duration) && duration>0
-        ? Math.floor(duration/60)+':'+String(Math.floor(duration%60)).padStart(2,'0')
-        : 'Не сохранена';
-      detailMeta.replaceChildren(
-        careerNode('span','','ДЛИТЕЛЬНОСТЬ'),
-        careerNode('strong','',durationText),
-        careerNode('span','','ЧИСТАЯ ЦЕННОСТЬ'),
-        careerNode('strong','',displayNumber(player && player.netWorth != null ? player.netWorth : match.netWorth)+' зол.')
-      );
-      const selectedHasLegacy=!player || !hasValue(player.level) || !Array.isArray(player.items) || !hasValue(match.duration);
-      legacy.hidden=!(hasLegacyData || selectedHasLegacy);
-    }
-    renderSelected();
-    body.appendChild(report);
-    details.appendChild(body);
-    history.appendChild(details);
-  });
-}
-function renderLeaderboardPanel(){
-  const list=document.getElementById('world-leaderboard-list');
-  const status=document.getElementById('leaderboard-status');
-  if(!list||!status) return;
-  list.replaceChildren();
-  status.textContent=leaderboardLoading?'Загрузка мирового рейтинга…':leaderboardError;
-  if(!accountCareer.leaders.length){
-    if(!leaderboardLoading) status.textContent=leaderboardError || 'Таблица пока пуста.';
-    return;
-  }
-  const currentNick=account.profile&&account.profile.nick;
-  accountCareer.leaders.forEach(player=>{
-    const row=careerNode('li',player.nick===currentNick?'me':'');
-    row.appendChild(careerNode('span','leaderboard-place','#'+player.rank));
-    const identity=careerNode('button','leaderboard-player leaderboard-profile-link');
-    identity.type='button';
-    identity.append(careerNode('strong','',player.nick),careerNode('small','',`${player.title||'Новобранец'} · MMR ${player.rating||0}`));
-    identity.addEventListener('click',()=>showLeaderboardProfile(player));
-    row.append(identity,careerNode('span','leaderboard-wins',String(player.wins||0)));
-    list.appendChild(row);
-  });
-}
-function showLeaderboardProfile(profile){
-  selectedLeaderboardProfile=profile;
-  document.getElementById('leaderboard-list-view').hidden=true;
-  document.getElementById('leaderboard-player-profile').hidden=false;
-  document.getElementById('leaderboard-profile-avatar').textContent=(profile.nick||'?').slice(0,1).toUpperCase();
-  document.getElementById('leaderboard-profile-name').textContent=profile.nick||'Игрок';
-  document.getElementById('leaderboard-profile-title').textContent=(profile.title||'Новобранец')+' · '+accountRank(profile.level||0);
-  const stats=document.getElementById('leaderboard-profile-stats');
-  stats.replaceChildren();
-  [['ПОБЕДЫ',profile.wins],['ПОРАЖЕНИЯ',profile.losses],['МАТЧИ',profile.matches],['УБИЙСТВА',profile.kills],['СМЕРТИ',profile.deaths],['РЕЙТИНГ',profile.rating]]
-    .forEach(([label,value])=>{
-      const cell=careerNode('div','leaderboard-profile-stat');
-      cell.append(careerNode('b','',String(value||0)),careerNode('span','',label));
-      stats.appendChild(cell);
-    });
-  const favorites=document.getElementById('leaderboard-profile-favorites');
-  favorites.replaceChildren();
-  const heroes=profile.favoriteHeroes||[];
-  if(heroes.length) heroes.forEach(hero=>favorites.appendChild(careerNode('span','',careerHeroName(hero.heroId)+' · '+hero.games)));
-  else favorites.appendChild(careerNode('span','','Пока нет сыгранных матчей'));
-}
-document.getElementById('leaderboard-profile-back').addEventListener('click',()=>{
-  selectedLeaderboardProfile=null;
-  document.getElementById('leaderboard-player-profile').hidden=true;
-  document.getElementById('leaderboard-list-view').hidden=false;
-});
+/* [перенесено → js/ui/account-display.js] */
+/* [перенесено → js/ui/career-panel.js] */
+/* [перенесено → js/ui/leaderboard-ui.js] */
+/* [перенесено → js/ui/leaderboard-ui.js] */
+/* [перенесено → js/ui/leaderboard-ui.js] */
 async function loadLeaderboard(){
   if(leaderboardLoading) return;
   leaderboardLoading=true; leaderboardError=''; renderLeaderboardPanel();
@@ -20693,14 +20383,8 @@ async function loadLeaderboard(){
     renderLeaderboardPanel();
   }
 }
-window.openLeaderboard=function(){
-  selectedLeaderboardProfile=null;
-  document.getElementById('leaderboard-player-profile').hidden=true;
-  document.getElementById('leaderboard-list-view').hidden=false;
-  document.getElementById('leaderboard-modal').hidden=false;
-  loadLeaderboard();
-};
-window.closeLeaderboard=function(){ document.getElementById('leaderboard-modal').hidden=true; };
+/* [перенесено → js/ui/leaderboard-ui.js] */
+/* [перенесено → js/ui/leaderboard-ui.js] */
 async function loadAccountCareer(){
   if(!account.token || accountCareerLoading) return;
   const token = account.token;
@@ -20814,17 +20498,7 @@ async function accountRecordResult(won, matchId, ranked, stats){
 /* =========================================================
    АВАТАРКИ: 15 героев игры + 5 тематических эмблем
    ========================================================= */
-const AVATAR_DEFS = [
-  {id:'pyro'},{id:'warlord'},{id:'grisha'},{id:'golly'},{id:'sasych'},
-  {id:'ilya'},{id:'malit'},{id:'arcady'},{id:'illusionist'},{id:'shadow'},
-  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'vaspassir'},{id:'olex'},{id:'chip'},{id:'savely'},
-  {id:'shovel', name:'Лопата', c1:'#3a2415', c2:'#d7b36a'},
-  {id:'tower',  name:'Башня',  c1:'#102a4a', c2:'#8be9fd'},
-  {id:'ancient',name:'Древний',c1:'#3c1010', c2:'#ff6b57'},
-  {id:'rune',   name:'Руна',   c1:'#241046', c2:'#c79bff'},
-  {id:'creep',  name:'Крип',   c1:'#12301a', c2:'#7dff9a'}
-];
-const avatarImages = Object.create(null);
+/* [перенесено → js/ui/avatars.js] */
 let avatarCacheBuilt = false;
 
 function drawThemeAvatar(def, S){
@@ -20919,54 +20593,13 @@ async function accountSetAvatar(id){
   }
   accountBusy = false;
 }
-function renderAvatarPicker(){
-  const box = document.getElementById('acc-avatars');
-  if(!box) return;
-  const current = account.profile ? account.profile.avatar : '';
-  if(box.childElementCount !== AVATAR_DEFS.length || box.dataset.ready !== String(avatarCacheBuilt)){
-    box.innerHTML = '';
-    for(const def of AVATAR_DEFS){
-      const button = document.createElement('button');
-      button.type = 'button'; button.className = 'acc-avatar-opt'; button.dataset.id = def.id;
-      const item = avatarImages[def.id];
-      if(item){ button.style.backgroundImage = 'url(' + item.url + ')'; button.title = item.name; button.setAttribute('aria-label', item.name); }
-      button.addEventListener('click', () => accountSetAvatar(def.id));
-      button.addEventListener('pointerenter', () => playSynthSfx('hover'));
-      box.appendChild(button);
-    }
-    box.dataset.ready = String(avatarCacheBuilt);
-  }
-  for(const button of box.children) button.classList.toggle('selected', button.dataset.id === current);
-}
+/* [перенесено → js/ui/avatars.js] */
 
-const accountUi = {
-  modal: document.getElementById('account-modal'),
-  guest: document.getElementById('acc-guest'),
-  user: document.getElementById('acc-user'),
-  title: document.getElementById('acc-title'),
-  tabLogin: document.getElementById('acc-tab-login'),
-  tabRegister: document.getElementById('acc-tab-register'),
-  nick: document.getElementById('acc-nick'),
-  pass: document.getElementById('acc-pass'),
-  submit: document.getElementById('acc-submit'),
-  error: document.getElementById('acc-error'),
-  avatar: document.getElementById('acc-avatar'),
-  name: document.getElementById('acc-name'),
-  rank: document.getElementById('acc-rank'),
-  stats: document.getElementById('acc-stats'),
-  level: document.getElementById('acc-level'),
-  newNick: document.getElementById('acc-newnick'),
-  rename: document.getElementById('acc-rename'),
-  logout: document.getElementById('acc-logout'),
-  close: document.getElementById('acc-close')
-};
+/* [перенесено → js/ui/account-modal.js] */
 let accountMode = 'login';
 let accountBusy = false;
 
-function setAccountMessage(text, ok){
-  accountUi.error.textContent = text || '';
-  accountUi.error.classList.toggle('ok', !!ok);
-}
+/* [перенесено → js/ui/account-modal.js] */
 function setAccountMode(mode){
   accountMode = mode;
   accountUi.tabLogin.classList.toggle('active', mode === 'login');
@@ -20975,45 +20608,15 @@ function setAccountMode(mode){
   accountUi.pass.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
   setAccountMessage('');
 }
-function renderAccountModal(){
-  const profile = account.profile;
-  window.__shadowAccountProfile = profile;
-  window.dispatchEvent(new CustomEvent('shadow:profile'));
-  refreshOnlineEntryLabel();
-  accountUi.guest.hidden = !!profile;
-  accountUi.user.hidden = !profile;
-  accountUi.title.textContent = profile ? 'Профиль' : 'Аккаунт';
-  renderCareerPanel();
-  if(profile){
-    accountUi.user.dataset.frame = profile.frame || 'iron';
-    const avatarItem = profile.avatar && avatarImages[profile.avatar];
-    accountUi.avatar.textContent = avatarItem ? '' : profile.nick.charAt(0).toUpperCase();
-    accountUi.avatar.style.backgroundImage = avatarItem ? 'url(' + avatarItem.url + ')' : '';
-    accountUi.name.textContent = profile.nick;
-    accountUi.rank.textContent = '✦ ' + (profile.title || accountRank(profile.level)) + ' · ' + accountRank(profile.level);
-    const total = (profile.wins || 0) + (profile.losses || 0);
-    const rate = total ? Math.round((profile.wins || 0) / total * 100) : 0;
-    accountUi.stats.textContent = 'Побед: ' + (profile.wins || 0) + '  •  Поражений: ' + (profile.losses || 0) + '  •  Матчей: ' + total + (total ? '  •  ' + rate + '%' : '');
-    accountUi.level.textContent = String(profile.level);
-    renderAvatarPicker();
-  }
-}
+/* [перенесено → js/ui/account-modal.js] */
 window.openChangelog = function(){
   gameState = 'menu';
   menuStage = 'home';
   changelogOpen = true;
   changelogScroll = 0;
 };
-function openAccountModal(){
-  renderAccountModal();
-  setAccountMessage('');
-  accountUi.modal.hidden = false;
-  setTimeout(() => (account.profile ? accountUi.newNick : accountUi.nick).focus(), 30);
-}
-function closeAccountModal(){
-  accountUi.modal.hidden = true;
-  canvas.focus();
-}
+/* [перенесено → js/ui/account-modal.js] */
+/* [перенесено → js/ui/account-modal.js] */
 async function submitAccountForm(){
   if(accountBusy) return;
   const nick = accountUi.nick.value.trim();

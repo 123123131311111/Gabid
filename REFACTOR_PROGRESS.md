@@ -57,7 +57,35 @@
 - Изменены: `public/game.js`, `public/index.html`, `public/js/render/map-textures.js` (новый), `REFACTOR_PROGRESS.md`.
 - Проверки: `node --check` game.js и модуля — OK; остальной game.js идентичен оригиналу (кроме 3 указателей); дубликатов объявлений нет; модуль исполняется в vm с заглушкой DOM и создаёт все перечисленные символы. В браузере не запускалось (визуально карту не сверяли).
 
+## Этап 4: настройки графики → `public/js/data/graphics-settings.js` (выполнено частично — только независимые данные)
+Аудиосистема по решению пользователя пропущена (звуки уже в `sounds/`, не трогались).
+Перенесено (байт-в-байт): `GFX_PRESETS`, `GFX` (объект текущих значений), `GFX_PARTICLE_MUL`, `PERF_NAMES`, `gfxSave()` (запись `dota-sens-gfx` в localStorage).
+Оставлено в `game.js` намеренно (зависит от состояния/рендера, не переносилось):
+- `perfLevel` и чтение `dota-sens-perf`; загрузка сохранённого `GFX` из `dota-sens-gfx` (читает `perfLevel`);
+- `gfxPresetValues` (использует `clamp` из game.js), `gfxGlowK`, `fxl`, `perfLite`, `perfRenderScale`, `setPerfLevel` (трогает `particles`, `grassBends`, `terrainFrameValid`, `resize`, `gameState`), `terrainRefreshEvery`, `particleCap`, `fxCap`, `perfSample`, патч `shadowBlur`, обработчик F8, `towerFxCap` и др. лимиты, UI-панель настроек (`GFX_ROWS`, `gfx*Panel`) — завязаны на игровое состояние и отрисовку.
+- На месте вырезанных кусков — комментарий-указатель. Порядок инициализации сохранён: модуль грузится раньше game.js, блок чтения localStorage видит `GFX`/`GFX_PRESETS`.
+- `index.html`: `<script src="./js/data/graphics-settings.js?v=0.9.8.1.1">` перед `map-textures.js` и `game.js`. Обычные скрипты.
+- Изменены: `public/game.js`, `public/index.html`, `public/js/data/graphics-settings.js` (новый), `REFACTOR_PROGRESS.md`.
+- Проверки: `node --check` — OK; в vm модуль создаёт GFX/пресеты/PERF_NAMES(4)/GFX_PARTICLE_MUL, `gfxSave()` пишет JSON; дубликатов объявлений нет (в game.js 0, в модуле по одному). Использований в других файлах (`update*.js`, `hero3d.js`, `demon3d.js`) нет. В браузере не запускалось.
+
+## Этап 5: интерфейс аккаунта, профиля, аватаров и рейтинга → `public/js/ui/` (выполнено частично — только независимая часть отображения)
+Перенесено байт-в-байт (404 строки, бывш. `game.js` ~20293–21008; на местах вырезанных кусков — комментарии-указатели `/* [перенесено → ...] */`):
+- `js/ui/account-display.js`: `ACCOUNT_RANKS`, `accountRank`, `MMR_RANKS`, `accountRatingRank`, `refreshOnlineEntryLabel`, `careerHeroName`, `careerNode`.
+- `js/ui/career-panel.js`: `renderCareerPanel` (статистика, любимые герои, история матчей, подробный отчёт).
+- `js/ui/leaderboard-ui.js`: `renderLeaderboardPanel`, `showLeaderboardProfile`, обработчик кнопки «назад» (`leaderboard-profile-back`), `window.openLeaderboard`, `window.closeLeaderboard`.
+- `js/ui/avatars.js`: `AVATAR_DEFS`, `avatarImages`, `renderAvatarPicker`.
+- `js/ui/account-modal.js`: `accountUi` (ссылки на DOM), `setAccountMessage`, `renderAccountModal`, `openAccountModal`, `closeAccountModal`.
+Сознательно ОСТАВЛЕНО в `game.js`:
+- авторизация/сеть/сохранения: `accountApi`, `accountSet`, `accountStore/Read`, `submitAccountForm`, `submitRename`, `submitLogout`, `bindAccountUi` (обработчики + восстановление сессии), `accountSetAvatar`, `loadAccountCareer`, `loadLeaderboard`, результаты матчей (`accountRecordResult`, `accountSendResult`, `accountFlushPending`, `pendingResults`, `currentMatchCareerStats`), локальные детали матчей (`readAccountMatchDetails`, `saveAccountMatchDetails`, `mergeLocalMatchDetails`);
+- состояние: `account`, `accountCareer`, `leaderboardLoading/Error`, `selectedLeaderboardProfile`, `accountMode`, `accountBusy`, `setAccountMode` (меняет режим формы входа/регистрации — часть авторизации);
+- рисование на основном canvas: `drawThemeAvatar`, `buildAvatarCache`, `drawAvatarImage`, `avatarCacheBuilt` (завязаны на `ctx`, `drawHeroTexture`, кадр); карточка профиля/кнопки в меню на canvas (`menuProfileRect`, `menuHomeHits`, места использования `drawAvatarImage`).
+Подключение: `index.html` — пять `<script src="./js/ui/*.js?v=0.9.8.1.1">` после `map-textures.js`, перед `game.js` (порядок: account-display, avatars, career-panel, leaderboard-ui, account-modal). Обычные скрипты, не ES modules.
+Важно: модули на верхнем уровне обращаются только к DOM (`getElementById` для `accountUi` и кнопки «назад»); всё остальное из `game.js` (`account`, `accountCareer`, `onlineEntryElement`, `HERO_DEFS`, `SHOP_ITEMS`, `canvas`, `playSynthSfx`, `accountSetAvatar`, `loadLeaderboard`, `avatarCacheBuilt` и т.д.) используется только внутри функций, при вызове. `update979.js` вызывает `renderAccountModal()` — глобальное имя сохранено; `index.html` (inline) использует `openAccountModal`, `window.openLeaderboard/closeLeaderboard` — сохранены.
+Изменены: `public/game.js` (−404 строки, +15 указателей), `public/index.html` (+5 `<script>`), `public/js/ui/account-display.js`, `career-panel.js`, `leaderboard-ui.js`, `avatars.js`, `account-modal.js` (новые), `REFACTOR_PROGRESS.md`. `accounts.js`, `server.js`, `update*.js`, `hero3d.js`, `demon3d.js` не менялись.
+Проверки: `node --check` game.js и всех 5 модулей — OK; diff: удалённые из game.js строки (404) совпадают с содержимым модулей без пропусков и добавлений, остальной game.js идентичен оригиналу (кроме указателей); дубликатов объявлений нет (в game.js 0, в модулях по 1); в vm с заглушками DOM и состояния модули загружаются в нужном порядке, `renderAccountModal`, `renderLeaderboardPanel`, `showLeaderboardProfile`, `openAccountModal/closeAccountModal`, `openLeaderboard/closeLeaderboard`, `renderCareerPanel` (с матчем и участниками), `renderAvatarPicker` (23 аватара) отрабатывают без ошибок. В браузере НЕ запускалось — нужна ручная проверка: окно аккаунта (вход/регистрация, смена ника/аватара, выход), карьера и отчёт матча, мировой рейтинг и карточка игрока, подпись кнопки «ОНЛАЙН».
+
 ## Следующий этап
-- Аудиосистема: движок, диктор и голоса (сначала найти границы и зависимости, не переносить вслепую).
-- Возможное продолжение текстур: перенос `buildTerrainDecor/drawTerrainDecor` — только после анализа зависимостей от мира/камеры.
-- Открыто с этапа 1: судьба `gen_guides.py` (генератор HERO_GUIDES отсутствует в архиве).
+- Не начат. Варианты: (а) UI магазина/инвентаря (DOM-часть), (б) остальные независимые блоки данных/констант `game.js` (`GUIDE_ITEM_WHY`, `UPDATE_SPOTLIGHT`) — сначала поиск границ и зависимостей; (в) аудиосистема (пока пропущена по решению пользователя).
+- Открыто с этапа 1: `gen_guides.py` (генератор HERO_GUIDES отсутствует в архиве).
+- Открыто с этапа 3: `buildTerrainDecor/drawTerrainDecor` — решать после анализа зависимостей.
+- Открыто с этапа 5: рисование аватаров на canvas и карточка профиля в меню (canvas) — решать вместе с рефакторингом главного меню.
