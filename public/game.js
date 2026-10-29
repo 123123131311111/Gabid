@@ -2876,6 +2876,7 @@ function killUnit(u, source){
     ? source
     : (source && source.source && source.source.coins !== undefined ? source.source : null);
   if(u.type === 'neutral') u.respawnTimer = u.isRoshan ? ROSHAN_RESPAWN : 30;
+  if(u.isRoshan) RoshanVisuals.death(u.x,u.y);
   if(rewardHero && rewardHero.team !== u.team) phantomOnCreepKill(rewardHero, u);
   if(rewardHero && rewardHero.team !== u.team){
     const bountyMul = gameModeCfg().creepBountyMul;
@@ -4419,43 +4420,7 @@ function confirmShopPurchase(id){
 }
 
 /* HERO_GUIDES вынесен в js/data/hero-guides.js (подключается в index.html перед game.js) */
-const GUIDE_ITEM_WHY = {
-  "pt": "Сапог Джоэла + Клыки Васьки: урон, скорость и скорость атаки сразу. Собирается из двух частей.",
-  "joelBoots": "+45 к скорости — догонять и убегать.",
-  "fangs": "+20 к урону атак и +5 к урону способностей.",
-  "octarineCore": "+450 здоровья и маны, +6 маны/сек и -25% к перезарядке способностей и предметов.",
-  "semenHead": "+100 урона за 1200 — дешёвая прибавка к урону.",
-  "kinglandia": "+250 к урону атак и +50 к урону способностей — предмет поздней игры.",
-  "hatchet": "Дешёвый урон и срубание деревьев.",
-  "evsyutin": "+500 к здоровью — первая защита.",
-  "satanic": "+660 здоровья и вампиризм 25%: даёт выжить в долгой драке.",
-  "girfsyutin": "+1800 здоровья — для танков и инициаторов.",
-  "kayaSange": "Здоровье, мана, +18% урона способностей и сопротивление оглушениям.",
-  "bkb": "БКБ: на 10 сек. режет урон атак на 60% и снимает оглушение.",
-  "zamist": "Замисть: +65% сопротивления урону, урон и скорость на 10 сек.",
-  "valakinsens": "+15 к регенерации HP; актив: +50% сопротивления и +100 скорости на 3 сек.",
-  "thoredHead": "Бросается в ближайшего врага: стан 4 сек. и 225 урона каждую секунду.",
-  "dianaKitty": "Круг -9% урона врагов вокруг героя; актив: 100 урона/сек. в круге 5 сек.",
-  "refresherOrb": "Актив: сбрасывает КД всех способностей, ульты и предметов. +20 HP/сек. и +9 маны/сек.",
-  "manaHooves": "+800 маны — для тех, кто живёт на способностях.",
-  "manaTome": "+10% к восстановлению маны — дёшево и полезно в начале.",
-  "blink": "Блинк: рывок на 500 — войти в драку или сбежать.",
-  "eggGolly": "+250 скорости на 2 сек. для рывка или отхода.",
-  "superBoots": "+70 скорости и ускорение на 6 сек.",
-  "disperser": "+30 скорости; жжёт ману врага и замедляет его.",
-  "aghanimHead": "Активный: +180 урона, +100 скорости и скорость атаки на 10 сек.",
-  "arcadiaScar": "Активный: +250 урона и утроенная скорость атаки на 7 сек.",
-  "brainAss": "Активный: короткий, но очень мощный разгон атак и урона.",
-  "munition": "Активный: резкое ускорение атак на 3 сек.",
-  "mantledSteel": "Три копии героя на 7 сек. — отвлекают и добавляют урон.",
-  "ilyaHair": "Оглушает цель на 4 сек. + урон и защита от атак.",
-  "gur": "Подбрасывает врага и усиливает героя на 12 сек.",
-  "dagonEmpire": "1200 магического урона каждые 10 сек. — отлично добивает.",
-  "tornBrainHand": "Телепорт к врагу + 350 урона: догнать и добить.",
-  "enemy302": "-30% к перезарядке способностей.",
-  "brainEye": "+210 к дальности атаки — для дальнобойных.",
-  "aghanimScepter": "Усиливает уникальную механику героя."
-};
+/* GUIDE_ITEM_WHY вынесен в js/data/ui-content.js (подключается в index.html перед game.js) */
 
 /* ================================================================
    ЗАКУП БОТОВ — строго по гайду своего бойца (HERO_GUIDES[id].build).
@@ -5207,6 +5172,7 @@ function spawnRoshan(){
   addText(lair.x,lair.y-110,'РОШАН','#ffb347',2.0,24);
   fxRing(lair.x,lair.y,260,'#ff8a3d',1.2);
   spawnParticles(lair.x,lair.y,'#ffb347',40,1.4);
+  RoshanVisuals.spawn(lair.x,lair.y); RoshanVisuals.resetBorn(r);
 }
 function aegisRevive(h){
   h.aegisTimer=0; h.dead=false; h.hp=h.maxHp; h.mp=Math.max(h.mp||0,(h.maxMp||0)*0.5);
@@ -5228,6 +5194,7 @@ function updateRoshan(dt){
       r.dead=false; r.hp=r.maxHp; r.x=r.homeX; r.y=r.homeY; r.attackTarget=null; r.moveTarget=null;
       killStreakBanner={text:'РОШАН ВОЗВРАТИЛСЯ',color:'#ffb347',t:3.2,scale:1.1};
       fxRing(r.x,r.y,260,'#ff8a3d',1.2);
+      RoshanVisuals.spawn(r.x,r.y); RoshanVisuals.resetBorn(r);
     }
   }
   for(const h of heroes){
@@ -6048,19 +6015,20 @@ function spawnRunes(){
     const point=mapPoint(spot.x,spot.y);
     if(runes.some(rune=>Math.hypot(rune.x-point.x,rune.y-point.y)<20)) continue;
     const def=RUNE_TYPES[Math.floor(Math.random()*RUNE_TYPES.length)];
-    runes.push({x:point.x,y:point.y,...def,pulse:0});
+    runes.push({x:point.x,y:point.y,...def,pulse:0,age:0});
   }
 }
 
 function updateRunes(dt){
   for(const rune of runes){
-    rune.pulse += dt;
+    rune.pulse += dt; rune.age = (rune.age||0) + dt;
     for(const hero of heroes){
       if(hero.dead || Math.hypot(hero.x-rune.x,hero.y-rune.y)>55) continue;
       hero.addBuff({type:rune.type,t:rune.duration,val:1,name:rune.name});
       if(rune.type==='regen') hero.hp=Math.min(hero.maxHp,hero.hp+hero.maxHp*0.25);
       addText(hero.x,hero.y-65,rune.name,rune.color,1.3,16);
       fxRing(hero.x,hero.y,80,rune.color,0.55);
+      RuneVisuals.pickup(rune.x,rune.y,rune.color);
       runes.splice(runes.indexOf(rune),1);
       break;
     }
@@ -9883,7 +9851,7 @@ function startGame(playerIndex, draftPicks=null){
   onlineMatchActive = false;
   stopMenuMusic();
   MID_PUSH_TIME = gameModeCfg().midPushTime;
-  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; olexTurrets=[]; olexZones=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
+  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; RuneVisuals.clear(); RoshanVisuals.clear(); mo3giMines=[]; olexTurrets=[]; olexZones=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
   controlledUnit=null; controlGroup=[];
   explored = new Uint8Array(GRID*GRID); wardsReset();
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0; botTeamScenarios=[];
@@ -10004,7 +9972,7 @@ function orientOnlineMapForTeam(globalTeam){
 function startTestMode(playerIndex){
   MID_PUSH_TIME = GAME_MODES.turbo.midPushTime;
   stopMenuMusic();
-  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; mo3giMines=[]; olexTurrets=[]; olexZones=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
+  units=[]; heroes=[]; projectiles=[]; aoes=[]; walls=[]; trees=[]; fxs=[]; particles=[]; texts=[]; dmgNums=[]; runes=[]; RuneVisuals.clear(); RoshanVisuals.clear(); mo3giMines=[]; olexTurrets=[]; olexZones=[]; grassBends=[]; towerFx=[]; towerBolts=[]; towerRuins=[];
   controlledUnit=null; controlGroup=[];
   explored = new Uint8Array(GRID*GRID); wardsReset();
   resetGollyVoiceState(); gameTime=0; lastFightTime=0; lastIdleVoiceTime=0; waveTimer=8; waveCount=0; winner=null; visionTimer=0;
@@ -12683,27 +12651,8 @@ function drawTerrain(){
     ctx.restore();
   }
 
-  /* 0.8.9: логово Рошана — каменная яма с костями и рунами на реке */
-  { const L=getRoshanLair();
-    ctx.save(); ctx.translate(L.x,L.y);
-    const rim=ctx.createRadialGradient(0,0,90,0,0,200);
-    rim.addColorStop(0,'rgba(10,6,8,0.95)'); rim.addColorStop(0.7,'rgba(40,30,28,0.9)'); rim.addColorStop(1,'rgba(40,30,28,0)');
-    ctx.fillStyle=rim; ctx.beginPath(); ctx.ellipse(0,0,200,170,0,0,Math.PI*2); ctx.fill();
-    const pit=ctx.createRadialGradient(0,0,10,0,0,130);
-    pit.addColorStop(0,'#050304'); pit.addColorStop(1,'#241816');
-    ctx.fillStyle=pit; ctx.strokeStyle='#6e5e50'; ctx.lineWidth=6;
-    ctx.beginPath(); ctx.ellipse(0,0,135,112,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle='rgba(255,140,60,0.55)'; ctx.lineWidth=3; ctx.setLineDash([10,12]);
-    ctx.beginPath(); ctx.ellipse(0,0,165,138,0,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
-    for(let i=0;i<16;i++){ const a=i*Math.PI/8, rx=Math.cos(a)*158, ry=Math.sin(a)*132, rs=14+(i%3)*7;
-      ctx.fillStyle=i%2?'#5a4e44':'#463b34'; ctx.strokeStyle='#1c1410'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.ellipse(rx,ry,rs,rs*0.7,a,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
-    for(let i=0;i<8;i++){ const a=i*Math.PI/4+0.2, rx=Math.cos(a)*172, ry=Math.sin(a)*145;
-      ctx.fillStyle='#ff9a4d'; ctx.font='bold 16px serif'; ctx.textAlign='center'; ctx.fillText('ᛟ',rx,ry+5); }
-    ctx.fillStyle='#e8dcc0'; ctx.strokeStyle='#7a6c58'; ctx.lineWidth=1.5;
-    for(const b of [[-60,40,0.6],[50,52,-0.3],[-30,-55,1.2],[70,-30,0.2]]){ ctx.save(); ctx.translate(b[0],b[1]); ctx.rotate(b[2]);
-      ctx.fillRect(-16,-3,32,6); ctx.beginPath(); ctx.arc(-16,0,5,0,Math.PI*2); ctx.arc(16,0,5,0,Math.PI*2); ctx.fill(); ctx.restore(); }
-    ctx.restore(); }
+  /* 0.9.8.4: логово Рошана рисуется модулем js/render/roshan-visuals.js */
+  { const L=getRoshanLair(); RoshanVisuals.drawLair(ctx,L,gameTime,cam); }
 
   for(const camp of NEUTRAL_CAMPS){
     const center = camp[0];
@@ -13061,7 +13010,9 @@ function drawForestCreepBody(u, col){
 }
 function drawRoshanBody(u){
   const R=u.radius, t=gameTime;
+  const rv=RoshanVisuals.bodyState(u);
   ctx.save();
+  if(rv.emerge<1){ ctx.globalAlpha=rv.emerge; ctx.translate(0,(1-rv.emerge)*R*0.6); ctx.scale(0.75+0.25*rv.emerge,0.75+0.25*rv.emerge); }
   ctx.fillStyle='#ffb347'; ctx.font='bold 15px Georgia, serif'; ctx.textAlign='center';
   ctx.shadowColor='#000'; ctx.shadowBlur=6; ctx.fillText('РОШАН',0,-R-52); ctx.shadowBlur=0;
   ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0,R*0.8,R*1.25,R*0.45,0,0,Math.PI*2); ctx.fill();
@@ -13108,6 +13059,7 @@ function drawRoshanBody(u){
   ctx.fillStyle='#fff'; for(const sy of [-1,1]){ ctx.beginPath(); ctx.moveTo(R*1.38,sy*R*0.1); ctx.lineTo(R*1.5,sy*R*0.18); ctx.lineTo(R*1.5,sy*R*0.06); ctx.closePath(); ctx.fill(); }
   ctx.shadowColor='#ffd54f'; ctx.shadowBlur=14; ctx.fillStyle='#ffe066';
   for(const sy of [-1,1]){ ctx.beginPath(); ctx.ellipse(R*1.15,sy*R*0.2,R*0.1,R*0.07,sy*0.4,0,Math.PI*2); ctx.fill(); }
+  if(rv.flash>0){ ctx.shadowBlur=0; ctx.globalAlpha=rv.flash*0.45; ctx.fillStyle='#ff6a3a'; ctx.beginPath(); ctx.ellipse(0,0,R*1.1,R*0.95,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(R*1.0,0,R*0.6,R*0.5,0,0,Math.PI*2); ctx.fill(); }
   ctx.restore();
 }
 
@@ -15682,6 +15634,7 @@ function drawHealthBar(u){
   const h = heroBar ? 8 : 6;
   const x = u.x - w/2;
   const y = u.y - u.radius - (heroBar ? 26 : 18) - unitLabelLift(u);
+  if(u.isRoshan){ RoshanVisuals.drawBar(ctx,u,x,y,w); return; }
 
   ctx.fillStyle = 'rgba(0,0,0,0.75)';
   ctx.fillRect(x-2, y-2, w+4, h+4);
@@ -15984,14 +15937,7 @@ function drawWorldObjects(){
     ctx.fillText('ЛАГЕРЬ '+(index+1),0,75); ctx.shadowBlur=0;
     ctx.restore();
   }
-  for(const rune of runes){
-    ctx.save();
-    ctx.globalAlpha=0.8+Math.sin(rune.pulse*5)*0.2;
-    ctx.fillStyle=rune.color; ctx.shadowColor=rune.color; ctx.shadowBlur=22;
-    ctx.beginPath(); ctx.arc(rune.x,rune.y,18+Math.sin(rune.pulse*4)*3,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#ffffff'; ctx.font='bold 10px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText('R',rune.x,rune.y+4);
-    ctx.restore();
-  }
+  RuneVisuals.draw(ctx,runes,RUNE_SPOTS.map(spot=>mapPoint(spot.x,spot.y)));
   for(const mine of mo3giMines){
     if(mine.owner.team!==0) continue;
     ctx.save(); ctx.translate(mine.x,mine.y);
@@ -19447,33 +19393,7 @@ function drawStorePanel(){
   ctx.restore();
 }
 
-const UPDATE_SPOTLIGHT = [
-  {version:'0.9.8.1.1',title:'ДОТАСЕНС +: КОНТРПИКИ LIVE',description:'В выборе героя Дотасенс + сам пересчитывает контрпики после каждого пика врага, оценивает твой выбор и отмечает лучшие карточки значками ★. Меню помощника стало красивее.'},
-  {version:'0.9.8.1',title:'ДОТАСЕНС + ВПИСАН В МЕНЮ',description:'Сенсики и Дотасенс + встроены в верхнюю панель меню и больше ничего не перекрывают. Панель подсказок удобнее при выборе героя, а закуп в бою можно сделать одной кнопкой прямо из неё.',compactDescription:'Дотасенс + в меню и покупка из панели.'},
-  {version:'0.9.8.0',title:'ДОТАСЕНС + И ГАЙД ПО ЗАКУПУ',description:'«Сенсики» и «Дотасенс +» собраны в одну панель. Во время драфта помощник сам показывает контрпики, а в матче — гайд по стартовым предметам, сборке и следующей покупке.',compactDescription:'Контрпики и гайд по закупу в стиле Dota Plus.'},
-  {version:'0.9.7.9',title:'СЕНСИКИ',description:'Новая валюта — осколки Сенсики: +500 за каждую победу, счётчик справа сверху в меню и ежедневное задание «Охотник за головами» с наградой в 300 Сенсиков.',compactDescription:'Сенсики и ежедневное задание.'},
-  {version:'0.9.1',title:'БАЛАНС САСЫЧА И ПРЕДМЕТОВ',description:'Сасыч стал быстрее: Thirst растёт с уровнем, Bloodrage усилен. Изменены Клыки Васьки, Кингляндия и Бошка Семёна, а в магазине появился Octarine Core.',compactDescription:'Баланс Сасыча, предметов и Octarine Core.'},
-  {version:'0.9.0',title:'НОВЫЕ ПРЕДМЕТЫ И СКИНЫ',description:'Три новых предмета — Валакинсенс, Торированная бошка и Киска дианы, а в магазине скинов появились два новых образа: Золотой Чемпион и Фантом Пустоты.',compactDescription:'3 предмета и 2 новых скина.'},
-  {version:'0.8.3',title:'ЛЮБИМЫЙ БОЕЦ И ОПТИМИЗАЦИЯ',description:'Любимого героя можно поставить в центр меню. Новый красно-чёрный экран загрузки, новый фон выбора режима, река без деревьев и серьёзная оптимизация: игра стала заметно меньше лагать.',compactDescription:'Любимый боец в меню, новая загрузка, оптимизация.'},
-  {version:'0.8.2',title:'НОВЫЕ ИКОНКИ БОЙЦОВ',description:'Иконки героев заменены на новые 3D-модельки везде: меню, выбор бойцов, матч. Над героями в бою показывается имя, у кнопки «Играть» теперь 4x4, а музыка меню стала богаче.',compactDescription:'3D-иконки, имена над героями, 4x4, новая музыка.'},
-  {version:'0.8.1',title:'АНИМАЦИИ БОЙЦОВ',description:'Все герои теперь ходят, бьют и колдуют: у каждого своя анимация автоатаки, способностей и ультимейта, а оружие движется вместе с руками.',compactDescription:'Анимации ходьбы, атак и ультов у всех героев.'},
-  {version:'0.8.0',title:'ALL PICK И ОНЛАЙН-ЛОББИ',description:'Новый режим All Pick с медленной экономикой и долгой лайн-фазой, а в онлайне — лобби как в Dota 2 с режимами 1v1–4v4 и ботами.',compactDescription:'All Pick и лобби 1v1–4v4 с ботами.'},
-  {version:'0.7.8',title:'СЧЁТЧИК ДЖУВСЮТА И 3D',description:'Над Джувсютом виден счётчик съеденных крипов, а бойцы и постройки получили объём и косые тени.',compactDescription:'Счётчик еды и объёмная графика.'},
-  {version:'0.7.7',title:'ОБНОВЛЁННАЯ КАРТА',description:'Зелёные деревья Света в стиле Тьмы, более выразительное песчаное дно и прозрачная вода с бликами.',compactDescription:'Зелёный лес Света, детальный песок и вода.'},
-  {version:'0.7.7',title:'НОВЫЕ ПРЕДМЕТЫ В МЕНЮ',description:'В новостях показаны Замисть и Диспёрсер, а также иллюстрация обновлённой карты.',compactDescription:'Замисть, Диспёрсер и улучшенная карта.'},
-  {version:'0.7.7',title:'МАГАЗИН КАК В DOTA',description:'Предметы показаны компактными иконками, а название, цена и описание появляются при наведении.',compactDescription:'Иконки предметов и описание при наведении.'},
-  {version:'0.7.6b',title:'ПРЕДМЕТ «ЗАМИСТЬ» И ПРОФИЛИ',description:'Новый активный предмет, звон монет при покупке, профили игроков мирового топа и обязательный аккаунт для онлайна.',compactDescription:'Замисть, профили игроков и аккаунт для онлайна.'},
-  {version:'0.7.6a',title:'КРАСНАЯ РИГИНА И ИНВЕНТАРЬ',description:'Забери первый бесплатный скин в магазине, примени его в инвентаре и используй на Ригине в матче.',compactDescription:'Бесплатный скин Ригины и новый инвентарь.'},
-  {version:'0.7.4b',title:'КАРЬЕРА И ИСТОРИЯ МАТЧЕЙ',description:'Победы, поражения, убийства, смерти, любимые бойцы и подробные отчёты последних игр с итогом команд.',compactDescription:'Карьера игрока и отчёты последних матчей.'},
-  {version:'0.7.4b',title:'МИРОВОЙ ТОП ПО ПОБЕДАМ',description:'Смотри десятку игроков с наибольшим числом побед над ботами и игроками. MMR отображается как дополнительная статистика.',compactDescription:'Глобальный топ по победам в матчах.'},
-  {version:'0.7.4b',title:'ПРОГРЕСС АККАУНТА',description:'Личные показатели, любимые герои и недавние результаты остаются с аккаунтом после следующего входа.',compactDescription:'Статистика сохраняется в аккаунте.'},
-  {version:'0.7.4a',title:'ЖИВОЙ СЧЁТЧИК ОНЛАЙНА',description:'Верхняя панель показывает число активных подключений к серверу. Счётчик обновляется сразу при входе и выходе игроков и переживает временную недоступность Render.',compactDescription:'Актуальное число подключённых игроков на сервере.'},
-  {version:'0.7.4a',title:'ТИХАЯ КОСМИЧЕСКАЯ ТЕМА',description:'Главное меню получило новую оригинальную музыку: медленный низкий пад и редкие высокие ноты звучат спокойно и не заглушают игру.',compactDescription:'Новая спокойная космическая музыка меню.'},
-  {version:'0.7.4a',title:'КАРТА: ТЕНИ И КАМЕННЫЕ ДОРОГИ',description:'Добавлены контактные тени деревьев, глубина берегов и каменная разметка линий без изменений маршрутов и игровой физики.',compactDescription:'Тени леса и более читаемые каменные линии.'},
-  {version:'0.7.3b',title:'МАГАЗИН: НОВЫЕ ИЗОБРАЖЕНИЯ',description:'Предметы получили новые объёмные карточки. Та же иконка теперь отображается в магазине и в шести слотах инвентаря.',compactDescription:'Новые изображения предметов в магазине и инвентаре.'},
-  {version:'0.7.3b',title:'САВЕЛИЙ: ТРАНСФОРМАЦИЯ ПОЧИНЕНА',description:'Форма Трансформера и Яростный рев больше не ломают состояние интерфейса и корректно работают с любой целью.',compactDescription:'Стабильные трансформер и ульта Савелия.'},
-  {version:'0.7.3b',title:'ОНЛАЙН: СТАТИСТИКА И РЕЙТИНГ',description:'В онлайн-разделе появились профиль, рейтинг, победы, поражения, матчи и винрейт перед поиском комнаты.',compactDescription:'Профиль, рейтинг и статистика прямо перед матчем.'}
-];
+/* UPDATE_SPOTLIGHT вынесен в js/data/ui-content.js (подключается в index.html перед game.js) */
 
 function drawMenuUpdatePreview(playRect){
   const sections=UPDATE_SPOTLIGHT.slice(0,3);

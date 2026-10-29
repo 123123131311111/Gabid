@@ -84,8 +84,35 @@
 Изменены: `public/game.js` (−404 строки, +15 указателей), `public/index.html` (+5 `<script>`), `public/js/ui/account-display.js`, `career-panel.js`, `leaderboard-ui.js`, `avatars.js`, `account-modal.js` (новые), `REFACTOR_PROGRESS.md`. `accounts.js`, `server.js`, `update*.js`, `hero3d.js`, `demon3d.js` не менялись.
 Проверки: `node --check` game.js и всех 5 модулей — OK; diff: удалённые из game.js строки (404) совпадают с содержимым модулей без пропусков и добавлений, остальной game.js идентичен оригиналу (кроме указателей); дубликатов объявлений нет (в game.js 0, в модулях по 1); в vm с заглушками DOM и состояния модули загружаются в нужном порядке, `renderAccountModal`, `renderLeaderboardPanel`, `showLeaderboardProfile`, `openAccountModal/closeAccountModal`, `openLeaderboard/closeLeaderboard`, `renderCareerPanel` (с матчем и участниками), `renderAvatarPicker` (23 аватара) отрабатывают без ошибок. В браузере НЕ запускалось — нужна ручная проверка: окно аккаунта (вход/регистрация, смена ника/аватара, выход), карьера и отчёт матча, мировой рейтинг и карточка игрока, подпись кнопки «ОНЛАЙН».
 
-## Следующий этап
-- Не начат. Варианты: (а) UI магазина/инвентаря (DOM-часть), (б) остальные независимые блоки данных/констант `game.js` (`GUIDE_ITEM_WHY`, `UPDATE_SPOTLIGHT`) — сначала поиск границ и зависимостей; (в) аудиосистема (пока пропущена по решению пользователя).
-- Открыто с этапа 1: `gen_guides.py` (генератор HERO_GUIDES отсутствует в архиве).
-- Открыто с этапа 3: `buildTerrainDecor/drawTerrainDecor` — решать после анализа зависимостей.
-- Открыто с этапа 5: рисование аватаров на canvas и карточка профиля в меню (canvas) — решать вместе с рефакторингом главного меню.
+## Этап 6 (последний): UI-контент → `public/js/data/ui-content.js` (выполнено)
+- Перенесено байт-в-байт (64 строки): `const GUIDE_ITEM_WHY` (35 предметов) и `const UPDATE_SPOTLIGHT` (25 записей). Оба — независимые литералы без ссылок на другой код; используются только внутри функций `game.js` (`drawMenuUpdatePreview`, отрисовка подсказки гайда закупа), в других файлах не встречаются.
+- В `game.js` на местах блоков — комментарии-указатели. Имена и тексты не менялись.
+- `index.html`: `<script src="./js/data/ui-content.js?v=0.9.8.1.1">` перед `graphics-settings.js` и `game.js`. Обычный скрипт.
+- Проверки: `node --check` game.js и модуля — OK; удалённые из game.js строки (64) — только перенесённые блоки; объявлений в game.js 0, в модуле по одному; в vm модуль исполняется отдельно (35 и 25 элементов). В браузере не запускалось.
+- Изменены: `public/game.js`, `public/index.html`, `public/js/data/ui-content.js` (новый), `REFACTOR_PROGRESS.md`.
+
+## ИТОГ: рефакторинг завершён
+Этап 6 — последний запланированный. Новые переносы не планируются; архитектурные изменения — только когда они нужны для конкретной функции или исправления ошибки.
+
+### Фактически завершённые переносы
+- `js/data/hero-guides.js` — `HERO_GUIDES`
+- `js/data/changelog.js` — `GAME_VERSION`, `CHANGELOG_HISTORY`, `CHANGELOG`
+- `js/data/graphics-settings.js` — `GFX_PRESETS`, `GFX`, `GFX_PARTICLE_MUL`, `PERF_NAMES`, `gfxSave`
+- `js/data/ui-content.js` — `GUIDE_ITEM_WHY`, `UPDATE_SPOTLIGHT`
+- `js/render/map-textures.js` — построители процедурных текстур (без `createPattern`)
+- `js/ui/` — `account-display.js`, `avatars.js`, `career-panel.js`, `leaderboard-ui.js`, `account-modal.js`
+
+### Намеренно оставлено в game.js
+- Игровая логика, герои, боты, бой, мир/карта, камера, главный цикл, сеть/онлайн.
+- Магазин и инвентарь (данные и UI), включая `SHOP_ITEMS`, `HERO_DEFS`.
+- Аудиосистема (по решению пользователя).
+- Всё, что зависит от `ctx`/состояния: `ctx.createPattern(...)`, `buildTerrainDecor/drawTerrainDecor`, логика графики (`perfLevel`, `setPerfLevel`, лимиты, панель настроек).
+- Авторизация/сеть аккаунта, результаты матчей, рисование аватаров и карточки профиля на canvas.
+- Рисование меню на canvas.
+
+### Известные проблемы и ограничения
+- Ни один этап не проверялся в браузере — только `node --check`, vm-загрузка и diff. Нужна ручная проверка: меню (новости обновлений), гайд закупа (строка «почему»), ГАЙД БОЙЦА, окно аккаунта, рейтинг, карьера, графика, карта.
+- `gen_guides.py` (генератор `HERO_GUIDES`) отсутствует в архиве; если он есть у автора, его нужно перенацелить на `js/data/hero-guides.js`.
+- Версия игры теперь в `js/data/changelog.js`; `?v=` в `index.html` обновляется вручную.
+- `let changelogPage` и `CHANGELOG_PAGE_SIZE` (не используется) остались в `game.js`.
+- Модули — обычные скрипты в глобальной области; конфликты имён контролируются вручную (порядок подключения в `index.html` важен).

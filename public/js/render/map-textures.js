@@ -49,14 +49,16 @@ const GRASS_PALETTES = {
     blades:['#4f7d27','#5f9030','#74a63a','#3b6420','#8bbd47'], tip:'#b0d95e',
     stones:['#cfc8b4','#b9b19c','#a59d88','#dcd5c0','#8f8876'], moss:'rgba(88,132,50,0.8)',
     flowers:['#f6f2de','#f3d45c','#eaa8c2','#ffffff'], flowerCore:'#d99a2b', stem:'#3f6d22', flowerN:20,
-    dirt:'rgba(98,76,46,0.55)', dirtPatches:6, glow:false
+    dirt:'rgba(98,76,46,0.55)', dirtPatches:6, glow:false,
+    tones:['rgba(120,170,50,0.16)','rgba(70,120,60,0.18)','rgba(170,170,70,0.13)','rgba(20,50,25,0.22)'], dry:['#9a9a4a','#b3a85a','#7d8a3c'], clover:'#5f9a3a', pebble:'rgba(150,130,100,0.9)'
   },
   dark:{
     base:'#141a17', blobL:'rgba(72,98,80,0.20)', blobD:'rgba(0,0,0,0.42)',
     blades:['#27392c','#1b2a20','#35523b','#0f1612','#48644c'], tip:'#648768',
     stones:['#4b5254','#3c4244','#5b6265','#2f3437','#6a7172'], moss:'rgba(42,92,64,0.75)',
     flowers:['#c2334f','#e0566f','#a82440','#e98aa0'], flowerCore:'#3a0f18', stem:'#1f3a28', flowerN:30,
-    dirt:'rgba(8,6,7,0.62)', dirtPatches:7, glow:true
+    dirt:'rgba(8,6,7,0.62)', dirtPatches:7, glow:true,
+    tones:['rgba(60,90,90,0.15)','rgba(40,60,80,0.14)','rgba(90,50,70,0.10)','rgba(0,0,0,0.28)'], dry:['#3d3f38','#4a4a40','#2f332e'], clover:'#2f5a45', pebble:'rgba(90,92,96,0.9)'
   }
 };
 
@@ -81,6 +83,53 @@ function buildGrassTile(pal,seed){
       const gr=g.createRadialGradient(0,0,0,0,0,rx);
       gr.addColorStop(0,pal.dirt); gr.addColorStop(0.65,pal.dirt); gr.addColorStop(1,'rgba(0,0,0,0)');
       g.fillStyle=gr; g.beginPath(); g.ellipse(0,0,rx,ry,0,0,Math.PI*2); g.fill(); g.restore();
+    });
+  }
+
+  /* 0.9.8.2: крупные цветовые переходы + мелкие детали (бесшовно через texWrap) */
+  for(let i=0;i<Math.round(26*k);i++){
+    const x=R()*S,y=R()*S,rx=70+R()*150,ry=rx*(0.45+R()*0.4),rot=R()*Math.PI,col=pal.tones[(R()*pal.tones.length)|0];
+    texWrap(S,x,y,rx,(px,py)=>{
+      g.save(); g.translate(px,py); g.rotate(rot); g.scale(1,ry/rx);
+      const gr=g.createRadialGradient(0,0,0,0,0,rx);
+      gr.addColorStop(0,col); gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.beginPath(); g.arc(0,0,rx,0,Math.PI*2); g.fill(); g.restore();
+    });
+  }
+  /* зернистая «пестрота» травы */
+  for(let i=0;i<Math.round(900*k);i++){
+    const x=R()*S,y=R()*S,r=1.5+R()*3.5,dark=R()>0.5;
+    texWrap(S,x,y,r,(px,py)=>{
+      g.globalAlpha=0.07+R()*0.08; g.fillStyle=dark?'#000':pal.tip;
+      g.beginPath(); g.arc(px,py,r,0,Math.PI*2); g.fill();
+    });
+  }
+  g.globalAlpha=1;
+  /* сухие былинки */
+  for(let i=0;i<Math.round(260*k);i++){
+    const x=R()*S,y=R()*S,len=5+R()*8,a=-Math.PI/2+(R()-0.5)*1.8,col=pal.dry[(R()*pal.dry.length)|0];
+    texWrap(S,x,y,len,(px,py)=>{
+      g.globalAlpha=0.35+R()*0.3; g.strokeStyle=col; g.lineWidth=0.8+R()*0.6;
+      g.beginPath(); g.moveTo(px,py); g.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len); g.stroke();
+    });
+  }
+  g.globalAlpha=1;
+  /* клевер */
+  for(let i=0;i<Math.round(40*k);i++){
+    const x=R()*S,y=R()*S,r=2+R()*1.6;
+    texWrap(S,x,y,r*3,(px,py)=>{
+      g.fillStyle='rgba(0,0,0,0.18)'; g.beginPath(); g.ellipse(px+1,py+2,r*2,r*1.2,0,0,Math.PI*2); g.fill();
+      g.fillStyle=pal.clover;
+      for(let q=0;q<3;q++){ const a=q*2.09+0.5; g.beginPath(); g.arc(px+Math.cos(a)*r,py+Math.sin(a)*r,r,0,Math.PI*2); g.fill(); }
+      g.fillStyle='rgba(255,255,255,0.14)'; g.beginPath(); g.arc(px-0.5,py-1,r*0.6,0,Math.PI*2); g.fill();
+    });
+  }
+  /* мелкая галька с тенью */
+  for(let i=0;i<Math.round(60*k);i++){
+    const x=R()*S,y=R()*S,r=0.8+R()*1.6;
+    texWrap(S,x,y,r+2,(px,py)=>{
+      g.fillStyle='rgba(0,0,0,0.28)'; g.beginPath(); g.ellipse(px+1,py+1.5,r*1.2,r*0.8,0,0,Math.PI*2); g.fill();
+      g.fillStyle=pal.pebble; g.beginPath(); g.ellipse(px,py,r,r*0.75,0,0,Math.PI*2); g.fill();
     });
   }
   for(let i=0;i<Math.round(2200*k);i++){
@@ -171,6 +220,25 @@ function buildDirtTile(pal,seed){
   for(let i=0;i<1100;i++){
     const x=R()*S,y=R()*S,r=0.5+R()*1.5,col=R()>0.5?pal.hi:pal.lo,al=0.25+R()*0.4;
     texWrap(S,x,y,r,(px,py)=>{ g.globalAlpha=al; g.fillStyle=col; g.beginPath(); g.arc(px,py,r,0,Math.PI*2); g.fill(); });
+  }
+  g.globalAlpha=1;
+
+  /* 0.9.8.2: тёмные влажные пятна, светлые сухие потёртости и трещины для глубины */
+  for(let i=0;i<9;i++){
+    const x=R()*S,y=R()*S,rx=18+R()*36,ry=rx*(0.45+R()*0.4),rot=R()*3,wet=R()>0.45;
+    texWrap(S,x,y,rx,(px,py)=>{
+      g.save(); g.translate(px,py); g.rotate(rot); g.scale(1,ry/rx);
+      const gr=g.createRadialGradient(0,0,0,0,0,rx);
+      gr.addColorStop(0,wet?'rgba(20,12,6,0.30)':'rgba(220,190,140,0.16)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.beginPath(); g.arc(0,0,rx,0,Math.PI*2); g.fill(); g.restore();
+    });
+  }
+  for(let i=0;i<70;i++){
+    const x=R()*S,y=R()*S,len=3+R()*7,a=R()*6.28;
+    texWrap(S,x,y,len,(px,py)=>{
+      g.globalAlpha=0.25+R()*0.25; g.strokeStyle=R()>0.5?pal.hi:pal.lo; g.lineWidth=0.8;
+      g.beginPath(); g.moveTo(px,py); g.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len); g.stroke();
+    });
   }
   g.globalAlpha=1;
   const shades=pal.stones.map(shadeOf);
