@@ -43,6 +43,21 @@
 - Проверки: `node --check` game.js и changelog.js — OK; diff: блок идентичен оригиналу, остальной game.js идентичен; одно объявление каждой переменной (только в новом файле); в vm: GAME_VERSION='0.9.8.1.1', CHANGELOG.length=97. В браузере не запускалось.
 - Примечание: версия обновляется теперь в `js/data/changelog.js`; query-строка `?v=` в index.html для кэша меняется вручную.
 
+## Этап 3: процедурные текстуры карты → `public/js/render/map-textures.js` (выполнено частично — только независимая часть)
+Перенесено (чистые построители, без `ctx`/`canvas` игры, без `WORLD`/камеры/`Math.random`; байт-в-байт):
+- хелперы: `mulberry32`, `texWrap`, `shadeOf`, `drawStoneShape`;
+- `GRASS_PALETTES`, `DIRT_PALETTES`, `ROAD_PALETTES`;
+- `buildGrassTile`, `buildDirtTile`, `buildRoadTile`, `buildSandTile`, `buildWaterCausticTexture`;
+- готовые canvas: `grassTileLight`, `grassTileDark`, `waterCausticCanvasA`, `waterCausticCanvasB`.
+Сознательно ОСТАВЛЕНО в `game.js` (зависит от `ctx` или мира, не переносилось):
+- все `ctx.createPattern(...)`: `grassTexturePattern`, `darkGrassTexturePattern`, `dirtPattern*`, `pathTexturePattern`, `darkPathTexturePattern`, `sandTexturePattern`, `waterPatternA/B` — `ctx` объявлен как `let` в `game.js`, порядок инициализации сохранён;
+- `DECOR_STONE_SHADES`, `terrainDecor`, `buildTerrainDecor`, `drawTerrainDecor` — используют `WORLD`, `LANES`, `rangeXY` и камеру (связаны с миром/отрисовкой).
+В `game.js` на местах вырезанных кусков — комментарии-указатели.
+- `index.html`: `<script src="./js/render/map-textures.js?v=0.9.8.1.1">` после `changelog.js`, перед `game.js`. Обычные скрипты.
+- Изменены: `public/game.js`, `public/index.html`, `public/js/render/map-textures.js` (новый), `REFACTOR_PROGRESS.md`.
+- Проверки: `node --check` game.js и модуля — OK; остальной game.js идентичен оригиналу (кроме 3 указателей); дубликатов объявлений нет; модуль исполняется в vm с заглушкой DOM и создаёт все перечисленные символы. В браузере не запускалось (визуально карту не сверяли).
+
 ## Следующий этап
-- Не выбран/не начат. Предложение: следующий самодостаточный блок данных в `game.js` (например `GUIDE_ITEM_WHY`, `UPDATE_SPOTLIGHT`) — сначала проверить зависимости и места использования.
+- Аудиосистема: движок, диктор и голоса (сначала найти границы и зависимости, не переносить вслепую).
+- Возможное продолжение текстур: перенос `buildTerrainDecor/drawTerrainDecor` — только после анализа зависимостей от мира/камеры.
 - Открыто с этапа 1: судьба `gen_guides.py` (генератор HERO_GUIDES отсутствует в архиве).
