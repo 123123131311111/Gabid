@@ -3,6 +3,14 @@
    игровую покупку выполняет сам магазин, помощник только открывает его по кнопке. */
 (function(){
 'use strict';
+/* 0.9.8.6: активация за 1000 Сенсиков (навсегда, хранится на сервере). Клиент только показывает состояние. */
+const DSPLUS_PRICE = 1000;
+const profileNow = () => window.__shadowAccountProfile || null;
+const owned = () => { const p = profileNow(); return !!(p && p.dsPlus === true); };
+const fmtN = n => String(Math.max(0, Math.floor(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+const SHARD = '<svg class="sk-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#sensik-shard"></use></svg>';
+let buying = false, buyError = '';
+const mmss = sec => { sec = Math.max(0, Math.ceil(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
 const box = document.getElementById('dsplus-box');
 if(!box) return;
 const btn = document.getElementById('dsplus-btn');
@@ -230,6 +238,68 @@ function renderCounter(){
   return html;
 }
 
+/* ===== Экран активации ===== */
+function renderLocked(){
+  const p = profileNow(), shards = p ? Math.max(0, Math.floor(p.shards || 0)) : 0, need = Math.max(0, DSPLUS_PRICE - shards);
+  const perks = ['Контрпики LIVE во время выбора героев', 'Гайд по закупу и покупка предметов одной кнопкой', 'Таймеры Рошана и рун на карте', 'Сборки и советы по всем героям'];
+  let html = '<div class="dsp-lock"><div class="dsp-lock-seal" aria-hidden="true">+</div>' +
+    '<div class="dsp-eyebrow">РАЗОВАЯ АКТИВАЦИЯ · НАВСЕГДА</div><h3>Дотасенс <b>+</b></h3>' +
+    '<ul class="dsp-perks">' + perks.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' +
+    '<div class="dsp-price"><span>СТОИМОСТЬ</span><b>' + SHARD + fmtN(DSPLUS_PRICE) + '</b></div>';
+  if(!p) html += '<p class="dsp-note">Покупка привязывается к аккаунту. Войди, чтобы активировать помощника.</p><button type="button" class="dsp-buy wide" data-act="login">ВОЙТИ В АККАУНТ</button>';
+  else {
+    html += '<div class="dsp-balance"><span>ТВОЙ БАЛАНС</span><b>' + SHARD + fmtN(shards) + '</b></div>' +
+      (need > 0 ? '<p class="dsp-note">Не хватает ' + fmtN(need) + ' Сенсиков. Каждая победа в матче приносит +500.</p>' : '<p class="dsp-note">Баланс позволяет активировать помощника прямо сейчас.</p>') +
+      '<button type="button" class="dsp-buy wide" data-act="activate"' + (need > 0 || buying ? ' disabled' : '') + '>' + (buying ? 'АКТИВАЦИЯ…' : 'АКТИВИРОВАТЬ ЗА ' + fmtN(DSPLUS_PRICE)) + '</button>';
+  }
+  if(buyError) html += '<div class="dsp-msg bad" role="alert">' + esc(buyError) + '</div>';
+  return html + '</div>';
+}
+async function activate(){
+  if(buying || owned() || typeof account === 'undefined' || !account.token) return;
+  buying = true; buyError = ''; render(true);
+  try {
+    const data = await accountApi('buyplus', {token: account.token});
+    account.profile = data.profile;
+    accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
+    renderAccountModal();
+  } catch(err) {
+    if(err && err.status === 401 && typeof accountSet === 'function') accountSet(null, null);
+    else {
+      buyError = (err && err.message) || 'Не удалось активировать. Попробуй ещё раз.';
+      try {   /* баланс мог измениться на сервере — подтянем актуальный профиль */
+        const me = await accountApi('me', {token: account.token});
+        account.profile = me.profile; accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(me.profile)); renderAccountModal();
+      } catch(e2) {}
+    }
+  } finally { buying = false; render(true); updateHint(); }
+}
+
+/* ===== Таймеры карты: Рошан и руны ===== */
+function mapTimers(){
+  const t = typeof gameTime === 'number' ? gameTime : 0;
+  const runeIn = (Math.floor(t / 120) + 1) * 120 - t;
+  const runeNow = typeof runes !== 'undefined' ? runes.length : 0;
+  let rosh = {state:'none', left:0, pct:0, text:'—'};
+  if(typeof roshanUnit !== 'undefined' && roshanUnit){
+    if(roshanUnit.dead){ const left = Math.max(0, roshanUnit.respawnTimer || 0); rosh = {state:'dead', left, pct:100 - left / ROSHAN_RESPAWN * 100, text:'Возродится через ' + mmss(left)}; }
+    else rosh = {state:'alive', left:0, pct:100, text:'Жив · ' + Math.round(roshanUnit.hp / roshanUnit.maxHp * 100) + '% здоровья'};
+  } else if(t < ROSHAN_SPAWN_TIME){ const left = ROSHAN_SPAWN_TIME - t; rosh = {state:'wait', left, pct:t / ROSHAN_SPAWN_TIME * 100, text:'Появится через ' + mmss(left)}; }
+  return {t, runeIn, runeNow, rosh};
+}
+function renderTimers(){
+  if(!inMatch()) return '<p class="dsp-note">Таймеры появляются в матче: когда придёт следующая руна и когда Рошан появится или возродится. Открой помощника во время боя (F2).</p>';
+  const m = mapTimers(), r = m.rosh, runePct = (120 - m.runeIn) / 120 * 100;
+  const runeSoon = m.runeIn <= 15;
+  let html = '<div class="dsp-timer' + (runeSoon ? ' soon' : '') + '"><div class="dsp-timer-top"><span class="dsp-eyebrow">РУНЫ</span><b>' + (m.runeNow ? 'на карте: ' + m.runeNow : mmss(m.runeIn)) + '</b></div>' +
+    '<div class="dsp-progress"><i style="width:' + Math.max(2, Math.min(100, runePct)) + '%"></i></div>' +
+    '<small>' + (m.runeNow ? 'Руны ждут героя. Следующая волна через ' + mmss(m.runeIn) + '.' : 'Следующая волна рун через ' + mmss(m.runeIn) + ' · каждые 2 минуты.') + '</small></div>';
+  html += '<div class="dsp-timer ' + r.state + (r.state === 'dead' && r.left <= 20 ? ' soon' : '') + '"><div class="dsp-timer-top"><span class="dsp-eyebrow">РОШАН</span><b>' + (r.state === 'alive' ? 'НА КАРТЕ' : r.state === 'none' ? '—' : mmss(r.left)) + '</b></div>' +
+    '<div class="dsp-progress"><i style="width:' + Math.max(2, Math.min(100, r.pct)) + '%"></i></div><small>' + esc(r.text) + (r.state === 'alive' ? '. Победа над ним даёт ' + ROSHAN_REWARD + ' золота и Аегис.' : '') + '</small></div>';
+  html += '<p class="dsp-foot">Время матча ' + mmss(m.t) + '. Когда до события остаётся мало секунд, подпись на кнопке помощника предупредит заранее.</p>';
+  return html;
+}
+
 let buyMsg = null;   // {text, bad}
 function canBuy(id, coins){
   const it = SHOP_ITEMS[id]; if(!it || coins === null) return false;
@@ -330,16 +400,20 @@ function renderHeroes(){
 function render(force){
   if(panel.hidden) return;
   const match = inMatch();
-  const sig = [tab, match, inDraft(), pickedHero, manualEnemies.join(','),
+  const sig = [owned(), buying, buyError, profileNow() ? Math.floor(profileNow().shards || 0) : -1, tab, match, inDraft(), pickedHero, manualEnemies.join(','),
     inDraft() ? draftBotIndices.join(',') + '|' + draftPlayerIndex + '|' + Math.ceil(draftTime) : '',
-    match ? [Math.floor(playerHero.coins || 0), Math.floor((playerHero.hp || 0) / 40), playerHero.inventory.map(i => i && i.id).join(','), heroes.map(h => (h.dead ? 'd' : 'a') + (h.kills || 0) + 'l' + h.level).join(',')].join('|') : ''].join('#');
+    match ? [Math.ceil(typeof gameTime === 'number' ? gameTime : 0), Math.floor(playerHero.coins || 0), Math.floor((playerHero.hp || 0) / 40), playerHero.inventory.map(i => i && i.id).join(','), heroes.map(h => (h.dead ? 'd' : 'a') + (h.kills || 0) + 'l' + h.level).join(',')].join('|') : ''].join('#');
   if(!force && sig === lastSig) return;
   lastSig = sig;
   const scroll = panel.scrollTop;
-  const tabs = [['counter', 'КОНТРПИК'], ['battle', 'В БОЮ'], ['heroes', 'ГЕРОИ']];
+  if(!owned()){
+    panel.innerHTML = '<div class="dsp-head"><span>ДОТАСЕНС <b>+</b></span><button type="button" class="dsp-x" data-act="close" aria-label="Закрыть">×</button></div><div class="dsp-body">' + renderLocked() + '</div>';
+    panel.scrollTop = scroll; return;
+  }
+  const tabs = [['counter', 'КОНТРПИК'], ['battle', 'В БОЮ'], ['timers', 'ТАЙМЕРЫ'], ['heroes', 'ГЕРОИ']];
   panel.innerHTML = '<div class="dsp-head"><span>ДОТАСЕНС <b>+</b></span><button type="button" class="dsp-x" data-act="close" aria-label="Закрыть">×</button></div>' +
     '<div class="dsp-tabs">' + tabs.map(t => '<button type="button" data-tab="' + t[0] + '" class="' + (tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div>' +
-    '<div class="dsp-body">' + (tab === 'counter' ? renderCounter() : tab === 'battle' ? renderBattle() : renderHeroes()) + '</div>';
+    '<div class="dsp-body">' + (tab === 'counter' ? renderCounter() : tab === 'battle' ? renderBattle() : tab === 'timers' ? renderTimers() : renderHeroes()) + '</div>';
   panel.scrollTop = scroll;
 }
 
@@ -349,7 +423,7 @@ function setOpen(open){
   btn.setAttribute('aria-expanded', String(open));
   if(open){
     /* Умный выбор вкладки: в бою — «В бою», в драфте — «Контрпик». */
-    if(inMatch()) tab = 'battle'; else if(inDraft()) tab = 'counter';
+    if(owned()){ if(inMatch()) tab = 'battle'; else if(inDraft()) tab = 'counter'; }
     render(true);
   }
 }
@@ -357,6 +431,9 @@ btn.addEventListener('click', () => setOpen(panel.hidden));
 panel.addEventListener('click', e => {
   const t = e.target.closest('button'); if(!t) return;
   if(t.dataset.act === 'close') return setOpen(false);
+  if(t.dataset.act === 'activate') return activate();
+  if(t.dataset.act === 'login'){ setOpen(false); if(typeof openAccountModal === 'function') openAccountModal(); return; }
+  if(!owned()) return;
   if(t.dataset.act === 'reset'){ manualEnemies = []; return render(true); }
   if(t.dataset.buy){ if(!t.disabled) doBuy(t.dataset.buy); return; }
   if(t.dataset.act === 'shop'){
@@ -379,11 +456,11 @@ panel.addEventListener('click', e => {
   if(t.dataset.kind === 'hero'){ pickedHero = t.dataset.id; render(true); }
 });
 document.addEventListener('pointerdown', e => {
-  if(!panel.hidden && !inMatch() && !inDraft() && !box.contains(e.target)) setOpen(false);   /* в бою и в драфте панель не закрывается кликами по игре */
+  if(!panel.hidden && (!owned() || (!inMatch() && !inDraft())) && !box.contains(e.target)) setOpen(false);   /* в бою и в драфте панель не закрывается кликами по игре */
 });
 window.addEventListener('keydown', e => {
   if(e.key === 'F2'){ e.preventDefault(); setOpen(panel.hidden); }
-  else if(e.key === 'Escape' && !panel.hidden && !inMatch()){ setOpen(false); btn.focus(); }
+  else if(e.key === 'Escape' && !panel.hidden && (!inMatch() || !owned())){ setOpen(false); btn.focus(); }
 });
 
 /* Положение кнопок: в верхней панели главного меню, справа внизу в выборе героя, сверху в матче. */
@@ -401,6 +478,14 @@ setInterval(syncDock, 120);
 let wasDraft = false, hintSig = '';
 function updateHint(){
   let hint = false, text = 'ПОМОЩНИК';
+  box.classList.toggle('locked', !owned());
+  if(!owned()){
+    const sig0 = 'locked' + (profileNow() ? 1 : 0);
+    if(sig0 === hintSig) return; hintSig = sig0;
+    btn.classList.remove('has-hint');
+    if(caption) caption.textContent = 'ОТКРЫТЬ · ' + fmtN(DSPLUS_PRICE) + ' СЕНС.';
+    return;
+  }
   try {
     if(inDraft()){
       const t = draftTeams();
@@ -409,6 +494,10 @@ function updateHint(){
       const adv = itemAdvice(playerHero.def.id, heroes.filter(h => h.team !== playerHero.team).map(h => h.def.id), true);
       const n = adv.rows[0];
       if(n && !playerHero.dead && canBuy(n.id, adv.coins)){ hint = true; text = 'МОЖНО КУПИТЬ'; }
+      else { const m = mapTimers();
+        if(m.runeNow === 0 && m.runeIn <= 10){ hint = true; text = 'РУНЫ ЧЕРЕЗ ' + Math.ceil(m.runeIn) + ' С'; }
+        else if(m.rosh.state === 'dead' && m.rosh.left <= 15){ hint = true; text = 'РОШАН ЧЕРЕЗ ' + Math.ceil(m.rosh.left) + ' С'; }
+        else if(m.rosh.state === 'wait' && m.rosh.left <= 15){ hint = true; text = 'РОШАН ЧЕРЕЗ ' + Math.ceil(m.rosh.left) + ' С'; } }
     }
   } catch(err) {}
   const sig = hint + text; if(sig === hintSig) return; hintSig = sig;
@@ -449,8 +538,9 @@ setInterval(() => {
   if(!drafting && wasDraft){ setOpen(false); window.dsDraftRank = null; toast.hidden = true; seenEnemies = ''; autoOpened = false; }
   if(drafting && !wasDraft){ seenEnemies = ''; autoOpened = false; }
   wasDraft = drafting;
-  try { if(drafting) liveDraft(); } catch(err) {}
+  if(owned()){ try { if(drafting) liveDraft(); } catch(err) {} } else window.dsDraftRank = null;
   updateHint();
   render(false);
 }, 400);
+window.addEventListener('shadow:profile', () => { hintSig = ''; updateHint(); render(true); });
 })();

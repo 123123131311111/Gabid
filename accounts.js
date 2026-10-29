@@ -12,6 +12,8 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const SHARDS_PER_WIN = 500;
 const DAILY_QUEST = { id: 'hero_hunter', title: 'Охотник за головами', desc: 'Убей 10 героев за день (в любых матчах)', target: 10, reward: 300 };
 const MAX_QUEST_KILLS_PER_MATCH = 30;
+/* 0.9.8.6: активация «Дотасенс +» — разовая покупка навсегда. Цена хранится только на сервере. */
+const DSPLUS_PRICE = 1000;
 const dayKey = (time = Date.now()) => {
   try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(time)); }
   catch(err) { return new Date(time).toISOString().slice(0, 10); }
@@ -61,6 +63,8 @@ const accountSchema = new mongoose.Schema({
   heroStats: { type: Map, of: Number, default: {} },
   history: { type: [matchSchema], default: [] },
   shards: { type: Number, min: 0, default: 0 },
+  dsPlus: { type: Boolean, default: false },
+  dsPlusAt: { type: Number, default: 0 },
   daily: {
     day: { type: String, default: '' },
     kills: { type: Number, min: 0, default: 0 },
@@ -133,7 +137,7 @@ function dailyState(acc){
   };
 }
 /* Профиль владельца: публичные поля + личные (Сенсики и задание). В таблицу лидеров это не попадает. */
-const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc) });
+const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE });
 
 async function makeSession(key){
   const token = crypto.randomBytes(24).toString('hex');
@@ -286,6 +290,25 @@ const routes = {
       return [200, { profile: ownProfile(current), claimed: false }];
     }
     return [200, { profile: ownProfile(claimed), claimed: true, reward: DAILY_QUEST.reward }];
+  },
+
+  /* Покупка «Дотасенс +». Одна атомарная операция: условие (не куплено И хватает Сенсиков) и списание
+     выполняются в одном запросе к MongoDB, поэтому двойной клик или две вкладки не спишут баланс дважды. */
+  async buyplus(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const bought = await Account.findOneAndUpdate({
+      _id: auth.acc._id,
+      dsPlus: { $ne: true },
+      shards: { $gte: DSPLUS_PRICE }
+    }, {
+      $inc: { shards: -DSPLUS_PRICE },
+      $set: { dsPlus: true, dsPlusAt: Date.now() }
+    }, { new: true });
+    if(bought) return [200, { profile: ownProfile(bought), bought: true, price: DSPLUS_PRICE }];
+    const current = await Account.findById(auth.acc._id);
+    if(current && current.dsPlus === true) return [200, { profile: ownProfile(current), bought: false, already: true }];
+    return [409, { error: 'Не хватает Сенсиков: нужно ' + DSPLUS_PRICE, profile: current ? ownProfile(current) : undefined }];
   },
 
   async result(body){
