@@ -241,7 +241,7 @@ function renderCounter(){
 /* ===== Экран активации ===== */
 function renderLocked(){
   const p = profileNow(), shards = p ? Math.max(0, Math.floor(p.shards || 0)) : 0, need = Math.max(0, DSPLUS_PRICE - shards);
-  const perks = ['Контрпики LIVE во время выбора героев', 'Гайд по закупу и покупка предметов одной кнопкой', 'Таймеры Рошана и рун на карте', 'Сборки и советы по всем героям'];
+  const perks = ['Контрпики LIVE во время выбора героев', 'Гайд по закупу и покупка предметов одной кнопкой', 'Таймеры Рошана и рун на карте', 'Баланс сил: кто сильнее в матче прямо сейчас', 'Сборки и советы по всем героям'];
   let html = '<div class="dsp-lock"><div class="dsp-lock-seal" aria-hidden="true">+</div>' +
     '<div class="dsp-eyebrow">РАЗОВАЯ АКТИВАЦИЯ · НАВСЕГДА</div><h3>Дотасенс <b>+</b></h3>' +
     '<ul class="dsp-perks">' + perks.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' +
@@ -273,6 +273,44 @@ async function activate(){
       } catch(e2) {}
     }
   } finally { buying = false; render(true); updateHint(); }
+}
+
+/* ===== 0.9.8.9: «Силы» — баланс команд в матче: состояние, уровни, убийства и ценность предметов ===== */
+function heroWorth(h){
+  let w = Math.floor(h.coins || 0);
+  (h.inventory || []).forEach(it => { if(it && it.id) w += itemCost(it.id); });
+  return w;
+}
+function teamStat(list){
+  const st = {worth:0, level:0, kills:0, alive:0, n:list.length};
+  list.forEach(h => { st.worth += heroWorth(h); st.level += h.level || 1; st.kills += h.kills || 0; if(!h.dead) st.alive++; });
+  return st;
+}
+function powerShare(a, b){
+  /* Итоговая оценка: ценность предметов, уровни и живые герои; убийства — небольшой бонус. */
+  const sc = x => x.worth * 0.4 + x.level * 120 + x.alive * 250 + x.kills * 40;
+  const A = sc(a), B = sc(b);
+  return A + B > 0 ? A / (A + B) : 0.5;
+}
+function barRow(label, mine, foe, fmt){
+  const total = mine + foe, pct = total > 0 ? Math.round(mine / total * 100) : 50;
+  return '<div class="dsp-power-row"><div class="dsp-power-top"><span>' + label + '</span><b>' + fmt(mine) + ' : ' + fmt(foe) + '</b></div>' +
+    '<div class="dsp-power-bar"><i style="width:' + pct + '%"></i></div></div>';
+}
+function renderPower(){
+  if(!inMatch()) return '<p class="dsp-note">Баланс сил считается в матче: сравнивает вашу команду с вражеской по предметам, уровням, убийствам и числу живых героев. Открой помощника во время боя (F2).</p>';
+  const mine = heroes.filter(h => h.team === playerHero.team), foes = heroes.filter(h => h.team !== playerHero.team);
+  const a = teamStat(mine), b = teamStat(foes), share = powerShare(a, b), pct = Math.round(share * 100);
+  const cls = pct >= 58 ? 'good' : pct <= 42 ? 'bad' : 'mid';
+  const verdict = pct >= 58 ? 'Вы впереди' : pct <= 42 ? 'Вы позади' : 'Силы равны';
+  const advice = cls === 'good' ? 'Давите: забирайте башни и Рошана, пока преимущество не растаяло.' : cls === 'bad' ? 'Не принимайте бой в открытую: держитесь вместе, фармите и ждите ошибки врага.' : 'Бой решат первые убийства и руны. Следите за таймерами и не разбредайтесь.';
+  const fmtN2 = n => fmtN(n);
+  const threat = foes.filter(h => !h.dead).sort((x, y) => heroWorth(y) - heroWorth(x))[0];
+  let html = '<div class="dsp-power ' + cls + '"><span class="dsp-eyebrow">БАЛАНС СИЛ</span><div class="dsp-power-main"><b>' + pct + '%</b><em>' + verdict + '</em></div>' +
+    '<div class="dsp-power-bar big"><i style="width:' + pct + '%"></i></div><small>' + advice + '</small></div>';
+  html += barRow('ПРЕДМЕТЫ И ЗОЛОТО', a.worth, b.worth, fmtN2) + barRow('УРОВНИ', a.level, b.level, String) + barRow('УБИЙСТВА', a.kills, b.kills, String) + barRow('ЖИВЫЕ ГЕРОИ', a.alive, b.alive, String);
+  if(threat) html += '<div class="dsp-threat"><span class="dsp-eyebrow">ГЛАВНАЯ УГРОЗА</span><b>' + esc(threat.def.name) + '</b><small>ур.' + threat.level + ' · ' + (threat.kills || 0) + ' уб. · ценность ' + fmtN2(heroWorth(threat)) + '</small></div>';
+  return html + '<p class="dsp-foot">Первое число — ваша команда, второе — враги. Оценка приблизительная: она не знает позиций на карте.</p>';
 }
 
 /* ===== Таймеры карты: Рошан и руны ===== */
@@ -402,7 +440,7 @@ function render(force){
   const match = inMatch();
   const sig = [owned(), buying, buyError, profileNow() ? Math.floor(profileNow().shards || 0) : -1, tab, match, inDraft(), pickedHero, manualEnemies.join(','),
     inDraft() ? draftBotIndices.join(',') + '|' + draftPlayerIndex + '|' + Math.ceil(draftTime) : '',
-    match ? [Math.ceil(typeof gameTime === 'number' ? gameTime : 0), Math.floor(playerHero.coins || 0), Math.floor((playerHero.hp || 0) / 40), playerHero.inventory.map(i => i && i.id).join(','), heroes.map(h => (h.dead ? 'd' : 'a') + (h.kills || 0) + 'l' + h.level).join(',')].join('|') : ''].join('#');
+    match ? [Math.ceil(typeof gameTime === 'number' ? gameTime : 0), Math.floor(playerHero.coins || 0), Math.floor((playerHero.hp || 0) / 40), playerHero.inventory.map(i => i && i.id).join(','), heroes.map(h => (h.dead ? 'd' : 'a') + (h.kills || 0) + 'l' + h.level + 'w' + Math.floor(heroWorth(h) / 50)).join(',')].join('|') : ''].join('#');
   if(!force && sig === lastSig) return;
   lastSig = sig;
   const scroll = panel.scrollTop;
@@ -410,10 +448,10 @@ function render(force){
     panel.innerHTML = '<div class="dsp-head"><span>ДОТАСЕНС <b>+</b></span><button type="button" class="dsp-x" data-act="close" aria-label="Закрыть">×</button></div><div class="dsp-body">' + renderLocked() + '</div>';
     panel.scrollTop = scroll; return;
   }
-  const tabs = [['counter', 'КОНТРПИК'], ['battle', 'В БОЮ'], ['timers', 'ТАЙМЕРЫ'], ['heroes', 'ГЕРОИ']];
+  const tabs = [['counter', 'КОНТРПИК'], ['battle', 'В БОЮ'], ['timers', 'ТАЙМЕРЫ'], ['power', 'СИЛЫ'], ['heroes', 'ГЕРОИ']];
   panel.innerHTML = '<div class="dsp-head"><span>ДОТАСЕНС <b>+</b></span><button type="button" class="dsp-x" data-act="close" aria-label="Закрыть">×</button></div>' +
     '<div class="dsp-tabs">' + tabs.map(t => '<button type="button" data-tab="' + t[0] + '" class="' + (tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div>' +
-    '<div class="dsp-body">' + (tab === 'counter' ? renderCounter() : tab === 'battle' ? renderBattle() : tab === 'timers' ? renderTimers() : renderHeroes()) + '</div>';
+    '<div class="dsp-body">' + (tab === 'counter' ? renderCounter() : tab === 'battle' ? renderBattle() : tab === 'timers' ? renderTimers() : tab === 'power' ? renderPower() : renderHeroes()) + '</div>';
   panel.scrollTop = scroll;
 }
 

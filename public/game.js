@@ -613,7 +613,7 @@ const SHOP_ITEMS = {
   tango: {name:'Танго', icon:'♣', cost:90, desc:'Активный расходуемый предмет: съедает ближайшее дерево и восстанавливает 90 HP.', color:'#79d46c', active:true},
   fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +20 к урону обычных атак и +5 к урону каждой способности.', color:'#ff8d8d', damage:20, spellDamage:5, active:false},
   bkb: {name:'БКБ', icon:'✚', cost:1750, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
-  pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 200 монет. Пассивно: +180 урона, +60 скорости передвижения и ускорение атак.', color:'#ff9e5d', active:false},
+  pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 150 монет. Пассивно: +40 урона, +15 скорости передвижения и +15% к скорости атаки.', color:'#ff9e5d', active:false, damage:40, speed:15, attackSpeedBonus:0.15},
   blink: {name:'Блинк', icon:'◇', cost:1150, range:500, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
   evsyutin: {name:'Еблет Евсютина', icon:'♥', cost:1250, desc:'Пассивно: +500 к максимальному и текущему здоровью.', color:'#ff7898', hp:500, active:false},
   mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2400, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', manaCost:80, active:true},
@@ -648,6 +648,11 @@ for(const item of Object.values(SHOP_ITEMS)){
   if(typeof item.cost === 'number') item.cost = Math.round(item.cost * 0.93);
   if(typeof item.totalCost === 'number') item.totalCost = Math.round(item.totalCost * 0.93);
 }
+/* 0.9.8.9: баланс. ПТ: рецепт 150 (сборка целиком 930 + 150), Научилсяловить 200, Супер сапог 1350 — ровно, без множителя 0.93. */
+SHOP_ITEMS.pt.cost = 150;
+SHOP_ITEMS.pt.totalCost = SHOP_ITEMS.pt.totalCost - 186 + 150;
+SHOP_ITEMS.manaTome.cost = 200;
+SHOP_ITEMS.superBoots.cost = 1350;
 SHOP_ITEMS.bkb.cost = 1750;
 SHOP_ITEMS.mantledSteel.cost = 2400;
 SHOP_ITEMS.ilyaHair.cost = 1500;
@@ -917,7 +922,7 @@ const CREATOR_BUILDS = {
     title:'Шадоу  /  Повелитель душ',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['mango','Мана для койлов. Шадоу хочет давить с первых волн, а не ждать идеальный момент.'],['tango','Дерево превращается в здоровье: держи дистанцию и фарми под постоянным восстановлением.']]},
-      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать дальнюю дистанцию и собирать души безопаснее.'],['fangs','Клыки усиливают и автоатаки, и койлы. Собери ПТ: Сапог Джоэла + Клыки Васьки + 200 монет.']]},
+      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать дальнюю дистанцию и собирать души безопаснее.'],['fangs','Клыки усиливают и автоатаки, и койлы. Собери ПТ: Сапог Джоэла + Клыки Васьки + 150 монет.']]},
       {name:'CORE', items:[['pt','ПТ дает урон, скорость и темп атак. Это главный мост от фарма к Реквиему.'],['ilyaHair','Урон, скорость и стан на 4 секунды: враг не переживает твой залп душ.'],['enemy302','-30% к перезарядке превращает койлы в конвейер давления.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['arcadiaScar','Когда нужен взрывной прокаст и добивание героя.'],['kinglandia','+250 урона атак и +50 к каждой способности превращают накопленные души в приговор.'],['aghanimShard','Отдельный навык усиливает план героя, не занимая слот инвентаря.']]}
     ]
@@ -926,7 +931,7 @@ const CREATOR_BUILDS = {
     title:'Илья  /  Владыка ядовитой ауры',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['tango','Лечение через дерево держит толстяка на линии, пока аура выжигает врагов.'],['mango','Мана нужна для крюка и брюха: не превращай Илью в просто большой мишень.']]},
-      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Подтянись к цели и не отпускай. Скорость делает крюк надежнее.'],['fangs','Клыки усиливают каждый спелл и удар, затем собирай ПТ из двух компонентов и 200 монет.']]},
+      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Подтянись к цели и не отпускай. Скорость делает крюк надежнее.'],['fangs','Клыки усиливают каждый спелл и удар, затем собирай ПТ из двух компонентов и 150 монет.']]},
       {name:'CORE', items:[['pt','ПТ дает Илье урон и мобильность для ауры в центре драки.'],['satanic','+660 здоровья и вампиризм позволяют пережить фокус, пока враги стоят в яде.'],['ilyaHair','Пассивная стойкость к атакам и стан превращают вход в драку в ультиматум.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['tornBrainHand','Притяни ключевую цель, нанеси 350 и начни пир толстяка с выгодной позиции.'],['gur','Подбрось врага и получи окно для ауры и ульта.'],['aghanimShard','Ядовитое поле запрещает способности внутри. Ставь его там, где враг хочет драться.']]}
     ]
@@ -935,7 +940,7 @@ const CREATOR_BUILDS = {
     title:'Голли  /  Повелитель льда',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['mango','Дополнительная мана для кристаллов и заморозки на первых уровнях.'],['tango','Дешевое лечение, пока Голли собирает пространство под ледяную атаку.']]},
-      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать врага в радиусе ледяной орды.'],['fangs','Урон спеллов растет сразу; затем собери ПТ из Сапога Джоэла, Клыков и 200 монет.']]},
+      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать врага в радиусе ледяной орды.'],['fangs','Урон спеллов растет сразу; затем собери ПТ из Сапога Джоэла, Клыков и 150 монет.']]},
       {name:'CORE', items:[['pt','Темп, урон и скорость: Голли быстрее добегает до позиции для големов.'],['superBoots','Активация дает нужный разгон для входа, выхода и повторного контроля.'],['aghanimShard','Ледяная броня усиливает выживаемость в центре драки.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['mantledSteel','Три копии добавляют тел и целей, пока твои кристаллы контролируют поле.'],['bkb','Защищает каст големов от вражеского контроля.'],['aghanimShard','Отдельный навык усиливает Голли, не ломая шесть слотов инвентаря.']]}
     ]
@@ -944,7 +949,7 @@ const CREATOR_BUILDS = {
     title:'Аркадий  /  Огненный стрелок',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['mango','Мана на огненные шары и Молотов. Дави линию, пока враг еще без защиты.'],['tango','Восстановление для дальнего героя, которому нельзя терять темп фарма.']]},
-      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Дальность не спасает от плохой позиции: скорость делает стрелка мобильным.'],['fangs','Усиливает шары и автоатаки; собери ПТ из Сапога Джоэла + Клыков + 200.']]},
+      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Дальность не спасает от плохой позиции: скорость делает стрелка мобильным.'],['fangs','Усиливает шары и автоатаки; собери ПТ из Сапога Джоэла + Клыков + 150.']]},
       {name:'CORE', items:[['pt','Больше урона, скорости и скорострельности для постоянного огня.'],['munition','На 2 секунды превращает залп в пулемет. Используй перед взрывом.'],['arcadiaScar','+250 урона и скорострельность дают жесткое окно для Молотова и динамита.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['dagonEmpire','500 магического урона закрывают бой с убегающим героем.'],['kinglandia','Максимальный физический урон, когда враг уже не может пережить дистанционный фокус.'],['aghanimShard','Отдельный навык добавляет еще один огненный аргумент без потери предмета.']]}
     ]
@@ -1003,7 +1008,7 @@ const CREATOR_BUILDS = {
     title:'Ригина  /  Серия яростных ударов',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение помогает пережить первые размены в ближнем бою.'],['joelBoots','Скорость нужна, чтобы быстро добраться до цели и начать серию.']]},
-      {name:'РАННЯЯ ИГРА',items:[['fangs','Клыки усиливают каждый быстрый удар и урон от Q/W.'],['pt','Собери ПТ из Сапога Джоэла, Клыков Васьки и 200 монет: это главный темп Ригины.']]},
+      {name:'РАННЯЯ ИГРА',items:[['fangs','Клыки усиливают каждый быстрый удар и урон от Q/W.'],['pt','Собери ПТ из Сапога Джоэла, Клыков Васьки и 150 монет: это главный темп Ригины.']]},
       {name:'CORE',items:[['munition','Активация превращает заряды ярости в почти непрерывный шквал ударов.'],['arcadiaScar','Даёт большое окно урона и скорострельности для финального удара серии.'],['satanic','Здоровье и вампиризм помогают не прерывать серию под фокусом.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['bkb','Защищает Ригину во время прыжка и всей яростной серии.'],['kinglandia','Максимально усиливает каждый удар и волну на последнем заряде.'],['aghanimScepter','Увеличивает запас зарядов и радиус финальной волны ульты.']]}
     ]
@@ -2880,7 +2885,7 @@ function killUnit(u, source){
   if(rewardHero && rewardHero.team !== u.team) phantomOnCreepKill(rewardHero, u);
   if(rewardHero && rewardHero.team !== u.team){
     const bountyMul = gameModeCfg().creepBountyMul;
-    const reward = u.isRoshan ? ROSHAN_REWARD : u.type === 'neutral' ? Math.round(70*bountyMul) : (u.type === 'creep' ? Math.round(60*bountyMul) : (u.type === 'hero' ? 200 : 0));
+    const reward = u.isRoshan ? ROSHAN_REWARD : u.type === 'neutral' ? Math.round(70*bountyMul) : (u.type === 'creep' ? Math.round((60+(u.bountyBonus||0))*bountyMul) : (u.type === 'hero' ? 200 : 0));
     if(reward){
       rewardHero.coins += reward;
       if(rewardHero === playerHero) addText(u.x, u.y - u.radius - 24, '+' + reward + ' монет', '#ffd54f', 1.1, 14);
@@ -4679,14 +4684,14 @@ class Unit {
     }
     return range;
   }
-  getDamage(){ let d=this.dmg+newItemStat(this,'damage'); if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=180; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
-  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=0.6; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
+  getDamage(){ let d=this.dmg+newItemStat(this,'damage'); if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=SHOP_ITEMS.pt.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
+  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed+newItemStat(this,'speed');
     const galeB=this.inventory&&this.inventory.find(item=>item&&item.id==='galeBoots');
     if(galeB&&galeB.activeTimer>0) speed+=SHOP_ITEMS.galeBoots.activeSpeed;
     if(this.inventory && this.inventory.some(item=>item&&item.id==='joelBoots')) speed+=SHOP_ITEMS.joelBoots.speed;
-    if(this.inventory && this.inventory.some(item=>item&&item.id==='pt')) speed+=60;
+    if(this.inventory && this.inventory.some(item=>item&&item.id==='pt')) speed+=SHOP_ITEMS.pt.speed;
     if(this.inventory && this.inventory.some(item=>item&&item.id==='stormbringer')) speed+=SHOP_ITEMS.stormbringer.speed;
     if(this.inventory && this.inventory.some(item=>item&&item.id==='ilyaHair')) speed+=SHOP_ITEMS.ilyaHair.speed;
     if(this.def&&this.def.id==='arcady'&&this.skills&&this.skills[2]) speed+=this.skills[2].level*27.5;
@@ -4914,6 +4919,7 @@ class Unit {
         if(this.getAttackRange()>220){
           const shotSource={team:this.team, source:this, attack:true, fangsDamageIncluded:true, dianaDamageIncluded:true};
           let shotDamage=this.getDamage();
+          if(this.creepKind==='siege' && isBuilding(t)) shotDamage*=2;   /* катапульта: двойной урон по зданиям */
           if(this.def && this.def.id === 'sniper') shotDamage*=0.76;
           if(this.def && this.def.id === 'sniper' && this.skills && this.skills[1] && this.skills[1].level > 0){
             const headshotLevel=this.skills[1].level;
@@ -5059,18 +5065,29 @@ function nextCreepMonster(){
   creepMonsterSerial++;
   return (Math.imul(creepMonsterSerial, 2654435761) >>> 9) % 5;
 }
+/* 0.9.8.9: два новых вида лайновых крипов.
+   siege — «Катапульта» (каждая 3-я волна): медленная, бьёт издалека, по зданиям вдвое сильнее.
+   guard — «Страж» (волны 2, 6, 10…): толстый ближник с бронёй, прикрывает союзных крипов. */
+const CREEP_KINDS = {
+  melee:  {radius:17, speed:105, hp:170, dmg:9,  range:95,  atkTime:1.25, armor:3, xp:70,  ranged:false, bonus:0},
+  ranged: {radius:14, speed:115, hp:110, dmg:12, range:420, atkTime:1.15, armor:0, xp:90,  ranged:true,  bonus:0},
+  siege:  {radius:20, speed:78,  hp:340, dmg:34, range:560, atkTime:2.3,  armor:1, xp:120, ranged:true,  bonus:40},
+  guard:  {radius:21, speed:92,  hp:430, dmg:14, range:100, atkTime:1.4,  armor:9, xp:110, ranged:false, bonus:30}
+};
 class Creep extends Unit {
   constructor(team, lane, kind, spawnOff){
-    const ranged = kind==='ranged';
+    const cfg = CREEP_KINDS[kind] || CREEP_KINDS.melee;
+    const ranged = cfg.ranged;
     super({
       x:BASES[team].x, y:BASES[team].y, team,
-      radius: ranged?14:17, speed: ranged?115:105,
-      hp:   ranged ? 110 : 170,
-      dmg:  ranged ? 12  : 9,
-      atkRange: ranged?420:95, atkTime: ranged?1.15:1.25,
-      armor: ranged?0:3, vision:750,
-      type:'creep', xpValue: ranged?90:70, hpRegen:2
+      radius: cfg.radius, speed: cfg.speed,
+      hp: cfg.hp, dmg: cfg.dmg,
+      atkRange: cfg.range, atkTime: cfg.atkTime,
+      armor: cfg.armor, vision:750,
+      type:'creep', xpValue: cfg.xp, hpRegen:2
     });
+    this.creepKind = CREEP_KINDS[kind] ? kind : 'melee';
+    this.bountyBonus = cfg.bonus;
     this.ranged=ranged; this.lane=lane; this.path=LANES[lane];
     this.monsterIdx = nextCreepMonster();
     this.dir = team===0?1:-1;
@@ -9423,6 +9440,9 @@ function spawnWave(){
       ];
       for(let i=0;i<3;i++){ const c = new Creep(team, lane, 'melee', offsets[i]); applyCreepEvolution(c, stage); units.push(c); }
       const r = new Creep(team, lane, 'ranged', {x:rnd(-50,50), y:rnd(-50,50)}); applyCreepEvolution(r, stage); units.push(r);
+      /* 0.9.8.9: выбор по номеру волны (без случайности) — одинаково у всех клиентов онлайн */
+      if(waveCount % 4 === 2){ const g = new Creep(team, lane, 'guard', {x:rnd(-40,40), y:rnd(-40,40)}); applyCreepEvolution(g, stage); units.push(g); }
+      if(waveCount % 3 === 0){ const sg = new Creep(team, lane, 'siege', {x:rnd(-50,50), y:rnd(-50,50)}); applyCreepEvolution(sg, stage); units.push(sg); }
     }
   }
 }
@@ -12724,6 +12744,8 @@ function getWeaponConfig(unit){
     return {...unit.def.weapon,color:'#ff344f'};
   if(unit.def && unit.def.weapon) return unit.def.weapon;
   if(unit.type === 'creep'){
+    if(unit.creepKind==='siege') return {type:'forestBow', color:'#ffb066', size:0.8};
+    if(unit.creepKind==='guard') return {type:'forestBlade', color:'#ffd978', size:0.55};
     return unit.ranged
       ? {type:'forestBow', color:unit.team===0?'#a8ffce':'#ffd0a8', size:0.5}
       : {type:'forestBlade', color:unit.team===0?'#7dffb0':'#ffb07d', size:0.38};
@@ -12923,6 +12945,26 @@ function creepMonsterDef(u){
     skin = 't' + (u.team === 1 ? 1 : 0) + (u.mega ? 'm' : '');
   }
   return u._mdef = {id, skinId:skin, color:'#ffffff'};
+}
+/* 0.9.8.9: метки новых крипов — «Катапульта» (камень на рычаге) и «Страж» (золотой щит). */
+function drawCreepKindMark(u){
+  const r = u.radius, t = gameTime;
+  ctx.save();
+  if(u.creepKind === 'siege'){
+    const swing = Math.sin(t*3 + u.x*0.01)*0.12;
+    ctx.translate(0,-r-6); ctx.rotate(-0.5+swing);
+    ctx.strokeStyle='#5a3a1a'; ctx.lineWidth=3; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-r*0.5,6); ctx.lineTo(r*0.9,-6); ctx.stroke();
+    ctx.fillStyle='#9a9fa8'; ctx.strokeStyle='#454a52'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.arc(r*0.9,-7,5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  } else if(u.creepKind === 'guard'){
+    ctx.translate(-r*0.95,0);
+    const g=ctx.createLinearGradient(-7,-9,7,11); g.addColorStop(0,'#fff0b0'); g.addColorStop(1,'#b8862b');
+    ctx.fillStyle=g; ctx.strokeStyle='#5a3d10'; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.moveTo(-7,-9); ctx.lineTo(7,-9); ctx.lineTo(7,2); ctx.quadraticCurveTo(7,10,0,13); ctx.quadraticCurveTo(-7,10,-7,2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#7a1f1f'; ctx.beginPath(); ctx.arc(0,0,2.6,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
 }
 function drawForestCreepBody(u, col){
   /* Лесной страж — лайновый крип: кора+листва, светящаяся маска-прорезь глаз,
@@ -15511,6 +15553,7 @@ function drawUnit(u){
   }
 
   if(!hero3dSpr) drawUnitWeapon(u);
+  if(u.type === 'creep' && u.creepKind && u.creepKind !== 'melee' && u.creepKind !== 'ranged') drawCreepKindMark(u);
   if(u.hitFlash > 0){
     ctx.globalAlpha = u.hitFlash*4;
     ctx.fillStyle = '#ffffff';
