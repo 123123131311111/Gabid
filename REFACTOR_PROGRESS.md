@@ -31,3 +31,18 @@
 ## Осталось
 - Следующие этапы рефакторинга (остальные системы) не начинались.
 - Ручная проверка в браузере: меню → «ГАЙД БОЙЦА», закуп ботов, гайд героя `psih`.
+
+---
+
+## Этап 2: CHANGELOG и GAME_VERSION → `public/js/data/changelog.js` (выполнено)
+- Перенесён непрерывный блок (бывш. `game.js` строки 707–1118): `const GAME_VERSION`, `const CHANGELOG_HISTORY` (83 записи), `const CHANGELOG` (IIFE, 97 выпусков). `CHANGELOG_HISTORY` перенесён как обязательная зависимость `CHANGELOG`; кроме `game.js` нигде не использовался. Содержимое байт-в-байт.
+- В `game.js` оставлен комментарий-указатель. `let changelogPage` и `const CHANGELOG_PAGE_SIZE` остались в `game.js` (не входили в задачу; `CHANGELOG_PAGE_SIZE` нигде не используется).
+- `index.html`: `<script src="./js/data/changelog.js?v=0.9.8.1.1">` после `hero-guides.js`, перед `game.js`. Обычные скрипты, без ES modules.
+- Потребители (без изменений, все в `game.js`): `changelogRows`, экран changelog (~строки 800–1060 после сдвига), `GAME_VERSION` в меню/HUD/заставке. В `update*.js`, `demon3d.js`, `hero3d.js`, inline-скриптах `index.html` использований нет.
+- Изменены: `public/game.js`, `public/index.html`, `public/js/data/changelog.js` (новый), `REFACTOR_PROGRESS.md`.
+- Проверки: `node --check` game.js и changelog.js — OK; diff: блок идентичен оригиналу, остальной game.js идентичен; одно объявление каждой переменной (только в новом файле); в vm: GAME_VERSION='0.9.8.1.1', CHANGELOG.length=97. В браузере не запускалось.
+- Примечание: версия обновляется теперь в `js/data/changelog.js`; query-строка `?v=` в index.html для кэша меняется вручную.
+
+## Следующий этап
+- Не выбран/не начат. Предложение: следующий самодостаточный блок данных в `game.js` (например `GUIDE_ITEM_WHY`, `UPDATE_SPOTLIGHT`) — сначала проверить зависимости и места использования.
+- Открыто с этапа 1: судьба `gen_guides.py` (генератор HERO_GUIDES отсутствует в архиве).
