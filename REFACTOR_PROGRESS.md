@@ -116,3 +116,8 @@
 - Версия игры теперь в `js/data/changelog.js`; `?v=` в `index.html` обновляется вручную.
 - `let changelogPage` и `CHANGELOG_PAGE_SIZE` (не используется) остались в `game.js`.
 - Модули — обычные скрипты в глобальной области; конфликты имён контролируются вручную (порядок подключения в `index.html` важен).
+
+## 0.9.9.0 (feature update)
+- 6 новых лесных лагерей (NEUTRAL_CAMPS 6–11), 3 лесных крипа: slime, shaman, alpha (game.js, NeutralCreep)
+- 2 новых задания за Сенсики: double_win, team_player (accounts.js: claimquest, update979.js)
+- Демон меню: надстройка royalUpgrade в demon3d.js

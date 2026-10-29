@@ -2885,7 +2885,7 @@ function killUnit(u, source){
   if(rewardHero && rewardHero.team !== u.team) phantomOnCreepKill(rewardHero, u);
   if(rewardHero && rewardHero.team !== u.team){
     const bountyMul = gameModeCfg().creepBountyMul;
-    const reward = u.isRoshan ? ROSHAN_REWARD : u.type === 'neutral' ? Math.round(70*bountyMul) : (u.type === 'creep' ? Math.round((60+(u.bountyBonus||0))*bountyMul) : (u.type === 'hero' ? 200 : 0));
+    const reward = u.isRoshan ? ROSHAN_REWARD : u.type === 'neutral' ? Math.round((70+(u.bountyBonus||0))*bountyMul) : (u.type === 'creep' ? Math.round((60+(u.bountyBonus||0))*bountyMul) : (u.type === 'hero' ? 200 : 0));
     if(reward){
       rewardHero.coins += reward;
       if(rewardHero === playerHero) addText(u.x, u.y - u.radius - 24, '+' + reward + ' монет', '#ffd54f', 1.1, 14);
@@ -5138,14 +5138,48 @@ class NeutralCreep extends Unit {
     const big = kind === 'big';
     const wolf = kind === 'wolf';
     const satyr = kind === 'satyr';
+    /* 0.9.9.0: три новых лесных крипа — Болотный слизень, Лесной шаман, Вожак стаи */
+    const slime = kind === 'slime';
+    const shaman = kind === 'shaman';
+    const alpha = kind === 'alpha';
     const stats = big ? {radius:24,speed:72,hp:900,dmg:42,range:110,armor:8,xp:180} :
       wolf ? {radius:16,speed:135,hp:300,dmg:34,range:95,armor:2,xp:120} :
       satyr ? {radius:21,speed:64,hp:650,dmg:28,range:520,armor:5,xp:160} :
+      slime ? {radius:20,speed:82,hp:560,dmg:26,range:92,armor:4,xp:130} :
+      shaman ? {radius:19,speed:78,hp:420,dmg:36,range:480,armor:2,xp:170} :
+      alpha ? {radius:26,speed:128,hp:820,dmg:54,range:105,armor:6,xp:230} :
       {radius:18,speed:88,hp:420,dmg:20,range:90,armor:3,xp:90};
-    super({x, y, team:2, radius:stats.radius, speed:stats.speed, hp:stats.hp, dmg:stats.dmg, atkRange:stats.range, atkTime:wolf?0.9:1.5, armor:stats.armor, vision:520, type:'neutral', xpValue:stats.xp, hpRegen:2});
+    super({x, y, team:2, radius:stats.radius, speed:stats.speed, hp:stats.hp, dmg:stats.dmg, atkRange:stats.range, atkTime:(wolf||alpha)?0.9:1.5, armor:stats.armor, vision:520, type:'neutral', xpValue:stats.xp, hpRegen:2});
     this.homeX=x; this.homeY=y; this.aggroRange=420; this.kind=kind; this.respawnTimer=0;
+    this.bountyBonus = slime ? 15 : shaman ? 30 : alpha ? 55 : 0;
+    this.healCd = 3;
   }
-  updateAI(){
+  updateCombat(dt){
+    const before = this.atkCd;
+    super.updateCombat(dt);
+    /* Слизень: каждый удар по герою замедляет его на 25% на 1.8 с */
+    if(this.kind === 'slime' && this.atkCd > before + 0.01 && this.attackTarget && this.attackTarget.type === 'hero' && !this.attackTarget.dead){
+      const t = this.attackTarget;
+      t.slow = Math.max(t.slowT > 0 ? t.slow : 0, 0.25);
+      t.slowT = Math.max(t.slowT || 0, 1.8);
+    }
+  }
+  updateAI(dt){
+    /* Шаман: раз в 4 секунды лечит раненых союзников-нейтралов рядом (не себя) */
+    if(this.kind === 'shaman' && !this.dead){
+      this.healCd = (this.healCd === undefined ? 3 : this.healCd) - (dt || 1/60);
+      if(this.healCd <= 0){
+        this.healCd = 4;
+        let healed = false;
+        for(const u of units){
+          if(u === this || u.type !== 'neutral' || u.dead || u.isRoshan || u.hp >= u.maxHp) continue;
+          if(Math.hypot(u.x-this.x, u.y-this.y) > 380) continue;
+          u.hp = Math.min(u.maxHp, u.hp + u.maxHp*0.14); healed = true;
+          fxRing(u.x, u.y, u.radius+16, '#8dff9a', 0.4);
+        }
+        if(healed){ fxRing(this.x, this.y, 150, '#8dff9a', 0.5); addText(this.x, this.y-this.radius-22, 'ИСЦЕЛЕНИЕ', '#8dff9a', 0.8, 13); }
+      }
+    }
     if(this.attackTarget && (!this.attackTarget.alive || this.distTo(this.attackTarget) > this.aggroRange + 180)) this.attackTarget = null;
     if(!this.attackTarget){
       let best=null, bestDistance=this.aggroRange;
@@ -5228,8 +5262,21 @@ const NEUTRAL_CAMPS = [
   [{x:900,y:1500},{x:970,y:1570},{x:830,y:1570},{x:900,y:1640}],
   [{x:2700,y:2100},{x:2770,y:2170},{x:2630,y:2170},{x:2700,y:2240}],
   [{x:1200,y:1700},{x:1270,y:1770},{x:1130,y:1770},{x:1200,y:1840}],
-  [{x:2400,y:1900},{x:2470,y:1970},{x:2330,y:1970},{x:2400,y:2040}]
+  [{x:2400,y:1900},{x:2470,y:1970},{x:2330,y:1970},{x:2400,y:2040}],
+  /* 0.9.9.0: шесть новых лагерей (симметричные пары для обеих половин леса) */
+  [{x:1600,y:1000},{x:1670,y:1070},{x:1530,y:1070},{x:1600,y:1140}],
+  [{x:2000,y:2600},{x:2070,y:2670},{x:1930,y:2670},{x:2000,y:2740}],
+  [{x:1000,y:2100},{x:1070,y:2170},{x:930,y:2170},{x:1000,y:2240}],
+  [{x:2600,y:1500},{x:2670,y:1570},{x:2530,y:1570},{x:2600,y:1640}],
+  [{x:2100,y:900},{x:2170,y:970},{x:2030,y:970},{x:2100,y:1040}],
+  [{x:1500,y:2700},{x:1570,y:2770},{x:1430,y:2770},{x:1500,y:2840}]
 ];
+/* Состав лагерей: первые шесть — как раньше, новые — с лесными крипами 0.9.9.0 */
+const NEUTRAL_CAMP_KINDS = {
+  6:['alpha','wolf','wolf','small'],  7:['alpha','wolf','wolf','small'],
+  8:['shaman','slime','slime','satyr'], 9:['shaman','slime','slime','satyr'],
+  10:['big','shaman','small','slime'], 11:['big','shaman','small','slime']
+};
 
 const DECORATIVE_HOUSES = [
   {x:820,y:2380,s:1.0,roof:'#8e4d3e',wall:'#c28b58'},
@@ -5286,7 +5333,8 @@ function spawnNeutralCamps(){
     });
     if(!farFromBases || !farFromLanes) continue;
     for(let i=0;i<camp.length;i++){
-      const kind = i === 0 ? 'big' : (i === 1 ? 'small' : (i === 2 ? 'wolf' : 'satyr'));
+      const custom = NEUTRAL_CAMP_KINDS[campIndex];
+      const kind = custom ? custom[i] : (i === 0 ? 'big' : (i === 1 ? 'small' : (i === 2 ? 'wolf' : 'satyr')));
       const neutral = new NeutralCreep(camp[i].x, camp[i].y, kind);
       neutral.campIndex = campIndex;
       units.push(neutral);
@@ -12920,7 +12968,7 @@ function drawUnitSafely(u){
 
 /* ===== 0.8.4: 3D-монстры крипов ===== */
 const UNIT_VISUAL_SCALE = 1.15;      /* все модели в матче визуально крупнее на 15% (хитбокс не меняется) */
-const NEUTRAL_MONSTER = {wolf:'mon_hound', big:'mon_golem', satyr:'mon_imp'};   /* обычный лагерь — мухомор */
+const NEUTRAL_MONSTER = {wolf:'mon_hound', big:'mon_golem', satyr:'mon_imp', slime:'mon_slime', shaman:'mon_shroom', alpha:'mon_hound'};   /* обычный лагерь — мухомор */
 function unitVisualScale(u){ return portraitRenderMode ? 1 : UNIT_VISUAL_SCALE; }
 /* 0.9.1: иллюзии Иллюзиониста выглядят как сам боец — тот же 3D-спрайт, скин, подписи и полоски */
 function isIllusionClone(u){ return !!(u && u.isIllusion && u.summonKind==='illusion' && u.copyDef && u.owner); }
@@ -12938,7 +12986,7 @@ function creepMonsterDef(u){
   let id, skin;
   if(u.type === 'neutral'){
     id = NEUTRAL_MONSTER[u.kind] || 'mon_shroom';
-    skin = 't2' + (u.kind === 'satyr' ? 'r' : '');
+    skin = 't2' + ((u.kind === 'satyr' || u.kind === 'shaman') ? 'r' : (u.kind === 'alpha' ? 'm' : ''));
   } else {
     /* 0.8.5: все лайновые крипы обеих команд — гоблины-копейщики (одна модель) */
     id = 'mon_goblin';
@@ -13109,6 +13157,9 @@ function drawNeutralCreepBody(u, col){
   if(u.isRoshan){ drawRoshanBody(u); return; }
   const scale=Math.max(0.72,u.radius/18);
   const palette=u.kind==='wolf'?['#b9c8d1','#637681']:
+    u.kind==='alpha'?['#e0b66a','#6b4a1c']:
+    u.kind==='slime'?['#7be0b0','#2a9a75']:
+    u.kind==='shaman'?['#b98cf0','#4f2f86']:
     u.kind==='satyr'?['#c7824f','#69402d']:
     u.kind==='big'?['#9a8765','#4f5148']:['#83aa61','#3f633d'];
   ctx.save();
@@ -13116,7 +13167,7 @@ function drawNeutralCreepBody(u, col){
   ctx.rotate(u.facing||0);
   ctx.fillStyle='rgba(0,0,0,0.35)';
   ctx.beginPath(); ctx.ellipse(0,16,18,6,0,0,Math.PI*2); ctx.fill();
-  if(u.kind==='wolf'){
+  if(u.kind==='wolf' || u.kind==='alpha'){
     ctx.fillStyle=palette[1];
     ctx.beginPath(); ctx.ellipse(-2,2,17,9,-0.12,0,Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(12,-3,9,7,-0.25,0,Math.PI*2); ctx.fill();

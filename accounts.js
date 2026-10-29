@@ -12,6 +12,13 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const SHARDS_PER_WIN = 500;
 const DAILY_QUEST = { id: 'hero_hunter', title: 'Охотник за головами', desc: 'Убей 10 героев за день (в любых матчах)', target: 10, reward: 300 };
 const MAX_QUEST_KILLS_PER_MATCH = 30;
+/* 0.9.9.0: ещё два ежедневных задания за Сенсики. Прогресс считается по итогам матчей (победы и помощь в убийствах). */
+const EXTRA_QUESTS = [
+  { id: 'double_win', title: 'Серия побед', desc: 'Выиграй 2 матча за день', target: 2, reward: 400, field: 'wins' },
+  { id: 'team_player', title: 'Командный игрок', desc: 'Помоги в 20 убийствах за день (ассисты)', target: 20, reward: 250, field: 'assists' }
+];
+const EXTRA_QUEST_BY_ID = Object.fromEntries(EXTRA_QUESTS.map(q => [q.id, q]));
+const MAX_QUEST_ASSISTS_PER_MATCH = 40;
 /* 0.9.8.6: активация «Дотасенс +» — разовая покупка навсегда. Цена хранится только на сервере. */
 const DSPLUS_PRICE = 1000;
 const dayKey = (time = Date.now()) => {
@@ -69,6 +76,12 @@ const accountSchema = new mongoose.Schema({
     day: { type: String, default: '' },
     kills: { type: Number, min: 0, default: 0 },
     claimed: { type: Boolean, default: false }
+  },
+  quests: {
+    day: { type: String, default: '' },
+    wins: { type: Number, min: 0, default: 0 },
+    assists: { type: Number, min: 0, default: 0 },
+    claimed: { type: [String], default: [] }
   },
   avatar: { type: String, default: '' },
   recent: { type: [String], default: [] },
@@ -137,7 +150,18 @@ function dailyState(acc){
   };
 }
 /* Профиль владельца: публичные поля + личные (Сенсики и задание). В таблицу лидеров это не попадает. */
-const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE });
+function extraQuestsState(acc){
+  const today = dayKey();
+  const q = acc.quests || {};
+  const fresh = q.day === today;
+  const claimedList = fresh && Array.isArray(q.claimed) ? q.claimed : [];
+  return EXTRA_QUESTS.map(def => {
+    const progress = fresh ? Math.min(def.target, Math.max(0, q[def.field] || 0)) : 0;
+    const claimed = claimedList.includes(def.id);
+    return { id: def.id, title: def.title, desc: def.desc, target: def.target, reward: def.reward, progress, claimed, ready: !claimed && progress >= def.target, day: today };
+  });
+}
+const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE });
 
 async function makeSession(key){
   const token = crypto.randomBytes(24).toString('hex');
@@ -292,6 +316,29 @@ const routes = {
     return [200, { profile: ownProfile(claimed), claimed: true, reward: DAILY_QUEST.reward }];
   },
 
+  /* 0.9.9.0: получение награды за дополнительное задание. Атомарно: условие и начисление в одном запросе. */
+  async claimquest(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const def = EXTRA_QUEST_BY_ID[String(body.questId || '')];
+    if(!def) return [400, { error: 'Неизвестное задание' }];
+    const today = dayKey();
+    const claimed = await Account.findOneAndUpdate({
+      _id: auth.acc._id,
+      'quests.day': today,
+      'quests.claimed': { $ne: def.id },
+      ['quests.' + def.field]: { $gte: def.target }
+    }, {
+      $push: { 'quests.claimed': def.id },
+      $inc: { shards: def.reward }
+    }, { new: true });
+    if(!claimed){
+      const current = await Account.findById(auth.acc._id);
+      return [200, { profile: ownProfile(current), claimed: false }];
+    }
+    return [200, { profile: ownProfile(claimed), claimed: true, reward: def.reward, questId: def.id }];
+  },
+
   /* Покупка «Дотасенс +». Одна атомарная операция: условие (не куплено И хватает Сенсиков) и списание
      выполняются в одном запросе к MongoDB, поэтому двойной клик или две вкладки не спишут баланс дважды. */
   async buyplus(body){
@@ -366,6 +413,8 @@ const routes = {
     const today = dayKey();
     const questKills = Math.min(kills, MAX_QUEST_KILLS_PER_MATCH);
     const sameDay = account.daily && account.daily.day === today;
+    const questAssists = Math.min(assists, MAX_QUEST_ASSISTS_PER_MATCH);
+    const questSameDay = account.quests && account.quests.day === today;
     const update = {
       $inc: {
         wins: won ? 1 : 0,
@@ -376,11 +425,13 @@ const routes = {
         rating: ratingChange,
         shards: shardsGained,
         ...(sameDay ? { 'daily.kills': questKills } : {}),
+        ...(questSameDay ? { 'quests.wins': won ? 1 : 0, 'quests.assists': questAssists } : {}),
         ...(heroId ? { ['heroStats.' + heroId]: 1 } : {})
       },
       $set: {
         times: recentTimes.concat(now),
-        ...(sameDay ? {} : { 'daily.day': today, 'daily.kills': questKills, 'daily.claimed': false })
+        ...(sameDay ? {} : { 'daily.day': today, 'daily.kills': questKills, 'daily.claimed': false }),
+        ...(questSameDay ? {} : { 'quests.day': today, 'quests.wins': won ? 1 : 0, 'quests.assists': questAssists, 'quests.claimed': [] })
       },
       $push: {
         history: { $each: [{

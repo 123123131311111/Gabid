@@ -316,4 +316,117 @@ H3.models.menuDemon = function(S, def, t){
     }
   }
 };
+
+/* ===================================================================
+   0.9.9.0 — «КОРОЛЕВСКИЙ ПОВЕЛИТЕЛЬ»: демон стал красивее и внушительнее.
+   Надстройка над базовой моделью (оригинал не тронут): золотые наплечники с рубинами,
+   ожерелье и пояс с золотыми пластинами, венец с рубином, золотые накладки на рогах,
+   светящиеся руны на брюхе, двойной огненный круг под ногами с вращающимися
+   руническими шипами и поднимающиеся огненные искры.
+   =================================================================== */
+const ROYAL = '#e8b64a', ROYAL2 = '#fff0b0', RUBY = '#ff3b2a', RUNE = '#ffb347';
+H3.models.menuDemonBase = H3.models.menuDemon;
+H3.models.menuDemon = function(S, def, t){
+  H3.models.menuDemonBase(S, def, t);
+  try { royalUpgrade(S, t || 0); } catch(err) { /* надстройка не должна ломать меню */ }
+};
+function royalUpgrade(S, t){
+  /* те же расписание и наклон, что в базовой модели — украшения двигаются вместе с телом */
+  const c = t % 14;
+  const cu = (c >= 3 && c < 6.6) ? (c - 3) / 3.6 : -1;
+  const ru = (c >= 7.6 && c < 10.2) ? (c - 7.6) / 2.6 : -1;
+  const su = (c >= 11 && c < 13.6) ? (c - 11) / 2.6 : -1;
+  const cRaise = cu < 0 ? 0 : sm(cu / 0.3) * (1 - sm((cu - 0.72) / 0.28));
+  const roar = ru < 0 ? 0 : sm(ru / 0.22) * (1 - sm((ru - 0.78) / 0.22));
+  const shake = roar * sh(t * 38) * 0.012;
+  const sWind = su < 0 ? 0 : sm(su / 0.38) * (1 - sm((su - 0.46) / 0.05));
+  const sHit = su < 0 ? 0 : sm((su - 0.42) / 0.07) * (1 - sm((su - 0.55) / 0.35));
+  const br = sh(t * 1.5) * 0.02;
+  const twitch = Math.max(0, sh(t * 0.7 + 1.3)) ** 9 * sh(t * 17) * 0.05;
+  const sniff = Math.max(0, sh(t * 0.43 + 2)) ** 12;
+  const lean = 0.34 - roar * 0.5 + sHit * 0.32 - sWind * 0.18 + cRaise * 0.05 + br * 2;
+  const cL = Math.cos(lean), sL = Math.sin(lean);
+  const U = p => { const y = p[1] - 1.1, z = p[2]; return [p[0] + shake, 1.1 + y * cL - z * sL, z * cL + y * sL]; };
+  const hx = twitch, hy = roar * 0.18 + sniff * -0.05, hz = -roar * 0.18 + sniff * 0.1;
+  const HD = p => U(add(p, [hx, hy, hz]));
+  const glowPulse = 0.8 + 0.2 * sh(t * 2.4);
+
+  /* --- золотые наплечники с рубинами --- */
+  for(const s of [-1, 1]){
+    const big = s > 0 ? 1.18 : 1;
+    S.ell(U([s * 0.86, 2.47, 0.02]), [0.46 * big, 0.1 * big, 0.42 * big], ROYAL, {rings: 6, seg: 16, shine: 0.85});
+    S.ring(U([s * 0.86, 2.5, 0.02]), 0.42 * big, 0.03, ROYAL2, {n: 20});
+    S.ell(U([s * 0.86, 2.6, 0.1]), [0.075, 0.075, 0.075], RUBY, {rings: 4, seg: 8, glow: 1});
+    for(let k = 0; k < 3; k++){                                   /* золотые зубцы по краю */
+      const a = (k - 1) * 0.6;
+      S.cone(U([s * (0.86 + sh(a) * 0.4 * big), 2.5, Math.cos(a) * 0.3 * big]), U([s * (0.98 + sh(a) * 0.5 * big), 2.78 - Math.abs(k - 1) * 0.1, Math.cos(a) * 0.3 * big]), 0.05, ROYAL2, {seg: 5, shine: 0.8});
+    }
+  }
+
+  /* --- ожерелье из золотых бусин с рубиновой подвеской --- */
+  for(let i = 0; i < 11; i++){
+    const a = (i - 5) / 5 * 1.15;
+    S.ell(U([sh(a) * 0.58, 2.2 - (1 - Math.cos(a)) * 0.08 - Math.cos(a) * 0.06, 0.34 + Math.cos(a) * 0.2]), [0.05, 0.05, 0.05], i % 2 ? ROYAL : ROYAL2, {rings: 4, seg: 6, shine: 0.8});
+  }
+  S.ell(U([0, 2.1, 0.56]), [0.085, 0.11, 0.05], RUBY, {rings: 5, seg: 8, glow: 1});
+
+  /* --- пояс: золотой обруч, пряжка и свисающие пластины с огоньками --- */
+  S.ring([0, 1.2, 0], 0.62, 0.05, ROYAL, {n: 24});
+  S.ring([0, 1.04, 0], 0.58, 0.03, ROYAL2, {n: 24});
+  S.ell([0.04, 1.17, 0.5], [0.15, 0.12, 0.03], ROYAL, {rings: 5, seg: 10, shine: 0.9});
+  S.ell([0.04, 1.17, 0.53], [0.05, 0.05, 0.02], RUBY, {rings: 3, seg: 6, glow: 1});
+  for(let i = -3; i <= 3; i++){
+    if(i === 0) continue;
+    const x = i * 0.15, z = 0.44 - Math.abs(i) * 0.05;
+    S.box([x, 0.86 + sh(t * 1.4 + i) * 0.01, z], [0.055, 0.15, 0.015], ROYAL, {shine: 0.8});
+    S.cone([x, 0.7, z], [x + sh(t * 3 + i) * 0.015, 0.58, z], 0.03, FIRE, {seg: 4, glow: 1});
+  }
+
+  /* --- светящиеся руны на брюхе --- */
+  const bz = (x, y) => { const q = 1 - (x / 0.62) ** 2 - ((y - 1.42) / 0.52) ** 2; return 0.3 + 0.52 * Math.sqrt(Math.max(0, q)); };
+  const rune = [[-0.3, 1.3, 0.5], [-0.16, 1.5, -0.3], [0, 1.28, 0], [0.16, 1.52, 0.3], [0.3, 1.34, -0.5], [-0.34, 1.6, 0.2], [0.34, 1.62, -0.2]];
+  rune.forEach((r, i) => {
+    const p = U([r[0], r[1], bz(r[0], r[1]) + 0.02]);
+    const k = 0.6 + 0.4 * sh(t * 2.2 + i * 0.9);
+    S.box(p, [0.055 * k + 0.02, 0.012, 0.012], i % 2 ? RUNE : ROYAL2, {glow: 1, rot: [0, 0, r[2]]});
+    S.box(p, [0.012, 0.045 * k + 0.015, 0.012], i % 2 ? ROYAL2 : RUNE, {glow: 1, rot: [0, 0, r[2]]});
+  });
+
+  /* --- венец: золотой обруч, рубин и огненные зубцы --- */
+  S.ring(HD([0, 2.8, 0.3]), 0.36, 0.032, ROYAL, {n: 20});
+  S.ell(HD([0, 2.82, 0.66]), [0.06, 0.08, 0.04], RUBY, {rings: 4, seg: 8, glow: 1});
+  for(let i = 0; i < 7; i++){
+    const a = (i - 3) / 3 * 1.05, f = sh(t * 3.4 + i * 1.3) * 0.05;
+    const b = HD([sh(a) * 0.32, 2.84, 0.3 + Math.cos(a) * 0.28]);
+    S.cone(b, [b[0] + f, b[1] + (i % 2 ? 0.2 : 0.3) + Math.abs(f), b[2] - 0.02], 0.045, i % 2 ? ROYAL : ROYAL2, {seg: 5, shine: 0.8});
+    S.ell([b[0] + f, b[1] + (i % 2 ? 0.2 : 0.3) + Math.abs(f), b[2] - 0.02], [0.03, 0.03, 0.03], FIRE2, {rings: 3, seg: 5, glow: 1});
+  }
+  /* золотые накладки и самоцветы на рогах */
+  S.ell(HD([-0.66, 3.3, 0.06]), [0.1, 0.1, 0.1], ROYAL, {rings: 5, seg: 10, shine: 0.85});
+  S.ell(HD([-0.55, 3.62, 0.18]), [0.075, 0.075, 0.075], ROYAL, {rings: 4, seg: 8, shine: 0.85});
+  S.ell(HD([0.42, 2.98, 0.1]), [0.1, 0.1, 0.1], ROYAL, {rings: 5, seg: 10, shine: 0.85});
+  S.ell(HD([-0.36, 3.78, 0.34]), [0.04, 0.04, 0.04], FIRE2, {rings: 3, seg: 6, glow: 1});
+  /* огонь в глазницах — ярче */
+  S.ell(HD([-0.14, 2.62, 0.66]), [0.05 * glowPulse, 0.03, 0.02], '#ffffff', {rings: 3, seg: 6, glow: 1});
+
+  /* --- двойной огненный круг под ногами с рунами --- */
+  const spin = t * 0.5;
+  S.ring([0, 0.025, 0.1], 1.75, 0.028, FIRE, {n: 44, glow: 1});
+  S.ring([0, 0.03, 0.1], 1.38, 0.02, FIRE2, {n: 36, glow: 1});
+  for(let i = 0; i < 8; i++){
+    const a = i / 8 * Math.PI * 2 + spin, r0 = 1.4, r1 = 1.74;
+    S.cone([Math.cos(a) * r0, 0.03, 0.1 + Math.sin(a) * r0], [Math.cos(a) * r1, 0.03 + 0.04, 0.1 + Math.sin(a) * r1], 0.035, i % 2 ? RUNE : FIRE2, {seg: 4, glow: 1});
+  }
+  for(let i = 0; i < 4; i++){
+    const a = i / 4 * Math.PI * 2 - spin * 1.6, r = 1.56;
+    S.cone([Math.cos(a) * r, 0.03, 0.1 + Math.sin(a) * r], [Math.cos(a) * r, 0.03 + 0.34 + 0.08 * sh(t * 3 + i), 0.1 + Math.sin(a) * r], 0.06, FIRE, {seg: 4, glow: 1});
+  }
+  /* --- поднимающиеся искры --- */
+  for(let i = 0; i < 16; i++){
+    const ph = (t * (0.16 + (i % 4) * 0.03) + i / 16) % 1, a = i * 2.399 + t * 0.35;
+    const r = 0.8 + 0.7 * (((i * 7) % 5) / 5);
+    const sz = 0.04 * (1 - ph) + 0.012;
+    S.ell([Math.cos(a) * r, 0.1 + ph * 3.9, 0.1 + Math.sin(a) * r * 0.8], [sz, sz, sz], i % 3 ? FIRE : FIRE2, {rings: 3, seg: 5, glow: 1});
+  }
+}
 })();

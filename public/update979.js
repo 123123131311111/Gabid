@@ -51,11 +51,60 @@ function renderPanel(profile, q){
       '<div class="sk-count">' + q.progress + ' / ' + q.target + '</div>' +
       '<button type="button" id="sensiki-claim"' + (q.ready ? '' : ' disabled') + '>' + claimLabel + '</button>' +
     '</div>' +
-    '<p class="sk-reset">Задание обновляется каждый день в 00:00 по Киеву.</p>';
+    '<div id="sk-extra"></div>' +
+    '<p class="sk-reset">Задания обновляются каждый день в 00:00 по Киеву.</p>';
   panel.querySelector('.sk-quest strong').textContent = q.title;
   panel.querySelector('.sk-quest small').textContent = q.desc;
   const claim = document.getElementById('sensiki-claim');
   claim.addEventListener('click', claimReward);
+  renderExtraQuests(profile);
+}
+
+/* 0.9.9.0: два дополнительных задания за Сенсики («Серия побед» и «Командный игрок») */
+function renderExtraQuests(profile){
+  const host = document.getElementById('sk-extra');
+  if(!host) return;
+  const list = Array.isArray(profile.quests) ? profile.quests : [];
+  const today = dayKey();
+  for(const d of list){
+    const fresh = d.day === today;
+    const target = d.target || 1;
+    const progress = fresh ? Math.min(target, d.progress || 0) : 0;
+    const claimed = fresh && !!d.claimed;
+    const ready = !claimed && progress >= target;
+    const pct = Math.round(progress / target * 100);
+    const el = document.createElement('div');
+    el.className = 'sk-quest sk-quest-extra' + (ready ? ' ready' : '') + (claimed ? ' done' : '');
+    el.innerHTML =
+      '<div class="sk-quest-title"><span>ДОПОЛНИТЕЛЬНОЕ ЗАДАНИЕ</span><em>' + SHARD_ICON + '+' + (d.reward || 0) + '</em></div>' +
+      '<strong></strong><small></small>' +
+      '<div class="sk-bar"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="sk-count">' + progress + ' / ' + target + '</div>' +
+      '<button type="button"' + (ready ? '' : ' disabled') + '></button>';
+    el.querySelector('strong').textContent = d.title || '';
+    el.querySelector('small').textContent = d.desc || '';
+    const b = el.querySelector('button');
+    b.textContent = claimed ? 'ПОЛУЧЕНО ✓' : ready ? 'ЗАБРАТЬ +' + (d.reward || 0) : 'В ПРОЦЕССЕ';
+    b.addEventListener('click', () => claimExtra(d.id));
+    host.appendChild(el);
+  }
+}
+
+async function claimExtra(questId){
+  if(busy || typeof account === 'undefined' || !account.token) return;
+  busy = true;
+  try {
+    const data = await accountApi('claimquest', {token: account.token, questId});
+    account.profile = data.profile;
+    accountStore(ACCOUNT_PROFILE_KEY, JSON.stringify(data.profile));
+    renderAccountModal();
+  } catch(err) {
+    if(err && err.status === 401 && typeof accountSet === 'function') accountSet(null, null);
+    else toast('Не удалось получить награду. Попробуй ещё раз.');
+  } finally {
+    busy = false;
+    render();
+  }
 }
 
 function render(){
@@ -70,7 +119,8 @@ function render(){
   }
   lastShards = shards;
   const q = questOf(profile);
-  box.classList.toggle('has-ready', !!(q && q.ready));
+  const extraReady = Array.isArray(profile.quests) && profile.quests.some(d => d.day === dayKey() && !d.claimed && (d.progress || 0) >= (d.target || 1));
+  box.classList.toggle('has-ready', !!((q && q.ready) || extraReady));
   if(q) renderPanel(profile, q);
 }
 

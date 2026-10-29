@@ -18,23 +18,23 @@
 /* ---------- Кнопки: золотая рамка, стеклянный блик, свечение ---------- */
 #online-entry, #leaderboard-open, #online-counter,
 .mode-actions button, .acc-primary, .acc-ghost, .acc-tabs button, .lobby-tools button, .online-tools button,
-#sensiki-btn, #dsplus-btn, #sensiki-claim, .dsp-buy, .dsp-tabs button, .leaderboard-panel button {
+#sensiki-btn, #dsplus-btn, #sensiki-claim, .sk-quest-extra button, .dsp-buy, .dsp-tabs button, .leaderboard-panel button {
   font-family: var(--g-display); letter-spacing: .09em;
   transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease, filter .25s ease, border-color .25s ease, background-position .6s ease;
 }
-#online-entry, #leaderboard-open, .mode-actions button, .acc-primary, #sensiki-claim, .dsp-buy, .online-tools button, .lobby-tools button {
+#online-entry, #leaderboard-open, .mode-actions button, .acc-primary, #sensiki-claim, .sk-quest-extra button, .dsp-buy, .online-tools button, .lobby-tools button {
   color: #2a1a05 !important; text-shadow: 0 1px 0 rgba(255,244,204,.55);
   border: 1px solid #fff0b8 !important; border-radius: 8px;
   background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.55) 50%, transparent 62%) 160% 0 / 250% 100% no-repeat, var(--g-grad) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.7), inset 0 -2px 0 rgba(90,55,8,.45), 0 0 0 1px rgba(110,77,20,.9), 0 6px 18px rgba(0,0,0,.5), 0 0 16px rgba(240,190,80,.22);
 }
-#online-entry:hover, #leaderboard-open:hover, .mode-actions button:hover:not(:disabled), .acc-primary:hover:not(:disabled), #sensiki-claim:hover:not(:disabled), .dsp-buy:hover:not(:disabled), .online-tools button:hover, .lobby-tools button:hover,
+#online-entry:hover, #leaderboard-open:hover, .mode-actions button:hover:not(:disabled), .acc-primary:hover:not(:disabled), #sensiki-claim:hover:not(:disabled), .sk-quest-extra button:hover:not(:disabled), .dsp-buy:hover:not(:disabled), .online-tools button:hover, .lobby-tools button:hover,
 #online-entry:focus-visible, #leaderboard-open:focus-visible, .acc-primary:focus-visible, .dsp-buy:focus-visible {
   transform: translateY(-2px); filter: brightness(1.07) saturate(1.1); animation: g-sheen .9s ease;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.8), inset 0 -2px 0 rgba(90,55,8,.45), 0 0 0 1px rgba(110,77,20,.9), 0 10px 24px rgba(0,0,0,.55), 0 0 28px var(--g-glow);
 }
 #online-entry:active, #leaderboard-open:active, .mode-actions button:active, .acc-primary:active, .dsp-buy:active { transform: translateY(1px) scale(.985); }
-.mode-actions button:disabled, .acc-primary:disabled, #sensiki-claim:disabled, .dsp-buy:disabled {
+.mode-actions button:disabled, .acc-primary:disabled, #sensiki-claim:disabled, .sk-quest-extra button:disabled, .dsp-buy:disabled {
   filter: grayscale(.85) brightness(.62); box-shadow: none; cursor: not-allowed; animation: none;
 }
 #leaderboard-open::before { border-color: rgba(90,55,8,.7); background: rgba(255,244,204,.35); color: #4a2e07; }
