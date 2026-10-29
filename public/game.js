@@ -2611,7 +2611,7 @@ const SCEPTER_UPGRADES = {
   exileKnight:'Рывок шире, Гнев бога длится дольше',
   tribupainer:'Поджигающие пули сильнее, ульта получает второй импульс',
   regina:'Dispose бросает дальше, Rebound усиливает удар, Unleash даёт больше зарядов и расширяет финальную волну',
-  vaspassir:'Гранаты летят дальше и оглушают на 2.5 с, копии живут дольше, ульта призывает +2 молниеносные копии',
+  vaspassir:'Гранаты летят дальше и оглушают на 2.8 с, копии живут дольше, ульта призывает +2 молниеносные копии',
   earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области',
   olex:'Турель живёт 18 секунд, Синий экран смерти длится 6,5 секунды',
   savely:'Форма Трансформера длится дольше, уворот срабатывает на каждом третьем ударе и Савелий получает +30% сопротивления магии'
@@ -4685,7 +4685,7 @@ class Unit {
     return range;
   }
   getDamage(){ let d=this.dmg+newItemStat(this,'damage'); if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=SHOP_ITEMS.pt.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
-  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
+  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20*VASP_BOOST; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed+newItemStat(this,'speed');
     const galeB=this.inventory&&this.inventory.find(item=>item&&item.id==='galeBoots');
@@ -5624,6 +5624,8 @@ function spawnGollyGolems(hero){
 }
 
 /* === 0.8.8 Васпассир: копии, яд, оглушение, цепная молния === */
+/* 0.9.9.0.1: Васпассир сильнее на 12% — урон, яд, длительность оглушения, здоровье и урон копий, скорость атаки */
+const VASP_BOOST = 1.12;
 function vaspApplyPoison(target, source, dps, time){
   if(!target || target.dead || isBuilding(target)) return;
   target.buffs = target.buffs.filter(b => b.type !== 'vaspPoison');
@@ -5656,11 +5658,11 @@ function vaspCopyHit(copy, t){
   if(!t || t.dead) return;
   const lvl=copy.vaspLvl||1;
   if(copy.vaspOnHit==='stun'){
-    if((copy.vaspIcd.get(t)||0) <= gameTime){ copy.vaspIcd.set(t,gameTime+3); vaspStun(t,0.8+lvl*0.15); fxRing(t.x,t.y,50,'#fff06a',0.3); }
+    if((copy.vaspIcd.get(t)||0) <= gameTime){ copy.vaspIcd.set(t,gameTime+3); vaspStun(t,(0.8+lvl*0.15)*VASP_BOOST); fxRing(t.x,t.y,50,'#fff06a',0.3); }
   } else if(copy.vaspOnHit==='poison'){
-    vaspApplyPoison(t,copy.owner,(8+lvl*5)/3,4);
+    vaspApplyPoison(t,copy.owner,(8+lvl*5)*VASP_BOOST/3,4);
   } else if(copy.vaspOnHit==='chain'){
-    vaspChainLightning(copy,t,(copy.dmg*0.6+20*lvl)/3,3);
+    vaspChainLightning(copy,t,(copy.dmg*0.6+20*lvl*VASP_BOOST)/3,3);
   }
 }
 function vaspSpawnCopy(hero, variantId, o){
@@ -6954,13 +6956,13 @@ const SKILLS = {
   vaspPassive: {
     name:'Лихорадка', short:'Q', type:'self', passive:true, maxLevel:3,
     cd:[0,0,0,0], mana:[0,0,0,0],
-    desc:'Пассивно: +20 к скорости атаки за каждый уровень умения (до +60).',
+    desc:'Пассивно: +22,4 к скорости атаки за каждый уровень умения (до +67). Усилено на 12%.',
     cast(){}
   },
   vaspGrenades: {
     name:'Гранаты', short:'W', type:'self', maxLevel:4,
     cd:[0,20,18,16,14], mana:[0,90,100,110,120],
-    desc:'Раскидывает вокруг героя 6 зелёных гранат. Через секунду они взрываются: враги получают урон, отравление (периодический урон) и оглушение ровно на 2.5 секунды.',
+    desc:'Раскидывает вокруг героя 6 зелёных гранат. Через секунду они взрываются: враги получают урон, отравление (периодический урон) и оглушение ровно на 2,8 секунды. Усилено на 12%.',
     cast(h,x,y,lvl){
       const scepter=hasScepter(h);
       const ring=(scepter?250:200), rad=(scepter?165:145);
@@ -6968,9 +6970,9 @@ const SKILLS = {
       for(let i=0;i<6;i++){
         const a=rot+i*Math.PI/3;
         const gx=clamp(h.x+Math.cos(a)*ring,60,WORLD-60), gy=clamp(h.y+Math.sin(a)*ring,60,WORLD-60);
-        aoes.push({x:gx,y:gy,radius:rad,dmg:abilityDamage(h,30+22*lvl),manaDmg:0,team:h.team,source:h,
+        aoes.push({x:gx,y:gy,radius:rad,dmg:abilityDamage(h,Math.round((30+22*lvl)*VASP_BOOST)),manaDmg:0,team:h.team,source:h,
           delay:1.0,t:0,color:'#7dff4a',applied:false,life:1.4,dead:false,
-          vaspGrenade:true,poisonDps:12+7*lvl,poisonTime:4,stunTime:2.5});
+          vaspGrenade:true,poisonDps:(12+7*lvl)*VASP_BOOST,poisonTime:4,stunTime:2.5*VASP_BOOST});
         fxMark(gx,gy,rad,'#7dff4a',1.0);
         spawnParticles(gx,gy,'#8dff5a',8,0.4);
         fxBeam(h.x,h.y,gx,gy,'#9dff6a',0.25);
@@ -6985,7 +6987,7 @@ const SKILLS = {
     desc:'Создаёт 2 копии Васпассира: оранжевую — ближнего боя, и голубую — дальнего боя.',
     cast(h,x,y,lvl){
       const life=14+lvl*2+(hasScepter(h)?4:0);
-      const hp=300+lvl*140, dmg=h.getDamage()*(0.35+lvl*0.1)/3;
+      const hp=(300+lvl*140)*VASP_BOOST, dmg=h.getDamage()*(0.35+lvl*0.1)/3*VASP_BOOST;
       vaspSpawnCopy(h,'vaspassirOrange',{melee:true,hp,dmg,life,angle:0});
       vaspSpawnCopy(h,'vaspassirCyan',{melee:false,hp:hp*0.75,dmg,life,angle:Math.PI});
       addText(h.x,h.y-80,'ДВОЙНИКИ','#ffb04a',1.3,17);
@@ -6998,7 +7000,7 @@ const SKILLS = {
     desc:'Призывает 6 копий: 2 оглушающих (жёлтые), 2 отравляющих (фиолетовые) и 2 бьющих молнией с цепочкой (синие).',
     cast(h,x,y,lvl){
       const life=14+lvl*2;
-      const hp=420+lvl*160, dmg=h.getDamage()*(0.45+lvl*0.1)/3;
+      const hp=(420+lvl*160)*VASP_BOOST, dmg=h.getDamage()*(0.45+lvl*0.1)/3*VASP_BOOST;
       const plan=[['vaspassirYellow','stun'],['vaspassirYellow','stun'],['vaspassirPurple','poison'],['vaspassirPurple','poison'],['vaspassirBlue','chain'],['vaspassirBlue','chain']];
       if(hasScepter(h)){ plan.push(['vaspassirBlue','chain'],['vaspassirBlue','chain']); }
       plan.forEach((pl,i)=>{
@@ -7351,6 +7353,8 @@ Object.assign(SKILLS, {
    ========================================================= */
 let olexTurrets = [], olexZones = [];
 const OLEX_COLOR = '#39e6ff';
+/* 0.9.9.0.1: Олекс сильнее на 14% — урон, щиты, замедление, турель, ульта, рывок и базовые характеристики */
+const OLEX_BOOST = 1.14;
 function isOlex(h){ return !!(h && h.def && h.def.id === 'olex'); }
 function olexEnemyUnit(h,u){
   return u && !u.dead && u.team !== h.team && !isStructure(u) && !isBuilding(u) && !u.invulnerable;
@@ -7392,7 +7396,7 @@ function olexEndTurret(t, byDetonation){
 function olexDetonate(t, byCast){
   if(t.dead) return;
   const h = t.owner, r = 175;
-  const dmg = abilityDamage(h, [0,90,115,140,165][Math.max(1,Math.min(4,t.lvl))]);
+  const dmg = abilityDamage(h, [0,90,115,140,165][Math.max(1,Math.min(4,t.lvl))]*OLEX_BOOST);
   for(const u of units){
     if(!olexEnemyUnit(h,u)) continue;
     if(Math.hypot(u.x-t.x, u.y-t.y) < r + u.radius) applyDamage(u, dmg, h);
@@ -7466,7 +7470,7 @@ function olexTick(dt){
     if(target){ t.aim = Math.atan2(target.y-t.y, target.x-t.x); }
     if(target && t.atkCd <= 0){
       t.atkCd = 0.8;
-      applyDamage(target, abilityDamage(t.owner, [0,15,19,23,27][Math.max(1,Math.min(4,t.lvl))]), t.owner);
+      applyDamage(target, abilityDamage(t.owner, [0,15,19,23,27][Math.max(1,Math.min(4,t.lvl))]*OLEX_BOOST), t.owner);
       fxBeam(t.x, t.y-18, target.x, target.y, '#ff6a6a', 0.14);
       fxHit(target.x, target.y, '#ff8a8a');
     }
@@ -7604,7 +7608,7 @@ Object.assign(SKILLS, {
   olexQ: {
     name:'Строка кода', short:'Q', type:'point', maxLevel:4,
     cd:[0,0.1,0.1,0.1,0.1], mana:[0,0,0,0,0], range:680, heat:7,
-    desc:'Быстрый сгусток кода бьёт первого врага на линии: 45 урона и замедление 15% на 1,5 сек. Без перезарядки — стреляйте сколько хватит процессора: каждый выстрел греет его на 7%.',
+    desc:'Быстрый сгусток кода бьёт первого врага на линии: 51 урона и замедление 17% на 1,5 сек. Без перезарядки — стреляйте сколько хватит процессора: каждый выстрел греет его на 7%.',
     cast(h,x,y,lvl){
       let dir = Math.atan2(y-h.y, x-h.x);
       if(!Number.isFinite(dir)) dir = h.facing || 0;
@@ -7625,9 +7629,9 @@ Object.assign(SKILLS, {
       fxBeam(h.x+c*24, h.y-16+sn*24, ex, ey, '#39e6ff', 0.2);
       spawnParticles(h.x+c*30, h.y-16+sn*30, '#aef6ff', 6, 0.35);
       if(best){
-        applyDamage(best, abilityDamage(h,[0,45,55,65,75][lvl]), h);
+        applyDamage(best, abilityDamage(h,[0,45,55,65,75][lvl]*OLEX_BOOST), h);
         if(!best.dead){
-          best.slow = Math.max(best.slowT > 0 ? best.slow : 0, 0.15);
+          best.slow = Math.max(best.slowT > 0 ? best.slow : 0, 0.15*OLEX_BOOST);
           best.slowT = Math.max(best.slowT || 0, 1.5);
         }
         fxHit(best.x, best.y, '#7ffff0');
@@ -7639,13 +7643,13 @@ Object.assign(SKILLS, {
   olexW: {
     name:'Вирус / Патч', short:'W', type:'point', maxLevel:4,
     cd:[0,7,7,7,7], mana:[0,0,0,0,0], range:650, heat:15,
-    desc:'На врага — «Вирус»: 3 сек по 20 урона каждую секунду, а первая попытка применить навык (не чаще раза в секунду) даёт мини-стан 0,3 сек. На себя или союзника — «Патч»: щит 80 и ускорение +20% на 2,5 сек. +15% нагрева.',
+    desc:'На врага — «Вирус»: 3 сек по 23 урона каждую секунду, а первая попытка применить навык (не чаще раза в секунду) даёт мини-стан 0,3 сек. На себя или союзника — «Патч»: щит 91 и ускорение +23% на 2,5 сек. +15% нагрева.',
     cast(h,x,y,lvl){
       const t = pickUnitAt(x,y);
       if(t && !t.dead && t.team !== h.team && !isStructure(t) && !isBuilding(t)){
         if(Math.hypot(t.x-h.x,t.y-h.y) > 650 + t.radius){ flashMsg(h,'Цель слишком далеко'); return false; }
         t.buffs = t.buffs.filter(b => b.type !== 'olexVirus');
-        t.addBuff({type:'olexVirus', t:3, tick:0, val:[0,20,25,30,35][lvl], source:h});
+        t.addBuff({type:'olexVirus', t:3, tick:0, val:[0,20,25,30,35][lvl]*OLEX_BOOST, source:h});
         fxBeam(h.x, h.y-16, t.x, t.y, '#7ffff0', 0.35);
         spawnParticles(t.x, t.y, '#7ffff0', 14, 0.6);
         addText(t.x, t.y-t.radius-40, 'ВИРУС', '#7ffff0', 0.9, 15);
@@ -7653,20 +7657,20 @@ Object.assign(SKILLS, {
       }
       let ally = h;
       if(t && !t.dead && t.team === h.team && t.type === 'hero' && Math.hypot(t.x-h.x,t.y-h.y) <= 650 + t.radius) ally = t;
-      olexGiveShield(ally, [0,80,100,120,140][lvl], 2.5);
+      olexGiveShield(ally, Math.round([0,80,100,120,140][lvl]*OLEX_BOOST), 2.5);
       ally.buffs = ally.buffs.filter(b => b.id !== 'olexPatch');
-      ally.addBuff({type:'spd', id:'olexPatch', val:0.2, t:2.5});
+      ally.addBuff({type:'spd', id:'olexPatch', val:0.2*OLEX_BOOST, t:2.5});
       if(ally !== h) fxBeam(h.x, h.y-16, ally.x, ally.y, '#7fff9a', 0.35);
       fxRing(ally.x, ally.y, 70, '#7fff9a', 0.45);
       spawnParticles(ally.x, ally.y, '#9dffb4', 16, 0.7);
-      addText(ally.x, ally.y-ally.radius-44, 'ПАТЧ +'+[0,80,100,120,140][lvl], '#9dffb4', 0.9, 15);
+      addText(ally.x, ally.y-ally.radius-44, 'ПАТЧ +'+Math.round([0,80,100,120,140][lvl]*OLEX_BOOST), '#9dffb4', 0.9, 15);
       return true;
     }
   },
   olexE: {
     name:'Авто-турель', short:'E', type:'point', maxLevel:4,
     cd:[0,10,10,9,9], mana:[0,0,0,0,0], range:480, heat:18,
-    desc:'Ставит турель на 15 сек: лазер по ближайшему врагу, 15 урона каждые 0,8 сек. Повторное нажатие E взрывает турель досрочно: 90 урона в небольшой зоне. Перезарядка 10 сек начинается после исчезновения турели. +18% нагрева за установку.',
+    desc:'Ставит турель на 15 сек: лазер по ближайшему врагу, 17 урона каждые 0,8 сек. Повторное нажатие E взрывает турель досрочно: 103 урона в небольшой зоне. Перезарядка 10 сек начинается после исчезновения турели. +18% нагрева за установку.',
     afterCast(h,s){ if(olexTurretOf(h)) s.cd = 0.6; },
     cast(h,x,y,lvl){
       const cur = olexTurretOf(h);
@@ -7684,11 +7688,11 @@ Object.assign(SKILLS, {
   olexR: {
     name:'Синий экран смерти', short:'R', type:'point', maxLevel:3, ult:true,
     cd:[0,60,54,48], mana:[0,0,0,0], range:420, heat:35,
-    desc:'Арена с падающим кодом на 5 сек. Враги внутри получают 30 урона каждые 0,7 сек (~215 всего), не могут применять способности, а их управление периодически сбоит. Перезарядка 60 сек. +35% нагрева.',
+    desc:'Арена с падающим кодом на 5 сек. Враги внутри получают 34 урона каждые 0,7 сек (~240 всего), не могут применять способности, а их управление периодически сбоит. Перезарядка 60 сек. +35% нагрева.',
     cast(h,x,y,lvl){
       const d = Math.hypot(x-h.x, y-h.y) || 1, k = Math.min(1, 420/d);
       const px = clamp(h.x+(x-h.x)*k, 60, WORLD-60), py = clamp(h.y+(y-h.y)*k, 60, WORLD-60);
-      olexZones.push({x:px, y:py, r:270, t:0, life:(hasScepter(h)?6.5:5), glitch:0.3, dmg:[0,30,38,46][lvl], owner:h, team:h.team, dead:false});
+      olexZones.push({x:px, y:py, r:270, t:0, life:(hasScepter(h)?6.5:5), glitch:0.3, dmg:[0,30,38,46][lvl]*OLEX_BOOST, owner:h, team:h.team, dead:false});
       fxRing(px, py, 270, '#4aa8ff', 0.6);
       spawnParticles(px, py, '#4aa8ff', 40, 1.2);
       addText(px, py-90, 'СИНИЙ ЭКРАН СМЕРТИ', '#8fd0ff', 1.3, 19);
@@ -7702,7 +7706,7 @@ Object.assign(SKILLS, {
     cast(h,x,y,lvl){
       let dir = Math.atan2(y-h.y, x-h.x);
       if(!Number.isFinite(dir)) dir = h.facing || 0;
-      const dist = 290;
+      const dist = 330;
       const nx = clamp(h.x+Math.cos(dir)*dist, 60, WORLD-60), ny = clamp(h.y+Math.sin(dir)*dist, 60, WORLD-60);
       fxBeam(h.x, h.y-10, nx, ny, '#39e6ff', 0.4);
       spawnParticles(h.x, h.y, '#7ffff0', 18, 0.7);
@@ -8769,7 +8773,7 @@ const HERO_STAT_BALANCE = {
   chip:[760,90,58,3.3,1.03], savely:[970,116,80,3.4,0.94], juggernaut:[930,110,78,3,0.94],
   earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04], vaspassir:[560,64,62,3.4,1.04],
   virsudi:[690,84,66,6.5,1],
-  olex:[660,82,62,5.5,1]
+  olex:[752,93,71,6.3,1]
 };
 
 for(const def of HERO_DEFS){
@@ -11391,7 +11395,7 @@ function update(dt){
           if(a.vaspGrenade && !u.dead && !isStructure(u)){
             u.stunTimer = Math.max(u.stunTimer||0, a.stunTime);
             vaspApplyPoison(u, a.source, a.poisonDps, a.poisonTime);
-            addText(u.x,u.y-u.radius-40,'СТАН 2.5','#ffe14a',0.8,13);
+            addText(u.x,u.y-u.radius-40,'СТАН 2.8','#ffe14a',0.8,13);
           }
           if(a.silenceDuration && !isStructure(u)) u.silenceTimer=Math.max(u.silenceTimer,a.silenceDuration);
           if(a.manaDmg && u.maxMp && !isStructure(u)){
@@ -12354,7 +12358,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if((code === 'KeyT' || key === 't' || key === 'е') && !isOlex(playerHero)){
+  if((code === 'KeyT' || key === 't' || key === 'е') && !isOlex(playerHero) && !(playerHero.def && playerHero.def.id === 'psih')){
     const drone = mo3giDroneOf(playerHero);
     if(drone) toggleMo3giDroneControl(playerHero, drone);
     else flashMsg(playerHero, 'Сначала вызовите дрона');
@@ -21820,6 +21824,8 @@ function drawDotaSenseHome(){
 
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
+    {tag:'0.9.9.0.1',title:'Бошка Ильи: новый навык Психа',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
+    {tag:'0.9.9.0.1',title:'Око Бездны и Плащ Тихого Часа',art:'item',itemId:'abyssEye',action:'store',kind:'магазин'},
     {tag:'0.9.7.5',title:'Псих: чумной доктор',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
     {tag:'0.9.7.4',title:'Новый герой: Псих',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
     {tag:'0.9.7.4',title:'3 особых предмета',art:'item',itemId:'reaperScythe',action:'store',kind:'магазин'},
