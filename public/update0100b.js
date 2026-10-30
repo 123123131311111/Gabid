@@ -1,6 +1,6 @@
 /* DotaSense 0.10.0 (дополнение) — «КРАСИВЫЙ РОСТЕР БОЙЦОВ».
    Вкладка «Бойцы»: новые карточки героев (портрет в цветной раме, плавное появление, подъём и блик при наведении,
-   плашка роли, номер, звёзды мастерства, отметка любимого бойца). Положение и размеры карточек не менялись —
+   плашка роли, номер, звёзды мастерства, отметка любимого бойца). Дополнение: у всех героев на портрете видно мастерство (значок уровня, полоска прогресса, «!» при готовой награде). Положение и размеры карточек не менялись —
    клики и профиль героя работают как раньше. Подключается после update0100.js. */
 (function(){
 'use strict';
@@ -13,6 +13,16 @@ function masteryLevel(id){
   const w = (p.mastery && p.mastery[id] && p.mastery[id].wins) || 0;
   let l = 0; p.masteryCfg.wins.forEach((n, i) => { if(w >= n) l = i + 1; });
   return l;
+}
+function masteryInfo(id){
+  const p = window.__shadowAccountProfile;
+  const l = masteryLevel(id);
+  if(l < 0) return null;
+  const c = p.masteryCfg, w = (p.mastery && p.mastery[id] && p.mastery[id].wins) || 0;
+  const claimed = (p.mastery && p.mastery[id] && p.mastery[id].claimed) || 0;
+  const max = c.wins.length, prev = l > 0 ? c.wins[l - 1] : 0;
+  const frac = l >= max ? 1 : Math.max(0, Math.min(1, (w - prev) / (c.wins[l] - prev)));
+  return {lvl: l, max, frac, ready: claimed < l};
 }
 function fit(text, maxW){
   let t = String(text);
@@ -100,8 +110,37 @@ function drawCard(def, i, r, hover, now, t){
   ctx.fillStyle = ranged ? '#8be9fd' : '#ffb27a';
   ctx.fillText(tag, px + 11, py + 16);
   if(typeof favoriteHeroId !== 'undefined' && favoriteHeroId === def.id){
-    ctx.font = 'bold 15px Segoe UI, Arial'; ctx.fillStyle = '#ff6a7a'; ctx.textAlign = 'left';
-    ctx.fillText('★', px + 7, py + 38);
+    ctx.font = 'bold 15px Segoe UI, Arial'; ctx.fillStyle = '#ff6a7a'; ctx.textAlign = 'right';
+    ctx.fillText('★', px + pw - 6, py + 31);
+  }
+
+  /* мастерство на портрете: значок уровня, полоска прогресса, «!» при готовой награде */
+  const mi = masteryInfo(def.id);
+  if(mi){
+    const bh = small ? 16 : 18, bw2 = small ? 40 : 46, bx = px + 5, by = py + 25;
+    ctx.shadowColor = mi.lvl >= mi.max ? 'rgba(255,213,104,.9)' : 'transparent'; ctx.shadowBlur = mi.lvl >= mi.max ? 10 : 0;
+    const gb = ctx.createLinearGradient(0, by, 0, by + bh);
+    gb.addColorStop(0, mi.lvl > 0 ? '#ffe39a' : '#4a4740'); gb.addColorStop(1, mi.lvl > 0 ? '#c58a2a' : '#2a2824');
+    ctx.fillStyle = gb; ctx.beginPath(); ctx.roundRect(bx, by, bw2, bh, 9); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.lineWidth = 1; ctx.strokeStyle = mi.lvl > 0 ? 'rgba(58,40,8,.9)' : 'rgba(255,255,255,.25)'; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.font = 'bold ' + (small ? 10 : 11) + 'px Segoe UI, Arial';
+    ctx.fillStyle = mi.lvl > 0 ? '#2b1c05' : 'rgba(255,255,255,.65)';
+    ctx.fillText('★ ' + mi.lvl + '/' + mi.max, bx + bw2 / 2, by + bh - 5);
+    if(mi.ready){
+      const pr = 1 + Math.sin(now * 5) * 0.12;
+      ctx.save(); ctx.translate(bx + bw2 + 9, by + bh / 2); ctx.scale(pr, pr);
+      ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fillStyle = '#ff4d5e'; ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Segoe UI, Arial'; ctx.textAlign = 'center'; ctx.fillText('!', 0, 4);
+      ctx.restore();
+    }
+    /* полоска до следующего уровня внизу портрета */
+    const barX = px + 8, barW = pw - 16, barY = py + ph - 7;
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, 4, 2); ctx.fill();
+    if(mi.frac > 0){
+      ctx.fillStyle = mi.lvl >= mi.max ? '#ffd568' : hexRgba(c2, 1);
+      ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(4, barW * mi.frac), 4, 2); ctx.fill();
+    }
   }
 
   /* имя и титул */
@@ -129,7 +168,7 @@ function drawCard(def, i, r, hover, now, t){
   /* подсказка при наведении */
   if(hover && r.h >= 120){
     ctx.textAlign = 'center'; ctx.font = 'bold 10px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,.9)';
-    ctx.fillText('ОТКРЫТЬ ПРОФИЛЬ  ›', px + pw / 2, py + ph - 8);
+    ctx.fillText('ОТКРЫТЬ ПРОФИЛЬ  ›', px + pw / 2, py + ph - 15);
   }
   ctx.restore();
 }
@@ -152,7 +191,7 @@ drawMenu = function(){
     const p = window.__shadowAccountProfile;
     const withM = p && p.masteryCfg ? p.masteryCfg.heroes.length : 0;
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Consolas, monospace'; ctx.fillStyle = '#d7b36a';
-    ctx.fillText('БОЙЦОВ: ' + HERO_DEFS.length + (withM ? '   ·   С МАСТЕРСТВОМ: ' + withM : ''), VW - 24, 128);
+    ctx.fillText('БОЙЦОВ: ' + HERO_DEFS.length + (withM ? '   ·   МАСТЕРСТВО НА КАЖДОМ' : ''), VW - 24, 128);
     let hoverIdx = -1;
     for(let i = 0; i < HERO_DEFS.length; i++){
       const r = realRect(i);
