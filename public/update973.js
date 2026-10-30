@@ -521,7 +521,7 @@ G.menuDemon973 = {
     if(MD.bad >= 3 && now - (MD.badAt || 0) > 5) MD.bad = 0;
     if(MD.bad >= 3 || perfLevel >= 3 || !G.Hero3D || !Hero3D.models || !Hero3D.models.menuDemon || !Hero3D.render) return false;
     try {
-      const dispH = VH * 0.96;
+      const dispH = VH * 0.96 * (G.menuDemonScale || 1);   /* 0.10.0.5: update01005.js подгоняет размер демона под свободное место меню */
       const Hpx = Math.round(Math.min(perfLevel >= 2 ? 300 : (perfLevel >= 1 ? 400 : 580), dispH * (perfLevel >= 2 ? 0.42 : (perfLevel >= 1 ? 0.55 : 0.8))) / 4) * 4, Wpx = Math.round(Hpx * 1.1 / 4) * 4;
       const D = 9, f = 0.9 * Hpx * D / 4.8, ox = 0.25 * f / D;
       if(!MD.cv || MD.W !== Wpx || MD.H !== Hpx){
