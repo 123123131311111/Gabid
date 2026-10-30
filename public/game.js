@@ -14421,6 +14421,24 @@ function drawUnit(u){
       ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
     }
   }
+  /* 0.10.1: псы Выселок — 3D-модель красного пса с шипами и ошейником цвета команды */
+  if(!hero3dSpr && u.type === 'summon' && u.summonKind === 'vyDog' && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
+    const dd = {id:'vy_dog', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#8a2a1e'};
+    let fa = u.facing || 0;
+    if(u.isAttacking && u.attackTarget && u.attackTarget.alive) fa = Math.atan2(u.attackTarget.y-u.y, u.attackTarget.x-u.x);
+    let anim3d = null;
+    if(!perfLite() && Hero3D.hasAnim && Hero3D.hasAnim('vy_dog')){
+      if(u.isAttacking) anim3d = {kind:'attack', p:Math.min(1,u.attackAnimProgress)};
+      else if(u.moving) anim3d = {kind:'walk', p:(u.walkPhase||0)%1};
+    }
+    hero3dSpr = Hero3D.battleSprite(dd, u.radius*1.15, fa, gameTime, anim3d);
+    if(hero3dSpr){
+      const footY = u.radius*0.7;
+      ctx.save(); ctx.globalAlpha=0.45; ctx.strokeStyle='#ff5a3a'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(0,footY,u.radius*1.0,u.radius*0.5,0,0,Math.PI*2); ctx.stroke(); ctx.restore();
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+    }
+  }
   /* 0.8.6: боевой дрон Мо3ги — настоящая 3D-модель FPV-дрона с боеприпасом (вместо плоского значка) */
   if(!hero3dSpr && u.type === 'summon' && u.summonKind === 'mo3giDrone' && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
     const dd = {id:'mon_drone', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#ffffff'};
