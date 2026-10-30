@@ -83,6 +83,12 @@ const SKIN_TINTS={
   /* ---- 0.9.9.4: скины Вирсуди, Шмедика и Гриши ---- */
   /* Вирсуди: «Кровавая луна» — чёрно-багровый плащ, яркие красные акценты */
   virsudiBloodMoon:c=>{ const [h,s,l]=rgb2hsl(c); const hot=l>.62; return hsl2rgb(hot?350:346+(h%24)*.2, Math.min(.9,Math.max(.45,s*.6+.3)), hot?Math.min(.78,l+.02):Math.max(.07,l*.7)); },
+  /* 0.9.9.8 АРКАНА Вирсуди: «Бездна Приливов» — багровая броня, фиолетово-чёрное тело, ледяные блики и голубые клинки */
+  virsudiArcana:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(l>.8) return hsl2rgb(192,.75,Math.min(.93,l));
+    if(s>.75&&l>.45) return (h>=36&&h<=60)?c:((h<70||h>330)?hsl2rgb(318,.9,l):c);
+    if(h<70||h>330) return hsl2rgb(352,Math.min(.8,Math.max(.5,s+.1)),Math.max(.14,Math.min(.6,l*1.05)));
+    return hsl2rgb(262+(h%40)*.3,Math.min(.6,s*.6+.15),Math.max(.08,l*.85)); },
   /* Шмедик: «Магмовый титан» — тёмный камень и оранжевая лава */
   earthshakerMagma:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(18+(h%30)*.25, Math.min(.92,Math.max(.5,s*.7+.3)), l>.7?Math.min(.88,l):Math.max(.1,l*.85)); },
   /* Гриша: «Изумрудный чародей» — зелёная мантия и светящиеся самоцветы */
@@ -2971,7 +2977,34 @@ MODELS.virsudi=(S,d,t,pose)=>{
   if(rp.kind==='attack'&&rp.p>.38&&rp.p<.82){ const u0=cl01((rp.p-.38)/.44); for(let i=0;i<7;i++){ const u=i/6*u0, x=.95-1.4*u, y=2.1-1.3*u+.3*Math.sin(u*Math.PI), z=.1+1.2*u;
     G(S,[x,y,z],.07*(1-i/9)+.02,i%2?BUB:'#e4fbff'); } }
   if(rp.kind==='cast'&&rp.slot===1&&P.air>.15){ for(let i=1;i<=6;i++) bub([0,1.0+P.air*.5-i*.05,-.2-i*.22*P.air],.09*(1-i/8)); }
+  if(d && d.skinId && String(d.skinId).split('+')[0]==='virsudiArcana') virsudiArcanaFx(S,t,bp,hands);
 };
+/* 0.9.9.8: эффекты арканы Вирсуди — энергия на клинках, призрачная корона, огненные кольца, пурпурные вихри у ног */
+function virsudiArcanaFx(S,t,bp,hands){
+  const CY='#4fc8ff', CYL='#bff0ff', MG='#c13bff', OR='#ffbe3a';
+  for(const s of [-1,1]){                                   // голубое пламя вдоль клинков
+    const pt=bp&&bp[s]; if(!pt) continue;
+    for(let i=0;i<7;i++){ const u=.15+i/7*.85, f=Math.sin(t*7+i*1.7+s)*.5+.5, p=pt(u);
+      G(S,[p[0],p[1]+.05+.05*f,p[2]],.05+.035*f,i%2?CY:CYL);
+    }
+    G(S,pt(1),.09+.03*Math.sin(t*9+s),CYL);
+  }
+  for(let i=0;i<6;i++){                                     // призрачная голубая корона над головой
+    const a=i/6*Math.PI*2+t*.4, r=.22, f=Math.sin(t*5+i*2.1)*.5+.5, bx=Math.cos(a)*r, bz=Math.sin(a)*r-.1;
+    S.cone([bx,2.7,bz],[bx*.4,2.95+f*.3+(i%2)*.12,bz*.4-.04],.07,i%2?CY:MG,{seg:6,glow:1,shine:0});
+  }
+  G(S,[0,2.78,-.1],.16+.03*Math.sin(t*4),CY);
+  S.ring([0,1.55,0],1.05,.022,OR,{glow:1,n:36,axis:'x',phase:t*1.1});   // два огненных кольца вокруг тела
+  S.ring([0,1.55,0],1.18,.018,OR,{glow:1,n:36,axis:'z',phase:-t*.9});
+  for(let i=0;i<9;i++){                                     // пурпурные вихри у ног
+    const a=i/9*Math.PI*2+t*1.3, r=.75+.12*Math.sin(t*3+i);
+    G(S,[Math.cos(a)*r,.12+.06*Math.sin(t*4+i),Math.sin(a)*r],.06+.02*Math.sin(t*5+i),i%2?MG:CY);
+  }
+  for(let i=0;i<8;i++){                                     // поднимающиеся искры
+    const ph=(t*.5+i/8)%1, a=i*2.4+t*.6;
+    G(S,[Math.cos(a)*.6,.3+ph*2.3,Math.sin(a)*.5],.035*(1-ph)+.012,i%2?MG:CYL);
+  }
+}
 ANIM.virsudi=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'attack',p:.7},{kind:'walk',p:.25},{kind:'walk',p:.75},
   {kind:'cast',slot:0,p:.5},{kind:'cast',slot:0,p:.93},{kind:'cast',slot:0,p:1},{kind:'cast',slot:1,p:.5},{kind:'cast',slot:1,p:.64},
   {kind:'cast',slot:2,p:.4},{kind:'cast',slot:2,p:.6},{kind:'cast',slot:3,p:.35},{kind:'cast',slot:3,p:.7}];

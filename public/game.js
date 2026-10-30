@@ -296,6 +296,9 @@ SKIN_DEFS.push(
   /* 0.9.9.6: АРКАНА Снайпера — огненный образ: меняет вид героя, винтовки, выстрелов и всех четырёх скиллов (только визуально, характеристики те же). */
   {id:'sniperInferno', arcana:true, name:'ПЛАМЕННЫЙ СТРЕЛОК', heroId:'sniper', rarity:'arcana', price:1820, accent:'#ff7a1c', border:'#c2410c', previewHero:'sniper', previewColor:'#3a0c04', previewColor2:'#ffb02e', weaponColor:'#ff6a1a',
    desc:'АРКАНА. Снайпер объят огнём: тлеющая форма, пылающая корона и раскалённая винтовка. Огненными становятся атака и каждый скилл — Shrapnel сыплет угли, Headshot взрывается искрами, Take Aim зажигает ауру, Assassinate летит огненной кометой. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
+  /* 0.9.9.8: АРКАНА Вирсуди — «Бездна Приливов»: багрово-фиолетовая броня, голубые светящиеся клинки, пурпурная аура и огненные кольца. Только визуал. */
+  {id:'virsudiArcana', arcana:true, name:'БЕЗДНА ПРИЛИВОВ', heroId:'virsudi', rarity:'arcana', price:1200, accent:'#4fc8ff', border:'#8a2bd6', previewHero:'virsudi', previewColor:'#1a0a33', previewColor2:'#4fc8ff', weaponColor:'#4fc8ff',
+   desc:'АРКАНА. Вирсуди в багровых доспехах из глубин: фиолетовое сияние, голубые энергетические клинки, парящие огненные кольца и призрачная корона. Не меняет характеристики.', hint:'Виден, когда выбран Вирсуди.'},
   {id:'psihToxic', name:'ТОКСИЧНЫЙ ПСИХ', heroId:'psih', rarity:'rare', price:341, accent:'#b6ff3a', border:'#5f9a1c', previewHero:'psih', previewColor:'#233d0e', previewColor2:'#c8ff5a', weaponColor:'#b6ff3a',
    desc:'Кислотно-зелёный Псих, надышавшийся ядовитых паров. Клинки светятся токсичным цветом. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
   {id:'psihFrost', name:'ЛЕДЯНОЙ КОШМАР', heroId:'psih', rarity:'epic', price:569, accent:'#7fe8ff', border:'#3d8fb0', previewHero:'psih', previewColor:'#12384a', previewColor2:'#9ff0ff', weaponColor:'#cdf6ff',

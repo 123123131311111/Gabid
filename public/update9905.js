@@ -3,7 +3,7 @@
        Q «Тачка на дело»  — машина едет в случайного вражеского героя и не отстаёт, пока не врежется.
        W «Гангста-стиль»  — пассивно: +50 к скорости атаки и +120 к скорости ходьбы.
        E «Адская жара»    — огромный радиус: враги сильно замедлены и горят, по 90 урона каждые 0,5 сек.
-       R «Автопарк»       — десятки машин появляются по всей карте и сами ищут цели.
+       R «Автопарк»       — десятки машин появляются по всей карте; рядом герой — едут на него, рядом только крипы — на крипов.
    • Йосып усилен на 25% (здоровье, урон, рост за уровень, сила способностей).
    Подключается поверх game.js и update9904.js, по образцу остальных update-файлов. */
 (function(){
@@ -90,9 +90,29 @@ function nearestEnemy(x, y, team){
   }
   return best;
 }
+/* 0.9.9.8: ульта (R) — машины выбирают цель по близости: герой/бот рядом → едут на него; иначе, если рядом только крипы → таранят крипов;
+   если рядом никого нет — как раньше, едут на ближайшего вражеского героя по всей карте. */
+const R_NEAR = 900;
+function nearbyTarget(car, heroOnly){
+  let best = null, bd = R_NEAR * R_NEAR;
+  for(const u of units){
+    if(!enemyOk(u, car.team)) continue;
+    const isHero = u.type === 'hero' && !u.isIllusion;
+    if(heroOnly ? !isHero : (u.type === 'hero')) continue;
+    const d = (u.x - car.x) * (u.x - car.x) + (u.y - car.y) * (u.y - car.y);
+    if(d < bd){ bd = d; best = u; }
+  }
+  return best;
+}
 function pickTarget(car){
   const hs = enemyHeroes(car.team);
   if(car.kind === 'q' && hs.length) return hs[Math.floor(Math.random() * hs.length)];   /* Q — случайный герой */
+  if(car.kind === 'r'){
+    const nh = nearbyTarget(car, true);
+    if(nh) return nh;                       /* рядом герой/бот — он в приоритете */
+    const nc = nearbyTarget(car, false);
+    if(nc) return nc;                       /* рядом только крипы — едем на них */
+  }
   let best = null, bd = 1e12;
   for(const u of hs){ const d = (u.x - car.x) * (u.x - car.x) + (u.y - car.y) * (u.y - car.y); if(d < bd){ bd = d; best = u; } }
   return best || nearestEnemy(car.x, car.y, car.team);
@@ -141,8 +161,8 @@ function carTick(car, dt){
   }
   if(car.age > car.life){ car.dead = true; MC.puffs.push({x: car.x, y: car.y, t: 0, life: 0.4, r: 60, kind: 'smoke'}); return; }
   car.retarget -= dt;
-  if(!enemyOk(car.target, car.team) && car.retarget <= 0){
-    car.retarget = 0.2;
+  if(car.retarget <= 0 && (!enemyOk(car.target, car.team) || car.kind === 'r')){
+    car.retarget = car.kind === 'r' ? 0.25 : 0.2;     /* ульта-машины перепроверяют цель: герой рядом важнее крипов */
     car.target = pickTarget(car);
   }
   const t = car.target;
@@ -226,7 +246,7 @@ Object.assign(SKILLS, {
   marinFleet: {
     name:'Автопарк', short:'R', type:'self', maxLevel:3, ult:true,
     cd:[0, 100, 90, 80], mana:[0, 200, 250, 300],
-    desc:'По всей карте появляется 12/16/20 машин (на 6 больше со скипетром Аганима): каждая сама ищет ближайшего вражеского героя и таранит его. Взрыв машины: 190/280/380 урона и оглушение.',
+    desc:'По всей карте появляется 12/16/20 машин (на 6 больше со скипетром Аганима): каждая едет на ближайшего рядом героя, а если рядом одни крипы — таранит крипов (если никого рядом нет — ищет ближайшего героя). Взрыв машины: 190/280/380 урона и оглушение.',
     cast(h, x, y, lvl){
       const L = Math.max(1, Math.min(3, lvl || 1));
       const n = R_COUNT[L] + (typeof hasScepter === 'function' && hasScepter(h) ? 6 : 0);

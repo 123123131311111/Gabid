@@ -30,7 +30,9 @@ const SKIN_PRICES = {
   virsudiBloodMoon: 910, earthshakerMagma: 569, grishaEmerald: 341,
   /* 0.9.9.7: ВСЕ цены на скины урезаны в 4 раза (1365→341, 2275→569, 3640→910, аркана 7280→1820, иммортал 4550→1138).
      Цены продублированы в game.js — они обязаны совпадать. */
-  sniperInferno: 1820, chipParrot: 1138
+  sniperInferno: 1820, chipParrot: 1138,
+  /* 0.9.9.8: АРКАНА Вирсуди — 1200 Сенсиков (цена обязана совпадать с game.js) */
+  virsudiArcana: 1200
 };
 const EXTRA_QUEST_BY_ID = Object.fromEntries(EXTRA_QUESTS.map(q => [q.id, q]));
 const MAX_QUEST_ASSISTS_PER_MATCH = 40;
