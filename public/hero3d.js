@@ -56,6 +56,20 @@ function hsl2rgb(h,s,l){
   return [Math.round(f(h+1/3)*255),Math.round(f(h)*255),Math.round(f(h-1/3)*255)];
 }
 const SKIN_TINTS={
+  /* Шадоу: «Пустотный жнец» — чёрная броня с фиолетовым отливом, лава превращается в фиолетовое пламя, раскалённое — в голубое свечение душ.
+     Циан и фиолет (эффекты самого скина) не трогаем. */
+  shadowVoid:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(l>.9) return c;
+    if(h>=170&&h<=300&&s>.35) return c;
+    if(l<.3) return hsl2rgb(262+(h%20)*.3,Math.min(.45,s*.7+.12),l*1.05+.01);
+    if(l>.6) return hsl2rgb(188,.92,Math.min(.9,l));
+    if(s>.45) return hsl2rgb(274+(h%30)*.35,Math.min(.95,s*.5+.45),Math.max(.34,Math.min(.62,l)));
+    return hsl2rgb(262,Math.min(.4,s),l); },
+  /* Иллюзионист: «Розовый фокусник» — бирюза уходит в глубокий фиолет, голубые акценты становятся розовыми; золото и жемчуг остаются */
+  illusionistPrism:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(h>=170&&h<=215&&s>.25){
+      return l>.5 ? hsl2rgb(322,Math.min(.9,s+.1),Math.min(.8,l+.02)) : hsl2rgb(278+(h-170)*.2,Math.min(.7,s*.8),Math.max(.1,l*1.05)); }
+    return c; },
   /* ---- 0.9.9.3: платные скины за Сенсики (по три на Снайпера, Психа и Мо3ги) ---- */
   /* Снайпер: «Лесной призрак» — маскировочный зелёный */
   sniperGhillie:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(96+(h%36)*.35, Math.min(.62,Math.max(.28,s*.7+.12)), l>.78?l:Math.max(.12,l*.82)); },
@@ -821,6 +835,27 @@ MODELS.illusionist=(S,d,t)=>{
   hold(S,_h6,'R');
 };
 
+/* ---- НОВЫЙ СКИН Иллюзиониста: «Розовый фокусник» (illusionistPrism). Только визуал: фиолетовый плащ, розовые акценты, парящие карты,
+   мерцающие звёзды, призма над шляпой и кольца на земле. ---- */
+function illusionistPrismFx(S,d,t){
+  const ROSE='#ff7ad9', GOLD='#ffd568', PEARL='#fff4ff', VIO='#b58cff';
+  for(let i=0;i<5;i++){ const a=-t*1.25+i*Math.PI*2/5, r=1.55, y=1.1+.55*Math.sin(t*1.6+i*1.3)+i*.12;
+    const p=[Math.cos(a)*r,y,Math.sin(a)*r], ry=[0,-a+Math.PI/2,0];
+    S.box(p,[.34,.5,.02],i%2?PEARL:ROSE,{rot:ry,shine:.7});
+    S.box(p,[.38,.54,.012],GOLD,{rot:ry,shine:.8,glow:1}); }
+  for(let i=0;i<8;i++){ const a=t*.8+i*.79, p=[Math.cos(a)*.95,1.0+((i*.43)%1.9)+.1*Math.sin(t*2+i),Math.sin(a)*.95], k=(.6+.4*Math.sin(t*5+i))*.15;
+    S.box(p,[k,.02,.02],GOLD,{glow:1}); S.box(p,[.02,k,.02],GOLD,{glow:1}); }
+  S.ring([0,3.45,0],.28,.012,ROSE,{glow:1,n:16,phase:t*2});
+  S.box([0,3.62+flick(t,5)*.02,0],[.11,.11,.11],GOLD,{glow:1,rot:[t*1.5,t*2,0]});
+  S.ring([0,.025,0],1.1,.012,ROSE,{glow:1,n:30,phase:t*.7});
+  S.ring([0,.025,0],1.3,.01,VIO,{glow:1,n:34,phase:-t*.5});
+}
+const _illuBaseModel=MODELS.illusionist;
+MODELS.illusionist=(S,d,t,pose)=>{
+  _illuBaseModel(S,d,t,pose);
+  if(d&&d.skinId&&String(d.skinId).split('+')[0]==='illusionistPrism') illusionistPrismFx(S,d,t);
+};
+
 MODELS.shadow=(S,d,t,pose)=>{
   const ga=gaState(d.id,pose,t);
   const ch='#120707', ch2='#241010', rock='#190a0a', lava='#ff5a1f', hot='#ffb347', core='#fff0a8', ember='#e8300f';
@@ -889,6 +924,74 @@ MODELS.shadow=(S,d,t,pose)=>{
   for(let i=0;i<3;i++){ const a=t*1.5+i*2.09; G(S,[Math.cos(a)*1.0,1.3+Math.sin(t*2+i)*.2,Math.sin(a)*1.0],.07,'#ff7043'); }
   S.ring([0,.04,0],.9,.03,lava,{glow:1,n:24,phase:t});
   gaFx(S,ga);
+};
+
+/* ---- НОВЫЙ СКИН Шадоу: «Пустотный жнец» (shadowVoid). Только визуал. Нимб из призрачных шипов, светящиеся жилы на крыльях,
+   семь вращающихся душ с хвостами, руны на земле и ядро-душа в груди. Цвета подобраны под палитру SKIN_TINTS.shadowVoid. ---- */
+function shadowVoidFx(S,d,t,pose){
+  const ga=gaState(d.id,pose,t);
+  const CY='#7df3ff', VI='#b06bff', WH='#ffffff';
+  for(let i=0;i<9;i++){ const a=t*.9+i*Math.PI*2/9, r=.62, k=flick(t,i*1.7)*.04;
+    const x=Math.cos(a)*r, z=Math.sin(a)*r*.8-.08;
+    S.cone([x,3.38,z],[x*1.12,3.82+k+(i%2)*.1+.15*ga.fx,z*1.12],.07,i%2?CY:VI,{glow:1,seg:5}); }
+  S.ring([0,3.34,-.08],.62,.018,CY,{glow:1,n:22,phase:-t*1.2});
+  const w1=[[.42,1.82,-.12],[.62,2.15,-.22],[.95,2.55,-.3],[1.28,2.95,-.3],[1.38,3.2,-.26]];
+  const w2=[[.5,1.78,-.1],[.85,1.98,-.2],[1.2,2.15,-.25],[1.5,2.2,-.2],[1.7,2.0,-.1]];
+  for(const s of [-1,1]){
+    for(let i=0;i<4;i++) S.tube([s*w1[i][0],w1[i][1],w1[i][2]+.07],[s*w1[i+1][0],w1[i+1][1],w1[i+1][2]+.07],.028,.024,i%2?CY:VI,{glow:1,seg:4});
+    for(let i=0;i<4;i++) S.tube([s*w2[i][0],w2[i][1],w2[i][2]+.06],[s*w2[i+1][0],w2[i+1][1],w2[i+1][2]+.06],.022,.018,i%2?VI:CY,{glow:1,seg:4});
+    S.cone([s*1.38,3.2,-.26],[s*1.46,3.72+.1*flick(t,s+4),-.24],.06,CY,{glow:1,seg:5});
+  }
+  for(let i=0;i<7;i++){ const a=t*1.7+i*Math.PI*2/7, r=1.15+.1*Math.sin(t*1.5+i), y=.7+((i*.37)%1.6)+.12*Math.sin(t*2.2+i);
+    const p=[Math.cos(a)*r,y,Math.sin(a)*r];
+    G(S,p,.085,i%2?VI:CY); G(S,p,.045,WH,{rings:3,seg:5});
+    S.cone(p,[p[0]+Math.sin(a)*.38,p[1]+.03,p[2]-Math.cos(a)*.38],.06,i%2?VI:CY,{glow:1,seg:5}); }
+  S.ring([0,.03,0],1.25,.016,VI,{glow:1,n:34,phase:t*.6});
+  S.ring([0,.03,0],1.05,.012,CY,{glow:1,n:28,phase:-t*.9});
+  G(S,[0,1.42,.36],.05,WH);
+  for(let i=0;i<5;i++){ const y=((t*.4+i*.52)%2.4)+.3, x=Math.sin(i*5.3+t*.9)*.6, z=Math.cos(i*3.1+t*.7)*.5;
+    S.ell([x,y,z],[.05,.11,.05],i%2?CY:VI,{glow:1,rings:3,seg:6}); }
+}
+function shadowVoidFx2(S,d,t,pose){
+  const ga=gaState(d.id,pose,t);
+  const CY='#7df3ff', VI='#b06bff', DV='#3a1a8a', WH='#ffffff', BONE='#cdb8ff';
+  /* призрачная коса за спиной: древко, изогнутое лезвие с внутренним светом и висящие души */
+  S.tube([.5,.35,-.58],[-.45,3.0,-.62],.035,.035,DV,{seg:5});
+  for(let i=0;i<5;i++){ const u=i/4; S.tube([.5-.95*u,.35+2.65*u,-.58-.04*u],[.5-.95*u,.42+2.65*u,-.58-.04*u],.055,.055,i%2?VI:CY,{glow:1,seg:6}); }
+  const bl=[[-.45,3.0,-.62],[-.85,3.18,-.62],[-1.3,3.08,-.62],[-1.62,2.8,-.62],[-1.75,2.42,-.62]];
+  for(let i=0;i<4;i++){ S.tube(bl[i],bl[i+1],.085-.017*i,.068-.017*i,CY,{glow:1,seg:5}); S.tube([bl[i][0],bl[i][1]-.04,bl[i][2]],[bl[i+1][0],bl[i+1][1]-.04,bl[i+1][2]],.04-.008*i,.03,WH,{glow:1,seg:4}); }
+  G(S,[bl[4][0],bl[4][1]-.1+.04*Math.sin(t*3),bl[4][2]],.07,WH);
+  /* нимб-руна за головой */
+  S.ring([0,2.6,-.5],.8,.02,VI,{glow:1,axis:'z',n:38,phase:t*.5});
+  S.ring([0,2.6,-.5],.62,.014,CY,{glow:1,axis:'z',n:30,phase:-t*.8});
+  for(let i=0;i<12;i++){ const a=t*.5+i*Math.PI/6, c=Math.cos(a), s2=Math.sin(a);
+    S.cone([c*.84,2.6+s2*.84,-.5],[c*1.0,2.6+s2*1.0,-.5],.035,i%3?VI:CY,{glow:1,seg:4}); }
+  /* черепа на плечах с горящими глазницами */
+  for(const s of [-1,1]){
+    S.ell([s*.66,2.0,.12],[.14,.125,.13],BONE,{rings:5,seg:8,shine:.5});
+    S.box([s*.66,1.9,.2],[.1,.05,.06],BONE);
+    for(const e of [-1,1]) G(S,[s*.66+e*.05,2.02,.235],.026,CY,{rings:3,seg:5});
+    /* ладонь: парящая душа над рукой */
+    const hd=s>0?ga.R:ga.L, fl=flick(t,s*3+1);
+    G(S,add(hd,[0,.62+.04*fl,0]),.11,CY); G(S,add(hd,[0,.62+.04*fl,0]),.06,WH,{rings:3,seg:5});
+    S.cone(add(hd,[0,.55,0]),add(hd,[0,.95+.1*fl+.2*ga.fx,0]),.07,VI,{glow:1,seg:5});
+    /* цепи у пояса */
+    for(let i=0;i<6;i++){ const sw=Math.sin(t*2+i*.6+s)*.035*(i+1)/3;
+      S.ell([s*.32+sw,.98-i*.12,.27],[.032,.05,.02],i%2?CY:VI,{glow:1,rings:3,seg:5}); }
+    S.cone([s*.32+Math.sin(t*2+3.6+s)*.04,.26,.27],[s*.32+Math.sin(t*2+3.6+s)*.05,.12,.27],.045,CY,{glow:1,seg:4});
+  }
+  /* рваный плащ пустоты сзади */
+  for(let i=0;i<7;i++){ const x=(i-3)*.14, w=Math.sin(t*2+i), w2=Math.cos(t*1.7+i);
+    S.tube([x,1.72,-.36],[x+w*.09,.55+(i%3)*.12,-.56-w2*.07],.055,.014,i%2?VI:DV,{glow:i%2?1:0,seg:4}); }
+  /* пентаграмма на земле */
+  for(let i=0;i<5;i++){ const a1=t*.3+i*Math.PI*2/5, a2=t*.3+((i+2)%5)*Math.PI*2/5;
+    S.tube([Math.cos(a1)*1.5,.035,Math.sin(a1)*1.5],[Math.cos(a2)*1.5,.035,Math.sin(a2)*1.5],.014,.014,i%2?VI:CY,{glow:1,seg:4}); }
+  S.ring([0,.035,0],1.5,.018,VI,{glow:1,n:44,phase:-t*.3});
+}
+const _shadowBaseModel=MODELS.shadow;
+MODELS.shadow=(S,d,t,pose)=>{
+  _shadowBaseModel(S,d,t,pose);
+  if(d&&d.skinId&&String(d.skinId).split('+')[0]==='shadowVoid') { shadowVoidFx(S,d,t,pose); shadowVoidFx2(S,d,t,pose); }
 };
 
 MODELS.electricGosha=(S,d,t,pose)=>{

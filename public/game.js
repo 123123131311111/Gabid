@@ -325,6 +325,13 @@ SKIN_DEFS.push(
   {id:'grishaEmerald', name:'ИЗУМРУДНЫЙ ЧАРОДЕЙ', heroId:'grisha', rarity:'rare', price:341, accent:'#5cf0a0', border:'#1f8a5a', previewHero:'grisha', previewColor:'#0f3a2a', previewColor2:'#8dffc4', weaponColor:'#5cf0a0',
    desc:'Гриша в мантии цвета изумруда: зелёная ткань, светящиеся самоцветы и посох с природной магией. Не меняет характеристики.', hint:'Виден, когда выбран Гриша.'}
 );
+/* НОВЫЕ СКИНЫ: легендарный «Пустотный жнец» (Шадоу) и редкий «Розовый фокусник» (Иллюзионист). Только визуал. Цены продублированы в accounts.js. */
+SKIN_DEFS.push(
+  {id:'shadowVoid', name:'ПУСТОТНЫЙ ЖНЕЦ', heroId:'shadow', rarity:'legendary', price:910, accent:'#b06bff', border:'#5b2bb8', previewHero:'shadow', previewColor:'#14082a', previewColor2:'#7df3ff', weaponColor:'#b06bff',
+   desc:'Легендарный образ: Шадоу обретает фиолетово-чёрную броню, а адское пламя превращается в холодный огонь пустоты. Над головой вращается нимб из призрачных шипов, за спиной парит призрачная коса и руна-нимб, на плечах черепа с горящими глазницами, на поясе звенят цепи, а вокруг кружат семь неупокоенных душ и горит пентаграмма. Атака — стреляющая душа с призрачным хвостом, койлы и Реквием взрываются фиолетово-голубым светом, а из земли поднимаются души. Не меняет характеристики.', hint:'Виден, когда выбран Шадоу.'},
+  {id:'illusionistPrism', name:'РОЗОВЫЙ ФОКУСНИК', heroId:'illusionist', rarity:'rare', price:341, accent:'#ff7ad9', border:'#a8368f', previewHero:'illusionist', previewColor:'#2a0f4a', previewColor2:'#ff9ae6',
+   desc:'Иллюзионист в фиолетовом плаще с розовыми акцентами. Вокруг парят карты и мерцающие звёзды, над шляпой вращается золотая призма, а атака превращается в летящую карту с искрами. Не меняет характеристики.', hint:'Виден, когда выбран Иллюзионист.'}
+);
 const SKIN_BY_ID = {};
 for(const sk of SKIN_DEFS) SKIN_BY_ID[sk.id] = sk;
 let skinsOwned = {};
@@ -4994,7 +5001,7 @@ class Unit {
           const infernoShot = isSniperInferno(this);
           const shotColor = infernoShot ? (shotSource.headshot ? '#ffe27a' : '#ff7a1c') : this.def && this.def.id === 'arcady' ? '#ff6b35' :
             (this.def && this.def.id === 'sniper' ? '#ffe0a0' : (this.def && this.def.id === 'vaspassir' ? '#8dff5a' :
-            (this.def && this.def.id === 'shadow' ? '#ff5a1f' :
+            (this.def && this.def.id === 'shadow' ? (baseSkin(this.skinId) === 'shadowVoid' ? '#b06bff' : '#ff5a1f') :
             (this.team===0 ? '#a8ffb0' : '#ffb0a8'))));
           const projectile=spawnProjectile(this.x, this.y, t, shotDamage, shotSource, 1100,
             shotColor, this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : (this.def && this.def.id === 'shadow' ? 10 : 7)));
@@ -6370,9 +6377,10 @@ function castShadowCoil(hero, x, y, level, range, damage, speed, blastDistance){
   const centerY = clamp(hero.y + Math.sin(angle) * distance, 60, WORLD - 60);
   const radius = distance < 350 ? 142 : (distance < 650 ? 158 : 178);
   const finalDamage = abilityDamage(hero, damage);
-  const outer = '#ff3b1f';
-  const inner = '#ff9a3d';
-  const dark = '#8d1118';
+  const voidSkin = baseSkin(hero.skinId) === 'shadowVoid';
+  const outer = voidSkin ? '#b06bff' : '#ff3b1f';
+  const inner = voidSkin ? '#7df3ff' : '#ff9a3d';
+  const dark = voidSkin ? '#3a1a8a' : '#8d1118';
 
   for(const unit of units){
     if(unit.dead || unit.team === hero.team || isBuilding(unit)) continue;
@@ -6391,6 +6399,18 @@ function castShadowCoil(hero, x, y, level, range, damage, speed, blastDistance){
   spawnParticles(centerX, centerY, outer, 42, 1.45);
   spawnParticles(centerX, centerY, inner, 24, 0.9);
   spawnRadialBlades(centerX, centerY, radius * 1.12, outer, 30);
+  if(voidSkin){   /* луч с неба и души, поднимающиеся из земли */
+    fxBeam(centerX, centerY - 340, centerX, centerY, inner, 0.4);
+    fxBeam(centerX, centerY - 220, centerX, centerY, '#ffffff', 0.22);
+    fxRing(centerX, centerY, radius * 1.25, '#7a3cff', 0.75);
+    spawnRadialBlades(centerX, centerY, radius * 0.6, '#7df3ff', 16);
+    spawnParticles(centerX, centerY, '#ffffff', 14, 1.1);
+    for(let i = 0; i < 14; i++){
+      const ang = Math.random() * Math.PI * 2, rr = radius * Math.sqrt(Math.random());
+      particles.push({x:centerX + Math.cos(ang) * rr, y:centerY + Math.sin(ang) * rr * 0.68, vx:rnd(-14,14), vy:rnd(-120,-50),
+        color:i % 2 ? '#7df3ff' : '#b06bff', size:rnd(2,5), t:0, life:rnd(0.6,1.1), gravity:-40, drag:0.97, spark:true});
+    }
+  }
   addText(centerX, centerY - radius - 18, 'SHADOWRAZE', inner, 0.85, 14);
 }
 
@@ -7326,12 +7346,15 @@ const SKILLS = {
     cast(h){
       if(h.shadowCasting){ flashMsg(h, 'Реквием уже готовится'); return; }
       const souls = h.shadowSouls || 0;
+      const vReq = baseSkin(h.skinId) === 'shadowVoid';
+      const rC1 = vReq ? '#b06bff' : '#ff3b1f', rC2 = vReq ? '#7df3ff' : '#ff8a3d', rC3 = vReq ? '#3a1a8a' : '#8d1118';
       h.shadowCasting = true;
       h.stunTimer = Math.max(h.stunTimer, 0.8);
       h.attackTarget = null; h.moveTarget = null;
-       addText(h.x, h.y - 78, 'РЕКВИЕМ: ' + souls + ' ДУШ', '#ff8a3d', 1.5, 19);
-       fxRing(h.x, h.y, 150, '#8d1118', 1.5);
-       spawnParticles(h.x, h.y, '#ff3b1f', 36, 1.4);
+       addText(h.x, h.y - 78, 'РЕКВИЕМ: ' + souls + ' ДУШ', rC2, 1.5, 19);
+       fxRing(h.x, h.y, 150, rC3, 1.5);
+       spawnParticles(h.x, h.y, rC1, 36, 1.4);
+       if(vReq){ fxRing(h.x, h.y, 100, rC2, 1.2); fxRing(h.x, h.y, 60, '#ffffff', 0.9); spawnParticles(h.x, h.y, rC2, 24, 1.2); }
       window.setTimeout(() => {
         h.shadowCasting = false;
         if(h.dead) return;
@@ -7345,7 +7368,7 @@ const SKILLS = {
             tx:h.x + Math.cos(angle) * soulRange,
             ty:h.y + Math.sin(angle) * soulRange,
             dmg:abilityDamage(h, damage), team:h.team, source:h,
-            speed:380, color:'#ff3b1f', radius:12, dead:false, life:4.5,
+            speed:380, color:rC1, radius:12, dead:false, life:4.5,
             kind:'shadowSoul', phase:'flight',
             dirX:Math.cos(angle), dirY:Math.sin(angle),
             soulAngle:angle, isSpell:true, trailTimer:0
@@ -7353,12 +7376,17 @@ const SKILLS = {
           projectiles.push(projectile);
         }
         h.shadowSouls = 0;
-        addText(h.x, h.y - 78, 'ДУШИ ВЫПУЩЕНЫ: ' + count, '#ff8a3d', 1.2, 17);
-        spawnAoE(h.x, h.y, 330 + souls * 3, 300 + souls * 26, h, 0, '#ff3b1f');
-        fxRing(h.x, h.y, 380 + souls * 4, '#8d1118', 1.05);
-        fxRing(h.x, h.y, 250 + souls * 3, '#ff3b1f', 0.75);
-        spawnParticles(h.x, h.y, '#ff3b1f', 80 + souls, 2.2);
-        spawnRadialBlades(h.x, h.y, 360 + souls * 4, '#ff8a3d', Math.min(64, count + 18));
+        addText(h.x, h.y - 78, 'ДУШИ ВЫПУЩЕНЫ: ' + count, rC2, 1.2, 17);
+        spawnAoE(h.x, h.y, 330 + souls * 3, 300 + souls * 26, h, 0, rC1);
+        fxRing(h.x, h.y, 380 + souls * 4, rC3, 1.05);
+        fxRing(h.x, h.y, 250 + souls * 3, rC1, 0.75);
+        spawnParticles(h.x, h.y, rC1, 80 + souls, 2.2);
+        spawnRadialBlades(h.x, h.y, 360 + souls * 4, rC2, Math.min(64, count + 18));
+        if(vReq){
+          for(let k = 1; k <= 3; k++) window.setTimeout(() => { fxRing(h.x, h.y, 300 + k * 150 + souls * 4, k % 2 ? rC1 : rC2, 0.6); spawnParticles(h.x, h.y, k % 2 ? rC1 : rC2, 30, 1.6); }, k * 160);
+          spawnRadialBlades(h.x, h.y, 220, '#ffffff', 24);
+        }
+        if(vReq){ fxRing(h.x, h.y, 500 + souls * 4, rC2, 0.9); spawnParticles(h.x, h.y, rC2, 50, 1.8); fxBeam(h.x, h.y - 520, h.x, h.y, rC2, 0.8); }
       }, 800);
     }
   }
@@ -8714,7 +8742,7 @@ const HERO_DEFS = [
     color:'#4a3028', color2:'#ffb36b',
     balanceScale:1.05,
     baseHp:900, hpPerLvl:120, baseMp:300, mpPerLvl:38,
-    baseDmg:34, dmgPerLvl:4.5, speed:145,
+    baseDmg:38, dmgPerLvl:5.2, speed:145,   /* баф: было 34 + 4.5/ур. */
     atkRange:560, atkTime:1.15,
     baseArmor:5, armorPerLvl:0.6, vision:1040,
     hpRegen:2.2, mpRegen:2.0,
@@ -9470,8 +9498,9 @@ function castSkill(hero, slot, tx, ty){
       if(def.heat && hero.def && hero.def.id === 'olex') olexAddHeat(hero, def.heat);
       const isShadowRaze = hero.def.id === 'shadow' && slot >= 0 && slot <= 2;
       if(isShadowRaze){
-        spawnParticles(hero.x, hero.y, '#ff3b1f', 22, 0.75);
-        fxRing(hero.x, hero.y, 58, '#8d1118', 0.25);
+        const vsk = baseSkin(hero.skinId) === 'shadowVoid';
+        spawnParticles(hero.x, hero.y, vsk ? '#b06bff' : '#ff3b1f', 22, 0.75);
+        fxRing(hero.x, hero.y, 58, vsk ? '#3a1a8a' : '#8d1118', 0.25);
       } else {
         castSkillVisual(hero, s, tx, ty);
       }
@@ -14213,6 +14242,8 @@ function drawUnit(u){
   }
   /* 0.10.0 (дополнение): аркана Пироманта — лазурное пламя у ног (рисуется в update0100d.js) */
   if(u.type === 'hero' && window.drawPyroArcanaAura && !u.dead && !perfLite()) window.drawPyroArcanaAura(u);
+  /* новые скины Шадоу («Пустотный жнец») и Иллюзиониста («Розовый фокусник») — аура у ног (update0100f.js) */
+  if((u.type === 'hero' || isIllusionClone(u)) && window.drawNewSkinAura && !u.dead && !perfLite()) window.drawNewSkinAura(u);
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
     const bsk = baseSkin(u.skinId); const heroAccent = bsk === 'reginaRed' ? '#ff344f' : ((SKIN_BY_ID[bsk] && isPaidSkin(SKIN_BY_ID[bsk]) && SKIN_BY_ID[bsk].accent) || heroLikeDef(u).color2 || col);
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
