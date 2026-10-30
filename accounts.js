@@ -15,17 +15,22 @@ const MAX_QUEST_KILLS_PER_MATCH = 30;
 /* 0.9.9.0: ещё два ежедневных задания за Сенсики. Прогресс считается по итогам матчей (победы и помощь в убийствах). */
 const EXTRA_QUESTS = [
   { id: 'double_win', title: 'Серия побед', desc: 'Выиграй 2 матча за день', target: 2, reward: 400, field: 'wins' },
-  { id: 'team_player', title: 'Командный игрок', desc: 'Помоги в 20 убийствах за день (ассисты)', target: 20, reward: 250, field: 'assists' }
+  { id: 'team_player', title: 'Командный игрок', desc: 'Помоги в 20 убийствах за день (ассисты)', target: 20, reward: 250, field: 'assists' },
+  /* 0.9.9.7: ещё три задания на Сенсики */
+  { id: 'marathon', title: 'Марафонец', desc: 'Сыграй 4 матча за день (победа не обязательна)', target: 4, reward: 250, field: 'games' },
+  { id: 'slayer', title: 'Каратель', desc: 'Убей 25 героев за день (отдельно от «Охотника за головами»)', target: 25, reward: 450, field: 'kills' },
+  { id: 'triple_win', title: 'Триумфатор', desc: 'Выиграй 3 матча за день', target: 3, reward: 650, field: 'wins' }
 ];
 /* 0.9.9.3: платные скины за Сенсики. Цены лежат на сервере — клиент их не диктует. */
 /* 0.9.9.4: все цены снижены на 9% (1500→1365, 2500→2275, 4000→3640); добавлены скины Вирсуди, Шмедика и Гриши. */
 const SKIN_PRICES = {
-  sniperGhillie: 1365, sniperPolar: 2275, sniperCrimson: 3640,
-  psihToxic: 1365, psihFrost: 2275, psihBlood: 3640,
-  mo3giDesert: 1365, mo3giArctic: 2275, mo3giNeon: 3640,
-  virsudiBloodMoon: 3640, earthshakerMagma: 2275, grishaEmerald: 1365,
-  /* 0.9.9.6: АРКАНА Снайпера «Пламенный стрелок» и иммортал Чипа «Королевский ара» — дороже обычных скинов */
-  sniperInferno: 7280, chipParrot: 4550
+  sniperGhillie: 341, sniperPolar: 569, sniperCrimson: 910,
+  psihToxic: 341, psihFrost: 569, psihBlood: 910,
+  mo3giDesert: 341, mo3giArctic: 569, mo3giNeon: 910,
+  virsudiBloodMoon: 910, earthshakerMagma: 569, grishaEmerald: 341,
+  /* 0.9.9.7: ВСЕ цены на скины урезаны в 4 раза (1365→341, 2275→569, 3640→910, аркана 7280→1820, иммортал 4550→1138).
+     Цены продублированы в game.js — они обязаны совпадать. */
+  sniperInferno: 1820, chipParrot: 1138
 };
 const EXTRA_QUEST_BY_ID = Object.fromEntries(EXTRA_QUESTS.map(q => [q.id, q]));
 const MAX_QUEST_ASSISTS_PER_MATCH = 40;
@@ -92,6 +97,8 @@ const accountSchema = new mongoose.Schema({
     day: { type: String, default: '' },
     wins: { type: Number, min: 0, default: 0 },
     assists: { type: Number, min: 0, default: 0 },
+    kills: { type: Number, min: 0, default: 0 },
+    games: { type: Number, min: 0, default: 0 },
     claimed: { type: [String], default: [] }
   },
   avatar: { type: String, default: '' },
@@ -457,13 +464,13 @@ const routes = {
         rating: ratingChange,
         shards: shardsGained,
         ...(sameDay ? { 'daily.kills': questKills } : {}),
-        ...(questSameDay ? { 'quests.wins': won ? 1 : 0, 'quests.assists': questAssists } : {}),
+        ...(questSameDay ? { 'quests.wins': won ? 1 : 0, 'quests.assists': questAssists, 'quests.kills': questKills, 'quests.games': 1 } : {}),
         ...(heroId ? { ['heroStats.' + heroId]: 1 } : {})
       },
       $set: {
         times: recentTimes.concat(now),
         ...(sameDay ? {} : { 'daily.day': today, 'daily.kills': questKills, 'daily.claimed': false }),
-        ...(questSameDay ? {} : { 'quests.day': today, 'quests.wins': won ? 1 : 0, 'quests.assists': questAssists, 'quests.claimed': [] })
+        ...(questSameDay ? {} : { 'quests.day': today, 'quests.wins': won ? 1 : 0, 'quests.assists': questAssists, 'quests.kills': questKills, 'quests.games': 1, 'quests.claimed': [] })
       },
       $push: {
         history: { $each: [{

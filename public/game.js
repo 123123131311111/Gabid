@@ -282,38 +282,38 @@ const SKIN_DEFS = [
    desc:'Алый боевой образ Ригины. Не меняет характеристики героя.', hint:'Будет виден, когда выбран герой Ригина.'}
 ];
 /* 0.9.8: ИММОРТАЛКИ — дополнительные предметы-украшения (kind:'acc'). Надеваются независимо от скина, снимаются в инвентаре. */
-SKIN_DEFS.push({id:'chipParrot', kind:'acc', immortal:true, price:4550, name:'КОРОЛЕВСКИЙ АРА', heroId:'chip', accent:'#ffcf5a', border:'#ff9d2e', previewHero:'chip', previewSkin:'+parrot',
+SKIN_DEFS.push({id:'chipParrot', kind:'acc', immortal:true, price:1138, name:'КОРОЛЕВСКИЙ АРА', heroId:'chip', accent:'#ffcf5a', border:'#ff9d2e', previewHero:'chip', previewSkin:'+parrot',
   desc:'Иммортал для Чипа: яркий попугай-ара сидит на плече короля, качается, крутит головой и взмахивает крыльями. Не меняет характеристики.', hint:'Виден на Чипе. Можно надеть и снять в любой момент.'});
 /* 0.9.9.3: ПЛАТНЫЕ СКИНЫ за Сенсики — по три на Снайпера, Психа и Мо3ги (0.9.9.4: цены −9%, плюс по скину для Вирсуди, Шмедика и Гриши). Цена (price) продублирована на сервере (accounts.js),
    покупка идёт через /api/buyskin. rarity: rare / epic / legendary. weaponColor — цвет оружия героя с этим скином. */
 SKIN_DEFS.push(
-  {id:'sniperGhillie', name:'ЛЕСНОЙ ПРИЗРАК', heroId:'sniper', rarity:'rare', price:1365, accent:'#7ed957', border:'#3f7d2a', previewHero:'sniper', previewColor:'#1d3a17', previewColor2:'#8fe05a', weaponColor:'#8a9a58',
+  {id:'sniperGhillie', name:'ЛЕСНОЙ ПРИЗРАК', heroId:'sniper', rarity:'rare', price:341, accent:'#7ed957', border:'#3f7d2a', previewHero:'sniper', previewColor:'#1d3a17', previewColor2:'#8fe05a', weaponColor:'#8a9a58',
    desc:'Маскировочный костюм: Снайпер сливается с лесом. Зелёная форма и оружие в цвет листвы. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
-  {id:'sniperPolar', name:'ПОЛЯРНЫЙ ЕГЕРЬ', heroId:'sniper', rarity:'epic', price:2275, accent:'#9fdcff', border:'#4f8fb8', previewHero:'sniper', previewColor:'#1d3347', previewColor2:'#bfe9ff', weaponColor:'#dff3ff',
+  {id:'sniperPolar', name:'ПОЛЯРНЫЙ ЕГЕРЬ', heroId:'sniper', rarity:'epic', price:569, accent:'#9fdcff', border:'#4f8fb8', previewHero:'sniper', previewColor:'#1d3347', previewColor2:'#bfe9ff', weaponColor:'#dff3ff',
    desc:'Белоснежный арктический камуфляж и ледяная винтовка. Охота в самую лютую метель. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
-  {id:'sniperCrimson', name:'АЛЫЙ ОХОТНИК', heroId:'sniper', rarity:'legendary', price:3640, accent:'#ff4d5e', border:'#b3263a', previewHero:'sniper', previewColor:'#4a0f1a', previewColor2:'#ff6a78', weaponColor:'#ff4d5e',
+  {id:'sniperCrimson', name:'АЛЫЙ ОХОТНИК', heroId:'sniper', rarity:'legendary', price:910, accent:'#ff4d5e', border:'#b3263a', previewHero:'sniper', previewColor:'#4a0f1a', previewColor2:'#ff6a78', weaponColor:'#ff4d5e',
    desc:'Легендарный алый образ: тёмно-красная форма, раскалённая винтовка и кровавая аура. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
   /* 0.9.9.6: АРКАНА Снайпера — огненный образ: меняет вид героя, винтовки, выстрелов и всех четырёх скиллов (только визуально, характеристики те же). */
-  {id:'sniperInferno', arcana:true, name:'ПЛАМЕННЫЙ СТРЕЛОК', heroId:'sniper', rarity:'arcana', price:7280, accent:'#ff7a1c', border:'#c2410c', previewHero:'sniper', previewColor:'#3a0c04', previewColor2:'#ffb02e', weaponColor:'#ff6a1a',
+  {id:'sniperInferno', arcana:true, name:'ПЛАМЕННЫЙ СТРЕЛОК', heroId:'sniper', rarity:'arcana', price:1820, accent:'#ff7a1c', border:'#c2410c', previewHero:'sniper', previewColor:'#3a0c04', previewColor2:'#ffb02e', weaponColor:'#ff6a1a',
    desc:'АРКАНА. Снайпер объят огнём: тлеющая форма, пылающая корона и раскалённая винтовка. Огненными становятся атака и каждый скилл — Shrapnel сыплет угли, Headshot взрывается искрами, Take Aim зажигает ауру, Assassinate летит огненной кометой. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
-  {id:'psihToxic', name:'ТОКСИЧНЫЙ ПСИХ', heroId:'psih', rarity:'rare', price:1365, accent:'#b6ff3a', border:'#5f9a1c', previewHero:'psih', previewColor:'#233d0e', previewColor2:'#c8ff5a', weaponColor:'#b6ff3a',
+  {id:'psihToxic', name:'ТОКСИЧНЫЙ ПСИХ', heroId:'psih', rarity:'rare', price:341, accent:'#b6ff3a', border:'#5f9a1c', previewHero:'psih', previewColor:'#233d0e', previewColor2:'#c8ff5a', weaponColor:'#b6ff3a',
    desc:'Кислотно-зелёный Псих, надышавшийся ядовитых паров. Клинки светятся токсичным цветом. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
-  {id:'psihFrost', name:'ЛЕДЯНОЙ КОШМАР', heroId:'psih', rarity:'epic', price:2275, accent:'#7fe8ff', border:'#3d8fb0', previewHero:'psih', previewColor:'#12384a', previewColor2:'#9ff0ff', weaponColor:'#cdf6ff',
+  {id:'psihFrost', name:'ЛЕДЯНОЙ КОШМАР', heroId:'psih', rarity:'epic', price:569, accent:'#7fe8ff', border:'#3d8fb0', previewHero:'psih', previewColor:'#12384a', previewColor2:'#9ff0ff', weaponColor:'#cdf6ff',
    desc:'Холодное безумие: голубая кожа, иней на одежде и ледяные клинки. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
-  {id:'psihBlood', name:'КРОВАВОЕ БЕЗУМИЕ', heroId:'psih', rarity:'legendary', price:3640, accent:'#ff3b4e', border:'#a8202f', previewHero:'psih', previewColor:'#47090f', previewColor2:'#ff5566', weaponColor:'#ff3b4e',
+  {id:'psihBlood', name:'КРОВАВОЕ БЕЗУМИЕ', heroId:'psih', rarity:'legendary', price:910, accent:'#ff3b4e', border:'#a8202f', previewHero:'psih', previewColor:'#47090f', previewColor2:'#ff5566', weaponColor:'#ff3b4e',
    desc:'Легендарный образ: Псих целиком в крови, клинки пылают алым. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
-  {id:'mo3giDesert', name:'ПУСТЫННЫЙ ШТУРМ', heroId:'mo3gi', rarity:'rare', price:1365, accent:'#e8c27a', border:'#a8823a', previewHero:'mo3gi', previewColor:'#4a3a1c', previewColor2:'#f0cf8a',
+  {id:'mo3giDesert', name:'ПУСТЫННЫЙ ШТУРМ', heroId:'mo3gi', rarity:'rare', price:341, accent:'#e8c27a', border:'#a8823a', previewHero:'mo3gi', previewColor:'#4a3a1c', previewColor2:'#f0cf8a',
    desc:'Песочная форма десантника для боёв в пустыне: бронежилет и снаряжение цвета дюн. Не меняет характеристики.', hint:'Виден, когда выбран Мо3ги.'},
-  {id:'mo3giArctic', name:'АРКТИЧЕСКИЙ ДЕСАНТ', heroId:'mo3gi', rarity:'epic', price:2275, accent:'#c7e6ff', border:'#6d96b8', previewHero:'mo3gi', previewColor:'#2a3f52', previewColor2:'#e2f2ff',
+  {id:'mo3giArctic', name:'АРКТИЧЕСКИЙ ДЕСАНТ', heroId:'mo3gi', rarity:'epic', price:569, accent:'#c7e6ff', border:'#6d96b8', previewHero:'mo3gi', previewColor:'#2a3f52', previewColor2:'#e2f2ff',
    desc:'Бело-серая зимняя экипировка спецназа. Мо3ги незаметен на снегу. Не меняет характеристики.', hint:'Виден, когда выбран Мо3ги.'},
-  {id:'mo3giNeon', name:'КИБЕР-ИНЖЕНЕР', heroId:'mo3gi', rarity:'legendary', price:3640, accent:'#ff5cf0', border:'#a02a9a', previewHero:'mo3gi', previewColor:'#3a0f3d', previewColor2:'#4df0ff',
+  {id:'mo3giNeon', name:'КИБЕР-ИНЖЕНЕР', heroId:'mo3gi', rarity:'legendary', price:910, accent:'#ff5cf0', border:'#a02a9a', previewHero:'mo3gi', previewColor:'#3a0f3d', previewColor2:'#4df0ff',
    desc:'Легендарный неоновый образ: пурпурный корпус и голубые светящиеся вставки. Инженер из будущего. Не меняет характеристики.', hint:'Виден, когда выбран Мо3ги.'},
   /* 0.9.9.4: по одному новому скину за Сенсики для Вирсуди, Шмедика и Гриши (цены уже со скидкой 9%). */
-  {id:'virsudiBloodMoon', name:'КРОВАВАЯ ЛУНА', heroId:'virsudi', rarity:'legendary', price:3640, accent:'#ff4d6d', border:'#a8203a', previewHero:'virsudi', previewColor:'#2a0d18', previewColor2:'#ff5c7a', weaponColor:'#ff4d6d',
+  {id:'virsudiBloodMoon', name:'КРОВАВАЯ ЛУНА', heroId:'virsudi', rarity:'legendary', price:910, accent:'#ff4d6d', border:'#a8203a', previewHero:'virsudi', previewColor:'#2a0d18', previewColor2:'#ff5c7a', weaponColor:'#ff4d6d',
    desc:'Легендарный образ теневого изгоя: чёрно-багровый плащ, алые светящиеся акценты и клинки цвета крови под красной луной. Не меняет характеристики.', hint:'Виден, когда выбран Вирсуди.'},
-  {id:'earthshakerMagma', name:'МАГМОВЫЙ ТИТАН', heroId:'earthshaker', rarity:'epic', price:2275, accent:'#ff8a3d', border:'#b84a14', previewHero:'earthshaker', previewColor:'#3a1608', previewColor2:'#ffb15a', weaponColor:'#ff8a3d',
+  {id:'earthshakerMagma', name:'МАГМОВЫЙ ТИТАН', heroId:'earthshaker', rarity:'epic', price:569, accent:'#ff8a3d', border:'#b84a14', previewHero:'earthshaker', previewColor:'#3a1608', previewColor2:'#ffb15a', weaponColor:'#ff8a3d',
    desc:'Шмедик, вышедший прямо из жерла вулкана: раскалённый камень, оранжевые трещины и тёплое свечение лавы. Не меняет характеристики.', hint:'Виден, когда выбран Шмедик.'},
-  {id:'grishaEmerald', name:'ИЗУМРУДНЫЙ ЧАРОДЕЙ', heroId:'grisha', rarity:'rare', price:1365, accent:'#5cf0a0', border:'#1f8a5a', previewHero:'grisha', previewColor:'#0f3a2a', previewColor2:'#8dffc4', weaponColor:'#5cf0a0',
+  {id:'grishaEmerald', name:'ИЗУМРУДНЫЙ ЧАРОДЕЙ', heroId:'grisha', rarity:'rare', price:341, accent:'#5cf0a0', border:'#1f8a5a', previewHero:'grisha', previewColor:'#0f3a2a', previewColor2:'#8dffc4', weaponColor:'#5cf0a0',
    desc:'Гриша в мантии цвета изумруда: зелёная ткань, светящиеся самоцветы и посох с природной магией. Не меняет характеристики.', hint:'Виден, когда выбран Гриша.'}
 );
 const SKIN_BY_ID = {};
@@ -21790,6 +21790,8 @@ function drawDotaSenseHome(){
 
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
+    {tag:'0.9.9.7',title:'Скины в 4 раза дешевле + новый предмет',art:'hero',hero:'Ригина',action:'store',kind:'магазин'},
+    {tag:'0.9.9.7',title:'Красивые профили бойцов и +8% трём героям',art:'hero',hero:'Вирсуди',action:'changelog',kind:'обновление'},
     {tag:'0.9.9.5',title:'Новый герой Мэрин: машины, жара и автомат',art:'hero',hero:'Мэрин',action:'store',kind:'герой'},
     {tag:'0.9.9.5',title:'Йосып стал сильнее на 25%',art:'hero',hero:'Йосып',action:'store',kind:'баланс'},
     {tag:'0.9.9.4',title:'Скины подешевели на 9% + новые для Вирсуди, Шмедика и Гриши',art:'hero',hero:'Вирсуди',action:'store',kind:'магазин'},
