@@ -56,6 +56,13 @@ function hsl2rgb(h,s,l){
   return [Math.round(f(h+1/3)*255),Math.round(f(h)*255),Math.round(f(h-1/3)*255)];
 }
 const SKIN_TINTS={
+  /* 0.10.0.7: три новых скина-перекраски */
+  /* Джаггернаут: «Нефритовый самурай» — нефритово-зелёная броня, светлые детали остаются жемчужными */
+  juggernautJade:c=>{ const [h,s,l]=rgb2hsl(c); if(l>.88) return c; return hsl2rgb(150+(h%30)*.3, Math.min(.72,Math.max(.32,s*.6+.2)), l>.7?Math.min(.9,l):Math.max(.1,l*.92)); },
+  /* Ригина: «Лунная жрица» — серебристо-лавандовое одеяние, холодные блики */
+  reginaMoon:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(246+(h%40)*.3, Math.min(.55,Math.max(.18,s*.5+.1)), l>.72?Math.min(.95,l+.05):Math.min(.7,l*.95+.06)); },
+  /* Голли: «Золотой король» — золото и тёмная бронза */
+  gollyGold:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(42+(h%24)*.3, Math.min(.9,Math.max(.5,s*.6+.35)), l>.78?Math.min(.92,l):Math.max(.12,l*.95+.04)); },
   /* Шадоу: «Пустотный жнец» — чёрная броня с фиолетовым отливом, лава превращается в фиолетовое пламя, раскалённое — в голубое свечение душ.
      Циан и фиолет (эффекты самого скина) не трогаем. */
   shadowVoid:c=>{ const [h,s,l]=rgb2hsl(c);
