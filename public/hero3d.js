@@ -2182,7 +2182,7 @@ function draw(ctx,def,x,y,w,h,o){
   const fpx=Math.min(h*.86/3.5, w*.86/3.5)*D*zoom*ss;
   const cx=W/2+(o.dx||0)*W, cy=H*(o.cy==null?.6:o.cy);   /* dx/cy — сдвиг кадра для крупного плана (превью иммортала) */
   const sp=Math.sin(pitch);
-  const res=render(def,{W,H,yaw,pitch,t,f:fpx,cx,cy,pedestal:!o.noPedestal,pose:{kind:'show'}});
+  const res=render(def,{W,H,yaw,pitch,t,f:fpx,cx,cy,pedestal:!o.noPedestal,pose:o.pose||{kind:'show'}});
   const img=toCanvas(res,'view');
   ctx.save();
   // мягкая тень/подсветка под бойцом

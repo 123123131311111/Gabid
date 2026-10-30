@@ -57,6 +57,7 @@ function openEditor(def){
   }, 120);
 }
 function closeEditor(){ ed.open = false; ed.drag = null; }
+window.__dsEditorOpen = () => ed.open;
 
 function PR(){ const w = Math.min(1000, VW - 24), h = Math.min(640, VH - 24); return {x: Math.round((VW - w) / 2), y: Math.round((VH - h) / 2), w, h}; }
 function layout(){

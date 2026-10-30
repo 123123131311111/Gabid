@@ -827,8 +827,8 @@ function recipePartName(pid){ const it = SHOP_ITEMS[pid]; return it ? it.name : 
 (function buildRecipeItems(){
   const defs = {
     stormbringer: {name:'Буревестник', icon:'⚡', color:'#ffb347', active:false,
-      damage:320, speed:95, attackSpeedBonus:0.9,
-      stats:'Пассивно: +320 к урону обычных атак, +95 к скорости передвижения и +90% к скорости атаки.'},
+      damage:150, speed:95, attackSpeedBonus:0.8,
+      stats:'Пассивно: +150 к урону обычных атак, +95 к скорости передвижения и +80% к скорости атаки.'},
     titanHeart: {name:'Сердце Титана', icon:'♥', color:'#ff5a6e', active:false,
       hp:1500, hpRegen:20, lifesteal:0.35, attackResist:0.15,
       stats:'Пассивно: +1500 к максимальному и текущему здоровью, +20 к восстановлению здоровья в секунду, обычные атаки возвращают 35% нанесённого урона и -15% к урону от обычных атак.'},
