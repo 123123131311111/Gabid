@@ -34,6 +34,12 @@ const SKIN_PRICES = {
   /* 0.9.9.8: АРКАНА Вирсуди — 1200 Сенсиков (цена обязана совпадать с game.js) */
   virsudiArcana: 1200
 };
+/* ===== 0.10.0: МАСТЕРСТВО ГЕРОЕВ. 12 бойцов, 5 уровней. Уровень растёт за победы на этом герое в любом режиме.
+   Награда за каждый уровень — Сенсики, забирается вручную по порядку (1 → 5). Все числа лежат только на сервере. ===== */
+const MASTERY_HEROES = ['grisha','golly','virsudi','chip','mo3gi','regina','sasych','ilya','sniper','earthshaker','juggernaut','pyro'];
+const MASTERY_WINS = [1, 3, 6, 10, 15];          /* суммарно побед для уровней 1..5 */
+const MASTERY_REWARDS = [150, 300, 500, 800, 1500]; /* Сенсики за уровни 1..5 */
+const MASTERY_SET = new Set(MASTERY_HEROES);
 const EXTRA_QUEST_BY_ID = Object.fromEntries(EXTRA_QUESTS.map(q => [q.id, q]));
 const MAX_QUEST_ASSISTS_PER_MATCH = 40;
 /* 0.9.8.6: активация «Дотасенс +» — разовая покупка навсегда. Цена хранится только на сервере. */
@@ -85,6 +91,8 @@ const accountSchema = new mongoose.Schema({
   kills: { type: Number, default: 0 },
   deaths: { type: Number, default: 0 },
   heroStats: { type: Map, of: Number, default: {} },
+  mastery: { type: Map, of: Number, default: {} },
+  masteryClaimed: { type: Map, of: Number, default: {} },
   history: { type: [matchSchema], default: [] },
   shards: { type: Number, min: 0, default: 0 },
   dsPlus: { type: Boolean, default: false },
@@ -181,7 +189,14 @@ function extraQuestsState(acc){
     return { id: def.id, title: def.title, desc: def.desc, target: def.target, reward: def.reward, progress, claimed, ready: !claimed && progress >= def.target, day: today };
   });
 }
-const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE, skins: Array.isArray(acc.skins) ? acc.skins.filter(id => SKIN_PRICES[id]) : [] });
+function masteryState(acc){
+  const toObj = m => m instanceof Map ? Object.fromEntries(m) : (m || {});
+  const wins = toObj(acc.mastery), claimed = toObj(acc.masteryClaimed);
+  const out = {};
+  for(const id of MASTERY_HEROES) out[id] = { wins: Math.max(0, Number(wins[id]) || 0), claimed: Math.max(0, Math.min(5, Number(claimed[id]) || 0)) };
+  return out;
+}
+const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE, skins: Array.isArray(acc.skins) ? acc.skins.filter(id => SKIN_PRICES[id]) : [], mastery: masteryState(acc), masteryCfg: { heroes: MASTERY_HEROES, wins: MASTERY_WINS, rewards: MASTERY_REWARDS } });
 
 async function makeSession(key){
   const token = crypto.randomBytes(24).toString('hex');
@@ -359,6 +374,30 @@ const routes = {
     return [200, { profile: ownProfile(claimed), claimed: true, reward: def.reward, questId: def.id }];
   },
 
+  /* 0.10.0: награда за уровень мастерства героя. Уровни забираются строго по порядку; проверка и выдача — одним запросом. */
+  async claimmastery(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const heroId = String(body.heroId || '');
+    const level = Math.floor(Number(body.level) || 0);
+    if(!MASTERY_SET.has(heroId) || level < 1 || level > MASTERY_WINS.length) return [400, { error: 'Неверный уровень мастерства' }];
+    const cond = level === 1 ? { $or: [{ ['masteryClaimed.' + heroId]: { $exists: false } }, { ['masteryClaimed.' + heroId]: 0 }] } : { ['masteryClaimed.' + heroId]: level - 1 };
+    const reward = MASTERY_REWARDS[level - 1];
+    const claimed = await Account.findOneAndUpdate({
+      _id: auth.acc._id,
+      ['mastery.' + heroId]: { $gte: MASTERY_WINS[level - 1] },
+      ...cond
+    }, {
+      $set: { ['masteryClaimed.' + heroId]: level },
+      $inc: { shards: reward }
+    }, { new: true });
+    if(!claimed){
+      const current = await Account.findById(auth.acc._id);
+      return [200, { profile: ownProfile(current), claimed: false }];
+    }
+    return [200, { profile: ownProfile(claimed), claimed: true, reward, heroId, level }];
+  },
+
   /* Покупка «Дотасенс +». Одна атомарная операция: условие (не куплено И хватает Сенсиков) и списание
      выполняются в одном запросе к MongoDB, поэтому двойной клик или две вкладки не спишут баланс дважды. */
   async buyplus(body){
@@ -467,7 +506,8 @@ const routes = {
         shards: shardsGained,
         ...(sameDay ? { 'daily.kills': questKills } : {}),
         ...(questSameDay ? { 'quests.wins': won ? 1 : 0, 'quests.assists': questAssists, 'quests.kills': questKills, 'quests.games': 1 } : {}),
-        ...(heroId ? { ['heroStats.' + heroId]: 1 } : {})
+        ...(heroId ? { ['heroStats.' + heroId]: 1 } : {}),
+        ...(won && MASTERY_SET.has(heroId) ? { ['mastery.' + heroId]: 1 } : {})
       },
       $set: {
         times: recentTimes.concat(now),
