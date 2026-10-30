@@ -302,6 +302,9 @@ SKIN_DEFS.push(
   /* 0.10.0 (дополнение): АРКАНА Пироманта «Лазурный феникс» — синее плазменное пламя. Меняет вид героя, атаку и все четыре скилла (только визуально, характеристики те же). Цена продублирована в accounts.js. */
   {id:'pyroArcana', arcana:true, name:'ЛАЗУРНЫЙ ФЕНИКС', heroId:'pyro', rarity:'arcana', price:1500, accent:'#5ad0ff', border:'#2f7bff', previewHero:'pyro', previewColor:'#0b1a4a', previewColor2:'#5ad0ff',
    desc:'АРКАНА. Пиромант перерождается в лазурного феникса: синяя плазменная мантия, ледяное сияние вместо золота, крылья из голубого пламени за спиной, нимб над колпаком и огненное оперение у ног. Атака превращается в плазменную комету с перьями, Огненный шар взрывается лазурью, Волна пламени расходится синим кольцом, Мигание оставляет светящийся шлейф, а Метеор падает синей кометой с неба. Не меняет характеристики.', hint:'Виден, когда выбран Пиромант.'},
+  /* 0.10.0 (дополнение): легендарный скин Аркадия «Золотой детонатор» — чёрная броня с золотом, золотое пламя, корона и крылья из огня. Только визуал. Цена продублирована в accounts.js. */
+  {id:'arcadyGold', name:'ЗОЛОТОЙ ДЕТОНАТОР', heroId:'arcady', rarity:'legendary', price:910, accent:'#ffd34d', border:'#b8860b', previewHero:'arcady', previewColor:'#2a1c05', previewColor2:'#ffd34d', weaponColor:'#ffd34d',
+   desc:'Аркадий в чёрной броне с золотой отделкой: золотое пламя вместо оранжевого, огненная корона над гребнем, крылья из золотых языков огня за спиной и светящийся золотой огнемёт. Не меняет характеристики.', hint:'Виден, когда выбран Аркадий.'},
   {id:'psihToxic', name:'ТОКСИЧНЫЙ ПСИХ', heroId:'psih', rarity:'rare', price:341, accent:'#b6ff3a', border:'#5f9a1c', previewHero:'psih', previewColor:'#233d0e', previewColor2:'#c8ff5a', weaponColor:'#b6ff3a',
    desc:'Кислотно-зелёный Псих, надышавшийся ядовитых паров. Клинки светятся токсичным цветом. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
   {id:'psihFrost', name:'ЛЕДЯНОЙ КОШМАР', heroId:'psih', rarity:'epic', price:569, accent:'#7fe8ff', border:'#3d8fb0', previewHero:'psih', previewColor:'#12384a', previewColor2:'#9ff0ff', weaponColor:'#cdf6ff',
@@ -9874,7 +9877,7 @@ function drawDraftScreen(){
   ctx.save(); ctx.globalAlpha=ease; ctx.translate((1-ease)*36,0);
   if(window.Hero3D){
     const yaw=Math.sin(now*.55)*.55+(1-ease)*1.6;
-    try{ Hero3D.draw(ctx,def,P.x,P.y,P.w,P.h*.9,{yaw,pitch:.18,zoom:1.05,t:now,ss:1}); }catch(err){}
+    try{ Hero3D.draw(ctx,menuHeroDef(def),P.x,P.y,P.w,P.h*.9,{yaw,pitch:.18,zoom:1.05,t:now,ss:1}); }catch(err){}
   } else drawHeroTexture(def,P.x+P.w*.2,P.y+20,P.w*.6,P.h*.6,now,true);
   ctx.restore();
   /* имя и роль */
@@ -19942,6 +19945,7 @@ function wrapMenuText(text, maxWidth, font){
 
 const HERO_PORTRAIT_CACHE={};
 function drawHeroTexture(def, x, y, w, h, now, large=false){
+  if(gameState !== 'playing') def = menuHeroDef(def);   /* 0.10.0: в меню карточка героя показывает надетый скин */
   ctx.save();
   ctx.beginPath(); ctx.roundRect(x,y,w,h,large ? 18 : 12); ctx.clip();
   const bg = ctx.createLinearGradient(x,y,x+w,y+h);
@@ -20166,6 +20170,7 @@ function heroViewWheel(e){
   return true;
 }
 function drawHeroViewer(def,x,y,w,h,now){
+  def=menuHeroDef(def);   /* 0.10.0: в профиле героя виден надетый скин */
   if(heroView.id!==def.id){ heroView.id=def.id; heroViewReset(); }
   const dt=1/60;
   if(!heroView.drag){
@@ -21161,10 +21166,21 @@ function drawDotaSenseBackdrop(now){
 /* ===== 0.8.3: любимый боец в центре главного меню ===== */
 let favoriteHeroId = null;
 try { favoriteHeroId = localStorage.getItem('dota-sens-fav-hero') || null; } catch(err) {}
+/* 0.10.0 (дополнение): в меню карточки/портреты героя показывают надетый скин (и цвета его карточки) */
+function menuHeroDef(def){
+  try{
+    if(!def || def.skinId || typeof activeSkinFor !== 'function') return def;
+    const sid = activeSkinFor(def.id); if(!sid) return def;
+    const sk = SKIN_BY_ID[baseSkin(sid)];
+    const o = Object.assign({}, def, {skinId: sid});
+    if(sk && sk.previewColor){ o.color = sk.previewColor; o.color2 = sk.previewColor2 || def.color2; }
+    return o;
+  }catch(err){ return def; }
+}
 function getFavoriteHeroDef(){
   if(!favoriteHeroId || !window.Hero3D || !Hero3D.has) return null;
   const d = HERO_DEFS.find(h => h.id === favoriteHeroId);
-  return d && Hero3D.has(d.id) ? d : null;
+  return d && Hero3D.has(d.id) ? menuHeroDef(d) : null;
 }
 function setFavoriteHero(id){
   favoriteHeroId = id || null;
