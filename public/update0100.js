@@ -9,6 +9,7 @@
 const warn = (tag, err) => { if(!warn[tag]){ warn[tag] = 1; try { console.warn('update0100 ' + tag + ':', err); } catch(e) {} } };
 let panelOpen = false, busy = false, msg = '', msgUntil = 0;
 
+window.__dsMasteryOpen = () => panelOpen;
 function cfg(){
   const p = window.__shadowAccountProfile;
   return p && p.masteryCfg && Array.isArray(p.masteryCfg.heroes) ? p.masteryCfg : null;

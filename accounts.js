@@ -127,6 +127,24 @@ const sessionSchema = new mongoose.Schema({
 
 const Account = mongoose.models.Account || mongoose.model('Account', accountSchema);
 const Session = mongoose.models.GameSession || mongoose.model('GameSession', sessionSchema);
+/* ===== 0.10.0 (дополнение): РУКОВОДСТВА СБОРОК. Игрок собирает сборку героя из трёх этапов (начало, середина, конец).
+   Сборки общие: их видят и могут выбрать в катке все игроки. ===== */
+const GUIDE_STAGES = ['start', 'mid', 'end'];
+const GUIDE_MAX_ITEMS = 6, GUIDE_MAX_PER_HERO = 5, GUIDE_MAX_TOTAL = 30;
+const guideSchema = new mongoose.Schema({
+  heroId: { type: String, maxlength: 40, index: true },
+  authorKey: { type: String, maxlength: 60, index: true },
+  author: { type: String, maxlength: 40, default: '' },
+  title: { type: String, maxlength: 40, default: '' },
+  start: { type: [String], default: [] },
+  mid: { type: [String], default: [] },
+  end: { type: [String], default: [] },
+  updatedAt: { type: Number, default: Date.now }
+});
+const BuildGuide = mongoose.models.BuildGuide || mongoose.model('BuildGuide', guideSchema);
+const cleanStage = v => (Array.isArray(v) ? v : []).map(x => String(x || '')).filter(x => /^[A-Za-z0-9_]{1,40}$/.test(x)).slice(0, GUIDE_MAX_ITEMS);
+const guideView = (g, ownerKey) => ({ id: String(g._id), heroId: g.heroId, author: g.author, title: g.title, start: g.start, mid: g.mid, end: g.end, mine: !!ownerKey && g.authorKey === ownerKey, updatedAt: g.updatedAt });
+
 let connectionPromise = null;
 
 async function connect(){
@@ -396,6 +414,47 @@ const routes = {
       return [200, { profile: ownProfile(current), claimed: false }];
     }
     return [200, { profile: ownProfile(claimed), claimed: true, reward, heroId, level }];
+  },
+
+  /* ===== РУКОВОДСТВА СБОРОК ===== */
+  async saveguide(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Войди в аккаунт, чтобы создавать сборки' }];
+    const heroId = String(body.heroId || '');
+    if(!HERO_IDS.has(heroId)) return [400, { error: 'Неизвестный герой' }];
+    const title = String(body.title || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 28) || 'Моя сборка';
+    const stages = {}; for(const k of GUIDE_STAGES) stages[k] = cleanStage(body[k]);
+    if(!GUIDE_STAGES.some(k => stages[k].length)) return [400, { error: 'Добавь в сборку хотя бы один предмет' }];
+    const key = auth.acc.nickKey;
+    const gid = String(body.id || '');
+    if(/^[a-f0-9]{24}$/.test(gid)){
+      const upd = await BuildGuide.findOneAndUpdate({ _id: gid, authorKey: key, heroId }, { $set: { title, ...stages, author: auth.acc.nick, updatedAt: Date.now() } }, { new: true });
+      if(upd) return [200, { guide: guideView(upd, key) }];
+    }
+    if(await BuildGuide.countDocuments({ authorKey: key, heroId }) >= GUIDE_MAX_PER_HERO) return [400, { error: 'На одного героя можно создать не больше ' + GUIDE_MAX_PER_HERO + ' сборок' }];
+    if(await BuildGuide.countDocuments({ authorKey: key }) >= GUIDE_MAX_TOTAL) return [400, { error: 'Достигнут лимит сборок' }];
+    const made = await BuildGuide.create({ heroId, authorKey: key, author: auth.acc.nick, title, ...stages, updatedAt: Date.now() });
+    return [200, { guide: guideView(made, key) }];
+  },
+
+  async deleteguide(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const gid = String(body.id || '');
+    if(!/^[a-f0-9]{24}$/.test(gid)) return [400, { error: 'Неверная сборка' }];
+    await BuildGuide.deleteOne({ _id: gid, authorKey: auth.acc.nickKey });
+    return [200, { ok: true }];
+  },
+
+  /* Список сборок героя: свои (если передан токен) и сборки других игроков, новые сверху. Токен необязателен. */
+  async listguides(body){
+    const heroId = String(body.heroId || '');
+    if(!HERO_IDS.has(heroId)) return [400, { error: 'Неизвестный герой' }];
+    let key = '';
+    if(body.token){ const auth = await authed(body); if(auth) key = auth.acc.nickKey; }
+    const list = await BuildGuide.find({ heroId }).sort({ updatedAt: -1 }).limit(40).lean();
+    list.sort((a, b) => (b.authorKey === key) - (a.authorKey === key) || b.updatedAt - a.updatedAt);
+    return [200, { guides: list.map(g => guideView(g, key)) }];
   },
 
   /* Покупка «Дотасенс +». Одна атомарная операция: условие (не куплено И хватает Сенсиков) и списание
