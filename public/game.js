@@ -21824,6 +21824,8 @@ function drawDotaSenseHome(){
 
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
+    {tag:'0.9.9.0.2',title:'Crimson Rush: новый навык Ригины',art:'hero',hero:'Ригина',action:'changelog',kind:'обновление'},
+    {tag:'0.9.9.0.2',title:'Псих +7% и умные боты',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
     {tag:'0.9.9.0.1',title:'Бошка Ильи: новый навык Психа',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
     {tag:'0.9.9.0.1',title:'Око Бездны и Плащ Тихого Часа',art:'item',itemId:'abyssEye',action:'store',kind:'магазин'},
     {tag:'0.9.7.5',title:'Псих: чумной доктор',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
