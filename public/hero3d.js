@@ -56,18 +56,6 @@ function hsl2rgb(h,s,l){
   return [Math.round(f(h+1/3)*255),Math.round(f(h)*255),Math.round(f(h-1/3)*255)];
 }
 const SKIN_TINTS={
-  /* Золотой Чемпион: тёплое золото, светлее и насыщеннее */
-  goldChampion:c=>{
-    const [h,s,l]=rgb2hsl(c);
-    const nl=Math.min(.9,l*1.08+.05);
-    return hsl2rgb(44+(h%30)*.15, Math.min(.95,Math.max(.55,s*.8+.28)), nl);
-  },
-  /* Фантом Пустоты: тёмно-фиолетовый корпус и ярко светящиеся акценты */
-  voidPhantom:c=>{
-    const [h,s,l]=rgb2hsl(c);
-    const nl=l>.72?Math.min(.9,l):l*.62;
-    return hsl2rgb(272+(h%40)*.2, Math.min(.85,Math.max(.4,s*.7+.22)), nl);
-  },
   /* ---- 0.9.9.3: платные скины за Сенсики (по три на Снайпера, Психа и Мо3ги) ---- */
   /* Снайпер: «Лесной призрак» — маскировочный зелёный */
   sniperGhillie:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(96+(h%36)*.35, Math.min(.62,Math.max(.28,s*.7+.12)), l>.78?l:Math.max(.12,l*.82)); },
@@ -75,6 +63,11 @@ const SKIN_TINTS={
   sniperPolar:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(204+(h%30)*.25, Math.min(.5,Math.max(.12,s*.5)), Math.min(.95,l*.78+.22)); },
   /* Снайпер: «Алый охотник» — тёмно-красный с яркими бликами */
   sniperCrimson:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(352+(h%24)*.25, Math.min(.9,Math.max(.5,s*.7+.3)), l>.72?Math.min(.9,l):l*.78); },
+  /* 0.9.9.6 АРКАНА Снайпера: «Пламенный стрелок» — тлеющая красно-чёрная форма, раскалённые светлые детали; яркие огненные цвета эффектов не трогаем */
+  sniperInferno:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(s>.9&&l>.5) return c;
+    if(l>.62) return hsl2rgb(36+(h%24)*.3, .95, Math.min(.74,l*.85+.08));
+    return hsl2rgb(6+(h%40)*.4, Math.min(.95,Math.max(.7,s*.45+.5)), Math.max(.07,l*.72)); },
   /* Псих: «Токсичный» — кислотно-зелёное безумие */
   psihToxic:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(88+(h%50)*.3, Math.min(.95,Math.max(.55,s*.6+.35)), l>.7?Math.min(.9,l+.04):Math.max(.1,l*.9)); },
   /* Псих: «Ледяной кошмар» — холодный голубой с белыми клинками */
@@ -1790,7 +1783,31 @@ MODELS.sniper=(S,d,t)=>{
   const _h18=hmark(S);
   G(S,[.42,1.34,2.28],.03,'#ff5368');
   hold(S,_h18,'R');
+  if(d && d.skinId && String(d.skinId).split('+')[0]==='sniperInferno') sniperInfernoFx(S,t);
 };
+/* 0.9.9.6: огненные детали арканы Снайпера — корона пламени над кепкой, факел на дуле, раскалённые кольца ствола, языки за плечами и летящие угли */
+function sniperInfernoFx(S,t){
+  const FL=['#ff3d12','#ff7a1c','#ffb02e'];
+  const fl=(i,k)=>Math.sin(t*(6+k)+i*2.1)*.5+.5;
+  for(let i=0;i<8;i++){                                   // корона пламени
+    const a=i/8*Math.PI*2, r=.23, f=fl(i,1), bx=Math.cos(a)*r, bz=Math.sin(a)*r;
+    S.cone([bx,1.95,bz],[bx*.3,2.14+f*.22+(i%2)*.1,bz*.3],.075,FL[i%3],{seg:6,glow:1,shine:0});
+  }
+  G(S,[0,2.02,0],.13+.02*fl(0,2),'#ffb02e');
+  for(const s of [-1,1]){                                 // огонь за плечами
+    for(let k=0;k<3;k++){ const f=fl(k+(s>0?3:0),2);
+      S.cone([s*.42,1.62,-.1-k*.05],[s*(.5+k*.06),1.95+f*.28+k*.1,-.2-k*.08],.08-.015*k,FL[k],{seg:6,glow:1,shine:0}); }
+  }
+  const mz=[.42,1.34,2.3];                                // факел на дуле
+  for(let i=0;i<4;i++){ const f=fl(i,3);
+    S.cone([mz[0],mz[1],mz[2]],[mz[0]+Math.sin(t*9+i)*.04,mz[1]+.06+f*.1,mz[2]+.22+f*.24+i*.03],.075-.014*i,FL[i%3],{seg:6,glow:1,shine:0}); }
+  G(S,mz,.1+.03*fl(1,5),'#ffe27a');
+  for(const z of [.35,.8,1.25,1.7]) G(S,[.42,1.33+z*.04,z+.03],.05,'#ff7a1c');   // жар на кольцах ствола
+  for(let i=0;i<8;i++){                                   // летящие угли
+    const ph=(t*.55+i/8)%1, a=i*2.4;
+    G(S,[Math.cos(a)*.55*(1-ph*.4),.85+ph*1.7,Math.sin(a)*.42-.1],.03*(1-ph)+.012,i%2?'#ffb02e':'#ff5a1c');
+  }
+}
 
 /* ---------- Запасная модель для героев без отдельной ---------- */
 

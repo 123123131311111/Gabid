@@ -25,12 +25,13 @@ const ST_RARITY = {
   rare:      {name:'РЕДКИЙ',       col:'#5fb3ff'},
   epic:      {name:'ЭПИЧЕСКИЙ',    col:'#c08cff'},
   legendary: {name:'ЛЕГЕНДАРНЫЙ',  col:'#ffb347'},
+  arcana:    {name:'АРКАНА',       col:'#ff7a2a'},
   immortal:  {name:'ИММОРТАЛ',     col:'#ffd568'},
   phrase:    {name:'ФРАЗА',        col:'#8be9fd'}
 };
 const ST_CATS = {
-  shop:      [['all','ВСЁ'],['hero','СКИНЫ БОЙЦОВ'],['universal','ДЛЯ ВСЕХ'],['immortal','ИММОРТАЛКИ'],['phrases','ФРАЗЫ']],
-  inventory: [['all','ВСЁ'],['hero','СКИНЫ БОЙЦОВ'],['universal','ДЛЯ ВСЕХ'],['immortal','ИММОРТАЛКИ']]
+  shop:      [['all','ВСЁ'],['hero','СКИНЫ БОЙЦОВ'],['immortal','ИММОРТАЛКИ'],['phrases','ФРАЗЫ']],
+  inventory: [['all','ВСЁ'],['hero','СКИНЫ БОЙЦОВ'],['immortal','ИММОРТАЛКИ']]
 };
 
 function storeOpenScreen(screen){
@@ -340,7 +341,7 @@ function stDrawCardArt(it, info, x, y, w, h, now, large){
 
 function stDrawCard(it, info, r, selected, now){
   const rar = ST_RARITY[info.rarity] || ST_RARITY.free, hov = stInside(r, mouse.x, mouse.y) && stInside(stGridRect, mouse.x, mouse.y);
-  const legendary = info.rarity === 'legendary' || info.rarity === 'immortal';
+  const legendary = info.rarity === 'legendary' || info.rarity === 'immortal' || info.rarity === 'arcana';
   ctx.save();
   if(selected || hov || legendary){ ctx.shadowColor = selected ? info.accent : rar.col; ctx.shadowBlur = selected ? 22 : (hov ? 16 : 10); }
   const g = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);

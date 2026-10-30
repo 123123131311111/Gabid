@@ -279,14 +279,10 @@ let storeOpen = false;
 /* 0.9.0: список скинов магазина. heroId — скин только для одного героя, null — подходит всем. */
 const SKIN_DEFS = [
   {id:'reginaRed', name:'КРАСНАЯ РИГИНА', heroId:'regina', accent:'#ff5968', border:'#b52d3c', previewHero:'regina', previewColor:'#5b101e', previewColor2:'#ff4058',
-   desc:'Алый боевой образ Ригины. Не меняет характеристики героя.', hint:'Будет виден, когда выбран герой Ригина.'},
-  {id:'goldChampion', name:'ЗОЛОТОЙ ЧЕМПИОН', heroId:null, accent:'#ffd34f', border:'#c9962a', previewHero:'shadow',
-   desc:'Парадный золотой образ: доспех, одежда и сияние любого героя становятся золотыми. Не меняет характеристики.', hint:'Виден на любом выбранном герое.'},
-  {id:'voidPhantom', name:'ФАНТОМ ПУСТОТЫ', heroId:null, accent:'#b07cff', border:'#6f45b8', previewHero:'shadow',
-   desc:'Тёмный образ из пустоты: фиолетовое тело и ярко светящиеся акценты у любого героя. Не меняет характеристики.', hint:'Виден на любом выбранном герое.'}
+   desc:'Алый боевой образ Ригины. Не меняет характеристики героя.', hint:'Будет виден, когда выбран герой Ригина.'}
 ];
 /* 0.9.8: ИММОРТАЛКИ — дополнительные предметы-украшения (kind:'acc'). Надеваются независимо от скина, снимаются в инвентаре. */
-SKIN_DEFS.push({id:'chipParrot', kind:'acc', immortal:true, name:'КОРОЛЕВСКИЙ АРА', heroId:'chip', accent:'#ffcf5a', border:'#ff9d2e', previewHero:'chip', previewSkin:'+parrot',
+SKIN_DEFS.push({id:'chipParrot', kind:'acc', immortal:true, price:4550, name:'КОРОЛЕВСКИЙ АРА', heroId:'chip', accent:'#ffcf5a', border:'#ff9d2e', previewHero:'chip', previewSkin:'+parrot',
   desc:'Иммортал для Чипа: яркий попугай-ара сидит на плече короля, качается, крутит головой и взмахивает крыльями. Не меняет характеристики.', hint:'Виден на Чипе. Можно надеть и снять в любой момент.'});
 /* 0.9.9.3: ПЛАТНЫЕ СКИНЫ за Сенсики — по три на Снайпера, Психа и Мо3ги (0.9.9.4: цены −9%, плюс по скину для Вирсуди, Шмедика и Гриши). Цена (price) продублирована на сервере (accounts.js),
    покупка идёт через /api/buyskin. rarity: rare / epic / legendary. weaponColor — цвет оружия героя с этим скином. */
@@ -297,6 +293,9 @@ SKIN_DEFS.push(
    desc:'Белоснежный арктический камуфляж и ледяная винтовка. Охота в самую лютую метель. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
   {id:'sniperCrimson', name:'АЛЫЙ ОХОТНИК', heroId:'sniper', rarity:'legendary', price:3640, accent:'#ff4d5e', border:'#b3263a', previewHero:'sniper', previewColor:'#4a0f1a', previewColor2:'#ff6a78', weaponColor:'#ff4d5e',
    desc:'Легендарный алый образ: тёмно-красная форма, раскалённая винтовка и кровавая аура. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
+  /* 0.9.9.6: АРКАНА Снайпера — огненный образ: меняет вид героя, винтовки, выстрелов и всех четырёх скиллов (только визуально, характеристики те же). */
+  {id:'sniperInferno', arcana:true, name:'ПЛАМЕННЫЙ СТРЕЛОК', heroId:'sniper', rarity:'arcana', price:7280, accent:'#ff7a1c', border:'#c2410c', previewHero:'sniper', previewColor:'#3a0c04', previewColor2:'#ffb02e', weaponColor:'#ff6a1a',
+   desc:'АРКАНА. Снайпер объят огнём: тлеющая форма, пылающая корона и раскалённая винтовка. Огненными становятся атака и каждый скилл — Shrapnel сыплет угли, Headshot взрывается искрами, Take Aim зажигает ауру, Assassinate летит огненной кометой. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
   {id:'psihToxic', name:'ТОКСИЧНЫЙ ПСИХ', heroId:'psih', rarity:'rare', price:1365, accent:'#b6ff3a', border:'#5f9a1c', previewHero:'psih', previewColor:'#233d0e', previewColor2:'#c8ff5a', weaponColor:'#b6ff3a',
    desc:'Кислотно-зелёный Псих, надышавшийся ядовитых паров. Клинки светятся токсичным цветом. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
   {id:'psihFrost', name:'ЛЕДЯНОЙ КОШМАР', heroId:'psih', rarity:'epic', price:2275, accent:'#7fe8ff', border:'#3d8fb0', previewHero:'psih', previewColor:'#12384a', previewColor2:'#9ff0ff', weaponColor:'#cdf6ff',
@@ -4974,16 +4973,22 @@ class Unit {
               shotSource.headshotSlow = 0.24 + headshotLevel * 0.045;
               shotSource.headshotAttackSlow = 0.28 + headshotLevel * 0.055;
               shotSource.headshotSlowDuration = 0.8 + headshotLevel * 0.1;
-              addText(t.x,t.y-t.radius-18,'HEADSHOT','#ffe6a3',0.65,13); playSynthSfx('crit', {volume:(this===playerHero||t===playerHero)?1:0.6});
+              addText(t.x,t.y-t.radius-18,isSniperInferno(this)?'🔥 HEADSHOT':'HEADSHOT',isSniperInferno(this)?'#ff9a3c':'#ffe6a3',0.65,13); playSynthSfx('crit', {volume:(this===playerHero||t===playerHero)?1:0.6});
             }
           }
-          const shotColor = this.def && this.def.id === 'arcady' ? '#ff6b35' :
+          const infernoShot = isSniperInferno(this);
+          const shotColor = infernoShot ? (shotSource.headshot ? '#ffe27a' : '#ff7a1c') : this.def && this.def.id === 'arcady' ? '#ff6b35' :
             (this.def && this.def.id === 'sniper' ? '#ffe0a0' : (this.def && this.def.id === 'vaspassir' ? '#8dff5a' :
             (this.def && this.def.id === 'shadow' ? '#ff5a1f' :
             (this.team===0 ? '#a8ffb0' : '#ffb0a8'))));
           const projectile=spawnProjectile(this.x, this.y, t, shotDamage, shotSource, 1100,
             shotColor, this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : (this.def && this.def.id === 'shadow' ? 10 : 7)));
           if(this.summonKind==='vaspCopy'){ projectile.vaspCopy=this; projectile.color=this.vaspOnHit==='chain'?'#9fc0ff':(this.vaspOnHit==='poison'?'#d9a0ff':(this.vaspOnHit==='stun'?'#fff06a':'#8fe8ff')); }
+          if(infernoShot){
+            projectile.inferno=true;
+            if(this.def.id==='sniper'){ projectile.radius=shotSource.headshot?11:9; }
+            infernoBurst(this.x+Math.cos(this.facing)*52, this.y+Math.sin(this.facing)*52, 30, 10, 0.22);   /* огненная вспышка из дула */
+          }
           projectile.headshot=!!shotSource.headshot;
           projectile.headshotSlow=shotSource.headshotSlow || 0;
           projectile.headshotAttackSlow=shotSource.headshotAttackSlow || 0;
@@ -7068,11 +7073,13 @@ const SKILLS = {
       h.shrapnelCharges--;
       const recharge=[0,14,13,12,11][lvl] || 14;
       h.shrapnelRechargeTimers.push(recharge);
+      const inf=isSniperInferno(h);
       aoes.push({x,y,radius,dmg:abilityDamage(h,18+9*lvl),manaDmg:0,team:h.team,source:h,
-        delay:0,t:0,color:'#ffd27a',applied:false,life:7.5,dead:false,
-        shrapnel:true,slow:0.34+lvl*0.035,tickInterval:0.5,pulseTimer:0});
-      fxMark(x,y,radius,'#ffd27a',7.5);
-      addText(x,y-radius-20,'SHRAPNEL  •  ЗАРЯДЫ: '+h.shrapnelCharges,'#ffe2a0',1.0,15);
+        delay:0,t:0,color:inf?'#ff6a1a':'#ffd27a',applied:false,life:7.5,dead:false,
+        shrapnel:true,inferno:inf,slow:0.34+lvl*0.035,tickInterval:0.5,pulseTimer:0});
+      fxMark(x,y,radius,inf?'#ff6a1a':'#ffd27a',7.5);
+      if(inf){ infernoBurst(x,y,radius,34,0.7); fxBeam(h.x,h.y,x,y,'#ff9a3c',0.3); }
+      addText(x,y-radius-20,(inf?'🔥 ОГНЕННАЯ ШРАПНЕЛЬ':'SHRAPNEL')+'  •  ЗАРЯДЫ: '+h.shrapnelCharges,inf?'#ffb066':'#ffe2a0',1.0,15);
       return true;
     }
   },
@@ -7089,8 +7096,13 @@ const SKILLS = {
     cast(h,x,y,lvl){
       h.buffs=h.buffs.filter(buff=>buff.id!=='sniperTakeAim');
       h.addBuff({type:'as',id:'sniperTakeAim',t:5,rangeBonus:60+lvl*14,val:0.42+lvl*0.08});
-      addText(h.x,h.y-70,'TAKE AIM','#ffe4a3',1.15,17);
-      fxRing(h.x,h.y,100,'#ffd27a',0.55);
+      if(isSniperInferno(h)){
+        addText(h.x,h.y-70,'🔥 ОГНЕННЫЙ ПРИЦЕЛ','#ffb066',1.15,17);
+        infernoBurst(h.x,h.y,130,30,0.7); fxRing(h.x,h.y,70,'#ff3d12',0.5);
+      } else {
+        addText(h.x,h.y-70,'TAKE AIM','#ffe4a3',1.15,17);
+        fxRing(h.x,h.y,100,'#ffd27a',0.55);
+      }
     }
   },
   sniperAssassinate: {
@@ -7105,20 +7117,23 @@ const SKILLS = {
       h.assassinating=true;
       h.assassinateTarget=target;
       target.addBuff({type:'assassinateMark',t:1.25});
-      addText(target.x,target.y-70,'ПРИЦЕЛ: ASSASSINATE','#ffe3a8',1.15,16);
-      fxBeam(h.x,h.y,target.x,target.y,'#ffe0a0',0.28);
-      fxRing(h.x,h.y,58,'#fff1b0',0.42);
+      const inf=isSniperInferno(h);
+      addText(target.x,target.y-70,inf?'🔥 ПРИЦЕЛ: ОГНЕННАЯ КОМЕТА':'ПРИЦЕЛ: ASSASSINATE',inf?'#ffb066':'#ffe3a8',1.15,16);
+      fxBeam(h.x,h.y,target.x,target.y,inf?'#ff7a1c':'#ffe0a0',0.28);
+      fxRing(h.x,h.y,58,inf?'#ff7a1c':'#fff1b0',0.42);
+      if(inf){ infernoBurst(h.x,h.y,90,26,0.6); infernoBurst(target.x,target.y,60,14,0.6); } else
       spawnParticles(h.x,h.y,'#fff4c2',24,0.8);
       window.setTimeout(()=>{
         h.assassinating=false;
         h.assassinateTarget=null;
         if(h.dead || target.dead) return;
         const projectile=spawnProjectile(h.x,h.y,target,500,
-          {team:h.team,source:h,trueDamage:true},1450,'#fff0a8',18);
+          {team:h.team,source:h,trueDamage:true},1450,inf?'#ff6a1a':'#fff0a8',18);
         projectile.assassinate=true;
+        if(inf) projectile.inferno=true;
         projectile.life=2.5;
-        addText(h.x,h.y-82,'ASSASSINATE!','#fff0b0',0.8,18);
-        fxBeam(h.x,h.y,target.x,target.y,'#fff4c2',0.22);
+        addText(h.x,h.y-82,inf?'🔥 ASSASSINATE!':'ASSASSINATE!',inf?'#ffb066':'#fff0b0',0.8,18);
+        fxBeam(h.x,h.y,target.x,target.y,inf?'#ffb02e':'#fff4c2',0.22);
       },380);
       return true;
     }
@@ -9237,7 +9252,22 @@ class Hero extends Unit {
 
 function gainXp(hero, amount){ if(hero && !hero.dead) hero.gainXp(amount); }
 
+/* 0.9.9.6: АРКАНА Снайпера «Пламенный стрелок» — только визуальный огненный стиль атаки и скиллов, механики не меняются. */
+function isSniperInferno(h){ return !!(h && h.def && h.def.id==='sniper' && baseSkin(h.skinId)==='sniperInferno'); }
+const INFERNO_COLORS = ['#ff3d12','#ff7a1c','#ffb02e','#ffe27a'];
+function infernoBurst(x,y,r,n,life){
+  spawnParticles(x,y,'#ff7a1c',n,1.2); spawnParticles(x,y,'#ffd27a',Math.ceil(n*0.6),0.8); spawnParticles(x,y,'#ff3d12',Math.ceil(n*0.5),1.5);
+  fxRing(x,y,r,'#ff5a1c',life||0.5); fxRing(x,y,r*0.6,'#ffd27a',(life||0.5)*0.8);
+}
+function infernoEmbers(x,y,radius,n){
+  for(let i=0;i<n;i++){
+    const ang=Math.random()*Math.PI*2, rr=radius*Math.sqrt(Math.random());
+    particles.push({x:x+Math.cos(ang)*rr, y:y+Math.sin(ang)*rr*0.68, vx:rnd(-16,16), vy:rnd(-90,-40),
+      color:INFERNO_COLORS[(Math.random()*4)|0], size:rnd(2,5), t:0, life:rnd(0.5,1.0), gravity:-34, drag:0.97, spark:true});
+  }
+}
 function skillFxColor(hero, skillId){
+  if(isSniperInferno(hero) && /sniper|shrapnel|headshot|takeAim|assassinate/.test(skillId)) return '#ff7a1c';
   if(/olex/.test(skillId)) return '#39e6ff';
   if(/juggernaut|bladeFury|healingWard|bladeDance|omnislash/.test(skillId)) return '#ffe066';
   if(/sniper|shrapnel|headshot|takeAim|assassinate/.test(skillId)) return '#ffd27a';
@@ -11222,6 +11252,7 @@ function update(dt){
     if(p.trailTimer <= 0){
       p.trailTimer = p.isSpell ? 0.045 : 0.075;
       spawnParticles(p.x,p.y,p.color,p.isSpell ? 2 : 1,p.isSpell ? 0.22 : 0.12);
+      if(p.inferno){ spawnParticles(p.x,p.y,INFERNO_COLORS[(Math.random()*4)|0],p.assassinate?4:2,p.assassinate?0.5:0.3); }
     }
     if(p.kind){
       if(p.life<=0){ p.dead=true; continue; }
@@ -11293,8 +11324,8 @@ function update(dt){
         p.target.slowT=Math.max(p.target.slowT||0,slowDuration);
         p.target.attackSlow=Math.max(p.target.attackSlow||0,p.headshotAttackSlow||0.30);
         p.target.attackSlowT=Math.max(p.target.attackSlowT||0,slowDuration);
-        addText(p.target.x,p.target.y-p.target.radius-30,'ЗАМЕДЛЕНИЕ','#ffe0a0',0.55,12);
-        fxRing(p.target.x,p.target.y,34,'#ffe0a0',0.28);
+        addText(p.target.x,p.target.y-p.target.radius-30,p.inferno?'ОЖОГ · ЗАМЕДЛЕНИЕ':'ЗАМЕДЛЕНИЕ',p.inferno?'#ff9a3c':'#ffe0a0',0.55,12);
+        fxRing(p.target.x,p.target.y,34,p.inferno?'#ff7a1c':'#ffe0a0',0.28);
       }
       if(p.incendiary){
         const skillLevel=(attackOwner && attackOwner.skills.find(skill=>skill.id==='tribuIncendiary')?.level)||1;
@@ -11311,6 +11342,11 @@ function update(dt){
             applyDamage(unit, p.dmg, p.source || {team:p.team});
           }
         }
+      }
+      if(p.inferno){
+        if(p.assassinate){ infernoBurst(p.target.x,p.target.y,190,46,0.8); fxRing(p.target.x,p.target.y,110,'#fff1b0',0.5); }
+        else if(p.headshot){ infernoBurst(p.target.x,p.target.y,70,18,0.4); }
+        else { infernoBurst(p.target.x,p.target.y,38,8,0.25); }
       }
       fxHit(p.target.x, p.target.y, p.color);
       try { atkProjectileHit(p); } catch(err) {}
@@ -11426,7 +11462,9 @@ function update(dt){
           }
         }
         fxRing(a.x, a.y, a.radius * 0.92, a.color, 0.16);
+        if(a.inferno){ infernoEmbers(a.x,a.y,a.radius,10); fxRing(a.x, a.y, a.radius * 0.55, '#ffd27a', 0.2); }
       }
+      if(a.inferno && !perfLite() && Math.random() < dt*14) infernoEmbers(a.x,a.y,a.radius,2);
       if(a.t > a.life) a.dead = true;
       continue;
     }
@@ -14066,14 +14104,33 @@ function drawUnit(u){
     ctx.save();
     ctx.rotate(aim);
     ctx.globalAlpha=0.85;
-    ctx.strokeStyle='#fff4c2'; ctx.shadowColor='#fff0a8'; ctx.shadowBlur=18; ctx.lineWidth=4;
+    const infAim = isSniperInferno(u);
+    ctx.strokeStyle=infAim?'#ff8a2a':'#fff4c2'; ctx.shadowColor=infAim?'#ff4a12':'#fff0a8'; ctx.shadowBlur=18; ctx.lineWidth=4;
     ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(88,0); ctx.stroke();
-    ctx.fillStyle='#ffffff';
+    if(infAim){ ctx.strokeStyle='#ffe27a'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(88+Math.sin(gameTime*30)*6,0); ctx.stroke(); }
+    ctx.fillStyle=infAim?'#fff0b8':'#ffffff';
     ctx.beginPath(); ctx.arc(24,0,7+Math.sin(gameTime*28)*2,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
+  /* 0.9.9.6: аркана Снайпера — огненная аура у ног; во время Take Aim пламя разгорается сильнее */
+  if(u.type === 'hero' && isSniperInferno(u) && !u.dead && !perfLite()){
+    const aimOn = !!(u.buffs && u.buffs.some(buff => buff.id === 'sniperTakeAim'));
+    const tongues = aimOn ? 14 : 9, base = u.radius + 6;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.shadowColor = '#ff5a1c'; ctx.shadowBlur = aimOn ? 22 : 12;
+    for(let i=0;i<tongues;i++){
+      const a = i/tongues*Math.PI*2 + gameTime*0.7, fl = 0.5 + 0.5*Math.sin(gameTime*9 + i*1.9);
+      const h = (aimOn ? 24 : 15) * (0.55 + fl*0.7), w = aimOn ? 6 : 4.5;
+      const bx = Math.cos(a)*base, by = Math.sin(a)*base*0.62 + 8;
+      ctx.globalAlpha = aimOn ? 0.75 : 0.5;
+      ctx.fillStyle = INFERNO_COLORS[i%3];
+      ctx.beginPath(); ctx.moveTo(bx-w,by); ctx.quadraticCurveTo(bx-w*0.3,by-h*0.6,bx+Math.sin(gameTime*6+i)*3,by-h); ctx.quadraticCurveTo(bx+w*0.3,by-h*0.6,bx+w,by); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
-    const bsk = baseSkin(u.skinId); const heroAccent = bsk === 'reginaRed' ? '#ff344f' : (bsk === 'goldChampion' ? '#ffd34f' : (bsk === 'voidPhantom' ? '#b07cff' : ((SKIN_BY_ID[bsk] && isPaidSkin(SKIN_BY_ID[bsk]) && SKIN_BY_ID[bsk].accent) || heroLikeDef(u).color2 || col)));
+    const bsk = baseSkin(u.skinId); const heroAccent = bsk === 'reginaRed' ? '#ff344f' : ((SKIN_BY_ID[bsk] && isPaidSkin(SKIN_BY_ID[bsk]) && SKIN_BY_ID[bsk].accent) || heroLikeDef(u).color2 || col);
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = heroAccent;
@@ -16206,6 +16263,16 @@ function drawWorldObjects(){
       const angle = p.target ? Math.atan2(p.target.y-p.y,p.target.x-p.x) : 0;
       ctx.translate(p.x,p.y);
       ctx.rotate(angle);
+      if(p.inferno){
+        /* огненная комета: длинный мерцающий хвост пламени и раскалённое ядро */
+        ctx.shadowBlur = 34; ctx.shadowColor = '#ff5a1c';
+        for(let k=0;k<4;k++){
+          const fl = Math.sin(gameTime*30 + k*1.7)*5;
+          ctx.fillStyle = INFERNO_COLORS[k];
+          ctx.beginPath(); ctx.moveTo(30-k*4,0); ctx.lineTo(0,-(15-k*3)); ctx.lineTo(-48-k*10-fl,fl*0.4); ctx.lineTo(0,15-k*3); ctx.closePath(); ctx.fill();
+        }
+        ctx.fillStyle = '#fff6d6'; ctx.beginPath(); ctx.ellipse(6,0,13,6,0,0,Math.PI*2); ctx.fill();
+      } else {
       ctx.shadowBlur = 28;
       ctx.shadowColor = '#fff0a8';
       ctx.fillStyle = '#fff8cf';
@@ -16217,6 +16284,7 @@ function drawWorldObjects(){
       ctx.beginPath(); ctx.ellipse(-12,0,17,7,0,0,Math.PI*2); ctx.fill();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(-55,0); ctx.lineTo(-25,0); ctx.stroke();
+      }
     } else if(p.kind==='tornado'){
       ctx.beginPath(); ctx.moveTo(p.x,p.y-p.radius*1.8); ctx.lineTo(p.x-p.radius,p.y+p.radius); ctx.lineTo(p.x+p.radius,p.y+p.radius); ctx.closePath(); ctx.fill();
       ctx.strokeStyle='#f2fbff'; ctx.lineWidth=3; ctx.stroke();
@@ -16235,6 +16303,17 @@ function drawWorldObjects(){
       ctx.fillStyle='#ffd08a'; ctx.fillRect(-12,-4,4,8); ctx.fillRect(4,-4,4,8);
       ctx.strokeStyle='#fff0a8'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(26,-8); ctx.stroke();
       ctx.restore();
+    } else if(p.inferno){
+      /* огненный выстрел: яркое ядро + язычки пламени позади */
+      ctx.translate(p.x,p.y); ctx.rotate(projectileAngle);
+      ctx.shadowBlur = 22; ctx.shadowColor = '#ff5a1c';
+      const fr = p.radius;
+      for(let k=0;k<3;k++){
+        const fl = Math.sin(gameTime*26 + k*2.1)*2.5;
+        ctx.fillStyle = INFERNO_COLORS[k];
+        ctx.beginPath(); ctx.moveTo(fr*1.5,0); ctx.lineTo(0,-fr*(1.25-k*0.25)); ctx.lineTo(-fr*(3.4+k*0.9)-fl,fl*0.3); ctx.lineTo(0,fr*(1.25-k*0.25)); ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = '#fff3c4'; ctx.beginPath(); ctx.arc(fr*0.35,0,fr*0.55,0,Math.PI*2); ctx.fill();
     } else if(drawThemedProjectile(p)){
       /* Тематическая модель снаряда уже отрисована */
     } else {
@@ -21543,6 +21622,21 @@ function dsCleanBackdrop(now){
   ctx.fillStyle=v; ctx.fillRect(0,0,VW,VH);
 }
 
+/* 0.9.9.6: плашка-кнопка верхней панели главного меню (единый вид для навигации и блока MMR) */
+function dsBarPlate(r,hov,s){
+  ctx.save();
+  const rad=Math.round(7*s);
+  ctx.beginPath(); ctx.roundRect(r.x,r.y,r.w,r.h,rad);
+  const g=ctx.createLinearGradient(0,r.y,0,r.y+r.h);
+  if(hov){ g.addColorStop(0,dsC('hl',.34)); g.addColorStop(1,dsC('hl',.12)); }
+  else { g.addColorStop(0,'rgba(54,37,39,.9)'); g.addColorStop(1,'rgba(20,13,15,.94)'); }
+  ctx.fillStyle=g; if(hov){ ctx.shadowColor=dsC('hover'); ctx.shadowBlur=12*s; }
+  ctx.fill(); ctx.shadowBlur=0;
+  ctx.lineWidth=1; ctx.strokeStyle=hov?dsC('hover'):'rgba(232,168,90,.36)'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(r.x+rad,r.y+1.5); ctx.lineTo(r.x+r.w-rad,r.y+1.5);
+  ctx.strokeStyle='rgba(255,255,255,'+(hov?0.24:0.1)+')'; ctx.stroke();
+  ctx.restore();
+}
 const dsBarSync={h:0,s:0};
 function drawDotaSenseHome(){
   const s=menuScale(), now=performance.now()/1000;
@@ -21598,57 +21692,57 @@ function drawDotaSenseHome(){
   dsTxt('SENSE',tabX+tabW*.42,tabBottom*.68,'bold '+Math.round(13*s)+'px Georgia, serif','#ffd7a0','left',1);
   ctx.restore();
 
-  /* навигация */
-  const navFont='bold '+Math.round(13*s)+'px Trebuchet MS, Segoe UI, Arial', navSp=1.6*s;
+  /* навигация: 0.9.9.6 — кнопки-плашки одной высоты на одной линии с шестерёнкой, логотипом и кнопками справа */
+  const btnH=Math.round(32*s), btnY=Math.round(7*s), btnCy=btnY+btnH/2+1;
+  const navFont='bold '+Math.round(12*s)+'px Trebuchet MS, Segoe UI, Arial', navSp=1.4*s;
+  const navPad=Math.round(11*s), navGap=Math.round(6*s);
   const navItems=[
     {t:'БОЙЦЫ',a:'fighters'},{t:'МАГАЗИН',a:'store'},{t:'ИНВЕНТАРЬ',a:'inventory'},{t:'ОБНОВЛЕНИЯ',a:'changelog'},
     {t:'МИРОВОЙ ТОП',a:'leaderboard'},{t:'ПРОФИЛЬ',a:'account'}
   ];
-  let nx=tabX+tabW+Math.round(46*s);
-  const navGap=Math.round(17*s), navCy=Math.round(barH/2);
+  let nx=tabX+tabW+Math.round(18*s);
   navItems.forEach((it,i)=>{
-    const w=dsTxtW(it.t,navFont,navSp);
-    const r={x:nx-8*s,y:0,w:w+16*s,h:barH};
+    const tw=dsTxtW(it.t,navFont,navSp), r={x:nx,y:btnY,w:Math.round(tw+navPad*2),h:btnH};
     const hov=dsInside(r);
     dsRegister(r,it.a,'nav'+i);
-    if(hov){
-      const hg=ctx.createLinearGradient(0,0,0,barH);
-      hg.addColorStop(0,dsC('hl',0)); hg.addColorStop(1,dsC('hl',.30));
-      ctx.fillStyle=hg; ctx.fillRect(r.x,0,r.w,barH);
-    }
-    ctx.save(); if(hov){ ctx.shadowColor=dsC('hover'); ctx.shadowBlur=12*s; }
-    dsTxt(it.t,nx,navCy+1,navFont,hov?'#fff2d0':'#c9bdb0','left',navSp);
+    dsBarPlate(r,hov,s);
+    ctx.save(); if(hov){ ctx.shadowColor=dsC('hover'); ctx.shadowBlur=10*s; }
+    dsTxt(it.t,r.x+navPad,btnCy,navFont,hov?'#fff2d0':'#d6c9b8','left',navSp);
     ctx.restore();
     if(hov){
-      const ug=ctx.createLinearGradient(nx,0,nx+w,0);
+      const ug=ctx.createLinearGradient(r.x,0,r.x+r.w,0);
       ug.addColorStop(0,dsC('hover',0)); ug.addColorStop(.5,dsC('spark2')); ug.addColorStop(1,dsC('hover',0));
-      ctx.fillStyle=ug; ctx.fillRect(nx-6*s,barH-4,w+12*s,2);
+      ctx.fillStyle=ug; ctx.fillRect(r.x+Math.round(6*s),r.y+r.h-3,r.w-Math.round(12*s),2);
     }
-    if(i<navItems.length-1){
-      const sx=nx+w+navGap/2; ctx.fillStyle='rgba(232,168,90,.45)';
-      ctx.beginPath(); ctx.moveTo(sx,navCy-4*s); ctx.lineTo(sx+3*s,navCy); ctx.lineTo(sx,navCy+4*s); ctx.lineTo(sx-3*s,navCy); ctx.closePath(); ctx.fill();
-    }
-    nx+=w+navGap;
+    nx+=r.w+navGap;
   });
+  const navEnd=nx-navGap+Math.round(14*s);   /* справа от этой линии рисуем только то, что помещается */
 
-  /* правая часть панели: онлайн · W-L · MMR */
+  /* правая часть панели: онлайн · W-L · MMR (на одной линии с кнопками) */
   const rankRating=pf&&Number.isFinite(pf.rating)?pf.rating:0;
-  let rx=VW-Math.round(18*s)-Math.round(window.dsToolsReserve||0);
-  { const rw=Math.round(136*s), r={x:rx-rw,y:0,w:rw,h:barH};
-    const hov=dsInside(r); dsRegister(r,'account','mmr');
-    dsMedal(r.x+rw-Math.round(17*s),Math.round(barH*.5)-1,Math.round(13*s),pf?String(pf.level):null);
-    const tx=r.x+rw-Math.round(46*s);
-    dsTxt(pf?accountRatingRank(rankRating):'ГОСТЬ',tx,Math.round(barH*.34),F(11,'bold '),hov?'#fff0c7':'#e8c984','right',.5);
-    dsTxt(pf?rankRating.toLocaleString('ru-RU')+' MMR':'войти в аккаунт',tx,Math.round(barH*.68),F(12,'bold '),'#ffd568','right');
-    rx=r.x-Math.round(14*s); }
-  { const wl=(pf?pf.wins:0)+'W-'+(pf?pf.losses:0)+'L', f='bold '+Math.round(15*s)+'px Consolas, monospace', w=dsTxtW(wl,f,1);
-    dsTxt(wl,rx,barH/2+1,f,'#cfc6b8','right',1);
-    ctx.save(); ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(rx-w-Math.round(14*s),Math.round(barH*.28),1,Math.round(barH*.44)); ctx.restore();
-    rx=rx-w-Math.round(28*s); }
-  { const cEl=document.getElementById('online-counter'), txt=cEl?cEl.textContent:'Онлайн: —', off=cEl&&cEl.dataset.state==='offline';
+  let rx=VW-Math.round(14*s)-Math.round(window.dsToolsReserve||0);
+  { const rw=Math.round(136*s), r={x:rx-rw,y:btnY,w:rw,h:btnH};
+    if(r.x>navEnd){
+      const hov=dsInside(r); dsRegister(r,'account','mmr');
+      dsBarPlate(r,hov,s);
+      dsMedal(r.x+rw-Math.round(17*s),btnY+btnH/2,Math.round(11*s),pf?String(pf.level):null);
+      const tx=r.x+rw-Math.round(38*s);
+      dsTxt(pf?accountRatingRank(rankRating):'ГОСТЬ',tx,btnY+Math.round(btnH*.31),F(10,'bold '),hov?'#fff0c7':'#e8c984','right',.4);
+      dsTxt(pf?rankRating.toLocaleString('ru-RU')+' MMR':'войти в аккаунт',tx,btnY+Math.round(btnH*.71),F(11,'bold '),'#ffd568','right');
+      rx=r.x-Math.round(12*s);
+    } else rx=-1; }
+  if(rx>0){ const wl=(pf?pf.wins:0)+'W-'+(pf?pf.losses:0)+'L', f='bold '+Math.round(14*s)+'px Consolas, monospace', w=dsTxtW(wl,f,1);
+    if(rx-w-Math.round(14*s)>navEnd){
+      dsTxt(wl,rx,btnCy,f,'#cfc6b8','right',1);
+      ctx.save(); ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(rx-w-Math.round(10*s),btnY+Math.round(btnH*.22),1,Math.round(btnH*.56)); ctx.restore();
+      rx=rx-w-Math.round(24*s);
+    } else rx=-1; }
+  if(rx>0){ const cEl=document.getElementById('online-counter'), txt=cEl?cEl.textContent:'Онлайн: —', off=cEl&&cEl.dataset.state==='offline';
     const f=F(12,'bold '), w=dsTxtW(txt,f,0);
-    dsTxt(txt,rx,barH/2+1,f,off?'#c48a82':'#a9ecdc','right');
-    ctx.fillStyle=off?'#d46b62':'#63e4a4'; ctx.beginPath(); ctx.arc(rx-w-Math.round(9*s),barH/2+1,3.2*s,0,Math.PI*2); ctx.fill(); }
+    if(rx-w-Math.round(20*s)>navEnd){
+      dsTxt(txt,rx,btnCy,f,off?'#c48a82':'#a9ecdc','right');
+      ctx.fillStyle=off?'#d46b62':'#63e4a4'; ctx.beginPath(); ctx.arc(rx-w-Math.round(9*s),btnCy,3.2*s,0,Math.PI*2); ctx.fill();
+    } }
 
   /* ---------- ЛЕВАЯ КОЛОНКА ---------- */
   const colX=Math.round(18*s), colW=Math.round(340*s);

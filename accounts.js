@@ -23,7 +23,9 @@ const SKIN_PRICES = {
   sniperGhillie: 1365, sniperPolar: 2275, sniperCrimson: 3640,
   psihToxic: 1365, psihFrost: 2275, psihBlood: 3640,
   mo3giDesert: 1365, mo3giArctic: 2275, mo3giNeon: 3640,
-  virsudiBloodMoon: 3640, earthshakerMagma: 2275, grishaEmerald: 1365
+  virsudiBloodMoon: 3640, earthshakerMagma: 2275, grishaEmerald: 1365,
+  /* 0.9.9.6: АРКАНА Снайпера «Пламенный стрелок» и иммортал Чипа «Королевский ара» — дороже обычных скинов */
+  sniperInferno: 7280, chipParrot: 4550
 };
 const EXTRA_QUEST_BY_ID = Object.fromEntries(EXTRA_QUESTS.map(q => [q.id, q]));
 const MAX_QUEST_ASSISTS_PER_MATCH = 40;
