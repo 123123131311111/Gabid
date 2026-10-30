@@ -67,7 +67,33 @@ const SKIN_TINTS={
     const [h,s,l]=rgb2hsl(c);
     const nl=l>.72?Math.min(.9,l):l*.62;
     return hsl2rgb(272+(h%40)*.2, Math.min(.85,Math.max(.4,s*.7+.22)), nl);
-  }
+  },
+  /* ---- 0.9.9.3: платные скины за Сенсики (по три на Снайпера, Психа и Мо3ги) ---- */
+  /* Снайпер: «Лесной призрак» — маскировочный зелёный */
+  sniperGhillie:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(96+(h%36)*.35, Math.min(.62,Math.max(.28,s*.7+.12)), l>.78?l:Math.max(.12,l*.82)); },
+  /* Снайпер: «Полярный егерь» — ледяной бело-голубой камуфляж */
+  sniperPolar:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(204+(h%30)*.25, Math.min(.5,Math.max(.12,s*.5)), Math.min(.95,l*.78+.22)); },
+  /* Снайпер: «Алый охотник» — тёмно-красный с яркими бликами */
+  sniperCrimson:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(352+(h%24)*.25, Math.min(.9,Math.max(.5,s*.7+.3)), l>.72?Math.min(.9,l):l*.78); },
+  /* Псих: «Токсичный» — кислотно-зелёное безумие */
+  psihToxic:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(88+(h%50)*.3, Math.min(.95,Math.max(.55,s*.6+.35)), l>.7?Math.min(.9,l+.04):Math.max(.1,l*.9)); },
+  /* Псих: «Ледяной кошмар» — холодный голубой с белыми клинками */
+  psihFrost:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(190+(h%40)*.3, Math.min(.85,Math.max(.35,s*.55+.3)), Math.min(.93,l*.9+.1)); },
+  /* Псих: «Кровавое безумие» — глубокий алый */
+  psihBlood:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(356+(h%30)*.2, Math.min(.95,Math.max(.6,s*.6+.4)), l>.7?Math.min(.88,l):Math.max(.1,l*.85)); },
+  /* Мо3ги: «Пустынный штурм» — песочная форма */
+  mo3giDesert:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(36+(h%40)*.15, Math.min(.55,Math.max(.28,s*.6+.15)), Math.min(.82,l*.85+.14)); },
+  /* Мо3ги: «Арктический десант» — серо-белая экипировка */
+  mo3giArctic:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(208+(h%30)*.2, Math.min(.3,s*.4), Math.min(.94,l*.75+.24)); },
+  /* Мо3ги: «Кибер-инженер» — неон: пурпурный корпус и голубые вставки */
+  mo3giNeon:c=>{ const [h,s,l]=rgb2hsl(c); const hot=l>.6||s>.55; return hsl2rgb(hot?186:292+(h%30)*.2, Math.min(.92,Math.max(.55,s*.7+.3)), hot?Math.min(.8,l+.04):Math.max(.14,l*.95)); },
+  /* ---- 0.9.9.4: скины Вирсуди, Шмедика и Гриши ---- */
+  /* Вирсуди: «Кровавая луна» — чёрно-багровый плащ, яркие красные акценты */
+  virsudiBloodMoon:c=>{ const [h,s,l]=rgb2hsl(c); const hot=l>.62; return hsl2rgb(hot?350:346+(h%24)*.2, Math.min(.9,Math.max(.45,s*.6+.3)), hot?Math.min(.78,l+.02):Math.max(.07,l*.7)); },
+  /* Шмедик: «Магмовый титан» — тёмный камень и оранжевая лава */
+  earthshakerMagma:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(18+(h%30)*.25, Math.min(.92,Math.max(.5,s*.7+.3)), l>.7?Math.min(.88,l):Math.max(.1,l*.85)); },
+  /* Гриша: «Изумрудный чародей» — зелёная мантия и светящиеся самоцветы */
+  grishaEmerald:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(140+(h%40)*.25, Math.min(.85,Math.max(.45,s*.6+.3)), l>.75?Math.min(.92,l):Math.max(.12,l*.9)); }
 };
 
 /* ---------- Сцена ---------- */

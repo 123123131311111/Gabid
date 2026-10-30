@@ -17,6 +17,14 @@ const EXTRA_QUESTS = [
   { id: 'double_win', title: 'Серия побед', desc: 'Выиграй 2 матча за день', target: 2, reward: 400, field: 'wins' },
   { id: 'team_player', title: 'Командный игрок', desc: 'Помоги в 20 убийствах за день (ассисты)', target: 20, reward: 250, field: 'assists' }
 ];
+/* 0.9.9.3: платные скины за Сенсики. Цены лежат на сервере — клиент их не диктует. */
+/* 0.9.9.4: все цены снижены на 9% (1500→1365, 2500→2275, 4000→3640); добавлены скины Вирсуди, Шмедика и Гриши. */
+const SKIN_PRICES = {
+  sniperGhillie: 1365, sniperPolar: 2275, sniperCrimson: 3640,
+  psihToxic: 1365, psihFrost: 2275, psihBlood: 3640,
+  mo3giDesert: 1365, mo3giArctic: 2275, mo3giNeon: 3640,
+  virsudiBloodMoon: 3640, earthshakerMagma: 2275, grishaEmerald: 1365
+};
 const EXTRA_QUEST_BY_ID = Object.fromEntries(EXTRA_QUESTS.map(q => [q.id, q]));
 const MAX_QUEST_ASSISTS_PER_MATCH = 40;
 /* 0.9.8.6: активация «Дотасенс +» — разовая покупка навсегда. Цена хранится только на сервере. */
@@ -72,6 +80,7 @@ const accountSchema = new mongoose.Schema({
   shards: { type: Number, min: 0, default: 0 },
   dsPlus: { type: Boolean, default: false },
   dsPlusAt: { type: Number, default: 0 },
+  skins: { type: [String], default: [] },
   daily: {
     day: { type: String, default: '' },
     kills: { type: Number, min: 0, default: 0 },
@@ -161,7 +170,7 @@ function extraQuestsState(acc){
     return { id: def.id, title: def.title, desc: def.desc, target: def.target, reward: def.reward, progress, claimed, ready: !claimed && progress >= def.target, day: today };
   });
 }
-const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE });
+const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE, skins: Array.isArray(acc.skins) ? acc.skins.filter(id => SKIN_PRICES[id]) : [] });
 
 async function makeSession(key){
   const token = crypto.randomBytes(24).toString('hex');
@@ -356,6 +365,27 @@ const routes = {
     const current = await Account.findById(auth.acc._id);
     if(current && current.dsPlus === true) return [200, { profile: ownProfile(current), bought: false, already: true }];
     return [409, { error: 'Не хватает Сенсиков: нужно ' + DSPLUS_PRICE, profile: current ? ownProfile(current) : undefined }];
+  },
+
+  /* 0.9.9.3: покупка скина за Сенсики. Одна атомарная операция: скин ещё не куплен И хватает Сенсиков. */
+  async buyskin(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const skinId = String(body.skinId || '');
+    const price = Object.prototype.hasOwnProperty.call(SKIN_PRICES, skinId) ? SKIN_PRICES[skinId] : 0;
+    if(!price) return [400, { error: 'Неизвестный скин' }];
+    const bought = await Account.findOneAndUpdate({
+      _id: auth.acc._id,
+      skins: { $ne: skinId },
+      shards: { $gte: price }
+    }, {
+      $inc: { shards: -price },
+      $push: { skins: skinId }
+    }, { new: true });
+    if(bought) return [200, { profile: ownProfile(bought), bought: true, skinId, price }];
+    const current = await Account.findById(auth.acc._id);
+    if(current && Array.isArray(current.skins) && current.skins.includes(skinId)) return [200, { profile: ownProfile(current), bought: false, already: true, skinId }];
+    return [409, { error: 'Не хватает Сенсиков: нужно ' + price, profile: current ? ownProfile(current) : undefined }];
   },
 
   async result(body){

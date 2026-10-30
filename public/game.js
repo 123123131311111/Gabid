@@ -275,8 +275,7 @@ let testDummies = [];
 let testDummySpawnAngle = 0;
 let testHeroPickerOpen = false;
 let storeOpen = false;
-let storeTab = 'shop';
-let storeCategory = 'skins';
+/* 0.9.9.3: состояние магазина и инвентаря — в js/ui/store-ui.js */
 /* 0.9.0: список скинов магазина. heroId — скин только для одного героя, null — подходит всем. */
 const SKIN_DEFS = [
   {id:'reginaRed', name:'КРАСНАЯ РИГИНА', heroId:'regina', accent:'#ff5968', border:'#b52d3c', previewHero:'regina', previewColor:'#5b101e', previewColor2:'#ff4058',
@@ -289,33 +288,76 @@ const SKIN_DEFS = [
 /* 0.9.8: ИММОРТАЛКИ — дополнительные предметы-украшения (kind:'acc'). Надеваются независимо от скина, снимаются в инвентаре. */
 SKIN_DEFS.push({id:'chipParrot', kind:'acc', immortal:true, name:'КОРОЛЕВСКИЙ АРА', heroId:'chip', accent:'#ffcf5a', border:'#ff9d2e', previewHero:'chip', previewSkin:'+parrot',
   desc:'Иммортал для Чипа: яркий попугай-ара сидит на плече короля, качается, крутит головой и взмахивает крыльями. Не меняет характеристики.', hint:'Виден на Чипе. Можно надеть и снять в любой момент.'});
+/* 0.9.9.3: ПЛАТНЫЕ СКИНЫ за Сенсики — по три на Снайпера, Психа и Мо3ги (0.9.9.4: цены −9%, плюс по скину для Вирсуди, Шмедика и Гриши). Цена (price) продублирована на сервере (accounts.js),
+   покупка идёт через /api/buyskin. rarity: rare / epic / legendary. weaponColor — цвет оружия героя с этим скином. */
+SKIN_DEFS.push(
+  {id:'sniperGhillie', name:'ЛЕСНОЙ ПРИЗРАК', heroId:'sniper', rarity:'rare', price:1365, accent:'#7ed957', border:'#3f7d2a', previewHero:'sniper', previewColor:'#1d3a17', previewColor2:'#8fe05a', weaponColor:'#8a9a58',
+   desc:'Маскировочный костюм: Снайпер сливается с лесом. Зелёная форма и оружие в цвет листвы. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
+  {id:'sniperPolar', name:'ПОЛЯРНЫЙ ЕГЕРЬ', heroId:'sniper', rarity:'epic', price:2275, accent:'#9fdcff', border:'#4f8fb8', previewHero:'sniper', previewColor:'#1d3347', previewColor2:'#bfe9ff', weaponColor:'#dff3ff',
+   desc:'Белоснежный арктический камуфляж и ледяная винтовка. Охота в самую лютую метель. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
+  {id:'sniperCrimson', name:'АЛЫЙ ОХОТНИК', heroId:'sniper', rarity:'legendary', price:3640, accent:'#ff4d5e', border:'#b3263a', previewHero:'sniper', previewColor:'#4a0f1a', previewColor2:'#ff6a78', weaponColor:'#ff4d5e',
+   desc:'Легендарный алый образ: тёмно-красная форма, раскалённая винтовка и кровавая аура. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
+  {id:'psihToxic', name:'ТОКСИЧНЫЙ ПСИХ', heroId:'psih', rarity:'rare', price:1365, accent:'#b6ff3a', border:'#5f9a1c', previewHero:'psih', previewColor:'#233d0e', previewColor2:'#c8ff5a', weaponColor:'#b6ff3a',
+   desc:'Кислотно-зелёный Псих, надышавшийся ядовитых паров. Клинки светятся токсичным цветом. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
+  {id:'psihFrost', name:'ЛЕДЯНОЙ КОШМАР', heroId:'psih', rarity:'epic', price:2275, accent:'#7fe8ff', border:'#3d8fb0', previewHero:'psih', previewColor:'#12384a', previewColor2:'#9ff0ff', weaponColor:'#cdf6ff',
+   desc:'Холодное безумие: голубая кожа, иней на одежде и ледяные клинки. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
+  {id:'psihBlood', name:'КРОВАВОЕ БЕЗУМИЕ', heroId:'psih', rarity:'legendary', price:3640, accent:'#ff3b4e', border:'#a8202f', previewHero:'psih', previewColor:'#47090f', previewColor2:'#ff5566', weaponColor:'#ff3b4e',
+   desc:'Легендарный образ: Псих целиком в крови, клинки пылают алым. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
+  {id:'mo3giDesert', name:'ПУСТЫННЫЙ ШТУРМ', heroId:'mo3gi', rarity:'rare', price:1365, accent:'#e8c27a', border:'#a8823a', previewHero:'mo3gi', previewColor:'#4a3a1c', previewColor2:'#f0cf8a',
+   desc:'Песочная форма десантника для боёв в пустыне: бронежилет и снаряжение цвета дюн. Не меняет характеристики.', hint:'Виден, когда выбран Мо3ги.'},
+  {id:'mo3giArctic', name:'АРКТИЧЕСКИЙ ДЕСАНТ', heroId:'mo3gi', rarity:'epic', price:2275, accent:'#c7e6ff', border:'#6d96b8', previewHero:'mo3gi', previewColor:'#2a3f52', previewColor2:'#e2f2ff',
+   desc:'Бело-серая зимняя экипировка спецназа. Мо3ги незаметен на снегу. Не меняет характеристики.', hint:'Виден, когда выбран Мо3ги.'},
+  {id:'mo3giNeon', name:'КИБЕР-ИНЖЕНЕР', heroId:'mo3gi', rarity:'legendary', price:3640, accent:'#ff5cf0', border:'#a02a9a', previewHero:'mo3gi', previewColor:'#3a0f3d', previewColor2:'#4df0ff',
+   desc:'Легендарный неоновый образ: пурпурный корпус и голубые светящиеся вставки. Инженер из будущего. Не меняет характеристики.', hint:'Виден, когда выбран Мо3ги.'},
+  /* 0.9.9.4: по одному новому скину за Сенсики для Вирсуди, Шмедика и Гриши (цены уже со скидкой 9%). */
+  {id:'virsudiBloodMoon', name:'КРОВАВАЯ ЛУНА', heroId:'virsudi', rarity:'legendary', price:3640, accent:'#ff4d6d', border:'#a8203a', previewHero:'virsudi', previewColor:'#2a0d18', previewColor2:'#ff5c7a', weaponColor:'#ff4d6d',
+   desc:'Легендарный образ теневого изгоя: чёрно-багровый плащ, алые светящиеся акценты и клинки цвета крови под красной луной. Не меняет характеристики.', hint:'Виден, когда выбран Вирсуди.'},
+  {id:'earthshakerMagma', name:'МАГМОВЫЙ ТИТАН', heroId:'earthshaker', rarity:'epic', price:2275, accent:'#ff8a3d', border:'#b84a14', previewHero:'earthshaker', previewColor:'#3a1608', previewColor2:'#ffb15a', weaponColor:'#ff8a3d',
+   desc:'Шмедик, вышедший прямо из жерла вулкана: раскалённый камень, оранжевые трещины и тёплое свечение лавы. Не меняет характеристики.', hint:'Виден, когда выбран Шмедик.'},
+  {id:'grishaEmerald', name:'ИЗУМРУДНЫЙ ЧАРОДЕЙ', heroId:'grisha', rarity:'rare', price:1365, accent:'#5cf0a0', border:'#1f8a5a', previewHero:'grisha', previewColor:'#0f3a2a', previewColor2:'#8dffc4', weaponColor:'#5cf0a0',
+   desc:'Гриша в мантии цвета изумруда: зелёная ткань, светящиеся самоцветы и посох с природной магией. Не меняет характеристики.', hint:'Виден, когда выбран Гриша.'}
+);
 const SKIN_BY_ID = {};
 for(const sk of SKIN_DEFS) SKIN_BY_ID[sk.id] = sk;
 let skinsOwned = {};
-let skinEquippedId = null;
+/* 0.9.9.3: у каждого героя свой надетый скин, плюс один универсальный. Слот = heroId или '*'. */
+let skinEquip = {};
 let storeSelectedSkin = 0;
+function skinSlot(sk){ return sk.heroId || '*'; }
+function isPaidSkin(sk){ return !!(sk && sk.price > 0); }
 try {
   const savedCosmetics = JSON.parse(localStorage.getItem('shadowRampageCosmetics') || '{}');
   if(savedCosmetics.redReginaOwned === true) skinsOwned.reginaRed = true;
   if(savedCosmetics.skinsOwned && typeof savedCosmetics.skinsOwned === 'object'){
-    for(const sk of SKIN_DEFS) if(savedCosmetics.skinsOwned[sk.id] === true) skinsOwned[sk.id] = true;
+    /* платные скины из localStorage не читаем: они приходят только из аккаунта */
+    for(const sk of SKIN_DEFS) if(!isPaidSkin(sk) && savedCosmetics.skinsOwned[sk.id] === true) skinsOwned[sk.id] = true;
   }
-  if(savedCosmetics.redReginaEquipped === true && skinsOwned.reginaRed) skinEquippedId = 'reginaRed';
-  if(typeof savedCosmetics.skinEquipped === 'string' && skinsOwned[savedCosmetics.skinEquipped] && SKIN_BY_ID[savedCosmetics.skinEquipped] && !SKIN_BY_ID[savedCosmetics.skinEquipped].kind) skinEquippedId = savedCosmetics.skinEquipped;
+  if(savedCosmetics.skinEquip && typeof savedCosmetics.skinEquip === 'object'){
+    for(const slot of Object.keys(savedCosmetics.skinEquip)){ const sk = SKIN_BY_ID[savedCosmetics.skinEquip[slot]]; if(sk && !sk.kind && skinSlot(sk) === slot) skinEquip[slot] = sk.id; }
+  }
+  /* миграция со старого формата (один надетый скин на всех) */
+  const legacyId = savedCosmetics.redReginaEquipped === true ? 'reginaRed' : (typeof savedCosmetics.skinEquipped === 'string' ? savedCosmetics.skinEquipped : null);
+  const legacy = legacyId && SKIN_BY_ID[legacyId];
+  if(legacy && !legacy.kind && skinsOwned[legacy.id] && !skinEquip[skinSlot(legacy)]) skinEquip[skinSlot(legacy)] = legacy.id;
 } catch(err) {}
 /* Скин, который реально применяется к данному герою (или null). */
 function baseSkin(id){ return id ? String(id).split('+')[0] || null : null; }
 let accEquipped = {};
 try { const sc = JSON.parse(localStorage.getItem('shadowRampageCosmetics') || '{}'); if(sc.accEquipped && sc.accEquipped.chipParrot === true) accEquipped.chipParrot = true; } catch(err) {}
+/* Платные скины считаются купленными, только если они есть в профиле аккаунта (сервер). */
+function syncPaidSkins(){
+  const list = (typeof account !== 'undefined' && account.token && account.profile && Array.isArray(account.profile.skins)) ? account.profile.skins : [];
+  for(const sk of SKIN_DEFS) if(isPaidSkin(sk)) skinsOwned[sk.id] = list.indexOf(sk.id) >= 0;
+}
 function activeSkinFor(heroId){
-  const sk = skinEquippedId && SKIN_BY_ID[skinEquippedId];
-  let base = null;
-  if(sk && skinsOwned[sk.id] && !sk.kind && (!sk.heroId || sk.heroId === heroId)) base = sk.id;
+  syncPaidSkins();
+  const pick = id => { const sk = id && SKIN_BY_ID[id]; return sk && skinsOwned[sk.id] && !sk.kind && (!sk.heroId || sk.heroId === heroId) ? sk.id : null; };
+  const base = pick(skinEquip[heroId]) || pick(skinEquip['*']);
   /* иммортал-аксессуар: skinId = «скин+parrot» (рендер читает суффикс) */
   if(heroId === 'chip' && skinsOwned.chipParrot && accEquipped.chipParrot) return (base || '') + '+parrot';
   return base;
 }
-function isCosmeticEquipped(sk){ return sk.kind==='acc' ? !!accEquipped[sk.id] : skinEquippedId===sk.id; }
+function isCosmeticEquipped(sk){ return sk.kind==='acc' ? !!accEquipped[sk.id] : skinEquip[skinSlot(sk)]===sk.id; }
 let storePhraseOwned = false;
 let storeChipOwned = false;
 let storeAudioOwned = false;
@@ -2357,17 +2399,20 @@ function unlockStorePhrase(id){
 function saveSkinState(){
   try {
     localStorage.setItem('shadowRampageCosmetics',JSON.stringify({
-      skinsOwned:skinsOwned, skinEquipped:skinEquippedId,
-      redReginaOwned:!!skinsOwned.reginaRed, redReginaEquipped:skinEquippedId==='reginaRed',
+      skinsOwned:Object.fromEntries(Object.keys(skinsOwned).filter(id=>skinsOwned[id] && !isPaidSkin(SKIN_BY_ID[id])).map(id=>[id,true])),
+      skinEquip:skinEquip,
+      redReginaOwned:!!skinsOwned.reginaRed,
       accEquipped:accEquipped
     }));
   } catch(err) {}
 }
 
 function setSkinEquipped(skinId, equipped){
+  syncPaidSkins();
   if(!skinsOwned[skinId]) return;
-  if(SKIN_BY_ID[skinId] && SKIN_BY_ID[skinId].kind === 'acc'){ accEquipped[skinId] = !!equipped; }
-  else skinEquippedId = equipped ? skinId : (skinEquippedId === skinId ? null : skinEquippedId);
+  const sk = SKIN_BY_ID[skinId];
+  if(sk && sk.kind === 'acc'){ accEquipped[skinId] = !!equipped; }
+  else if(sk){ const slot = skinSlot(sk); if(equipped) skinEquip[slot] = skinId; else if(skinEquip[slot] === skinId) delete skinEquip[slot]; }
   if(playerHero) playerHero.skinId = activeSkinFor(playerHero.def.id);
   saveSkinState();
 }
@@ -12086,6 +12131,7 @@ canvas.addEventListener('mousemove', e => {
 canvas.addEventListener('wheel', e => {
   if(heroViewWheel(e)){ e.preventDefault(); return; }
   if(gameState === 'menu' && menuStage === 'draft'){ draftScroll += e.deltaY; e.preventDefault(); return; }
+  if(gameState === 'menu' && storeOpen){ storeWheel(e); e.preventDefault(); return; }
   if(gameState === 'menu' && changelogOpen){
     { const cr=canvas.getBoundingClientRect(), wx=e.clientX-cr.left, wy=e.clientY-cr.top, pn=clPanel();
       if(wx>=pn.x && wx<=pn.x+pn.w && wy>=pn.y && wy<=pn.y+pn.h){
@@ -12794,6 +12840,7 @@ function drawTerrain(){
 function getWeaponConfig(unit){
   if(unit.def && unit.def.id==='regina' && unit.skinId==='reginaRed')
     return {...unit.def.weapon,color:'#ff344f'};
+  if(unit.def && unit.def.weapon && unit.skinId){ const wsk = SKIN_BY_ID[baseSkin(unit.skinId)]; if(wsk && wsk.weaponColor) return {...unit.def.weapon,color:wsk.weaponColor}; }
   if(unit.def && unit.def.weapon) return unit.def.weapon;
   if(unit.type === 'creep'){
     if(unit.creepKind==='siege') return {type:'forestBow', color:'#ffb066', size:0.8};
@@ -14026,7 +14073,7 @@ function drawUnit(u){
     ctx.restore();
   }
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
-    const bsk = baseSkin(u.skinId); const heroAccent = bsk === 'reginaRed' ? '#ff344f' : (bsk === 'goldChampion' ? '#ffd34f' : (bsk === 'voidPhantom' ? '#b07cff' : (heroLikeDef(u).color2 || col)));
+    const bsk = baseSkin(u.skinId); const heroAccent = bsk === 'reginaRed' ? '#ff344f' : (bsk === 'goldChampion' ? '#ffd34f' : (bsk === 'voidPhantom' ? '#b07cff' : ((SKIN_BY_ID[bsk] && isPaidSkin(SKIN_BY_ID[bsk]) && SKIN_BY_ID[bsk].accent) || heroLikeDef(u).color2 || col)));
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = heroAccent;
@@ -19329,7 +19376,8 @@ function menuGfxSegments(layout){
   const g=layout.gfx, gap=6, top=g.y+22, h=g.h-26, w=(g.w-gap*3)/4;
   return PERF_NAMES.map((name,index)=>({index,name,x:g.x+index*(w+gap),y:top,w,h}));
 }
-function menuStoreRect(){ if(menuWide()) return DS_OFFSCREEN; return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:310,h:48}; }
+function menuStoreRect(){ if(menuWide()) return DS_OFFSCREEN; return {x:VW/2-155,y:VW<820||VH<820?VH/2+88:VH/2+292,w:150,h:48}; }
+function menuInventoryRect(){ if(menuWide()) return DS_OFFSCREEN; return {x:VW/2+5,y:VW<820||VH<820?VH/2+88:VH/2+292,w:150,h:48}; }
 /* 0.9.0: карточки скинов (магазин и инвентарь) */
 function skinPreviewDef(sk){
   const base=HERO_DEFS.find(h=>h.id===(sk.previewHero||'shadow'))||HERO_DEFS[0], sid=sk.previewSkin||sk.id;
@@ -19337,159 +19385,7 @@ function skinPreviewDef(sk){
   return sk.previewColor ? {...base,color:sk.previewColor,color2:sk.previewColor2||base.color2,skinId:sid} : {...base,skinId:sid,closeUp:cu};
 }
 function storeRR(x,y,w,h,r){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); }
-function storeShopList(){ return SKIN_DEFS.filter(sk=>storeCategory==='immortal' ? sk.kind==='acc' : !sk.kind); }
-function storeVisibleList(){ return storeTab==='shop' ? storeShopList() : SKIN_DEFS.filter(sk=>skinsOwned[sk.id]); }
-function storePill(x,y,w,text,col,fill){
-  ctx.fillStyle=fill; storeRR(x,y,w,20,10); ctx.fill(); ctx.strokeStyle=col; ctx.lineWidth=1.2; ctx.stroke();
-  ctx.fillStyle=col; ctx.font='bold 11px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText(text,x+w/2,y+14); ctx.textAlign='left';
-}
-function drawSkinCards(layout,list,mode){
-  const now=performance.now()/1000;
-  list.forEach((sk,index)=>{
-    const card=layout.skinCards[index]; if(!card) return;
-    const selected=SKIN_DEFS[storeSelectedSkin]===sk, owned=!!skinsOwned[sk.id], equipped=isCosmeticEquipped(sk), imm=!!sk.immortal;
-    ctx.save();
-    if(selected||imm){ ctx.shadowColor=sk.accent; ctx.shadowBlur=selected?24:12; }
-    const g=ctx.createLinearGradient(card.x,card.y,card.x+card.w,card.y+card.h);
-    g.addColorStop(0,imm?'rgba(78,42,12,0.97)':'rgba(38,28,60,0.97)'); g.addColorStop(1,'rgba(12,10,24,0.97)');
-    ctx.fillStyle=g; storeRR(card.x,card.y,card.w,card.h,12); ctx.fill(); ctx.shadowBlur=0;
-    ctx.strokeStyle=equipped?'#72e6a5':(selected?sk.accent:sk.border); ctx.lineWidth=selected?2.6:1.4; ctx.stroke();
-    const texW=sk.kind==='acc'?Math.min(210,card.w*0.34):Math.min(112,card.w*0.28), px=card.x+8, py=card.y+5, ph=card.h-10;
-    const hg=ctx.createRadialGradient(px+texW/2,py+ph*0.55,4,px+texW/2,py+ph*0.55,Math.max(texW,ph)*0.75);
-    hg.addColorStop(0,sk.accent+'66'); hg.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=hg; storeRR(px,py,texW,ph,9); ctx.fill();
-    ctx.save(); storeRR(px,py,texW,ph,9); ctx.clip();
-    drawHeroTexture(skinPreviewDef(sk),px,py,texW,ph,now);
-    ctx.restore();
-    if(imm){
-      ctx.save(); storeRR(card.x,card.y,card.w,card.h,12); ctx.clip();
-      const sx=card.x+(((now*0.3)%1.7)-0.35)*card.w, sg=ctx.createLinearGradient(sx-50,0,sx+50,0);
-      sg.addColorStop(0,'rgba(255,220,120,0)'); sg.addColorStop(.5,'rgba(255,220,120,0.14)'); sg.addColorStop(1,'rgba(255,220,120,0)');
-      ctx.fillStyle=sg; ctx.fillRect(card.x,card.y,card.w,card.h); ctx.restore();
-    }
-    const dx=card.x+texW+22, dw=card.x+card.w-dx-12;
-    ctx.textAlign='left'; ctx.font='bold 10px Segoe UI, Arial'; ctx.fillStyle=imm?'#ffb347':'#b79cff';
-    ctx.fillText(imm?'★ ИММОРТАЛ • ПРЕДМЕТ ДЛЯ ЧИПА':(sk.heroId?'СКИН ДЛЯ ГЕРОЯ':'СКИН ДЛЯ ВСЕХ БОЙЦОВ'),dx,card.y+17);
-    ctx.fillStyle=sk.accent; ctx.font='bold '+Math.min(17,Math.max(12,dw/13))+'px Georgia, serif';
-    ctx.fillText(sk.name,dx,card.y+38);
-    ctx.fillStyle='rgba(255,240,235,0.74)'; ctx.font='12px Segoe UI, Arial';
-    const maxL=card.h>=125?3:(card.h>=96?2:1);
-    wrapMenuText(mode==='inventory'?sk.hint:sk.desc,dw,'12px Segoe UI, Arial').slice(0,maxL).forEach((line,li)=>ctx.fillText(line,dx,card.y+55+li*15));
-    const by=card.y+card.h-27;
-    if(mode==='inventory') equipped ? storePill(dx,by,150,imm?'● НАДЕТО':'● ПРИМЕНЁН','#72e6a5','rgba(40,120,80,0.35)') : storePill(dx,by,150,'ГОТОВ К ПРИМЕНЕНИЮ','rgba(255,255,255,0.7)','rgba(255,255,255,0.07)');
-    else owned ? storePill(dx,by,130,'✓ ПОЛУЧЕНО','#72e6a5','rgba(40,120,80,0.35)') : storePill(dx,by,130,'БЕСПЛАТНО','#ffd568','rgba(160,110,20,0.35)');
-    ctx.restore();
-  });
-}
-function storePanelLayout(count){
-  const width=Math.max(0,Math.min(680,VW-24)), height=Math.max(0,Math.min(600,VH-24));
-  const panel={x:(VW-width)/2,y:(VH-height)/2,w:width,h:height};
-  const tabGap=10, tabWidth=(width-48-tabGap)/2;
-  const tabs={
-    shop:{x:panel.x+24,y:panel.y+82,w:tabWidth,h:38},
-    inventory:{x:panel.x+24+tabWidth+tabGap,y:panel.y+82,w:tabWidth,h:38}
-  };
-  const categoryGap=8, categoryWidth=(width-48-categoryGap*2)/3;
-  const cy=panel.y+130;
-  const categories={
-    skins:{x:panel.x+24,y:cy,w:categoryWidth,h:30},
-    immortal:{x:panel.x+24+categoryWidth+categoryGap,y:cy,w:categoryWidth,h:30},
-    phrases:{x:panel.x+24+(categoryWidth+categoryGap)*2,y:cy,w:categoryWidth,h:30}
-  };
-  const phraseGap=8, phraseWidth=(width-48-phraseGap*2)/3, top=panel.y+172;
-  const phraseHeight=Math.min(76,Math.max(40,(height-250)/3));
-  const phraseCards=STORE_PHRASE_CARDS.map((card,index)=>({
-    x:panel.x+24+(index%3)*(phraseWidth+phraseGap),
-    y:top+Math.floor(index/3)*(phraseHeight+phraseGap),w:phraseWidth,h:phraseHeight
-  }));
-  const n=Math.max(1,count||1), gap=8, avail=Math.max(60,height-172-112);
-  const h=Math.min(n<=2?150:128,Math.max(46,Math.floor((avail-gap*(n-1))/n)));
-  return {
-    panel,tabs,categories,phraseCards,
-    skinCards:Array.from({length:n},(_,i)=>({x:panel.x+24,y:top+i*(h+gap),w:width-48,h})),
-    action:{x:panel.x+24,y:panel.y+height-104,w:width-48,h:42},
-    close:{x:panel.x+24,y:panel.y+height-54,w:width-48,h:40}
-  };
-}
-function drawStorePanel(){
-  const list=storeVisibleList(), layout=storePanelLayout(list.length), panel=layout.panel, now=performance.now()/1000;
-  ctx.fillStyle='rgba(2,4,12,0.74)'; ctx.fillRect(0,0,VW,VH);
-  const vg=ctx.createRadialGradient(VW/2,VH/2,40,VW/2,VH/2,Math.max(VW,VH)*0.7);
-  vg.addColorStop(0,'rgba(90,55,130,0.20)'); vg.addColorStop(1,'rgba(0,0,0,0.35)'); ctx.fillStyle=vg; ctx.fillRect(0,0,VW,VH);
-  ctx.save();
-  ctx.shadowColor='rgba(255,170,60,0.38)'; ctx.shadowBlur=36;
-  const pg=ctx.createLinearGradient(0,panel.y,0,panel.y+panel.h);
-  pg.addColorStop(0,'#201a40'); pg.addColorStop(.45,'#101329'); pg.addColorStop(1,'#080a18');
-  ctx.fillStyle=pg; storeRR(panel.x,panel.y,panel.w,panel.h,16); ctx.fill(); ctx.shadowBlur=0;
-  const top=ctx.createRadialGradient(VW/2,panel.y,10,VW/2,panel.y,panel.w*0.6);
-  top.addColorStop(0,'rgba(255,200,100,0.22)'); top.addColorStop(1,'rgba(255,200,100,0)');
-  ctx.fillStyle=top; storeRR(panel.x,panel.y,panel.w,panel.h,16); ctx.fill();
-  for(let i=0;i<18;i++){
-    const sx=panel.x+((i*0.618+0.07)%1)*panel.w, sy=panel.y+((i*0.381+0.11)%1)*panel.h, tw=Math.pow(0.5+0.5*Math.sin(now*1.5+i*1.9),3);
-    ctx.globalAlpha=0.55*tw; ctx.fillStyle='#ffe9a6'; const r=1+tw*2;
-    ctx.fillRect(sx-r,sy-0.5,r*2,1); ctx.fillRect(sx-0.5,sy-r,1,r*2);
-  }
-  ctx.globalAlpha=1;
-  const fg=ctx.createLinearGradient(panel.x,panel.y,panel.x+panel.w,panel.y+panel.h);
-  fg.addColorStop(0,'#ffe9a6'); fg.addColorStop(.5,'#c9872b'); fg.addColorStop(1,'#ffd568');
-  ctx.strokeStyle=fg; ctx.lineWidth=2.6; storeRR(panel.x,panel.y,panel.w,panel.h,16); ctx.stroke();
-  ctx.strokeStyle='rgba(255,213,104,0.26)'; ctx.lineWidth=1; storeRR(panel.x+7,panel.y+7,panel.w-14,panel.h-14,11); ctx.stroke();
-  ctx.fillStyle='#ffd568';
-  for(const [cx,cy] of [[panel.x+7,panel.y+7],[panel.x+panel.w-7,panel.y+7],[panel.x+7,panel.y+panel.h-7],[panel.x+panel.w-7,panel.y+panel.h-7]]){
-    ctx.beginPath(); ctx.moveTo(cx,cy-6); ctx.lineTo(cx+6,cy); ctx.lineTo(cx,cy+6); ctx.lineTo(cx-6,cy); ctx.closePath(); ctx.fill();
-  }
-  ctx.textAlign='center';
-  const tg=ctx.createLinearGradient(0,panel.y+14,0,panel.y+46);
-  tg.addColorStop(0,'#fff6cf'); tg.addColorStop(.55,'#ffcf5a'); tg.addColorStop(1,'#d9902a');
-  ctx.shadowColor='rgba(255,170,50,0.6)'; ctx.shadowBlur=14; ctx.fillStyle=tg; ctx.font='bold 30px Georgia, serif';
-  ctx.fillText('МАГАЗИН',VW/2,panel.y+44); ctx.shadowBlur=0;
-  const lw=Math.min(120,panel.w*0.18);
-  for(const s of [-1,1]){ const lg=ctx.createLinearGradient(VW/2+s*96,0,VW/2+s*(96+lw),0); lg.addColorStop(0,'rgba(255,213,104,0.85)'); lg.addColorStop(1,'rgba(255,213,104,0)');
-    ctx.fillStyle=lg; ctx.fillRect(Math.min(VW/2+s*96,VW/2+s*(96+lw)),panel.y+36,lw,1.5); }
-  ctx.fillStyle='rgba(255,236,200,0.62)'; ctx.font='12px Segoe UI, Arial'; ctx.fillText('Скины и иммортальные предметы коллекции',VW/2,panel.y+64);
-  drawMenuButton(layout.tabs.shop,'МАГАЗИН',{active:storeTab==='shop'});
-  drawMenuButton(layout.tabs.inventory,'ИНВЕНТАРЬ',{active:storeTab==='inventory'});
-  if(storeTab==='shop'){
-    drawMenuButton(layout.categories.skins,'СКИНЫ',{active:storeCategory==='skins'});
-    drawMenuButton(layout.categories.immortal,'★ ИММОРТАЛКИ',{active:storeCategory==='immortal'});
-    drawMenuButton(layout.categories.phrases,'ФРАЗЫ',{active:storeCategory==='phrases'});
-  }
-  if(storeTab==='shop' && storeCategory==='phrases'){
-    STORE_PHRASE_CARDS.forEach((card,index)=>{
-      const rect=layout.phraseCards[index], owned=isStorePhraseOwned(card.id);
-      const g=ctx.createLinearGradient(rect.x,rect.y,rect.x,rect.y+rect.h); g.addColorStop(0,'rgba(34,40,66,0.96)'); g.addColorStop(1,'rgba(16,18,34,0.96)');
-      ctx.fillStyle=g; storeRR(rect.x,rect.y,rect.w,rect.h,10); ctx.fill();
-      ctx.strokeStyle=owned?'#72e6a5':card.color; ctx.lineWidth=1.6; ctx.stroke();
-      ctx.textAlign='left'; ctx.fillStyle=card.color; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(card.title,rect.x+9,rect.y+20);
-      ctx.fillStyle='rgba(255,255,255,0.88)'; ctx.font='11px Segoe UI, Arial';
-      wrapMenuText(card.desc,rect.w-18,'11px Segoe UI, Arial').slice(0,2).forEach((line,li)=>ctx.fillText(line,rect.x+9,rect.y+38+li*13));
-      ctx.fillStyle=owned?'#72e6a5':'#ffd568'; ctx.font='bold 10px Segoe UI, Arial'; ctx.fillText(owned?'✓ ПОЛУЧЕНО':'БЕСПЛАТНО',rect.x+9,rect.y+rect.h-8);
-    });
-  } else if(list.length){
-    if(!list.includes(SKIN_DEFS[storeSelectedSkin])) storeSelectedSkin=SKIN_DEFS.indexOf(list[0]);
-    drawSkinCards(layout,list,storeTab==='shop'?'shop':'inventory');
-    if(storeTab==='shop' && list.length<=2 && list.every(sk=>sk.kind==='acc')){
-      const last=layout.skinCards[list.length-1], ty=last.y+last.h+34;
-      ctx.textAlign='center'; ctx.fillStyle='rgba(255,213,104,0.72)'; ctx.font='bold 13px Segoe UI, Arial';
-      ctx.fillText('★ ИММОРТАЛЬНЫЕ ПРЕДМЕТЫ ★',VW/2,ty);
-      ctx.fillStyle='rgba(255,236,200,0.55)'; ctx.font='12px Segoe UI, Arial';
-      ctx.fillText('Забери предмет здесь, а надеть или снять его можно во вкладке «ИНВЕНТАРЬ».',VW/2,ty+22);
-      ctx.fillText('Предмет можно носить вместе с любым скином, он не влияет на бой.',VW/2,ty+40);
-    }
-    const sel=SKIN_DEFS[storeSelectedSkin];
-    if(storeTab==='shop') drawMenuButton(layout.action,skinsOwned[sel.id]?'ПОЛУЧЕНО • В ИНВЕНТАРЕ':'ЗАБРАТЬ БЕСПЛАТНО',{primary:!skinsOwned[sel.id]});
-    else { const eq=isCosmeticEquipped(sel), acc=sel.kind==='acc';
-      drawMenuButton(layout.action,eq?(acc?'СНЯТЬ ПРЕДМЕТ':'СНЯТЬ СКИН'):(acc?'НАДЕТЬ ПРЕДМЕТ':'ПРИМЕНИТЬ СКИН'),{primary:!eq}); }
-  } else {
-    ctx.textAlign='center'; ctx.fillStyle='#dce5ef'; ctx.font='bold 17px Segoe UI, Arial';
-    ctx.fillText('ИНВЕНТАРЬ ПОКА ПУСТ',VW/2,panel.y+panel.h*0.58);
-    ctx.fillStyle='rgba(255,255,255,0.58)'; ctx.font='13px Segoe UI, Arial';
-    ctx.fillText('Заберите скин или иммортальный предмет в магазине.',VW/2,panel.y+panel.h*0.58+25);
-    drawMenuButton(layout.action,'ОТКРЫТЬ МАГАЗИН',{primary:true});
-  }
-  drawMenuButton(layout.close,'ЗАКРЫТЬ',{active:true});
-  ctx.restore();
-}
+/* [перенесено → js/ui/store-ui.js] магазин, инвентарь и их отрисовка (0.9.9.3) */
 
 /* UPDATE_SPOTLIGHT вынесен в js/data/ui-content.js (подключается в index.html перед game.js) */
 
@@ -19650,41 +19546,16 @@ function handleMenuClick(mx, my){
     }
     return;
   }
-  const storeButton=menuStoreRect();
+  const storeButton=menuStoreRect(), invButton=menuInventoryRect();
   if(menuStage==='home' && mx>=storeButton.x && mx<=storeButton.x+storeButton.w && my>=storeButton.y && my<=storeButton.y+storeButton.h){
-    storeOpen=!storeOpen; playSynthSfx(storeOpen ? 'open' : 'close'); changelogOpen=false; settingsOpen=false; return;
+    if(storeOpen && storeScreen==='shop'){ storeClose(); } else { storeOpenScreen('shop'); }
+    changelogOpen=false; settingsOpen=false; return;
   }
-  if(storeOpen){
-    const list=storeVisibleList(), layout=storePanelLayout(list.length);
-    const inside=(rect)=>mx>=rect.x&&mx<=rect.x+rect.w&&my>=rect.y&&my<=rect.y+rect.h;
-    if(inside(layout.close)){storeOpen=false; playSynthSfx('close'); return;}
-    if(inside(layout.tabs.shop)){storeTab='shop';return;}
-    if(inside(layout.tabs.inventory)){storeTab='inventory';return;}
-    if(storeTab==='shop'){
-      if(inside(layout.categories.skins)){storeCategory='skins';return;}
-      if(inside(layout.categories.immortal)){storeCategory='immortal';return;}
-      if(inside(layout.categories.phrases)){storeCategory='phrases';return;}
-      if(storeCategory==='phrases'){
-        for(let index=0;index<STORE_PHRASE_CARDS.length;index++){
-          if(inside(layout.phraseCards[index])){unlockStorePhrase(STORE_PHRASE_CARDS[index].id);return;}
-        }
-        return;
-      }
-    }
-    for(let index=0;index<list.length;index++){
-      if(inside(layout.skinCards[index])){storeSelectedSkin=SKIN_DEFS.indexOf(list[index]);return;}
-    }
-    if(inside(layout.action)){
-      if(storeTab==='shop'){
-        const sk=SKIN_DEFS[storeSelectedSkin];
-        if(sk && list.includes(sk) && !skinsOwned[sk.id]){ skinsOwned[sk.id]=true; saveSkinState(); playSynthSfx('click'); }
-      } else if(list.length){
-        const sk=list.includes(SKIN_DEFS[storeSelectedSkin])?SKIN_DEFS[storeSelectedSkin]:list[0];
-        setSkinEquipped(sk.id, !isCosmeticEquipped(sk));
-      } else { storeTab='shop'; storeCategory='skins'; }
-    }
-    return;
+  if(menuStage==='home' && mx>=invButton.x && mx<=invButton.x+invButton.w && my>=invButton.y && my<=invButton.y+invButton.h){
+    if(storeOpen && storeScreen==='inventory'){ storeClose(); } else { storeOpenScreen('inventory'); }
+    changelogOpen=false; settingsOpen=false; return;
   }
+  if(storeOpen){ storeHandleClick(mx,my); return; }
   const changelogButton = menuChangelogRect();
   if(menuStage==='home' && mx>=changelogButton.x && mx<=changelogButton.x+changelogButton.w && my>=changelogButton.y && my<=changelogButton.y+changelogButton.h){
     changelogOpen = !changelogOpen; playSynthSfx(changelogOpen ? 'open' : 'close');
@@ -19699,7 +19570,8 @@ function handleMenuClick(mx, my){
     if(menuProfileRect && mx>=menuProfileRect.x && mx<=menuProfileRect.x+menuProfileRect.w && my>=menuProfileRect.y && my<=menuProfileRect.y+menuProfileRect.h){ openAccountModal(); return; }
     for(const hit of menuHomeHits){
       if(mx>=hit.x && mx<=hit.x+hit.w && my>=hit.y && my<=hit.y+hit.h){
-        if(hit.action==='store'){ storeOpen=true; changelogOpen=false; settingsOpen=false; }
+        if(hit.action==='store'){ storeOpenScreen('shop'); changelogOpen=false; settingsOpen=false; }
+        else if(hit.action==='inventory'){ storeOpenScreen('inventory'); changelogOpen=false; settingsOpen=false; }
         else if(hit.action==='online'){ onlineEntryElement.click(); }
         else if(hit.action==='account'){ openAccountModal(); }
         else if(hit.action==='leaderboard') window.openLeaderboard();
@@ -21727,13 +21599,13 @@ function drawDotaSenseHome(){
   ctx.restore();
 
   /* навигация */
-  const navFont='bold '+Math.round(14*s)+'px Trebuchet MS, Segoe UI, Arial', navSp=2.2*s;
+  const navFont='bold '+Math.round(13*s)+'px Trebuchet MS, Segoe UI, Arial', navSp=1.6*s;
   const navItems=[
-    {t:'БОЙЦЫ',a:'fighters'},{t:'МАГАЗИН',a:'store'},{t:'ОБНОВЛЕНИЯ',a:'changelog'},
+    {t:'БОЙЦЫ',a:'fighters'},{t:'МАГАЗИН',a:'store'},{t:'ИНВЕНТАРЬ',a:'inventory'},{t:'ОБНОВЛЕНИЯ',a:'changelog'},
     {t:'МИРОВОЙ ТОП',a:'leaderboard'},{t:'ПРОФИЛЬ',a:'account'}
   ];
   let nx=tabX+tabW+Math.round(46*s);
-  const navGap=Math.round(30*s), navCy=Math.round(barH/2);
+  const navGap=Math.round(17*s), navCy=Math.round(barH/2);
   navItems.forEach((it,i)=>{
     const w=dsTxtW(it.t,navFont,navSp);
     const r={x:nx-8*s,y:0,w:w+16*s,h:barH};
@@ -21824,6 +21696,10 @@ function drawDotaSenseHome(){
 
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
+    {tag:'0.9.9.4',title:'Скины подешевели на 9% + новые для Вирсуди, Шмедика и Гриши',art:'hero',hero:'Вирсуди',action:'store',kind:'магазин'},
+    {tag:'0.9.9.4',title:'Дотасенс +: вкладка «Прогноз»',art:'hero',hero:'Йосып',action:'store',kind:'помощник'},
+    {tag:'0.9.9.3',title:'Новый магазин: 9 скинов за Сенсики',art:'hero',hero:'Снайпер',action:'store',kind:'магазин'},
+    {tag:'0.9.9.3',title:'Вкладка «Инвентарь» в меню',art:'hero',hero:'Мо3ги',action:'inventory',kind:'инвентарь'},
     {tag:'0.9.9.0.2',title:'Crimson Rush: новый навык Ригины',art:'hero',hero:'Ригина',action:'changelog',kind:'обновление'},
     {tag:'0.9.9.0.2',title:'Псих +7% и умные боты',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
     {tag:'0.9.9.0.1',title:'Бошка Ильи: новый навык Психа',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
@@ -22130,6 +22006,7 @@ function drawMenu(){
   const showOnlineEntry=menuStage==='home'&&!menuWide()&&!settingsOpen&&!storeOpen&&!changelogOpen;
   const dsHomeClass=gameState==='menu'&&menuStage==='home'&&menuWide();
   if(document.body.classList.contains('ds-home')!==dsHomeClass) document.body.classList.toggle('ds-home',dsHomeClass);
+  if(document.body.classList.contains('store-open')!==storeOpen) document.body.classList.toggle('store-open',storeOpen);   /* 0.9.9.3: прячем HTML-плашки над магазином */
   const hideOnlineEntry=!showOnlineEntry;
   if(onlineEntry.hidden!==hideOnlineEntry){
     onlineEntry.hidden=hideOnlineEntry;
@@ -22265,7 +22142,8 @@ function drawMenu(){
     const changelog = menuChangelogRect();
     drawMenuButton(changelog,'▣  CHANGELOG',{redBlack:true,radius:8});
     const storeButton=menuStoreRect();
-    drawMenuButton(storeButton,'▣  МАГАЗИН',{redBlack:true,radius:8});
+    drawMenuButton(storeButton,'▣  МАГАЗИН',{redBlack:true,radius:8,fontSize:12});
+    drawMenuButton(menuInventoryRect(),'◈  ИНВЕНТАРЬ',{redBlack:true,radius:8,fontSize:12});
     ctx.font = '14px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
     if(VW>=820 && VH>=820) ctx.fillText('Нажми «БОЙЦЫ», чтобы открыть профиль и способности героя', VW/2, changelog.y+72);
     return;

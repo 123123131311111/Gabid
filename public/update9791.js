@@ -141,7 +141,7 @@ function itemAdvice(heroId, enemyIds, live){
 }
 
 /* ===== Отрисовка ===== */
-let tab = 'counter';          // counter | battle | heroes
+let tab = 'counter';          // counter | battle | timers | power | forecast | heroes
 let manualEnemies = [];       // для режима вне драфта
 let pickedHero = DS_IDS[0];   // выбранный герой во вкладке «Герои»
 let lastSig = '';
@@ -313,6 +313,85 @@ function renderPower(){
   return html + '<p class="dsp-foot">Первое число — ваша команда, второе — враги. Оценка приблизительная: она не знает позиций на карте.</p>';
 }
 
+/* ===== 0.9.9.4: «ПРОГНОЗ» — шанс победы, график преимущества по золоту и тактический совет ===== */
+const FC = {lastGT: 0, next: 0, pts: []};   // pts: {t, lead, share}
+function fcBuildings(team){ return units.filter(u => !u.dead && u.team === team && (u.type === 'tower' || u.type === 'barracks')).length; }
+function fcShare(a, b, bm, bf){
+  /* Шанс победы: сила команд (золото, уровни, убийства, живые) плюс перевес по зданиям. */
+  const s = powerShare(a, b) + (bm - bf) * 0.012;
+  return Math.max(0.03, Math.min(0.97, s));
+}
+function fcSample(){
+  if(!inMatch()) return;
+  const t = typeof gameTime === 'number' ? gameTime : 0;
+  if(t < FC.lastGT - 1){ FC.pts = []; FC.next = 0; }   /* начался новый матч */
+  FC.lastGT = t;
+  if(t < FC.next) return;
+  FC.next = t + 15;
+  const my = playerHero.team;
+  const a = teamStat(heroes.filter(h => h.team === my)), b = teamStat(heroes.filter(h => h.team !== my));
+  FC.pts.push({t, lead: a.worth - b.worth, share: fcShare(a, b, fcBuildings(my), fcBuildings(1 - my))});
+  if(FC.pts.length > 160) FC.pts.shift();
+}
+setInterval(() => { try { fcSample(); } catch(e) {} }, 1000);
+function fcSpark(pts){
+  const W = 300, H = 96, pad = 6;
+  const maxAbs = Math.max(500, ...pts.map(p => Math.abs(p.lead)));
+  const x = i => pad + (pts.length < 2 ? 0 : i / (pts.length - 1)) * (W - pad * 2);
+  const y = v => H / 2 - v / maxAbs * (H / 2 - pad);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.lead).toFixed(1)).join(' ');
+  const area = line + ' L' + x(pts.length - 1).toFixed(1) + ' ' + (H / 2) + ' L' + x(0).toFixed(1) + ' ' + (H / 2) + ' Z';
+  const last = pts[pts.length - 1];
+  return '<svg class="dsp-spark-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="График преимущества по золоту">' +
+    '<line x1="' + pad + '" y1="' + (H / 2) + '" x2="' + (W - pad) + '" y2="' + (H / 2) + '" class="zero"/>' +
+    '<path d="' + area + '" class="fill ' + (last.lead >= 0 ? 'up' : 'down') + '"/>' +
+    '<path d="' + line + '" class="ln ' + (last.lead >= 0 ? 'up' : 'down') + '"/>' +
+    '<circle cx="' + x(pts.length - 1).toFixed(1) + '" cy="' + y(last.lead).toFixed(1) + '" r="3.4" class="dot ' + (last.lead >= 0 ? 'up' : 'down') + '"/></svg>';
+}
+function renderForecast(){
+  if(!inMatch()) return '<p class="dsp-note">Прогноз работает в матче: шанс победы, график преимущества по золоту и совет по тактике. Начни игру и открой помощника (F2).</p>';
+  const my = playerHero.team;
+  const mine = heroes.filter(h => h.team === my), foes = heroes.filter(h => h.team !== my);
+  const a = teamStat(mine), b = teamStat(foes);
+  const bm = fcBuildings(my), bf = fcBuildings(1 - my);
+  const share = fcShare(a, b, bm, bf), pct = Math.round(share * 100);
+  const cls = pct >= 58 ? 'good' : pct <= 42 ? 'bad' : 'mid';
+  /* тренд: сравниваем с точкой примерно минутной давности */
+  let trend = '', trendCls = 'mid';
+  if(FC.pts.length >= 2){
+    const t0 = FC.pts[FC.pts.length - 1].t - 60;
+    let ref = FC.pts[0];
+    for(const p of FC.pts){ if(p.t <= t0) ref = p; }
+    const d = Math.round((share - ref.share) * 100);
+    if(d >= 2){ trend = '▲ +' + d + '% за минуту'; trendCls = 'good'; }
+    else if(d <= -2){ trend = '▼ ' + d + '% за минуту'; trendCls = 'bad'; }
+    else trend = '● без изменений за минуту';
+  }
+  /* главный плюс и главный минус: относительный перевес по каждому показателю */
+  const rel = (m, f) => (m - f) / Math.max(1, m + f);
+  const factors = [
+    {n: 'золото и предметы', v: rel(a.worth, b.worth)}, {n: 'уровни героев', v: rel(a.level, b.level)},
+    {n: 'убийства', v: rel(a.kills, b.kills)}, {n: 'живые герои', v: rel(a.alive, b.alive)}, {n: 'здания', v: rel(bm, bf)}
+  ].sort((x, y) => y.v - x.v);
+  const best = factors[0], worst = factors[factors.length - 1];
+  /* тактический совет */
+  let plan;
+  if(a.alive > b.alive && share >= 0.5) plan = 'Численное преимущество: пока враги мертвы, давите башню или берите Рошана.';
+  else if(pct >= 58) plan = 'Вы впереди: собирайтесь вместе, давите башни и закрывайте игру, пока враг не догнал по предметам.';
+  else if(pct <= 42) plan = 'Враг сильнее: играйте от обороны, фармите безопасные линии и не лезьте в драки без союзников.';
+  else plan = 'Игра равная: контролируйте руны и Рошана, ловите одиночек на линиях.';
+  const fmtLead = v => (v >= 0 ? '+' : '−') + fmtN(Math.abs(v));
+  let html = '<div class="dsp-power ' + cls + '"><span class="dsp-eyebrow">ШАНС ПОБЕДЫ</span><div class="dsp-power-main"><b>' + pct + '%</b><em>' + (trend ? esc(trend) : 'сбор данных…') + '</em></div>' +
+    '<div class="dsp-power-bar big"><i style="width:' + pct + '%"></i></div><small>' + esc(plan) + '</small></div>';
+  html += '<div class="dsp-spark"><div class="dsp-spark-top"><span class="dsp-eyebrow">ПРЕИМУЩЕСТВО ПО ЗОЛОТУ</span><b class="' + (a.worth - b.worth >= 0 ? 'up' : 'down') + '">' + fmtLead(a.worth - b.worth) + '</b></div>' +
+    (FC.pts.length >= 2 ? fcSpark(FC.pts) : '<p class="dsp-note">График появится через 15–30 секунд матча.</p>') +
+    '<small>Точка каждые 15 секунд. Выше линии — впереди ваша команда.</small></div>';
+  html += barRow('Башни и казармы', bm, bf, String);
+  html += '<div class="dsp-threat"><span class="dsp-eyebrow">ГЛАВНЫЙ ПЛЮС</span><b>' + esc(best.n) + '</b><small>' + (best.v > 0.02 ? 'Здесь ваша команда впереди.' : 'Явного перевеса нет.') + '</small></div>';
+  html += '<div class="dsp-threat"><span class="dsp-eyebrow">ГЛАВНЫЙ МИНУС</span><b>' + esc(worst.n) + '</b><small>' + (worst.v < -0.02 ? 'Здесь враг сильнее: компенсируйте другим.' : 'Явного отставания нет.') + '</small></div>';
+  return html + '<p class="dsp-foot">Прогноз — оценка по золоту, уровням, убийствам, живым героям и зданиям. Это подсказка, а не приговор: одна драка меняет всё.</p>';
+}
+
 /* ===== Таймеры карты: Рошан и руны ===== */
 function mapTimers(){
   const t = typeof gameTime === 'number' ? gameTime : 0;
@@ -441,17 +520,18 @@ function render(force){
   const sig = [owned(), buying, buyError, profileNow() ? Math.floor(profileNow().shards || 0) : -1, tab, match, inDraft(), pickedHero, manualEnemies.join(','),
     inDraft() ? draftBotIndices.join(',') + '|' + draftPlayerIndex + '|' + Math.ceil(draftTime) : '',
     match ? [Math.ceil(typeof gameTime === 'number' ? gameTime : 0), Math.floor(playerHero.coins || 0), Math.floor((playerHero.hp || 0) / 40), playerHero.inventory.map(i => i && i.id).join(','), heroes.map(h => (h.dead ? 'd' : 'a') + (h.kills || 0) + 'l' + h.level + 'w' + Math.floor(heroWorth(h) / 50)).join(',')].join('|') : ''].join('#');
-  if(!force && sig === lastSig) return;
-  lastSig = sig;
+  const sigF = sig + '|' + FC.pts.length;
+  if(!force && sigF === lastSig) return;
+  lastSig = sigF;
   const scroll = panel.scrollTop;
   if(!owned()){
     panel.innerHTML = '<div class="dsp-head"><span>ДОТАСЕНС <b>+</b></span><button type="button" class="dsp-x" data-act="close" aria-label="Закрыть">×</button></div><div class="dsp-body">' + renderLocked() + '</div>';
     panel.scrollTop = scroll; return;
   }
-  const tabs = [['counter', 'КОНТРПИК'], ['battle', 'В БОЮ'], ['timers', 'ТАЙМЕРЫ'], ['power', 'СИЛЫ'], ['heroes', 'ГЕРОИ']];
+  const tabs = [['counter', 'КОНТРПИК'], ['battle', 'В БОЮ'], ['timers', 'ТАЙМЕРЫ'], ['power', 'СИЛЫ'], ['forecast', 'ПРОГНОЗ'], ['heroes', 'ГЕРОИ']];
   panel.innerHTML = '<div class="dsp-head"><span>ДОТАСЕНС <b>+</b></span><button type="button" class="dsp-x" data-act="close" aria-label="Закрыть">×</button></div>' +
     '<div class="dsp-tabs">' + tabs.map(t => '<button type="button" data-tab="' + t[0] + '" class="' + (tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div>' +
-    '<div class="dsp-body">' + (tab === 'counter' ? renderCounter() : tab === 'battle' ? renderBattle() : tab === 'timers' ? renderTimers() : tab === 'power' ? renderPower() : renderHeroes()) + '</div>';
+    '<div class="dsp-body">' + (tab === 'counter' ? renderCounter() : tab === 'battle' ? renderBattle() : tab === 'timers' ? renderTimers() : tab === 'power' ? renderPower() : tab === 'forecast' ? renderForecast() : renderHeroes()) + '</div>';
   panel.scrollTop = scroll;
 }
 
