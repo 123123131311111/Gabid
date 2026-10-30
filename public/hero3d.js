@@ -85,10 +85,10 @@ const SKIN_TINTS={
   virsudiBloodMoon:c=>{ const [h,s,l]=rgb2hsl(c); const hot=l>.62; return hsl2rgb(hot?350:346+(h%24)*.2, Math.min(.9,Math.max(.45,s*.6+.3)), hot?Math.min(.78,l+.02):Math.max(.07,l*.7)); },
   /* 0.9.9.8 АРКАНА Вирсуди: «Бездна Приливов» — багровая броня, фиолетово-чёрное тело, ледяные блики и голубые клинки */
   virsudiArcana:c=>{ const [h,s,l]=rgb2hsl(c);
-    if(l>.8) return hsl2rgb(192,.75,Math.min(.93,l));
-    if(s>.75&&l>.45) return (h>=36&&h<=60)?c:((h<70||h>330)?hsl2rgb(318,.9,l):c);
-    if(h<70||h>330) return hsl2rgb(352,Math.min(.8,Math.max(.5,s+.1)),Math.max(.14,Math.min(.6,l*1.05)));
-    return hsl2rgb(262+(h%40)*.3,Math.min(.6,s*.6+.15),Math.max(.08,l*.85)); },
+    if(l>.8) return hsl2rgb(186,.95,Math.min(.9,l));                          // яркое → неоновый циан
+    if(s>.75&&l>.45) return (h>=36&&h<=60)?c:((h<70||h>330)?hsl2rgb(312,1,Math.max(.55,l)):c);  // акценты → неоновая маджента
+    if(h<70||h>330) return hsl2rgb(338,Math.min(.9,Math.max(.6,s+.15)),Math.max(.16,Math.min(.62,l*1.1)));
+    return hsl2rgb(268+(h%40)*.3,Math.min(.7,s*.7+.2),Math.max(.07,l*.8)); },
   /* Шмедик: «Магмовый титан» — тёмный камень и оранжевая лава */
   earthshakerMagma:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(18+(h%30)*.25, Math.min(.92,Math.max(.5,s*.7+.3)), l>.7?Math.min(.88,l):Math.max(.1,l*.85)); },
   /* Гриша: «Изумрудный чародей» — зелёная мантия и светящиеся самоцветы */
@@ -2977,32 +2977,79 @@ MODELS.virsudi=(S,d,t,pose)=>{
   if(rp.kind==='attack'&&rp.p>.38&&rp.p<.82){ const u0=cl01((rp.p-.38)/.44); for(let i=0;i<7;i++){ const u=i/6*u0, x=.95-1.4*u, y=2.1-1.3*u+.3*Math.sin(u*Math.PI), z=.1+1.2*u;
     G(S,[x,y,z],.07*(1-i/9)+.02,i%2?BUB:'#e4fbff'); } }
   if(rp.kind==='cast'&&rp.slot===1&&P.air>.15){ for(let i=1;i<=6;i++) bub([0,1.0+P.air*.5-i*.05,-.2-i*.22*P.air],.09*(1-i/8)); }
-  if(d && d.skinId && String(d.skinId).split('+')[0]==='virsudiArcana') virsudiArcanaFx(S,t,bp,hands);
+  if(d && d.skinId && String(d.skinId).split('+')[0]==='virsudiArcana') virsudiArcanaFx(S,t,bp,hands,rp,P);
 };
-/* 0.9.9.8: эффекты арканы Вирсуди — энергия на клинках, призрачная корона, огненные кольца, пурпурные вихри у ног */
-function virsudiArcanaFx(S,t,bp,hands){
-  const CY='#4fc8ff', CYL='#bff0ff', MG='#c13bff', OR='#ffbe3a';
-  for(const s of [-1,1]){                                   // голубое пламя вдоль клинков
+/* 0.9.9.9: НЕОНОВАЯ аркана Вирсуди «Бездна Приливов» — неоновые клинки с белым ядром, крылья из света за спиной,
+   вертикальные неон-кольца вокруг тела, светящийся круг под ногами, корона-нимб, и отдельные неон-эффекты для Q / W / R */
+function virsudiArcanaFx(S,t,bp,hands,rp,P){
+  const CY='#00f5ff', CYL='#c8fdff', MG='#ff2bd6', MGL='#ff9cf0', VI='#9b5cff', WH='#ffffff';
+  rp=rp||{}; P=P||{};
+  const kind=rp.kind, slot=rp.slot|0, pp=rp.p||0;
+  const cast=kind==='cast', atk=kind==='attack', walk=kind==='walk';
+  const pulse=.5+.5*Math.sin(t*6);
+  /* --- неоновые клинки: широкое цветное свечение + белое раскалённое ядро + искры на кончике --- */
+  for(const s of [-1,1]){
     const pt=bp&&bp[s]; if(!pt) continue;
-    for(let i=0;i<7;i++){ const u=.15+i/7*.85, f=Math.sin(t*7+i*1.7+s)*.5+.5, p=pt(u);
-      G(S,[p[0],p[1]+.05+.05*f,p[2]],.05+.035*f,i%2?CY:CYL);
+    for(let i=0;i<7;i++){
+      const u=.1+i/7*.9, f=Math.sin(t*8+i*1.7+s)*.5+.5, p=pt(u);
+      G(S,[p[0],p[1]+.04,p[2]],.085+.04*f,i%2?CY:MG,{glow:1,shine:0});      // цветная неоновая кайма
+      G(S,[p[0],p[1]+.04,p[2]],.04+.02*f,WH,{glow:1,shine:0});               // белая сердцевина
     }
-    G(S,pt(1),.09+.03*Math.sin(t*9+s),CYL);
+    const tip=pt(1);
+    G(S,tip,.14+.04*Math.sin(t*10+s),CYL);
+    G(S,tip,.07,WH);
+    if(atk||cast){                                                           // «хвост» света за клинком при ударе и касте
+      for(let i=1;i<=6;i++){ const q=pt(1-i*.12); G(S,[q[0],q[1]-.05*i,q[2]-.06*i],.1*(1-i/8),i%2?MG:CY,{glow:1,shine:0}); }
+    }
   }
-  for(let i=0;i<6;i++){                                     // призрачная голубая корона над головой
-    const a=i/6*Math.PI*2+t*.4, r=.22, f=Math.sin(t*5+i*2.1)*.5+.5, bx=Math.cos(a)*r, bz=Math.sin(a)*r-.1;
-    S.cone([bx,2.7,bz],[bx*.4,2.95+f*.3+(i%2)*.12,bz*.4-.04],.07,i%2?CY:MG,{seg:6,glow:1,shine:0});
+  /* --- нимб-корона из неона --- */
+  for(let i=0;i<7;i++){
+    const a=i/7*Math.PI*2+t*.5, r=.24, f=Math.sin(t*5+i*2.1)*.5+.5, bx=Math.cos(a)*r, bz=Math.sin(a)*r-.1;
+    S.cone([bx,2.7,bz],[bx*.4,2.98+f*.32+(i%2)*.14,bz*.4-.04],.075,i%2?CY:MG,{seg:6,glow:1,shine:0});
   }
-  G(S,[0,2.78,-.1],.16+.03*Math.sin(t*4),CY);
-  S.ring([0,1.55,0],1.05,.022,OR,{glow:1,n:36,axis:'x',phase:t*1.1});   // два огненных кольца вокруг тела
-  S.ring([0,1.55,0],1.18,.018,OR,{glow:1,n:36,axis:'z',phase:-t*.9});
-  for(let i=0;i<9;i++){                                     // пурпурные вихри у ног
-    const a=i/9*Math.PI*2+t*1.3, r=.75+.12*Math.sin(t*3+i);
-    G(S,[Math.cos(a)*r,.12+.06*Math.sin(t*4+i),Math.sin(a)*r],.06+.02*Math.sin(t*5+i),i%2?MG:CY);
+  S.ring([0,2.72,-.1],.34,.018,CY,{glow:1,n:18,phase:t*1.2});
+  S.ring([0,2.8,-.1],.26,.014,MG,{glow:1,n:16,phase:-t*1.6});
+  G(S,[0,2.8,-.1],.15+.03*Math.sin(t*4),WH);
+  /* --- неоновые «крылья» из света за спиной --- */
+  const wingSpread=1+(walk?.15:0)+(cast?.35:0);
+  for(const s of [-1,1]){
+    for(let i=0;i<5;i++){
+      const f=Math.sin(t*3.2+i*1.1+s)*.08, k=i/4;
+      const base=[s*.22,1.75-i*.04,-.3];
+      const tip=[s*(.75+k*.95)*wingSpread,2.55-i*.28+f*2,-.75-k*.35];
+      S.cone(base,tip,.055,i%2?CY:MG,{seg:4,glow:1,shine:0});
+      G(S,tip,.06+.02*pulse,i%2?CYL:MGL);
+    }
   }
-  for(let i=0;i<8;i++){                                     // поднимающиеся искры
-    const ph=(t*.5+i/8)%1, a=i*2.4+t*.6;
-    G(S,[Math.cos(a)*.6,.3+ph*2.3,Math.sin(a)*.5],.035*(1-ph)+.012,i%2?MG:CYL);
+  /* --- вертикальные неон-кольца вокруг тела --- */
+  const amp=1+(cast?.35:0);
+  S.ring([0,1.55,0],1.05*amp,.026,CY,{glow:1,n:26,axis:'x',phase:t*1.3});
+  S.ring([0,1.55,0],1.2*amp,.022,MG,{glow:1,n:26,axis:'z',phase:-t*1.1});
+  S.ring([0,1.55,0],1.34*amp,.014,VI,{glow:1,n:22,axis:'x',phase:t*.7+1});
+  /* --- светящийся круг под ногами --- */
+  S.ring([0,.05,0],1.0,.03,CY,{glow:1,n:28,phase:t*.8});
+  S.ring([0,.06,0],1.25,.02,MG,{glow:1,n:28,phase:-t*.6});
+  for(let i=0;i<10;i++){                                                    // неоновые огни по кругу
+    const a=i/10*Math.PI*2+t*1.4, r=.78+.1*Math.sin(t*3+i);
+    G(S,[Math.cos(a)*r,.12+.05*Math.sin(t*4+i),Math.sin(a)*r],.055+.02*Math.sin(t*5+i),i%3===0?WH:(i%2?MG:CY));
+  }
+  /* --- поднимающиеся неоновые искры --- */
+  for(let i=0;i<8;i++){
+    const ph=(t*.55+i/8)%1, a=i*2.4+t*.6;
+    G(S,[Math.cos(a)*.65,.3+ph*2.5,Math.sin(a)*.55],.04*(1-ph)+.014,i%3===0?WH:(i%2?MG:CYL));
+  }
+  /* --- отдельные неон-эффекты скиллов --- */
+  if(cast&&slot===0){                                                       // Q «Отдай сдачу» — расходящиеся неон-волны
+    for(let i=0;i<3;i++){ const u=(pp*1.6+i*.3)%1;
+      S.ring([0,.1+i*.02,0],.6+u*2.6,.04*(1-u)+.012,i%2?MG:CY,{glow:1,n:30,phase:t*2}); }
+  }
+  if(cast&&slot===1){                                                       // W «Прыжок» — неоновый шлейф
+    for(let i=1;i<=10;i++){ G(S,[Math.sin(i*1.9+t*9)*.18,.5+i*.05,-.15-i*.2],.16*(1-i/12),i%2?CY:MG,{glow:1,shine:0}); }
+  }
+  if(cast&&slot===3){                                                       // R «Изгойствоудий» — неоновый «призрак»
+    for(let i=0;i<4;i++){ const a=t*3+i*Math.PI/2, r=.9+.25*Math.sin(t*5+i);
+      S.ring([0,.4+i*.55,0],r,.02,i%2?MG:CY,{glow:1,n:20,phase:a}); }
+    for(let i=0;i<10;i++){ const a=t*4+i*.63; G(S,[Math.cos(a)*.7,.2+((t*1.4+i/10)%1)*2.4,Math.sin(a)*.7],.05,WH); }
   }
 }
 ANIM.virsudi=[{kind:'attack',p:.3},{kind:'attack',p:.5},{kind:'attack',p:.7},{kind:'walk',p:.25},{kind:'walk',p:.75},

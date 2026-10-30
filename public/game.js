@@ -297,8 +297,8 @@ SKIN_DEFS.push(
   {id:'sniperInferno', arcana:true, name:'ПЛАМЕННЫЙ СТРЕЛОК', heroId:'sniper', rarity:'arcana', price:1820, accent:'#ff7a1c', border:'#c2410c', previewHero:'sniper', previewColor:'#3a0c04', previewColor2:'#ffb02e', weaponColor:'#ff6a1a',
    desc:'АРКАНА. Снайпер объят огнём: тлеющая форма, пылающая корона и раскалённая винтовка. Огненными становятся атака и каждый скилл — Shrapnel сыплет угли, Headshot взрывается искрами, Take Aim зажигает ауру, Assassinate летит огненной кометой. Не меняет характеристики.', hint:'Виден, когда выбран Снайпер.'},
   /* 0.9.9.8: АРКАНА Вирсуди — «Бездна Приливов»: багрово-фиолетовая броня, голубые светящиеся клинки, пурпурная аура и огненные кольца. Только визуал. */
-  {id:'virsudiArcana', arcana:true, name:'БЕЗДНА ПРИЛИВОВ', heroId:'virsudi', rarity:'arcana', price:1200, accent:'#4fc8ff', border:'#8a2bd6', previewHero:'virsudi', previewColor:'#1a0a33', previewColor2:'#4fc8ff', weaponColor:'#4fc8ff',
-   desc:'АРКАНА. Вирсуди в багровых доспехах из глубин: фиолетовое сияние, голубые энергетические клинки, парящие огненные кольца и призрачная корона. Не меняет характеристики.', hint:'Виден, когда выбран Вирсуди.'},
+  {id:'virsudiArcana', arcana:true, name:'БЕЗДНА ПРИЛИВОВ', heroId:'virsudi', rarity:'arcana', price:1200, accent:'#00f5ff', border:'#ff2bd6', previewHero:'virsudi', previewColor:'#12062b', previewColor2:'#00f5ff', weaponColor:'#00f5ff',
+   desc:'АРКАНА. Неоновая Бездна: Вирсуди в багрово-фиолетовых доспехах, клинки из чистого света, крылья из неона за спиной, вращающиеся светящиеся кольца и нимб. Все четыре скилла вспыхивают неоном — волны «Отдай сдачу», прыжок с неоновым шлейфом, неоновая привязка и ультимейт в облаке пурпурного света. Не меняет характеристики.', hint:'Виден, когда выбран Вирсуди.'},
   {id:'psihToxic', name:'ТОКСИЧНЫЙ ПСИХ', heroId:'psih', rarity:'rare', price:341, accent:'#b6ff3a', border:'#5f9a1c', previewHero:'psih', previewColor:'#233d0e', previewColor2:'#c8ff5a', weaponColor:'#b6ff3a',
    desc:'Кислотно-зелёный Псих, надышавшийся ядовитых паров. Клинки светятся токсичным цветом. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
   {id:'psihFrost', name:'ЛЕДЯНОЙ КОШМАР', heroId:'psih', rarity:'epic', price:569, accent:'#7fe8ff', border:'#3d8fb0', previewHero:'psih', previewColor:'#12384a', previewColor2:'#9ff0ff', weaponColor:'#cdf6ff',
@@ -4678,8 +4678,14 @@ function tickVirsudiWaves(hero,dt){
       applyDamage(target,abilityDamage(hero,58+24*pending.level),hero);
   }
   hero.castingSkillLevel=previousLevel;
+  if(isVirsudiArcana(hero)){
+    const nc = pending.pulse%2 ? '#ff2bd6' : '#00f5ff';
+    fxRing(hero.x,hero.y,radius,nc,0.52); fxRing(hero.x,hero.y,radius*0.82,'#ffffff',0.4);
+    spawnParticles(hero.x,hero.y,nc,14,0.48); neonSparks(hero.x,hero.y,radius*0.6,10);
+  } else {
   fxRing(hero.x,hero.y,radius,'#83ddff',0.52);
   spawnParticles(hero.x,hero.y,'#b9f6ff',14,0.48);
+  }
   pending.pulse++;
   pending.wait=0.27;
   if(pending.pulse>=3) hero.virsudiPendingWaves=null;
@@ -7359,9 +7365,12 @@ Object.assign(SKILLS, {
     desc:'Жертвует 16% максимального здоровья. Через 1,5 секунды выпускает три расширяющиеся волны, наносящие урон врагам рядом и снимающие с Вирсуди большинство отрицательных эффектов.',
     cast(h,x,y,lvl){
       h.virsudiPendingWaves={delay:1.5,wait:0,pulse:0,level:lvl,cleansed:false};
+      if(isVirsudiArcana(h)){ neonBurst(h.x,h.y,100,0.4); neonSparks(h.x,h.y,60,18); addText(h.x,h.y-72,'ГОТОВЬСЯ К ОТВЕТУ','#ff2bd6',1.0,15); }
+      else {
       fxRing(h.x,h.y,100,'#83ddff',0.35);
       spawnParticles(h.x,h.y,'#b9f6ff',22,0.7);
       addText(h.x,h.y-72,'ГОТОВЬСЯ К ОТВЕТУ','#b9f6ff',1.0,15);
+      }
     }
   },
   virsudiW: {
@@ -7379,9 +7388,14 @@ Object.assign(SKILLS, {
       const ny=clamp(oy+dirY*distance,60,WORLD-60);
       h.virsudiJump={t:0,dur:1.3,ox,oy,nx,ny,lvl};
       h.facing=Math.atan2(dirY,dirX); h.moveTarget=null; h.attackTarget=null; h.isAttacking=false;
+      if(isVirsudiArcana(h)){
+        fxBeam(ox,oy,nx,ny,'#00f5ff',0.6); fxBeam(ox,oy,nx,ny,'#ff2bd6',0.4);
+        neonBurst(ox,oy,56,0.35); neonSparks(ox,oy,40,14);
+      } else {
       fxBeam(ox,oy,nx,ny,'#8de8ff',0.5);
       spawnParticles(ox,oy,'#b9f6ff',20,0.6);
       fxRing(ox,oy,46,'#83ddff',0.3);
+      }
       playHeroSfx('jump');
     }
   },
@@ -7401,9 +7415,14 @@ Object.assign(SKILLS, {
       h.invisible=true;
       h.undetectable=true;
       h.addBuff({type:'virsudiMist',val:1,t:duration});
+      if(isVirsudiArcana(h)){
+        neonBurst(h.x,h.y,130,0.8); neonSparks(h.x,h.y,90,30);
+        addText(h.x,h.y-72,'ИЗГОЙСТВОУДИЙ','#9b5cff',1.1,17);
+      } else {
       fxRing(h.x,h.y,115,'#8299c9',0.7);
       spawnParticles(h.x,h.y,'#c7d4ff',36,0.9);
       addText(h.x,h.y-72,'ИЗГОЙСТВОУДИЙ','#c7d4ff',1.1,17);
+      }
       playHeroSfx('blink');
     }
   }
@@ -7806,16 +7825,24 @@ function tickVirsudiJump(hero,dt){
     targets.push(u);
     if(u.type==='hero' && d<firstD){ first=u; firstD=d; }
   }
+  if(isVirsudiArcana(hero)){
+    neonBurst(nx,ny,landR,0.65); neonSparks(nx,ny,landR*0.7,26);
+    addText(nx,ny-60,'ПРИЗЕМЛЕНИЕ','#ff2bd6',0.9,15);
+  } else {
   fxRing(nx,ny,landR,'#83ddff',0.6);
   fxRing(nx,ny,landR*0.55,'#e4fbff',0.4);
   spawnParticles(nx,ny,'#b9f6ff',40,0.9);
   addText(nx,ny-60,'ПРИЗЕМЛЕНИЕ','#b9f6ff',0.9,15);
+  }
   for(const u of targets) applyDamage(u,abilityDamage(hero,90+45*lvl),hero);
   if(first && !first.dead){
     const duration=2.8+lvl*0.2, radius=160+lvl*5;
     first.addBuff({type:'virsudiTether',val:1,t:duration,x:nx,y:ny,radius});
+    if(isVirsudiArcana(hero)){ fxBeam(nx,ny,first.x,first.y,'#ff2bd6',0.55); fxBeam(nx,ny,first.x,first.y,'#00f5ff',0.4); fxRing(nx,ny,radius,'#9b5cff',0.6); fxRing(nx,ny,radius*0.9,'#00f5ff',0.45); }
+    else {
     fxBeam(nx,ny,first.x,first.y,'#b9f6ff',0.5);
     fxRing(nx,ny,radius,'#83ddff',0.55);
+    }
     addText(first.x,first.y-first.radius-24,'ПРИВЯЗАН','#b9f6ff',0.9,14);
   }
 }
@@ -7827,8 +7854,14 @@ function applyVirsudiEssenceShift(hero,target){
   passive.cd=5;
   target.addBuff({type:'virsudiAttrLoss',val:1,t:24});
   hero.addBuff({type:'virsudiAgility',val:3,t:12});
+  if(isVirsudiArcana(hero)){
+    fxRing(target.x,target.y,34,'#ff2bd6',0.25); fxRing(target.x,target.y,22,'#00f5ff',0.2);
+    spawnParticles(target.x,target.y,'#00f5ff',10,0.6); spawnParticles(target.x,target.y,'#ff2bd6',8,0.6);
+    addText(target.x,target.y-target.radius-18,'−1 СИЛА • ЛОВКОСТЬ • ИНТ','#ff7be8',0.8,12);
+  } else {
   fxRing(target.x,target.y,32,'#9deaff',0.22);
   addText(target.x,target.y-target.radius-18,'−1 СИЛА • ЛОВКОСТЬ • ИНТ','#9deaff',0.8,12);
+  }
   if(hero===playerHero && typeof window.__shadowOnlineSkillCast==='function')
     window.__shadowOnlineSkillCast(hero,2,'virsudiE',target.x,target.y);
 }
@@ -9269,7 +9302,23 @@ function infernoEmbers(x,y,radius,n){
       color:INFERNO_COLORS[(Math.random()*4)|0], size:rnd(2,5), t:0, life:rnd(0.5,1.0), gravity:-34, drag:0.97, spark:true});
   }
 }
+/* 0.9.9.9: НЕОНОВЫЕ эффекты арканы Вирсуди «Бездна Приливов» — только визуал, механики не меняются. */
+function isVirsudiArcana(h){ return !!(h && h.def && h.def.id==='virsudi' && baseSkin(h.skinId)==='virsudiArcana'); }
+const NEON_COLORS = ['#00f5ff','#ff2bd6','#9b5cff','#ffffff'];
+function neonBurst(x,y,r,life){
+  const L = life || 0.5;
+  fxRing(x,y,r,'#00f5ff',L); fxRing(x,y,r*0.74,'#ff2bd6',L*0.9); fxRing(x,y,r*0.46,'#ffffff',L*0.75);
+  spawnParticles(x,y,'#00f5ff',Math.ceil(r/8),1.2); spawnParticles(x,y,'#ff2bd6',Math.ceil(r/11),1.0); spawnParticles(x,y,'#ffffff',Math.ceil(r/18),0.8);
+}
+function neonSparks(x,y,radius,n){
+  for(let i=0;i<n;i++){
+    const ang=Math.random()*Math.PI*2, rr=radius*Math.sqrt(Math.random());
+    particles.push({x:x+Math.cos(ang)*rr, y:y+Math.sin(ang)*rr*0.68, vx:rnd(-20,20), vy:rnd(-110,-45),
+      color:NEON_COLORS[(Math.random()*4)|0], size:rnd(2,5), t:0, life:rnd(0.5,1.0), gravity:-40, drag:0.97, spark:true});
+  }
+}
 function skillFxColor(hero, skillId){
+  if(isVirsudiArcana(hero) && /virsudi/.test(skillId)) return '#00f5ff';
   if(isSniperInferno(hero) && /sniper|shrapnel|headshot|takeAim|assassinate/.test(skillId)) return '#ff7a1c';
   if(/olex/.test(skillId)) return '#39e6ff';
   if(/juggernaut|bladeFury|healingWard|bladeDance|omnislash/.test(skillId)) return '#ffe066';
@@ -14113,6 +14162,30 @@ function drawUnit(u){
     if(infAim){ ctx.strokeStyle='#ffe27a'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(88+Math.sin(gameTime*30)*6,0); ctx.stroke(); }
     ctx.fillStyle=infAim?'#fff0b8':'#ffffff';
     ctx.beginPath(); ctx.arc(24,0,7+Math.sin(gameTime*28)*2,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  /* 0.9.9.9: аркана Вирсуди — неоновая аура у ног: вращающиеся циановые и пурпурные дуги + мигающие огни */
+  if(u.type === 'hero' && isVirsudiArcana(u) && !u.dead && !perfLite()){
+    const base = u.radius + 8, pul = 0.5 + 0.5*Math.sin(gameTime*5);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for(let k=0;k<2;k++){
+      const col = k ? '#ff2bd6' : '#00f5ff', rr = base + k*7 + pul*3, dir = k ? -1 : 1;
+      ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 16;
+      ctx.globalAlpha = 0.85; ctx.lineWidth = 2.6;
+      for(let i=0;i<3;i++){
+        const a0 = gameTime*1.5*dir + i*Math.PI*2/3;
+        ctx.beginPath(); ctx.ellipse(0, 8, rr, rr*0.62, 0, a0, a0 + 1.1); ctx.stroke();
+      }
+    }
+    ctx.shadowBlur = 10;
+    for(let i=0;i<8;i++){
+      const a = i/8*Math.PI*2 - gameTime*1.1, fl = 0.5 + 0.5*Math.sin(gameTime*8 + i*1.7);
+      ctx.globalAlpha = 0.45 + fl*0.5;
+      ctx.fillStyle = i%2 ? '#ff2bd6' : '#00f5ff'; ctx.shadowColor = ctx.fillStyle;
+      ctx.beginPath(); ctx.arc(Math.cos(a)*(base+14), 8 + Math.sin(a)*(base+14)*0.62, 2 + fl*1.8, 0, Math.PI*2); ctx.fill();
+    }
     ctx.restore();
   }
   /* 0.9.9.6: аркана Снайпера — огненная аура у ног; во время Take Aim пламя разгорается сильнее */
