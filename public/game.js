@@ -21696,6 +21696,8 @@ function drawDotaSenseHome(){
 
   /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
   const news=[
+    {tag:'0.9.9.5',title:'Новый герой Мэрин: машины, жара и автомат',art:'hero',hero:'Мэрин',action:'store',kind:'герой'},
+    {tag:'0.9.9.5',title:'Йосып стал сильнее на 25%',art:'hero',hero:'Йосып',action:'store',kind:'баланс'},
     {tag:'0.9.9.4',title:'Скины подешевели на 9% + новые для Вирсуди, Шмедика и Гриши',art:'hero',hero:'Вирсуди',action:'store',kind:'магазин'},
     {tag:'0.9.9.4',title:'Дотасенс +: вкладка «Прогноз»',art:'hero',hero:'Йосып',action:'store',kind:'помощник'},
     {tag:'0.9.9.3',title:'Новый магазин: 9 скинов за Сенсики',art:'hero',hero:'Снайпер',action:'store',kind:'магазин'},
