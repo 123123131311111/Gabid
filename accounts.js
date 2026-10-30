@@ -32,7 +32,9 @@ const SKIN_PRICES = {
      Цены продублированы в game.js — они обязаны совпадать. */
   sniperInferno: 1820, chipParrot: 1138,
   /* 0.9.9.8: АРКАНА Вирсуди — 1200 Сенсиков (цена обязана совпадать с game.js) */
-  virsudiArcana: 1200
+  virsudiArcana: 1200,
+  /* 0.10.0 (дополнение): АРКАНА Пироманта «Лазурный феникс» — 1500 Сенсиков (цена обязана совпадать с game.js) */
+  pyroArcana: 1500
 };
 /* ===== 0.10.0: МАСТЕРСТВО ГЕРОЕВ. Все бойцы, 5 уровней. Уровень растёт за победы на этом герое в любом режиме.
    Награда за каждый уровень — Сенсики, забирается вручную по порядку (1 → 5). Все числа лежат только на сервере. ===== */
@@ -136,14 +138,16 @@ const guideSchema = new mongoose.Schema({
   authorKey: { type: String, maxlength: 60, index: true },
   author: { type: String, maxlength: 40, default: '' },
   title: { type: String, maxlength: 40, default: '' },
+  names: { start: { type: String, maxlength: 20, default: '' }, mid: { type: String, maxlength: 20, default: '' }, end: { type: String, maxlength: 20, default: '' } },
   start: { type: [String], default: [] },
   mid: { type: [String], default: [] },
   end: { type: [String], default: [] },
   updatedAt: { type: Number, default: Date.now }
 });
 const BuildGuide = mongoose.models.BuildGuide || mongoose.model('BuildGuide', guideSchema);
+const cleanName = v => String(v || '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 16);
 const cleanStage = v => (Array.isArray(v) ? v : []).map(x => String(x || '')).filter(x => /^[A-Za-z0-9_]{1,40}$/.test(x)).slice(0, GUIDE_MAX_ITEMS);
-const guideView = (g, ownerKey) => ({ id: String(g._id), heroId: g.heroId, author: g.author, title: g.title, start: g.start, mid: g.mid, end: g.end, mine: !!ownerKey && g.authorKey === ownerKey, updatedAt: g.updatedAt });
+const guideView = (g, ownerKey) => ({ id: String(g._id), heroId: g.heroId, author: g.author, title: g.title, names: { start: (g.names && g.names.start) || '', mid: (g.names && g.names.mid) || '', end: (g.names && g.names.end) || '' }, start: g.start, mid: g.mid, end: g.end, mine: !!ownerKey && g.authorKey === ownerKey, updatedAt: g.updatedAt });
 
 let connectionPromise = null;
 
@@ -425,15 +429,17 @@ const routes = {
     const title = String(body.title || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 28) || 'Моя сборка';
     const stages = {}; for(const k of GUIDE_STAGES) stages[k] = cleanStage(body[k]);
     if(!GUIDE_STAGES.some(k => stages[k].length)) return [400, { error: 'Добавь в сборку хотя бы один предмет' }];
+    const nm = body.names && typeof body.names === 'object' ? body.names : {};
+    const names = { start: cleanName(nm.start), mid: cleanName(nm.mid), end: cleanName(nm.end) };
     const key = auth.acc.nickKey;
     const gid = String(body.id || '');
     if(/^[a-f0-9]{24}$/.test(gid)){
-      const upd = await BuildGuide.findOneAndUpdate({ _id: gid, authorKey: key, heroId }, { $set: { title, ...stages, author: auth.acc.nick, updatedAt: Date.now() } }, { new: true });
+      const upd = await BuildGuide.findOneAndUpdate({ _id: gid, authorKey: key, heroId }, { $set: { title, names, ...stages, author: auth.acc.nick, updatedAt: Date.now() } }, { new: true });
       if(upd) return [200, { guide: guideView(upd, key) }];
     }
     if(await BuildGuide.countDocuments({ authorKey: key, heroId }) >= GUIDE_MAX_PER_HERO) return [400, { error: 'На одного героя можно создать не больше ' + GUIDE_MAX_PER_HERO + ' сборок' }];
     if(await BuildGuide.countDocuments({ authorKey: key }) >= GUIDE_MAX_TOTAL) return [400, { error: 'Достигнут лимит сборок' }];
-    const made = await BuildGuide.create({ heroId, authorKey: key, author: auth.acc.nick, title, ...stages, updatedAt: Date.now() });
+    const made = await BuildGuide.create({ heroId, authorKey: key, author: auth.acc.nick, title, names, ...stages, updatedAt: Date.now() });
     return [200, { guide: guideView(made, key) }];
   },
 

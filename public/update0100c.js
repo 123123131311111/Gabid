@@ -16,6 +16,7 @@ function rr(x, y, w, h, r){ ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x, 
 function fitText(t, maxW){ t = String(t); if(ctx.measureText(t).width <= maxW) return t; while(t.length > 2 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…'; }
 function valid(id){ return typeof SHOP_ITEMS !== 'undefined' && !!SHOP_ITEMS[id]; }
 function costOf(ids){ return ids.reduce((s, id) => s + (valid(id) ? SHOP_ITEMS[id].cost : 0), 0); }
+function stageName(g, st){ const n = g && g.names && g.names[st.k]; return n ? n : st.name; }
 function tok(){ return (typeof account !== 'undefined' && account.token) || null; }
 
 /* ---------- кеш сборок с сервера ---------- */
@@ -38,8 +39,8 @@ function guidesOf(heroId){ const c = cache[heroId]; return c && c.list ? c.list.
    ===================================================================== */
 const ed = {open: false, heroId: null, own: [], sel: 0, draft: null, stage: 'start', tab: 0, scroll: 0, drag: null, msg: '', msgAt: 0, busy: false};
 function say(t){ ed.msg = t; ed.msgAt = performance.now(); }
-function newDraft(){ return {id: '', title: 'Моя сборка', start: [], mid: [], end: []}; }
-function copyDraft(g){ return {id: g.id || '', title: g.title || 'Моя сборка', start: (g.start || []).filter(valid), mid: (g.mid || []).filter(valid), end: (g.end || []).filter(valid)}; }
+function newDraft(){ return {id: '', title: 'Моя сборка', names: {start: '', mid: '', end: ''}, start: [], mid: [], end: []}; }
+function copyDraft(g){ const n = g.names || {}; return {id: g.id || '', title: g.title || 'Моя сборка', names: {start: n.start || '', mid: n.mid || '', end: n.end || ''}, start: (g.start || []).filter(valid), mid: (g.mid || []).filter(valid), end: (g.end || []).filter(valid)}; }
 function curDef(){ return (typeof HERO_DEFS !== 'undefined') ? HERO_DEFS[selectedHeroIndex] : null; }
 function refreshOwn(){
   const c = cache[ed.heroId];
@@ -98,7 +99,7 @@ async function saveDraft(){
   if(!d.start.length && !d.mid.length && !d.end.length){ say('Добавь в сборку хотя бы один предмет'); return; }
   ed.busy = true;
   try {
-    const data = await accountApi('saveguide', {token: tok(), heroId: ed.heroId, id: d.id || undefined, title: d.title, start: d.start, mid: d.mid, end: d.end});
+    const data = await accountApi('saveguide', {token: tok(), heroId: ed.heroId, id: d.id || undefined, title: d.title, names: d.names, start: d.start, mid: d.mid, end: d.end});
     const c = loadGuides(ed.heroId, true);
     await new Promise(res => { const t = setInterval(() => { if(!c.loading){ clearInterval(t); res(); } }, 80); });
     refreshOwn();
@@ -125,6 +126,7 @@ async function deleteDraft(){
   finally { ed.busy = false; }
 }
 
+function nameRect(z){ return {x: z.x + 6, y: z.y + 4, w: Math.max(80, Math.min(230, z.w - 190)), h: 24}; }
 function slotAt(Lo, x, y){
   for(const z of Lo.zones){
     const arr = ed.draft[z.k];
@@ -160,6 +162,14 @@ function edDown(mx, my){
   }
   const tr = tabRects(Lo);
   for(let i = 0; i < tr.length; i++) if(inR(tr[i], mx, my)){ ed.tab = i; ed.scroll = 0; return; }
+  for(const z of Lo.zones){
+    if(inR(nameRect(z), mx, my)){
+      const st = STAGES.find(q => q.k === z.k), cur = ed.draft.names[z.k];
+      const v = window.prompt('Название подгруппы (до 16 символов).\nПустое поле — вернуть «' + st.name + '»:', cur || st.name);
+      if(v !== null){ const t = v.replace(/\s+/g, ' ').trim().slice(0, 16); ed.draft.names[z.k] = (t && t.toUpperCase() !== st.name) ? t : ''; ed.stage = z.k; }
+      return;
+    }
+  }
   const sl = slotAt(Lo, mx, my);
   if(sl){ ed.drag = {id: ed.draft[sl.k][sl.i], from: sl, sx: mx, sy: my, moved: false}; ed.stage = sl.k; return; }
   const pid = paletteItemAt(Lo, mx, my);
@@ -225,7 +235,7 @@ function drawEditor(def){
   ctx.font = 'bold 26px Georgia, serif'; ctx.fillStyle = '#fff3cf'; ctx.shadowColor = rgba(c2, .8); ctx.shadowBlur = 8;
   ctx.fillText(def.name, P.x + 20, P.y + 54); ctx.shadowBlur = 0;
   ctx.font = '12px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.textAlign = 'right';
-  ctx.fillText('Перетащи предметы в этапы. Эти сборки смогут выбрать все игроки в катке.', P.x + P.w - 56, P.y + 30);
+  ctx.fillText('Перетащи предметы в этапы, клик по названию этапа — переименовать. Сборки смогут выбрать все в катке.', P.x + P.w - 56, P.y + 30);
   ctx.fillText(tok() ? 'Сборок героя: ' + ed.own.length + ' / ' + MAX_OWN : 'Без входа в аккаунт сборки не сохраняются', P.x + P.w - 56, P.y + 48);
   const cl = Lo.close; rr(cl.x, cl.y, cl.w, cl.h, 8); ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI, Arial'; ctx.textAlign = 'center'; ctx.fillText('✕', cl.x + cl.w / 2, cl.y + 22);
@@ -260,7 +270,9 @@ function drawEditor(def){
     ctx.fillStyle = zg; ctx.fill();
     ctx.lineWidth = act ? 1.6 : 1; ctx.strokeStyle = (hoverZone && hoverZone.k === z.k) ? '#ffe39a' : act ? rgba(c2, .9) : 'rgba(255,255,255,.14)'; ctx.stroke();
     ctx.textAlign = 'left'; ctx.font = 'bold 12px Consolas, monospace'; ctx.fillStyle = act ? '#ffe39a' : '#d7b36a';
-    ctx.fillText((zi + 1) + '. ' + z.name, z.x + 12, z.y + 20);
+    const nr = nameRect(z), custom = d.names[z.k], shown = (zi + 1) + '. ' + (custom || z.name);
+    if(inR(nr, mouse.x, mouse.y) && !dragId){ rr(nr.x, nr.y, nr.w, nr.h, 6); ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fill(); }
+    ctx.fillText(fitText(shown, nr.w - 26) + '  ✎', z.x + 12, z.y + 20);
     ctx.textAlign = 'right'; ctx.font = 'bold 12px Segoe UI, Arial'; ctx.fillStyle = '#ffd568';
     ctx.fillText(costOf(arr) + ' монет  ·  ' + arr.length + '/' + MAXI, z.x + z.w - 12, z.y + 20);
     for(let i = 0; i < MAXI; i++){
@@ -278,7 +290,7 @@ function drawEditor(def){
         ctx.globalAlpha = e;
       }
     }
-    if(!arr.length){ ctx.textAlign = 'left'; ctx.font = '11px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillText('— перетащи сюда предметы', z.x + 12 + ctx.measureText((zi + 1) + '. ' + z.name).width + 22, z.y + 20); }
+    if(!arr.length){ ctx.textAlign = 'left'; ctx.font = '11px Segoe UI, Arial'; ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillText('— перетащи сюда предметы', z.x + 12 + Math.min(nameRect(z).w, ctx.measureText(shown + '  ✎').width) + 16, z.y + 20); }
   });
 
   /* каталог */
@@ -378,7 +390,7 @@ function stageSlots(L){
   const c = colRect(L), out = [], s = 33, gap = 4;
   STAGES.forEach((st, si) => {
     const y = c.y + 100 + si * 74;
-    out.push({stage: st, y, buy: {x: c.x + c.w - 8 - 118, y: y - 1, w: 118, h: 18}});
+    out.push({stage: st, label: stageName(shGuide(), st), y, buy: {x: c.x + c.w - 8 - 118, y: y - 1, w: 118, h: 18}});
   });
   return out.map(o => ({...o, s, gap, x0: c.x + 12}));
 }
@@ -386,7 +398,7 @@ function mySlots(L){
   const g = shGuide(), out = [];
   if(!g || sh.mode !== 'players') return out;
   stageSlots(L).forEach(b => {
-    (g[b.stage.k] || []).filter(valid).slice(0, MAXI).forEach((id, i) => out.push({id, cat: b.stage.name, heading: b.y, rect: {x: b.x0 + i * (b.s + b.gap), y: b.y + 22, w: b.s, h: b.s}}));
+    (g[b.stage.k] || []).filter(valid).slice(0, MAXI).forEach((id, i) => out.push({id, cat: b.label, heading: b.y, rect: {x: b.x0 + i * (b.s + b.gap), y: b.y + 22, w: b.s, h: b.s}}));
   });
   return out;
 }
@@ -435,7 +447,7 @@ drawShop = function(){
         ctx.fillText('автор: ' + fitText(g.author || '—', 110) + '  ·  ' + (Math.max(0, Math.min(list.length - 1, sh.idx)) + 1) + ' / ' + list.length, c.x + c.w / 2, c.y + 84);
         stageSlots(L).forEach(b => {
           const ids = (g[b.stage.k] || []).filter(valid).slice(0, MAXI), todo = ids.filter(id => !owned(id));
-          ctx.textAlign = 'left'; ctx.fillStyle = '#8be9fd'; ctx.font = 'bold 11px Segoe UI, Arial'; ctx.fillText(b.stage.name, c.x + 12, b.y + 12);
+          ctx.textAlign = 'left'; ctx.fillStyle = '#8be9fd'; ctx.font = 'bold 11px Segoe UI, Arial'; ctx.fillText(fitText(b.label, ids.length ? c.w - 12 - 118 - 20 : c.w - 24), c.x + 12, b.y + 12);
           if(ids.length){
             const bb = b.buy, hv = inR(bb, mouse.x, mouse.y), cost = costOf(todo);
             rr(bb.x, bb.y, bb.w, bb.h, 6); ctx.fillStyle = !todo.length ? 'rgba(46,160,90,.35)' : hv ? 'rgba(199,160,92,.95)' : 'rgba(199,160,92,.3)'; ctx.fill();

@@ -299,6 +299,9 @@ SKIN_DEFS.push(
   /* 0.9.9.8: АРКАНА Вирсуди — «Бездна Приливов»: багрово-фиолетовая броня, голубые светящиеся клинки, пурпурная аура и огненные кольца. Только визуал. */
   {id:'virsudiArcana', arcana:true, name:'БЕЗДНА ПРИЛИВОВ', heroId:'virsudi', rarity:'arcana', price:1200, accent:'#00f5ff', border:'#ff2bd6', previewHero:'virsudi', previewColor:'#12062b', previewColor2:'#00f5ff', weaponColor:'#00f5ff',
    desc:'АРКАНА. Неоновая Бездна: Вирсуди в багрово-фиолетовых доспехах, клинки из чистого света, крылья из неона за спиной, вращающиеся светящиеся кольца и нимб. Все четыре скилла вспыхивают неоном — волны «Отдай сдачу», прыжок с неоновым шлейфом, неоновая привязка и ультимейт в облаке пурпурного света. Не меняет характеристики.', hint:'Виден, когда выбран Вирсуди.'},
+  /* 0.10.0 (дополнение): АРКАНА Пироманта «Лазурный феникс» — синее плазменное пламя. Меняет вид героя, атаку и все четыре скилла (только визуально, характеристики те же). Цена продублирована в accounts.js. */
+  {id:'pyroArcana', arcana:true, name:'ЛАЗУРНЫЙ ФЕНИКС', heroId:'pyro', rarity:'arcana', price:1500, accent:'#5ad0ff', border:'#2f7bff', previewHero:'pyro', previewColor:'#0b1a4a', previewColor2:'#5ad0ff',
+   desc:'АРКАНА. Пиромант перерождается в лазурного феникса: синяя плазменная мантия, ледяное сияние вместо золота, крылья из голубого пламени за спиной, нимб над колпаком и огненное оперение у ног. Атака превращается в плазменную комету с перьями, Огненный шар взрывается лазурью, Волна пламени расходится синим кольцом, Мигание оставляет светящийся шлейф, а Метеор падает синей кометой с неба. Не меняет характеристики.', hint:'Виден, когда выбран Пиромант.'},
   {id:'psihToxic', name:'ТОКСИЧНЫЙ ПСИХ', heroId:'psih', rarity:'rare', price:341, accent:'#b6ff3a', border:'#5f9a1c', previewHero:'psih', previewColor:'#233d0e', previewColor2:'#c8ff5a', weaponColor:'#b6ff3a',
    desc:'Кислотно-зелёный Псих, надышавшийся ядовитых паров. Клинки светятся токсичным цветом. Не меняет характеристики.', hint:'Виден, когда выбран Псих.'},
   {id:'psihFrost', name:'ЛЕДЯНОЙ КОШМАР', heroId:'psih', rarity:'epic', price:569, accent:'#7fe8ff', border:'#3d8fb0', previewHero:'psih', previewColor:'#12384a', previewColor2:'#9ff0ff', weaponColor:'#cdf6ff',
@@ -14205,6 +14208,8 @@ function drawUnit(u){
     }
     ctx.restore();
   }
+  /* 0.10.0 (дополнение): аркана Пироманта — лазурное пламя у ног (рисуется в update0100d.js) */
+  if(u.type === 'hero' && window.drawPyroArcanaAura && !u.dead && !perfLite()) window.drawPyroArcanaAura(u);
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
     const bsk = baseSkin(u.skinId); const heroAccent = bsk === 'reginaRed' ? '#ff344f' : ((SKIN_BY_ID[bsk] && isPaidSkin(SKIN_BY_ID[bsk]) && SKIN_BY_ID[bsk].accent) || heroLikeDef(u).color2 || col);
     const pulse = 1 + Math.sin(gameTime*5 + u.x*0.01)*0.06;

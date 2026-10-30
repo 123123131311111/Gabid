@@ -89,6 +89,13 @@ const SKIN_TINTS={
     if(s>.75&&l>.45) return (h>=36&&h<=60)?c:((h<70||h>330)?hsl2rgb(312,1,Math.max(.55,l)):c);  // акценты → неоновая маджента
     if(h<70||h>330) return hsl2rgb(338,Math.min(.9,Math.max(.6,s+.15)),Math.max(.16,Math.min(.62,l*1.1)));
     return hsl2rgb(268+(h%40)*.3,Math.min(.7,s*.7+.2),Math.max(.07,l*.8)); },
+  /* 0.10.0 (дополнение) АРКАНА Пироманта: «Лазурный феникс» — тёплые цвета (красный, оранжевый, золото) превращаются в синее плазменное пламя и ледяное сияние.
+     Синие, голубые и фиолетовые цвета (в том числе эффекты арканы) и телесные тона не трогаем. */
+  pyroArcana:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(h>=150&&h<=290) return c;
+    if(s<.65&&l>.6) return c;
+    if(l>.6) return hsl2rgb(192,.9,Math.min(.9,l+.1));
+    return hsl2rgb(218+(h%30)*.4,Math.min(.9,Math.max(.55,s*.8+.15)),Math.max(.1,l*.95)); },
   /* Шмедик: «Магмовый титан» — тёмный камень и оранжевая лава */
   earthshakerMagma:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(18+(h%30)*.25, Math.min(.92,Math.max(.5,s*.7+.3)), l>.7?Math.min(.88,l):Math.max(.1,l*.85)); },
   /* Гриша: «Изумрудный чародей» — зелёная мантия и светящиеся самоцветы */
@@ -384,8 +391,25 @@ MODELS.pyro=(S,d,t,pose)=>{
     S.ell(lb,[lr,lr,lr],'#ff9a3c',{glow:1});
     S.cone(add(lb,[0,.05,0]),add(lb,[0,.4+flick(t,5)*.05+ga.fx*.2,0]),.12,'#ff762f',{glow:1}); }
   embers(S,t,1.0,'#ff9a3c',7,2.6);
+  if(d && d.skinId && String(d.skinId).split('+')[0]==='pyroArcana') pyroArcanaFx(S,t);
   gaFx(S,ga);
 };
+/* 0.10.0 (дополнение): детали арканы Пироманта — крылья феникса из лазурного пламени, нимб над колпаком, перья-хвост и летящие синие искры */
+function pyroArcanaFx(S,t){
+  const FL=['#2f7bff','#5ad0ff','#e8f8ff'];
+  const fl=(i,k)=>Math.sin(t*(5+k)+i*1.9)*.5+.5;
+  for(const s of [-1,1]){                                  // крылья
+    for(let k=0;k<5;k++){ const f=fl(k+(s>0?5:0),2);
+      S.cone([s*.34,1.6,-.22],[s*(.78+k*.3),1.78+k*.26+f*.14,-.5-k*.1],.1-.014*k,FL[k%3],{seg:6,glow:1,shine:0});
+      S.cone([s*.34,1.5,-.2],[s*(.7+k*.26),1.35+k*.1+f*.08,-.46-k*.08],.07-.01*k,FL[(k+1)%3],{seg:5,glow:1,shine:0}); }
+  }
+  S.ring([0,3.28,0],.46,.03,'#e8f8ff',{glow:1,n:26,phase:t*.8});   // нимб
+  S.ring([0,3.28,0],.34,.02,'#5ad0ff',{glow:1,n:18,phase:-t*1.1});
+  for(let i=0;i<5;i++){ const f=fl(i,3);                  // хвост-оперение
+    S.cone([0,.55,-.35],[(i-2)*.3,.12+f*.1,-1.05-Math.abs(i-2)*.08],.09,FL[i%3],{seg:6,glow:1,shine:0}); }
+  for(let i=0;i<8;i++){ const ph=(t*.5+i/8)%1, a=i*2.4;   // искры
+    G(S,[Math.cos(a)*.6*(1-ph*.3),.7+ph*2.2,Math.sin(a)*.5-.05],.035*(1-ph)+.012,i%2?'#5ad0ff':'#e8f8ff'); }
+}
 
 MODELS.warlord=(S,d,t)=>{
   man(S,{bulk:1.15,face:false,cloth:'#3b7fa8',arm:'#3b7fa8',forearm:'#b9d8e7',pad:'#b9d8e7',padTrim:'#d7b36a',bracer:'#d7b36a',chest:'#b9d8e7',chestTrim:'#d7b36a',knee:'#b9d8e7',armR:[.82,1.35,.4],armL:[-.7,1.1,.25],legs:'#2d4f66',belt:'#d7b36a',trim:'#d7b36a',collar:'#b9d8e7',toe:'#b9d8e7'});
