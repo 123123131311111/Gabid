@@ -307,11 +307,9 @@ function drawSkillCard(def, sk, x, y, w, h, t){
   rr(kx, ky, ks, ks, 11); ctx.fillStyle = kg; ctx.fill();
   ctx.shadowBlur = 0; ctx.strokeStyle = ult ? '#ffe69a' : def.color2; ctx.lineWidth = 2; ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,.14)'; rr(kx + 3, ky + 3, ks - 6, ks * .4, 8); ctx.fill();
-  if(!(window.drawSkillIcon && window.drawSkillIcon(ctx, sk, kx + 2, ky + 2, ks - 4, ks - 4, 9, true))){
-    ctx.fillStyle = '#fff6d8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = 'bold ' + Math.round(ks * .46) + 'px Segoe UI, Arial';
-    ctx.fillText(sk.short || '?', kx + ks / 2, ky + ks / 2 + 1);
-  }
+  ctx.fillStyle = '#fff6d8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold ' + Math.round(ks * .46) + 'px Segoe UI, Arial';
+  ctx.fillText(sk.short || '?', kx + ks / 2, ky + ks / 2 + 1);
   ctx.restore();
   /* текст */
   const tx = kx + ks + 14, rightEdge = x + w - 12;
