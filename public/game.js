@@ -284,6 +284,11 @@ const SKIN_DEFS = [
 /* 0.9.8: ИММОРТАЛКИ — дополнительные предметы-украшения (kind:'acc'). Надеваются независимо от скина, снимаются в инвентаре. */
 SKIN_DEFS.push({id:'chipParrot', kind:'acc', immortal:true, price:1138, name:'КОРОЛЕВСКИЙ АРА', heroId:'chip', accent:'#ffcf5a', border:'#ff9d2e', previewHero:'chip', previewSkin:'+parrot',
   desc:'Иммортал для Чипа: яркий попугай-ара сидит на плече короля, качается, крутит головой и взмахивает крыльями. Не меняет характеристики.', hint:'Виден на Чипе. Можно надеть и снять в любой момент.'});
+/* 0.10.2.1: ещё две ИММОРТАЛКИ для героев без скинов. tag — суффикс skinId, который читает hero3d.js. Цена продублирована на сервере (accounts.js). */
+SKIN_DEFS.push({id:'warlordBlades', kind:'acc', immortal:true, price:1138, tag:'+blades', name:'КЛИНКИ ПОЛУНОЧНОЙ СТРАЖИ', heroId:'warlord', accent:'#9fd8ff', border:'#d7b36a', previewHero:'warlord', previewSkin:'+blades',
+  desc:'Иммортал для Вождя: пять парящих клинков веером раскрываются за спиной, покачиваются на золотой ступице, а на остриях вспыхивают искры. Не меняет характеристики.', hint:'Виден на Вожде. Можно надеть и снять в любой момент.'});
+SKIN_DEFS.push({id:'ilyaTotem', kind:'acc', immortal:true, price:1138, tag:'+totem', name:'ТОТЕМ ПРЕДКОВ', heroId:'ilya', accent:'#8dff79', border:'#ffd568', previewHero:'ilya', previewSkin:'+totem',
+  desc:'Иммортал для Ильи: резной тотем за плечом с тремя светящимися масками и черепом наверху, вокруг кружат зелёные духи предков. Не меняет характеристики.', hint:'Виден на Илье. Можно надеть и снять в любой момент.'});
 /* 0.9.9.3: ПЛАТНЫЕ СКИНЫ за Сенсики — по три на Снайпера, Психа и Мо3ги (0.9.9.4: цены −9%, плюс по скину для Вирсуди, Шмедика и Гриши). Цена (price) продублирована на сервере (accounts.js),
    покупка идёт через /api/buyskin. rarity: rare / epic / legendary. weaponColor — цвет оружия героя с этим скином. */
 SKIN_DEFS.push(
@@ -358,7 +363,7 @@ try {
 /* Скин, который реально применяется к данному герою (или null). */
 function baseSkin(id){ return id ? String(id).split('+')[0] || null : null; }
 let accEquipped = {};
-try { const sc = JSON.parse(localStorage.getItem('shadowRampageCosmetics') || '{}'); if(sc.accEquipped && sc.accEquipped.chipParrot === true) accEquipped.chipParrot = true; } catch(err) {}
+try { const sc = JSON.parse(localStorage.getItem('shadowRampageCosmetics') || '{}'); if(sc.accEquipped && typeof sc.accEquipped === 'object') for(const k of Object.keys(sc.accEquipped)) if(sc.accEquipped[k] === true) accEquipped[k] = true; } catch(err) {}
 /* Платные скины считаются купленными, только если они есть в профиле аккаунта (сервер). */
 function syncPaidSkins(){
   const list = (typeof account !== 'undefined' && account.token && account.profile && Array.isArray(account.profile.skins)) ? account.profile.skins : [];
@@ -370,6 +375,10 @@ function activeSkinFor(heroId){
   const base = pick(skinEquip[heroId]) || pick(skinEquip['*']);
   /* иммортал-аксессуар: skinId = «скин+parrot» (рендер читает суффикс) */
   if(heroId === 'chip' && skinsOwned.chipParrot && accEquipped.chipParrot) return (base || '') + '+parrot';
+  /* 0.10.2.1: остальные иммортал-предметы (kind:'acc') — суффикс из поля tag; у героя надет не более одного */
+  for(const sk of SKIN_DEFS){
+    if(sk.kind === 'acc' && sk.tag && sk.heroId === heroId && skinsOwned[sk.id] && accEquipped[sk.id]) return (base || '') + sk.tag;
+  }
   return base;
 }
 function isCosmeticEquipped(sk){ return sk.kind==='acc' ? !!accEquipped[sk.id] : skinEquip[skinSlot(sk)]===sk.id; }
@@ -14370,7 +14379,7 @@ function drawUnit(u){
     if(perfLite()) anim3d = null;      /* супер низкая: без анимаций моделей — статичные спрайты */
     if(u.bikeTimer > 0 && hd.id === 'mo3gi') anim3d = null;   /* на байке боец сидит, не шагает */
     let spriteDef = hd;
-    if(u.skinId && u.skinId !== hd.skinId && (SKIN_BY_ID[baseSkin(u.skinId)] || String(u.skinId).indexOf('+parrot')>=0)){
+    if(u.skinId && u.skinId !== hd.skinId && (SKIN_BY_ID[baseSkin(u.skinId)] || String(u.skinId).indexOf('+')>=0)){
       if(!u._skinDefCache || u._skinDefCache.skinId !== u.skinId) u._skinDefCache = {...hd, skinId:u.skinId};
       spriteDef = u._skinDefCache;
     }

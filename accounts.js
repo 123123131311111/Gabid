@@ -44,8 +44,44 @@ const SKIN_PRICES = {
   /* новые скины: легендарный «Пустотный жнец» для Шадоу и редкий «Розовый фокусник» для Иллюзиониста (цены обязаны совпадать с game.js) */
   shadowVoid: 910, illusionistPrism: 341,
   /* 0.10.0.7: новые скины (цены обязаны совпадать с update01007.js) */
-  juggernautJade: 569, reginaMoon: 910, gollyGold: 341
+  juggernautJade: 569, reginaMoon: 910, gollyGold: 341,
+  /* 0.10.2.1: иммортал-предметы для героев без скинов — «Клинки полуночной стражи» (Вождь) и «Тотем предков» (Илья), по 1138 Сенсиков (цены обязаны совпадать с game.js) */
+  warlordBlades: 1138, ilyaTotem: 1138
 };
+/* ===== 0.10.2.1: ВКЛАДКА «ЗАДАНИЯ». Постоянные задания (выполняются один раз за всё время) и одно МЕГА-ЗАДАНИЕ на 1100 Сенсиков.
+   Прогресс считается по общей статистике аккаунта (победы, убийства, матчи, уровень, покупки, мастерство героев) и только растёт,
+   поэтому проверка выполнения идёт по свежей записи, а выдача награды — одним атомарным запросом с условием «ещё не получено». ===== */
+const mapObj = m => (m instanceof Map ? Object.fromEntries(m) : (m && typeof m === 'object' ? m : {}));
+const heroesWithWins = (acc, n) => Object.values(mapObj(acc.mastery)).filter(v => (Number(v) || 0) >= n).length;
+const LIFE_QUESTS = [
+  { id: 'first_win',  title: 'Первая кровь',      desc: 'Одержи свою первую победу',                     reward: 100, target: 1,   get: a => a.wins },
+  { id: 'wins_10',    title: 'Боец арены',        desc: 'Одержи 10 побед',                               reward: 300, target: 10,  get: a => a.wins },
+  { id: 'wins_30',    title: 'Ветеран побед',     desc: 'Одержи 30 побед',                               reward: 700, target: 30,  get: a => a.wins },
+  { id: 'kills_100',  title: 'Охотник на героев', desc: 'Убей 100 героев за всё время',                  reward: 400, target: 100, get: a => a.kills },
+  { id: 'kills_400',  title: 'Истребитель',       desc: 'Убей 400 героев за всё время',                  reward: 900, target: 400, get: a => a.kills },
+  { id: 'matches_25', title: 'Завсегдатай',       desc: 'Сыграй 25 матчей (победа не обязательна)',      reward: 350, target: 25,  get: a => (a.wins || 0) + (a.losses || 0) },
+  { id: 'level_5',    title: 'Рост силы',         desc: 'Достигни 5 уровня аккаунта',                    reward: 250, target: 5,   get: a => a.level },
+  { id: 'collector',  title: 'Коллекционер',      desc: 'Купи в магазине любой скин или иммортал',       reward: 200, target: 1,   get: a => (Array.isArray(a.skins) ? a.skins.length : 0) },
+  { id: 'mega_legend', mega: true, title: 'ЛЕГЕНДА АРЕНЫ', desc: 'Выполни все четыре условия сразу — и получи главную награду', reward: 1100, parts: [
+    { label: 'Побед',                               target: 50,  get: a => a.wins },
+    { label: 'Убийств героев',                      target: 250, get: a => a.kills },
+    { label: 'Матчей сыграно',                      target: 70,  get: a => (a.wins || 0) + (a.losses || 0) },
+    { label: 'Героев с 3+ победами (мастерство)',   target: 5,   get: a => heroesWithWins(a, 3) }
+  ] }
+];
+const LIFE_QUEST_BY_ID = Object.fromEntries(LIFE_QUESTS.map(q => [q.id, q]));
+const lifeParts = def => (def.parts || [{ label: '', target: def.target, get: def.get }]);
+function lifeEval(def, acc){
+  const parts = lifeParts(def).map(p => ({ label: p.label || '', target: p.target, progress: Math.min(p.target, Math.max(0, Math.floor(Number(p.get(acc)) || 0))) }));
+  return { parts, complete: parts.every(p => p.progress >= p.target) };
+}
+function lifeState(acc){
+  const done = Array.isArray(acc.questsDone) ? acc.questsDone : [];
+  return LIFE_QUESTS.map(def => {
+    const ev = lifeEval(def, acc), claimed = done.includes(def.id);
+    return { id: def.id, title: def.title, desc: def.desc, reward: def.reward, mega: !!def.mega, parts: ev.parts, claimed, ready: !claimed && ev.complete };
+  });
+}
 /* ===== 0.10.0: МАСТЕРСТВО ГЕРОЕВ. Все бойцы, 5 уровней. Уровень растёт за победы на этом герое в любом режиме.
    Награда за каждый уровень — Сенсики, забирается вручную по порядку (1 → 5). Все числа лежат только на сервере. ===== */
 const MASTERY_HEROES = Array.from(HERO_IDS);   /* 0.10.0 (дополнение): мастерство есть у ВСЕХ героев */
@@ -123,6 +159,7 @@ const accountSchema = new mongoose.Schema({
     games: { type: Number, min: 0, default: 0 },
     claimed: { type: [String], default: [] }
   },
+  questsDone: { type: [String], default: [] },   /* 0.10.2.1: полученные постоянные задания и мега-задание */
   avatar: { type: String, default: '' },
   recent: { type: [String], default: [] },
   times: { type: [Number], default: [] },
@@ -228,7 +265,7 @@ function masteryState(acc){
   for(const id of MASTERY_HEROES) out[id] = { wins: Math.max(0, Number(wins[id]) || 0), claimed: Math.max(0, Math.min(5, Number(claimed[id]) || 0)) };
   return out;
 }
-const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE, skins: Array.isArray(acc.skins) ? acc.skins.filter(id => SKIN_PRICES[id]) : [], mastery: masteryState(acc), masteryCfg: { heroes: MASTERY_HEROES, wins: MASTERY_WINS, rewards: MASTERY_REWARDS } });
+const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), life: lifeState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE, skins: Array.isArray(acc.skins) ? acc.skins.filter(id => SKIN_PRICES[id]) : [], mastery: masteryState(acc), masteryCfg: { heroes: MASTERY_HEROES, wins: MASTERY_WINS, rewards: MASTERY_REWARDS } });
 
 async function makeSession(key){
   const token = crypto.randomBytes(24).toString('hex');
@@ -403,6 +440,27 @@ const routes = {
       const current = await Account.findById(auth.acc._id);
       return [200, { profile: ownProfile(current), claimed: false }];
     }
+    return [200, { profile: ownProfile(claimed), claimed: true, reward: def.reward, questId: def.id }];
+  },
+
+  /* 0.10.2.1: награда за постоянное или мега-задание. Выполнение проверяется по свежей записи аккаунта (статистика только растёт),
+     а начисление — одним атомарным запросом «ещё не получено → записать и выдать», поэтому двойной клик не выдаст награду дважды. */
+  async claimlife(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const def = LIFE_QUEST_BY_ID[String(body.questId || '')];
+    if(!def) return [400, { error: 'Неизвестное задание' }];
+    const fresh = await Account.findById(auth.acc._id);
+    if(!fresh) return [401, { error: 'Сессия истекла, войди заново' }];
+    if(!lifeEval(def, fresh).complete) return [200, { profile: ownProfile(fresh), claimed: false }];
+    const claimed = await Account.findOneAndUpdate({
+      _id: fresh._id,
+      questsDone: { $ne: def.id }
+    }, {
+      $push: { questsDone: def.id },
+      $inc: { shards: def.reward }
+    }, { new: true });
+    if(!claimed) return [200, { profile: ownProfile(await Account.findById(fresh._id)), claimed: false }];
     return [200, { profile: ownProfile(claimed), claimed: true, reward: def.reward, questId: def.id }];
   },
 

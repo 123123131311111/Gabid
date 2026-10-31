@@ -452,6 +452,62 @@ function pyroArcanaFx(S,t){
     G(S,[Math.cos(a)*.6*(1-ph*.3),.7+ph*2.2,Math.sin(a)*.5-.05],.035*(1-ph)+.012,i%2?'#5ad0ff':'#e8f8ff'); }
 }
 
+
+/* ---------- 0.10.2.1: ИММОРТАЛКИ ---------- */
+/* «Клинки полуночной стражи» — пять парящих клинков веером за спиной Вождя (skinId содержит '+blades'). Покачиваются, на остриях мерцают искры. */
+function warlordBlades(S,t){
+  const ICE='#e8f4ff', ICE2='#9fd8ff', GOLD='#ffd568', GOLD2='#d7a53a', DK='#1a2a38', GLW='#7feaff';
+  const cx=0, cy=1.72, cz=-.95, bob=Math.sin(t*1.7)*.05;
+  S.ring([cx,cy+bob,cz],.34,.022,GOLD,{glow:1,axis:'z',n:18,phase:t*.6});          // золотое кольцо-ступица веера
+  G(S,[cx,cy+bob,cz],.1,GLW,{rings:4,seg:8});
+  for(let i=0;i<5;i++){
+    const k=i-2, a=k*.54+Math.sin(t*.9+i*1.3)*.035, sn=Math.sin(a), cs=Math.cos(a);
+    const r0=.42, r1=1.3+(i===2?.3:(i%2?0:.08)), zz=cz-Math.abs(k)*.035;
+    const b=[cx+sn*r0,cy+cs*r0+bob,zz], gd=[cx+sn*(r0+.06),cy+cs*(r0+.06)+bob,zz];
+    const tp=[cx+sn*r1,cy+cs*r1+bob,zz], ed=[cx+sn*(r1-.22),cy+cs*(r1-.22)+bob,zz];
+    S.obox(gd,tp,.15,.04,ICE,{shine:.9,hint:[0,0,1]});                                   // клинок
+    S.obox(gd,ed,.04,.052,ICE2,{shine:.7,hint:[0,0,1]});                                 // голубой дол
+    S.cone([cx+sn*(r1-.03),cy+cs*(r1-.03)+bob,zz],[cx+sn*(r1+.2),cy+cs*(r1+.2)+bob,zz],.075,ICE,{seg:4,shine:.9});   // остриё
+    S.obox([cx+sn*r0-cs*.1,cy+cs*r0+sn*.1+bob,zz],[cx+sn*r0+cs*.1,cy+cs*r0-sn*.1+bob,zz],.05,.07,GOLD,{shine:.8,hint:[0,0,1]});   // золотая гарда
+    S.tube(b,[cx+sn*(r0-.16),cy+cs*(r0-.16)+bob,zz],.03,.03,DK,{seg:6});                // рукоять
+    S.ell([cx+sn*(r0-.18),cy+cs*(r0-.18)+bob,zz],[.045,.045,.045],GOLD2,{rings:4,seg:7,shine:.8});
+    const sp=Math.pow(Math.max(0,Math.sin(t*2.2+i*1.4)),8);                              // мерцание на острие
+    G(S,[cx+sn*(r1+.22),cy+cs*(r1+.22)+bob,zz],.035+.05*sp,'#ffffff',{rings:3,seg:6});
+  }
+  for(let i=0;i<6;i++){ const ph=(t*.35+i/6)%1, a=i*1.9+t*.4;                            // искры, поднимающиеся от клинков
+    G(S,[cx+Math.cos(a)*.9,cy-.3+ph*1.8,cz+Math.sin(a)*.18],.03*(1-ph*.6)+.01,i%2?GLW:GOLD); }
+}
+/* «Тотем предков» — резной тотем, привязанный за левым плечом Ильи: три светящиеся маски, череп-навершие и кружащие духи (skinId содержит '+totem'). */
+function ilyaTotem(S,t){
+  const WOOD='#6b4a28', WOOD2='#4a3320', GOLD='#ffd568', GRN='#8dff79', GRN2='#c8ef8d', BONE='#e9d9b0';
+  const cx=-1.02, cz=-.42, y0=.7, top=3.3;
+  S.tube([cx,y0,cz],[cx,top,cz],.15,.13,WOOD,{seg:10,shine:.3});                         // ствол
+  S.tube([cx,y0,cz],[cx,y0+.18,cz],.22,.19,WOOD2,{seg:10});                              // нижний башмак
+  for(const y of [1.35,2.0,2.62]) S.tube([cx,y,cz],[cx,y+.05,cz],.18,.18,GOLD,{seg:10,shine:.7});   // золотые обручи
+  S.obox([cx+.1,1.78,cz+.05],[.0,1.62,cz+.3],.07,.04,'#3a2a14',{shine:.2,hint:[0,0,1]});  // ремень к спине
+  for(let i=0;i<3;i++){                                                                   // три маски (нижняя мельче)
+    const y=1.62+i*.62, sc=i===0?.85:1.08, pulse=.5+.5*Math.sin(t*2+i*1.9), zf=cz+.12*sc;
+    S.box([cx,y,zf],[.4*sc,.44*sc,.1*sc],i===1?'#7a5a2c':WOOD2,{shine:.35});
+    S.box([cx,y+.25*sc,zf],[.46*sc,.06,.12*sc],GOLD,{shine:.7});
+    for(const s of [-1,1]){
+      S.ell([cx+s*.1*sc,y+.05*sc,zf+.06*sc],[.07*sc,.05*sc,.03],GRN,{glow:1,rings:4,seg:8});            // светящиеся глаза
+      S.cone([cx+s*.07*sc,y-.12*sc,zf+.05*sc],[cx+s*.085*sc,y-.26*sc,zf+.07*sc],.04*sc,BONE,{seg:5,shine:.5}); // клыки
+      S.cone([cx+s*.22*sc,y+.18*sc,cz],[cx+s*.36*sc,y+.34*sc,cz-.04],.05*sc,BONE,{seg:5,shine:.5}); }       // рожки
+    S.box([cx,y-.09*sc,zf+.055*sc],[.14*sc,.04,.03],'#1a0e06');                           // рот
+    G(S,[cx,y+.2*sc,zf+.06*sc],.03+.03*pulse,GRN2,{rings:3,seg:6});                       // камень на лбу
+  }
+  for(const s of [-1,1]){                                                                 // резные «крылья» тотема
+    S.obox([cx+s*.12,2.9,cz],[cx+s*.55,3.22+Math.sin(t*1.5)*.03,cz],.1,.05,WOOD,{shine:.35,hint:[0,0,1]});
+    S.obox([cx+s*.45,3.14,cz],[cx+s*.7,3.46,cz],.07,.04,GOLD,{shine:.7,hint:[0,0,1]}); }
+  S.ell([cx,top+.12,cz],[.19,.16,.19],BONE,{rings:6,seg:10,shine:.5});                   // череп-навершие
+  for(const s of [-1,1]) S.ell([cx+s*.07,top+.14,cz+.14],[.04,.045,.02],GRN,{glow:1,rings:3,seg:6});
+  G(S,[cx,top+.46+Math.sin(t*2.4)*.04,cz],.09,GRN,{rings:4,seg:8});                       // пламя духа над тотемом
+  S.ring([cx,y0+.04,cz],.55,.03,GRN,{glow:1,n:18,phase:t*.5});                            // руническое кольцо у основания
+  for(let i=0;i<5;i++){ const a=t*.9+i*1.2566, y=1.1+i*.5+Math.sin(t*1.4+i)*.1;           // духи предков вокруг тотема
+    const p=[cx+Math.cos(a)*.5,y,cz+Math.sin(a)*.5];
+    G(S,p,.065,i%2?GRN2:GRN,{rings:4,seg:8});
+    S.cone(p,[p[0]-Math.sin(a)*.2,p[1]-.08,p[2]+Math.cos(a)*.2],.045,GRN,{glow:1,seg:5}); }
+}
 MODELS.warlord=(S,d,t)=>{
   man(S,{bulk:1.15,face:false,cloth:'#3b7fa8',arm:'#3b7fa8',forearm:'#b9d8e7',pad:'#b9d8e7',padTrim:'#d7b36a',bracer:'#d7b36a',chest:'#b9d8e7',chestTrim:'#d7b36a',knee:'#b9d8e7',armR:[.82,1.35,.4],armL:[-.7,1.1,.25],legs:'#2d4f66',belt:'#d7b36a',trim:'#d7b36a',collar:'#b9d8e7',toe:'#b9d8e7'});
   cape(S,'#8f2730','#d7b36a',1.0,2.0,.7,-.42,5);
@@ -478,6 +534,7 @@ MODELS.warlord=(S,d,t)=>{
   S.box([-.78,1.1,.3],[.05,1.0,.78],'#b9d8e7',{rot:[0,0,.15],shine:.6});
   G(S,[-.78,1.15,.34],.12,'#d7b36a',{glow:0,shine:.8}); G(S,[-.78,1.15,.34],.06,'#c0392b');
   hold(S,_h2,'L');
+  if(d && d.skinId && String(d.skinId).indexOf('+blades')>=0) warlordBlades(S,t);   /* 0.10.2.1: иммортал */
 };
 
 /* 3D-блик Гриши: три скрещённых луча — виден с любого ракурса */
@@ -722,6 +779,7 @@ MODELS.ilya=(S,d,t)=>{
   for(let i=0;i<10;i++){ const a=i/10*Math.PI*2+t*.4; S.cone([Math.cos(a)*.95,2.1+Math.sin(a)*.95,-.55],[Math.cos(a)*1.15,2.1+Math.sin(a)*1.15,-.55],.04,'#b8ff9a',{glow:1,seg:4}); }
   for(let i=0;i<8;i++){ const a=t*.7+i*.785, ph=(t*.4+i/8)%1; S.cone([Math.cos(a)*1.65,.2+ph*2.4,Math.sin(a)*1.65],[Math.cos(a)*1.65,.45+ph*2.4,Math.sin(a)*1.65],.045,'#b8ff9a',{glow:1,seg:5}); }
   for(let i=0;i<4;i++){ const a=-t*.5+i*1.57; S.box([Math.cos(a)*1.9,1.5+Math.sin(t+i)*.15,Math.sin(a)*1.9],[.18,.18,.03],'#8dff79',{glow:1,rot:[0,-a,.785]}); }
+  if(d && d.skinId && String(d.skinId).indexOf('+totem')>=0) ilyaTotem(S,t);   /* 0.10.2.1: иммортал */
 };
 
 MODELS.malit=(S,d,t)=>{
