@@ -95,6 +95,12 @@ const SKIN_TINTS={
   psihFrost:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(190+(h%40)*.3, Math.min(.85,Math.max(.35,s*.55+.3)), Math.min(.93,l*.9+.1)); },
   /* Псих: «Кровавое безумие» — глубокий алый */
   psihBlood:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(356+(h%30)*.2, Math.min(.95,Math.max(.6,s*.6+.4)), l>.7?Math.min(.88,l):Math.max(.1,l*.85)); },
+  /* 0.10.1.5 АРКАНА Психа: «Бриллиантовый кошмар» — тёмная сапфировая ткань, всё остальное превращается в ледяной бриллиант; белые и голубые детали (в том числе эффекты арканы) не трогаем */
+  psihArcana:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(l>.86) return c;
+    if(h>=175&&h<=300&&s>.35&&l>.45) return c;
+    if(l<.3) return hsl2rgb(212+(h%30)*.3,.62,Math.min(.46,l*2.4+.17));
+    return hsl2rgb(188+(h%50)*.2,Math.min(.9,.55+s*.3),Math.min(.93,l*.55+.42)); },
   /* Мо3ги: «Пустынный штурм» — песочная форма */
   mo3giDesert:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(36+(h%40)*.15, Math.min(.55,Math.max(.28,s*.6+.15)), Math.min(.82,l*.85+.14)); },
   /* Мо3ги: «Арктический десант» — серо-белая экипировка */
@@ -3900,9 +3906,60 @@ MODELS.mon_drone=(S,d)=>{
 
 
 /* ---------- 0.9.7.5: Псих — чумной доктор ---------- */
+/* ---------- 0.10.1.5: АРКАНА Психа «Бриллиантовый кошмар» ---------- */
+/* три клюва: центральный и два боковых, расходящихся веером; грани — квадратные «алмазные» сечения, вдоль хребта светится белая жила */
+function psihTriBeak(S,tw,hy,t){
+  const C=['#f4fbff','#bfeaff','#8fe8ff'];
+  const base=[[-.03,.22,.14],[-.08,.42,.108],[-.16,.62,.066],[-.27,.8,.012]];
+  const cfg=[{yaw:0,sc:1,off:0,dy:0,w:1},{yaw:-.62,sc:.82,off:-.075,dy:-.025,w:.78},{yaw:.62,sc:.82,off:.075,dy:-.025,w:.78}];
+  let bi=0;
+  for(const c of cfg){
+    const sy=Math.sin(c.yaw), cy=Math.cos(c.yaw);
+    const P=base.map(b=>{ const lz=(b[1]-.18)*c.sc; return [tw+c.off+lz*sy, hy+b[0]*c.sc+c.dy, .18+lz*cy, b[2]*c.w]; });
+    for(let i=0;i<3;i++){
+      const A=P[i],B=P[i+1];
+      S.tube([A[0],A[1],A[2]],[B[0],B[1],B[2]],A[3],B[3],C[(i+bi)%3],{seg:4,shine:.95});
+      S.tube([A[0],A[1]+A[3]*.9,A[2]],[B[0],B[1]+B[3]*.9,B[2]],.018,.01,'#ffffff',{seg:4,glow:1});
+    }
+    const T=P[3], tw2=.5+.5*Math.sin(t*6+bi*2);
+    G(S,[T[0],T[1],T[2]+.02],.032+.012*tw2,'#e8f8ff');
+    bi++;
+  }
+}
+/* бриллиантовая корона, летающие алмазы, кристальные крылья, сияющие кольца */
+function psihArcanaFx(S,t,hy,tw){
+  const oct=(x,y,z,r,hu,hd,c1,c2,o)=>{ S.cone([x,y,z],[x,y+hu,z],r,c1,Object.assign({seg:4,shine:.95},o||{})); S.cone([x,y,z],[x,y-hd,z],r,c2,{seg:4,shine:.9}); };
+  const fl=(i,k)=>Math.sin(t*(2+k)+i*1.7)*.5+.5;
+  for(let i=0;i<7;i++){                                         // корона вокруг тульи шляпы
+    const a=i/7*Math.PI*2+t*.25, x=tw+Math.cos(a)*.47, z=Math.sin(a)*.47;
+    oct(x,hy+.27,z,.06,.15+fl(i,3)*.03,.07,i%2?'#e8f8ff':'#f4fbff','#8fe8ff',{glow:i%2});
+  }
+  { const y=hy+.68+Math.sin(t*2)*.035;                         // главный бриллиант над шляпой
+    oct(tw,y,0,.14,.26,.17,'#f4fbff','#8fe8ff');
+    G(S,[tw,y+.02,0],.06+.02*fl(0,5),'#ffffff'); }
+  for(const s of [-1,1]){                                       // плечи
+    oct(s*.56,1.82,0,.085,.22,.1,'#f4fbff','#8fe8ff');
+  }
+  for(const s of [-1,1]) for(let k=0;k<4;k++){                  // кристальные крылья за спиной
+    const f=fl(k+(s>0?4:0),2);
+    S.cone([s*.3,1.5,-.25],[s*(.55+k*.2),1.65+k*.26+f*.05,-.5-k*.08],.1-.014*k,k%2?'#bfeaff':'#f4fbff',{seg:4,shine:.95,glow:k%2});
+  }
+  for(let i=0;i<7;i++){                                         // вращающиеся алмазы
+    const a=t*1.2+i*.9, r=.92+.08*Math.sin(t+i), y=.45+i*.27+Math.sin(t*2+i)*.08;
+    oct(Math.cos(a)*r,y,Math.sin(a)*r*.9,.045,.1,.075,['#e8f8ff','#8fe8ff','#c9b8ff'][i%3],'#8fe8ff',{glow:1});
+  }
+  S.ring([0,.04,0],.86,.022,'#8fe8ff',{glow:1,n:22,phase:t*.9});
+  S.ring([0,.04,0],.68,.016,'#e8f8ff',{glow:1,n:18,phase:-t*1.3});
+  for(let i=0;i<6;i++){                                         // мерцающие искры
+    const ph=(t*.6+i/6)%1, a=i*2.1+t*.3;
+    G(S,[Math.cos(a)*.7,.3+ph*2.4,Math.sin(a)*.6-.05],.03*(1-ph)+.012,i%2?'#ffffff':'#8fe8ff');
+  }
+}
+
 MODELS.psih=(S,d,t,pose)=>{
   const BLK='#0c0e13',BLK2='#171a22',CLOTH='#10131a',CLOTH2='#1b1f29',LEA='#b07a3c',LEA2='#85572a',BRASS='#d6aa4c',GLASS='#ffb52e',
         WOOD='#7a4136',GARL='#e8e1ce',GARL2='#b7ab8e',BLADE='#eef2f8',GLOW=d.color2||'#b6ff3a',ZIP='#f1e4a6';
+  const arc=!!(d&&d.skinId&&String(d.skinId).split('+')[0]==='psihArcana');   /* 0.10.1.5: аркана — три клюва и бриллиантовый облик */
   const kind=pose&&pose.kind,p=(pose&&pose.p)||0;
   const wk=kind==='walk'?Math.sin(p*Math.PI*2):0, at=kind==='attack'?Math.sin(Math.min(1,p)*Math.PI):0;
   const tw=Math.sin(t*5)*.012, bob=Math.sin(t*2.4)*.015, hy=2.0+bob;
@@ -3955,12 +4012,15 @@ MODELS.psih=(S,d,t,pose)=>{
     S.obox([hd[0],hd[1],hd[2]+.08],tip,.065,.014,BLADE,{shine:.9});
     S.box([hd[0],hd[1],hd[2]+.1],[.13,.025,.03],BRASS,{shine:.6});
     S.box([hd[0],hd[1]-.02,hd[2]+.42],[.022,.02,.05],'#8e1b1b');
+    if(arc){ S.obox([hd[0],hd[1],hd[2]+.1],tip,.032,.03,'#bfeaff',{glow:1}); S.ell([hd[0],hd[1],hd[2]+.1],[.05,.05,.05],'#8fe8ff',{glow:1,rings:4,seg:6}); }
   }
   /* капюшон за головой */
   S.ell([tw,hy-.04,-.06],[.31,.36,.31],CLOTH,{rings:8,seg:14});
   /* кожаная маска и клюв */
   S.ell([tw,hy-.02,.13],[.2,.25,.16],LEA,{rings:8,seg:14,shine:.35});
   S.ell([tw,hy+.1,.18],[.19,.06,.1],LEA2,{rings:4,seg:10});
+  if(arc){ psihTriBeak(S,tw,hy,t); }
+  else {
   const bk=[[0,-.03,.22,.14],[0,-.08,.42,.108],[0,-.16,.62,.066],[0,-.27,.8,.012]];
   for(let i=0;i<3;i++){
     const A=bk[i],B=bk[i+1];
@@ -3973,6 +4033,7 @@ MODELS.psih=(S,d,t,pose)=>{
     S.box([x,y+r*.96,z],[.022,.014,.04],ZIP,{shine:.85});
   }
   S.box([tw,hy-.06,.34],[.02,.02,.2],ZIP,{shine:.8});
+  }
   /* круглые латунные очки с янтарным стеклом */
   for(const s of [-1,1]){
     const ex=s*.105+tw;
@@ -3988,6 +4049,7 @@ MODELS.psih=(S,d,t,pose)=>{
   S.tube([tw,hy+.235,0],[tw,hy+.3,0],.275,.27,'#222632',{seg:18,shine:.3});
   /* ядовитые огоньки вокруг */
   for(let i=0;i<4;i++){ const a=t*1.5+i*1.57; S.box([Math.cos(a)*.85,1.2+Math.sin(t*2+i)*.3+i*.18,Math.sin(a)*.85],[.05,.05,.05],i%2?GLOW:'#b58cff',{glow:1,rot:[a,a,0]}); }
+  if(arc) psihArcanaFx(S,t,hy,tw);
 };
 ANIM.psih=[{kind:'attack',p:.3},{kind:'attack',p:.58},{kind:'walk',p:.25},{kind:'walk',p:.75}];
 

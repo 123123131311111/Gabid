@@ -14278,6 +14278,8 @@ function drawUnit(u){
   }
   /* 0.10.0 (дополнение): аркана Пироманта — лазурное пламя у ног (рисуется в update0100d.js) */
   if(u.type === 'hero' && window.drawPyroArcanaAura && !u.dead && !perfLite()) window.drawPyroArcanaAura(u);
+  /* 0.10.1.5: аркана Психа «Бриллиантовый кошмар» — бриллиантовая аура у ног героя и его копий (update01015.js) */
+  if((u.type === 'hero' || (u.copyDef && u.skinId)) && window.drawPsihArcanaAura && !u.dead && !perfLite()) window.drawPsihArcanaAura(u);
   /* новые скины Шадоу («Пустотный жнец») и Иллюзиониста («Розовый фокусник») — аура у ног (update0100f.js) */
   if((u.type === 'hero' || isIllusionClone(u)) && window.drawNewSkinAura && !u.dead && !perfLite()) window.drawNewSkinAura(u);
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){

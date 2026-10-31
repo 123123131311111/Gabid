@@ -88,6 +88,11 @@ function headTeleport(h, hd){
   return true;
 }
 
+{
+  const _he = headEnd, _ht = headTeleport;
+  headEnd = function(hd){ const p = G.__psihArcOn; G.__psihArcOn = isArcH(hd && hd.owner); try { return _he.apply(this, arguments); } finally { G.__psihArcOn = p; } };
+  headTeleport = function(h){ const p = G.__psihArcOn; G.__psihArcOn = isArcH(h); try { return _ht.apply(this, arguments); } finally { G.__psihArcOn = p; } };
+}
 Object.assign(SKILLS, {
   psihT: {
     name:'Бошка Ильи', short:'T', type:'point', maxLevel:3, range:HEAD_RANGE,
@@ -123,6 +128,7 @@ function headTick(dt){
   for(const hd of PH.heads){
     if(hd.dead) continue;
     const h = hd.owner;
+    G.__psihArcOn = isArcH(h);          /* 0.10.1.5: аркана — бриллиантовые эффекты головы */
     /* новый матч / герой исчез из игры */
     if(!heroes.includes(h)){ hd.dead = true; continue; }
     if(h.dead){ headEnd(hd, true); continue; }
@@ -173,11 +179,60 @@ function headTick(dt){
     }
     for(const p of hd.trail) p.t += dt;
   }
+  G.__psihArcOn = false;
   PH.heads = PH.heads.filter(k => !k.dead);
+}
+
+/* ---------- 0.10.1.5: аркана Психа — голова превращается в бриллиант с тремя клювами ---------- */
+const isArcH = h => !!(h && h.def && h.def.id === 'psih' && String(h.skinId || '').split('+')[0] === 'psihArcana');
+function drawHeadArc(hd){
+  const g = ctx, tm = gameTime, R = 22;
+  g.save();
+  g.fillStyle = 'rgba(0,10,40,' + al(0.3 - hd.z / 600) + ')';
+  g.beginPath(); g.ellipse(hd.x, hd.y + 6, R * 0.9, R * 0.35, 0, 0, TAU); g.fill();
+  if(hd.phase === 'fly'){
+    g.globalCompositeOperation = 'lighter';
+    for(let i = 0; i < hd.trail.length; i++){
+      const p = hd.trail[i], k = (i + 1) / hd.trail.length, sz = R * 0.7 * k;
+      g.fillStyle = (i % 2 ? 'rgba(232,248,255,' : 'rgba(143,232,255,') + al(0.4 * k * (1 - p.t * 2.5)) + ')';
+      g.beginPath(); g.moveTo(p.x, p.y - sz); g.lineTo(p.x + sz * 0.6, p.y); g.lineTo(p.x, p.y + sz); g.lineTo(p.x - sz * 0.6, p.y); g.closePath(); g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
+  g.translate(hd.x, hd.y - hd.z);
+  g.rotate(hd.phase === 'marked' ? Math.sin(tm * 6) * 0.1 : Math.sin(hd.spin) * 0.3);
+  g.shadowColor = '#5ad0ff'; g.shadowBlur = 24;
+  /* три клюва веером */
+  const fan = [[-0.75, 0.8], [0, 1], [0.75, 0.8]];
+  for(const f of fan){
+    const a = Math.PI / 2 + f[0] * 0.55 + 0.0, L = R * 1.35 * f[1], bw = R * 0.34 * f[1];
+    g.save(); g.rotate(f[0] * 0.55); g.fillStyle = '#bfeaff'; g.strokeStyle = '#ffffff'; g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(-bw, R * 0.55); g.lineTo(0, R * 0.55 + L); g.lineTo(bw, R * 0.55); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.moveTo(0, R * 0.55); g.lineTo(0, R * 0.55 + L); g.lineTo(bw, R * 0.55); g.closePath(); g.fill();
+    g.restore();
+  }
+  /* огранённый бриллиант-череп */
+  const gr = g.createLinearGradient(-R, -R * 1.2, R, R);
+  gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, '#8fe8ff'); gr.addColorStop(1, '#3a7ad8');
+  g.fillStyle = gr; g.strokeStyle = '#ffffff'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(0, -R * 1.25); g.lineTo(R * 0.95, -R * 0.35); g.lineTo(R * 0.7, R * 0.7); g.lineTo(0, R * 0.95); g.lineTo(-R * 0.7, R * 0.7); g.lineTo(-R * 0.95, -R * 0.35); g.closePath(); g.fill(); g.stroke();
+  g.shadowBlur = 0; g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1.2;
+  g.beginPath(); g.moveTo(-R * 0.95, -R * 0.35); g.lineTo(R * 0.95, -R * 0.35); g.moveTo(0, -R * 1.25); g.lineTo(-R * 0.3, -R * 0.35); g.lineTo(0, R * 0.95); g.moveTo(0, -R * 1.25); g.lineTo(R * 0.3, -R * 0.35); g.lineTo(0, R * 0.95); g.stroke();
+  /* глаза-огни, смотрят на цель */
+  let lookX, lookY;
+  if(hd.target && !hd.target.dead){ const a = Math.atan2(hd.target.y - hd.y, hd.target.x - hd.x); lookX = Math.cos(a) * 3; lookY = Math.sin(a) * 2; }
+  else { lookX = Math.cos(hd.dir) * 3; lookY = Math.sin(hd.dir) * 2; }
+  g.globalCompositeOperation = 'lighter';
+  for(const ex of [-7.5, 7.5]){
+    g.fillStyle = 'rgba(90,208,255,.55)'; g.beginPath(); g.arc(ex + lookX, 0 + lookY, 8, 0, TAU); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(ex + lookX, 0 + lookY, 3.6, 0, TAU); g.fill();
+  }
+  g.restore();
 }
 
 /* ---------- отрисовка головы (мировые координаты) ---------- */
 function drawHeadSprite(hd){
+  if(isArcH(hd.owner)) return drawHeadArc(hd);
   const g = ctx, tm = gameTime, R = 22;
   const gx = hd.x, gy = hd.y;
   g.save();
@@ -233,10 +288,10 @@ function drawHeadsWorld(){
     try {
       /* нить от Психа к голове, пока она сидит на цели */
       if(hd.phase === 'marked' && hd.owner && !hd.owner.dead){
-        ctx.save(); ctx.strokeStyle = 'rgba(255,77,94,' + al(0.25 + 0.15 * Math.sin(gameTime * 8)) + ')'; ctx.lineWidth = 2; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -gameTime * 40;
+        ctx.save(); ctx.strokeStyle = (isArcH(hd.owner) ? 'rgba(143,232,255,' : 'rgba(255,77,94,') + al(0.25 + 0.15 * Math.sin(gameTime * 8)) + ')'; ctx.lineWidth = 2; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -gameTime * 40;
         ctx.beginPath(); ctx.moveTo(hd.owner.x, hd.owner.y); ctx.lineTo(hd.x, hd.y); ctx.stroke(); ctx.restore();
         /* красное кольцо метки на цели */
-        ctx.save(); ctx.strokeStyle = 'rgba(255,60,80,' + al(0.6 + 0.3 * Math.sin(gameTime * 7)) + ')'; ctx.lineWidth = 2.5;
+        ctx.save(); ctx.strokeStyle = (isArcH(hd.owner) ? 'rgba(232,248,255,' : 'rgba(255,60,80,') + al(0.6 + 0.3 * Math.sin(gameTime * 7)) + ')'; ctx.lineWidth = 2.5;
         const rr = (hd.target ? hd.target.radius : 24) + 16 + Math.sin(gameTime * 5) * 3;
         ctx.beginPath(); ctx.ellipse(hd.x, hd.y + 4, rr, rr * 0.5, 0, 0, TAU); ctx.stroke(); ctx.restore();
       }

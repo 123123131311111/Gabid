@@ -132,6 +132,14 @@ drawItemIcon = function(item, x, y, s){
    порезы, «безумная» аура. Всё учитывает настройку эффектов (fxl / perfLite).
    ====================================================================== */
 const PF = {list: [], clones: [], gt: 0};
+/* 0.10.1.5: АРКАНА Психа «Бриллиантовый кошмар» — все эффекты Психа с арканой перекрашиваются в бриллиантовую палитру.
+   Пока выставлен флаг G.__psihArcOn, цвета новых эффектов проходят через recol(); у уже созданных эффектов стоит o.arc. */
+const ARC_MAP = {'#b6ff3a':'#8fe8ff','#7a4bc9':'#c9b8ff','#a47bff':'#c9b8ff','#b58cff':'#c9b8ff','#c9a0ff':'#c9b8ff','#ff3b5c':'#e8f8ff','#ff5577':'#e8f8ff','#ff9a3b':'#ffffff',
+  '#ff4d5e':'#8fe8ff','#ff7a88':'#e8f8ff','#ff2a3d':'#5ad0ff','#b0102a':'#8fe8ff','#6d0a1a':'#3a5ccf','#2b1d16':'#1d2c55','#3d2a1e':'#2d4a8a','#1a1210':'#0f1a40','#4a3326':'#3a64b8','#150c22':'#0b1740',
+  '182,255,58':'143,232,255','150,255,60':'143,232,255','122,255,60':'143,232,255','164,123,255':'201,184,255','122,75,201':'201,184,255','30,18,52':'18,32,88','40,22,70':'22,40,100','255,59,92':'143,232,255','255,120,80':'232,248,255'};
+const recol = c => (typeof c === 'string' && ARC_MAP[c.toLowerCase()]) || c;
+const arcOn = () => !!G.__psihArcOn;
+const isArcana = u => { const d = u && (u.def || u.copyDef); return !!(d && d.id === 'psih' && String(u.skinId || '').split('+')[0] === 'psihArcana'); };
 const PF_RISE0 = 0.55;     /* через сколько секунд после раскрытия могилы копия начинает вылезать */
 const PF_DUR = 1.35;       /* полное время «вылезания» (от начала могилы до конца подъёма) */
 const fxLv = () => (typeof fxl === 'function' ? fxl() : 0);        /* 0 — всё, 1 — без украшений, 2 — минимум, 3 — выкл */
@@ -153,6 +161,7 @@ function pfAdd(o){
     PF.list.splice(i, 1);
   }
   o.t = -(o.delay || 0);
+  if(arcOn()){ o.arc = true; for(const k of ['col', 'rim', 'c']) if(typeof o[k] === 'string') o[k] = recol(o[k]); }
   PF.list.push(o);
   return o;
 }
@@ -163,7 +172,7 @@ function psnd(k, x, y, base){
   if(v <= 0.06) return;
   snd(k, Math.pow(v, 1.15) * (base == null ? 1 : base));
 }
-const flashScreen = (c, a, d) => { const F = G.__fx973; if(F && fxLv() < 2){ F.flash = c; F.flashA = a; F.flashT = F.flashDur = d; } };
+const flashScreen = (c, a, d) => { const F = G.__fx973; if(F && fxLv() < 2){ F.flash = arcOn() ? recol(c) : c; F.flashA = a; F.flashT = F.flashDur = d; } };
 const pfShake = (m, d) => { if(fxLv() < 2) shakeScreen(m, d); };
 
 /* ---------- генераторы мелких эффектов ---------- */
@@ -208,7 +217,7 @@ function drawSil(g, x, y, s, flip, a, fill, rim){
   g.beginPath(); g.ellipse(0, -81, 19, 4.5, 0, 0, TAU); g.fill();
   g.beginPath(); g.moveTo(-8, -82); g.lineTo(-6, -95); g.lineTo(6, -95); g.lineTo(8, -82); g.closePath(); g.fill();
   g.globalAlpha = a * 0.8; g.stroke();
-  g.globalAlpha = a; g.fillStyle = '#ffb52e'; g.beginPath(); g.arc(4, -74, 2.2, 0, TAU); g.fill();
+  g.globalAlpha = a; g.fillStyle = (rim === '#c9b8ff' || rim === '#e8f8ff' || rim === '#8fe8ff' ? '#8fe8ff' : '#ffb52e'); g.beginPath(); g.arc(4, -74, 2.2, 0, TAU); g.fill();
   g.restore();
 }
 
@@ -225,6 +234,7 @@ function makeGrave(x, y, delay){
     onStart:o => psnd('psihGrave', o.x, o.y, 0.8)});
 }
 function drawGrave(g, o){
+  const AR = !!o.arc;
   const t = o.t, D = o.dur;
   const open = ease3(t / 0.4);
   const gone = Math.max(0, Math.min(1, (t - D) / 1.2));
@@ -233,14 +243,14 @@ function drawGrave(g, o){
   g.save(); g.translate(o.x, o.y);
   /* 1. тёмная проплешина */
   g.globalAlpha = 0.6 * fade * open;
-  g.fillStyle = '#0b0710'; g.beginPath(); g.ellipse(0, 5, 40 * open + 1, 19 * open + 1, 0, 0, TAU); g.fill();
+  g.fillStyle = AR ? '#050a22' : '#0b0710'; g.beginPath(); g.ellipse(0, 5, 40 * open + 1, 19 * open + 1, 0, 0, TAU); g.fill();
   /* 2. свечение из-под земли */
   const pulse = 0.65 + 0.35 * Math.sin(t * 12 + o.seed);
   const glow = fade * open * (t < PF_RISE0 ? 0.6 * pulse : 0.9 * (1 - burstK * 0.4));
   g.globalCompositeOperation = 'lighter'; g.globalAlpha = 1;
   const gl = g.createRadialGradient(0, 2, 0, 0, 2, 52);
-  gl.addColorStop(0, 'rgba(182,255,58,' + al(0.55 * glow) + ')');
-  gl.addColorStop(0.5, 'rgba(122,75,201,' + al(0.32 * glow) + ')');
+  gl.addColorStop(0, (AR ? 'rgba(143,232,255,' : 'rgba(182,255,58,') + al(0.55 * glow) + ')');
+  gl.addColorStop(0.5, (AR ? 'rgba(201,184,255,' : 'rgba(122,75,201,') + al(0.32 * glow) + ')');
   gl.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = gl; g.beginPath(); g.ellipse(0, 3, 52, 30, 0, 0, TAU); g.fill();
   g.globalCompositeOperation = 'source-over';
@@ -256,7 +266,7 @@ function drawGrave(g, o){
       g.lineTo(px, py);
     }
     g.globalAlpha = fade; g.strokeStyle = '#050308'; g.lineWidth = 3; g.stroke();
-    g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, glow); g.strokeStyle = '#b6ff3a'; g.lineWidth = 1.3; g.stroke();
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, glow); g.strokeStyle = (AR ? '#8fe8ff' : '#b6ff3a'); g.lineWidth = 1.3; g.stroke();
     g.globalCompositeOperation = 'source-over';
   }
   /* 4. холмик: набухает, потом проваливается */
@@ -292,18 +302,18 @@ function drawGrave(g, o){
     g.rotate(o.tilt + shk + gone * 0.25 * o.sx);
     g.globalAlpha = fade;
     const sg = g.createLinearGradient(-w / 2, 0, w / 2, 0);
-    sg.addColorStop(0, '#5a5967'); sg.addColorStop(1, '#2c2b36');
+    sg.addColorStop(0, AR ? '#e8f8ff' : '#5a5967'); sg.addColorStop(1, AR ? '#5a86d6' : '#2c2b36');
     g.fillStyle = sg; g.strokeStyle = '#15141b'; g.lineWidth = 1.6;
     g.beginPath(); g.moveTo(-w / 2, 0); g.lineTo(-w / 2, -h * 0.62); g.quadraticCurveTo(-w / 2, -h, 0, -h);
     g.quadraticCurveTo(w / 2, -h, w / 2, -h * 0.62); g.lineTo(w / 2, 0); g.closePath(); g.fill(); g.stroke();
     g.strokeStyle = '#15141b'; g.lineWidth = 3;
     g.beginPath(); g.moveTo(0, -h * 0.8); g.lineTo(0, -h * 0.42); g.moveTo(-6, -h * 0.66); g.lineTo(6, -h * 0.66); g.stroke();
     g.globalCompositeOperation = 'lighter';
-    g.globalAlpha = Math.min(1, fade * (0.5 + 0.5 * pulse)); g.strokeStyle = '#b6ff3a'; g.lineWidth = 1.4;
+    g.globalAlpha = Math.min(1, fade * (0.5 + 0.5 * pulse)); g.strokeStyle = (AR ? '#8fe8ff' : '#b6ff3a'); g.lineWidth = 1.4;
     g.beginPath(); g.moveTo(0, -h * 0.8); g.lineTo(0, -h * 0.42); g.moveTo(-6, -h * 0.66); g.lineTo(6, -h * 0.66); g.stroke();
     if(t > PF_RISE0 - 0.05){            /* камень трескается, когда клон выбирается наружу */
       const ck = Math.min(1, (t - PF_RISE0 + 0.05) / 0.2);
-      g.globalAlpha = Math.min(1, fade * ck); g.strokeStyle = '#b6ff3a'; g.lineWidth = 1.8;
+      g.globalAlpha = Math.min(1, fade * ck); g.strokeStyle = (AR ? '#8fe8ff' : '#b6ff3a'); g.lineWidth = 1.8;
       g.beginPath(); g.moveTo(-2, -h); g.lineTo(3, -h * 0.72); g.lineTo(-3, -h * 0.5); g.lineTo(2, -h * 0.25); g.lineTo(0, 0); g.stroke();
     }
     g.restore();
@@ -313,6 +323,7 @@ function drawGrave(g, o){
 
 /* ---------- РИТУАЛЬНЫЙ КРУГ (ульта) ---------- */
 function drawRune(g, o){
+  const AR = !!o.arc;
   const k = Math.max(0, Math.min(1, o.t / o.life));
   const grow = ease3(Math.min(1, k / 0.16)), fade = k < 0.55 ? 1 : (1 - k) / 0.45;
   if(fade <= 0.01) return;
@@ -320,11 +331,11 @@ function drawRune(g, o){
   g.save(); g.translate(o.x, o.y); g.scale(1, sq);
   g.globalCompositeOperation = 'lighter';
   const gl = g.createRadialGradient(0, 0, 0, 0, 0, r);
-  gl.addColorStop(0, 'rgba(182,255,58,' + al(0.24 * fade) + ')');
-  gl.addColorStop(0.55, 'rgba(122,75,201,' + al(0.2 * fade) + ')');
+  gl.addColorStop(0, (AR ? 'rgba(143,232,255,' : 'rgba(182,255,58,') + al(0.24 * fade) + ')');
+  gl.addColorStop(0.55, (AR ? 'rgba(201,184,255,' : 'rgba(122,75,201,') + al(0.2 * fade) + ')');
   gl.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = gl; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
-  g.globalAlpha = fade * 0.9; g.strokeStyle = '#a47bff'; g.lineWidth = 2.5;
+  g.globalAlpha = fade * 0.9; g.strokeStyle = (AR ? '#c9b8ff' : '#a47bff'); g.lineWidth = 2.5;
   g.setLineDash([14, 9]); g.lineDashOffset = -o.t * 70;
   g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); g.setLineDash([]);
   g.lineWidth = 1.4; g.globalAlpha = fade * 0.7;
@@ -335,7 +346,7 @@ function drawRune(g, o){
     g.moveTo(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9); g.lineTo(Math.cos(a) * r * 0.97, Math.sin(a) * r * 0.97);
   }
   g.stroke();
-  g.strokeStyle = '#b6ff3a'; g.lineWidth = 2; g.globalAlpha = fade * 0.85;
+  g.strokeStyle = (AR ? '#8fe8ff' : '#b6ff3a'); g.lineWidth = 2; g.globalAlpha = fade * 0.85;
   const rot = -o.t * 0.5 - Math.PI / 2, rs = r * 0.82;
   g.beginPath();
   for(let i = 0; i <= 7; i++){
@@ -343,11 +354,11 @@ function drawRune(g, o){
     if(i === 0) g.moveTo(Math.cos(a) * rs, Math.sin(a) * rs); else g.lineTo(Math.cos(a) * rs, Math.sin(a) * rs);
   }
   g.stroke();
-  g.fillStyle = '#b6ff3a'; g.globalAlpha = fade * 0.9;
+  g.fillStyle = (AR ? '#8fe8ff' : '#b6ff3a'); g.globalAlpha = fade * 0.9;
   for(let i = 0; i < 7; i++){
     const a = i / 7 * TAU + rot; g.beginPath(); g.arc(Math.cos(a) * rs, Math.sin(a) * rs, 5, 0, TAU); g.fill();
   }
-  g.strokeStyle = '#a47bff'; g.lineWidth = 1.6; g.globalAlpha = fade * 0.75;
+  g.strokeStyle = (AR ? '#c9b8ff' : '#a47bff'); g.lineWidth = 1.6; g.globalAlpha = fade * 0.75;
   g.beginPath(); g.arc(0, 0, r * 0.38, 0, TAU); g.stroke();
   g.beginPath();
   for(let i = 0; i < 6; i++){
@@ -389,8 +400,43 @@ function pfDrawTop(){
         g.save(); g.translate(o.x, o.y - o.z); g.rotate(o.rot);
         if(o.shard){
           g.beginPath(); g.moveTo(-o.size, o.size * 0.5); g.lineTo(0, -o.size * 1.2); g.lineTo(o.size, o.size * 0.5); g.closePath(); g.fill();
-          g.globalCompositeOperation = 'lighter'; g.globalAlpha = a * 0.5; g.strokeStyle = '#b6ff3a'; g.lineWidth = 1; g.stroke();
+          g.globalCompositeOperation = 'lighter'; g.globalAlpha = a * 0.5; g.strokeStyle = o.arc ? '#ffffff' : '#b6ff3a'; g.lineWidth = 1; g.stroke();
         } else g.fillRect(-o.size / 2, -o.size * 0.35, o.size, o.size * 0.7);
+        g.restore();
+        break;
+      }
+      case 'gem': {                 /* летящий бриллиант: огранённый ромб с бликом */
+        const a = Math.min(1, (1 - k) * 2.5), sz = o.size;
+        g.save(); g.translate(o.x, o.y - o.z); g.rotate(o.rot);
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = a * 0.35; g.fillStyle = o.col;
+        g.beginPath(); g.arc(0, 0, sz * 1.8, 0, TAU); g.fill();
+        g.globalCompositeOperation = 'source-over'; g.globalAlpha = a;
+        g.fillStyle = o.col; g.beginPath(); g.moveTo(0, -sz * 1.3); g.lineTo(sz * 0.8, 0); g.lineTo(0, sz * 1.3); g.lineTo(-sz * 0.8, 0); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(255,255,255,' + al(a * 0.85) + ')'; g.beginPath(); g.moveTo(0, -sz * 1.3); g.lineTo(sz * 0.8, 0); g.lineTo(0, -sz * 0.1); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,' + al(a) + ')'; g.lineWidth = 1; g.beginPath(); g.moveTo(-sz * 0.8, 0); g.lineTo(sz * 0.8, 0); g.stroke();
+        g.restore();
+        break;
+      }
+      case 'star': {                /* алмазный блик: четырёхлучевая звезда */
+        const a = Math.sin(k * Math.PI), r = o.size * (0.5 + 0.5 * a);
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = a; g.fillStyle = o.col || '#ffffff';
+        g.save(); g.translate(o.x, o.y - (o.z || 0)); g.rotate(o.t * 1.2);
+        g.beginPath(); g.moveTo(0, -r); g.quadraticCurveTo(r * 0.12, -r * 0.12, r, 0); g.quadraticCurveTo(r * 0.12, r * 0.12, 0, r);
+        g.quadraticCurveTo(-r * 0.12, r * 0.12, -r, 0); g.quadraticCurveTo(-r * 0.12, -r * 0.12, 0, -r); g.fill();
+        g.restore();
+        break;
+      }
+      case 'prism': {               /* расходящийся ромбовидный контур с радужной кромкой */
+        const rk = ease3(k), r = o.r0 + (o.r1 - o.r0) * rk, a = (1 - k) * (o.a0 == null ? 0.9 : o.a0);
+        g.save(); g.translate(o.x, o.y); g.scale(1, 0.62); g.rotate(Math.PI / 4 + o.t * (o.spin || 0.6));
+        g.globalCompositeOperation = 'lighter'; g.lineJoin = 'miter';
+        const cols = ['#8fe8ff', '#e8f8ff', '#c9b8ff'];
+        for(let i = 0; i < 3; i++){
+          const rr2 = r * (1 - i * 0.045);
+          g.globalAlpha = a * (i === 1 ? 1 : 0.7); g.strokeStyle = cols[i]; g.lineWidth = (i === 1 ? 2.2 : 3.4) * (1 - k * 0.5);
+          g.beginPath(); g.rect(-rr2 / 1.414, -rr2 / 1.414, rr2 * 1.414, rr2 * 1.414); g.stroke();
+        }
+        g.globalAlpha = a * 0.14; g.fillStyle = '#8fe8ff'; g.fillRect(-r / 1.414, -r / 1.414, r * 1.414, r * 1.414);
         g.restore();
         break;
       }
@@ -453,10 +499,10 @@ function pfDrawTop(){
         break;
       }
       case 'streak': {
-        const a = 1 - k;
+        const a = 1 - k, sA = o.arc ? '201,184,255' : '122,75,201', sB = o.arc ? '143,232,255' : '182,255,58';
         g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
         const gr = g.createLinearGradient(o.x1, o.y1, o.x2, o.y2);
-        gr.addColorStop(0, 'rgba(122,75,201,0)'); gr.addColorStop(0.6, 'rgba(122,75,201,' + al(0.7 * a) + ')'); gr.addColorStop(1, 'rgba(182,255,58,' + al(0.95 * a) + ')');
+        gr.addColorStop(0, 'rgba(' + sA + ',0)'); gr.addColorStop(0.6, 'rgba(' + sA + ',' + al(0.7 * a) + ')'); gr.addColorStop(1, 'rgba(' + sB + ',' + al(0.95 * a) + ')');
         g.strokeStyle = gr; g.lineWidth = 22 * (1 - k) + 2; g.globalAlpha = 0.55;
         g.beginPath(); g.moveTo(o.x1, o.y1); g.lineTo(o.x2, o.y2); g.stroke();
         g.globalAlpha = 1; g.lineWidth = 8 * (1 - k) + 1; g.stroke();
@@ -474,8 +520,8 @@ function pfDrawTop(){
           g.lineTo(o.x1 + dx * f + nx * off, o.y1 + dy * f + ny * off);
         }
         g.lineTo(o.x2, o.y2);
-        g.strokeStyle = 'rgba(164,123,255,' + al(0.5 * a) + ')'; g.lineWidth = 9; g.stroke();
-        g.strokeStyle = 'rgba(182,255,58,' + al(0.9 * a) + ')'; g.lineWidth = 3.5; g.stroke();
+        g.strokeStyle = 'rgba(' + (o.arc ? '201,184,255' : '164,123,255') + ',' + al(0.5 * a) + ')'; g.lineWidth = 9; g.stroke();
+        g.strokeStyle = 'rgba(' + (o.arc ? '143,232,255' : '182,255,58') + ',' + al(0.9 * a) + ')'; g.lineWidth = 3.5; g.stroke();
         g.strokeStyle = 'rgba(255,255,255,' + al(a) + ')'; g.lineWidth = 1.4; g.stroke();
         break;
       }
@@ -574,7 +620,7 @@ function pfTick(dt){
   for(let i = PF.clones.length - 1; i >= 0; i--){
     const c = PF.clones[i];
     if(c.dead){ PF.clones.splice(i, 1); if(!c._pfGone){ c._pfGone = true; psihVanishFx(c, !c.expired); } continue; }
-    c._pfSeen = auraShown(c);
+    c._pfSeen = auraShown(c); G.__psihArcOn = isArcana(c);
     if(lvl >= 2 || !c._pfSeen || c.emerge) continue;
     c._pfA = (c._pfA || 0) - dt;
     if(c._pfA <= 0){ c._pfA = rr(0.5, 0.9); pfWisps(c.x, c.y + c.radius * 0.4, 1, {w:12, z:6, v0:24, v1:44, sz0:3.5, sz1:6, l0:0.8, l1:1.2}); }
@@ -587,7 +633,7 @@ function pfTick(dt){
     o.t += dt;
     if(o.t >= 0){
       if(!o.started){ o.started = true; if(o.onStart) o.onStart(o); }
-      if(o.k === 'bit'){
+      if(o.k === 'bit' || o.k === 'gem'){
         o.x += o.vx * dt; o.y += o.vy * dt; o.z += o.vz * dt; o.vz -= o.g * dt; o.rot += o.vr * dt;
         if(o.z < 0){ o.z = 0; o.vz = Math.abs(o.vz) > 40 ? -o.vz * 0.28 : 0; o.vx *= 0.55; o.vy *= 0.55; o.vr *= 0.5; }
       } else if(o.k === 'wisp'){
@@ -607,6 +653,7 @@ function pfTick(dt){
   /* Псих: проявление из невидимости, дымок, огоньки вокруг */
   for(const h of heroes){
     if(!h || h.dead || !isPsih(h)) continue;
+    G.__psihArcOn = isArcana(h);
     const seen = auraShown(h), nowInv = !!(h.invisible && h.undetectable), wasInv = !!h._pfInv;
     h._pfInv = nowInv;
     if(!seen) continue;
@@ -635,7 +682,7 @@ function auraShown(u){
 function drawAuraBack(g, u){
   const tm = gameTime, mad = 1 - Math.max(0, Math.min(1, u.hp / Math.max(1, u.maxHp)));
   const rg = u.radius + 12 + Math.sin(tm * 4 + u.x * 0.02) * 2;
-  const red = mad > 0.55, c1 = red ? '255,59,92' : '122,75,201', c2 = red ? '255,120,80' : '182,255,58';
+  const red = mad > 0.55, arc = isArcana(u), c1 = arc ? (red ? '201,184,255' : '90,170,255') : (red ? '255,59,92' : '122,75,201'), c2 = arc ? '232,248,255' : (red ? '255,120,80' : '182,255,58');
   g.save(); g.translate(u.x, u.y + u.radius * 0.35);
   g.globalCompositeOperation = 'lighter';
   const gr = g.createRadialGradient(0, 0, rg * 0.3, 0, 0, rg * 1.35);
@@ -652,7 +699,7 @@ function drawAuraFront(g, u){
   for(let i = 0; i < n; i++){
     const a = tm * sp + i * TAU / n + u.x * 0.01, rad = u.radius + 16 + Math.sin(tm * 2 + i) * 4;
     const px = u.x + Math.cos(a) * rad, py = u.y - 26 - 22 * Math.sin(tm * 1.7 + i * 1.9) + Math.sin(a) * rad * 0.45;
-    const a0 = Math.sin(a) > 0 ? 0.85 : 0.4, col = (i % 2) ? '182,255,58' : '164,123,255';
+    const a0 = Math.sin(a) > 0 ? 0.85 : 0.4, col = isArcana(u) ? ((i % 2) ? '232,248,255' : '143,232,255') : ((i % 2) ? '182,255,58' : '164,123,255');
     const a2 = a - 0.4, qx = u.x + Math.cos(a2) * rad, qy = py + (Math.sin(a2) - Math.sin(a)) * rad * 0.45;
     g.fillStyle = 'rgba(' + col + ',' + al(a0 * 0.22) + ')'; g.beginPath(); g.arc(qx, qy, 4, 0, TAU); g.fill();
     g.fillStyle = 'rgba(' + col + ',' + al(a0 * 0.28) + ')'; g.beginPath(); g.arc(px, py, 7, 0, TAU); g.fill();
@@ -775,7 +822,7 @@ class PsihClone extends TimedSummon {
       this.invulnerable = true; this.stunTimer = Math.max(this.stunTimer || 0, 0.3); this.moveTarget = null; this.attackTarget = null;
       if(e.t >= e.wait + e.dur){
         this.emerge = null; this.invulnerable = false; this.stunTimer = 0;
-        fxRing(this.x, this.y, 46, '#b6ff3a', 0.4); pfFinishEmerge(this);
+        fxRing(this.x, this.y, 46, isArcana(this) ? '#8fe8ff' : '#b6ff3a', 0.4); pfFinishEmerge(this);
       }
       return;
     }
@@ -878,4 +925,15 @@ CREATOR_BUILDS.psih = {
     {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['phoenixFeather','Неуязвимость и здоровье.'],['chronoHourglass','Стоп-время для добивания.'],['bkb','Защита от контроля.']]}
   ]
 };
+/* ---------- 0.10.1.5: аркана Психа — включаем бриллиантовую палитру на время эффектов героя с арканой ---------- */
+function withArc(fn, pick){ return function(){ const p = G.__psihArcOn; G.__psihArcOn = !!pick.apply(null, arguments); try { return fn.apply(this, arguments); } finally { G.__psihArcOn = p; } }; }
+graveBurst = withArc(graveBurst, o => o.arc);
+psihVanishFx = withArc(psihVanishFx, c => isArcana(c));
+pfFinishEmerge = withArc(pfFinishEmerge, c => isArcana(c));
+pfBlinkFx = withArc(pfBlinkFx, (ox, oy, h) => isArcana(h));
+pfHideFx = withArc(pfHideFx, h => isArcana(h));
+pfRevealFx = withArc(pfRevealFx, h => isArcana(h));
+pfUltFx = withArc(pfUltFx, h => isArcana(h));
+{ const _pfTick = pfTick; pfTick = function(){ try { return _pfTick.apply(this, arguments); } finally { G.__psihArcOn = false; } }; }
+G.__psihFx = {PF, pfAdd, pfBits, pfWisps, pfMist, recol, isArcana, psnd, rr, nOf};
 })();
