@@ -14280,6 +14280,8 @@ function drawUnit(u){
   if(u.type === 'hero' && window.drawPyroArcanaAura && !u.dead && !perfLite()) window.drawPyroArcanaAura(u);
   /* 0.10.1.5: аркана Психа «Бриллиантовый кошмар» — бриллиантовая аура у ног героя и его копий (update01015.js) */
   if((u.type === 'hero' || (u.copyDef && u.skinId)) && window.drawPsihArcanaAura && !u.dead && !perfLite()) window.drawPsihArcanaAura(u);
+  /* 0.10.2: аркана Гриши «Багровый Архимаг» — пентаграмма и тёмное пламя у ног (update0102.js) */
+  if(u.type === 'hero' && window.drawGrishaArcanaAura && !u.dead && !perfLite()) window.drawGrishaArcanaAura(u);
   /* новые скины Шадоу («Пустотный жнец») и Иллюзиониста («Розовый фокусник») — аура у ног (update0100f.js) */
   if((u.type === 'hero' || isIllusionClone(u)) && window.drawNewSkinAura && !u.dead && !perfLite()) window.drawNewSkinAura(u);
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
@@ -19106,7 +19108,7 @@ function drawHUD(){
       ctx.textAlign = 'center';
       ctx.font = 'bold 15px Segoe UI, Arial';
       ctx.fillStyle = '#ffe066';
-      ctx.fillText('R → ' + spell.name + '  • доступно', VW/2, orbY - 10);
+      ctx.fillText('R → ' + (window.__gaSpellName ? window.__gaSpellName(h, spell.name) : spell.name) + '  • доступно', VW/2, orbY - 10);
     }
   }
 

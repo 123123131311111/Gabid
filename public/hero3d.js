@@ -132,7 +132,15 @@ const SKIN_TINTS={
   /* Шмедик: «Магмовый титан» — тёмный камень и оранжевая лава */
   earthshakerMagma:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(18+(h%30)*.25, Math.min(.92,Math.max(.5,s*.7+.3)), l>.7?Math.min(.88,l):Math.max(.1,l*.85)); },
   /* Гриша: «Изумрудный чародей» — зелёная мантия и светящиеся самоцветы */
-  grishaEmerald:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(140+(h%40)*.25, Math.min(.85,Math.max(.45,s*.6+.3)), l>.75?Math.min(.92,l):Math.max(.12,l*.9)); }
+  grishaEmerald:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(140+(h%40)*.25, Math.min(.85,Math.max(.45,s*.6+.3)), l>.75?Math.min(.92,l):Math.max(.12,l*.9)); },
+  /* 0.10.2 АРКАНА Гриши: «Багровый Архимаг» — чёрная, как смоль, мантия и кроваво-красные грани. Белые блики, красно-огненные цвета (в том числе эффекты арканы) и телесные тона не трогаем. */
+  grishaArcana:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(l>.93) return c;
+    if((h>=345||h<=38)&&s>.55&&l>.3) return c;
+    if(h>=15&&h<=40&&s>=.3&&s<=.85&&l>.55&&l<.85) return c;
+    if(l>.84) return hsl2rgb(355,.3,Math.min(.93,l));
+    if(l<.45) return hsl2rgb(352+(h%20)*.2,.5,Math.max(.025,l*.28));
+    return hsl2rgb(350+(h%22)*.3,Math.min(.95,.7+s*.25),Math.min(.6,Math.max(.3,l*.9))); }
 };
 
 /* ---------- Сцена ---------- */
@@ -483,9 +491,55 @@ function grSpark(S,p,L,k,col){
   G(S,p,L*.2,'#ffffff',{rings:3,seg:6});
 }
 
+/* ---------- 0.10.2: АРКАНА Гриши «Багровый Архимаг» — красно-чёрный облик ---------- */
+/* адский венец из рогов, крылья из чёрного пламени, шипы на плечах, парящие кровавые руны, тёмные ядра в орбах, перевёрнутая пентаграмма у ног */
+function grishaArcanaFx(S,t,ga,cs){
+  const fl=(i,k)=>Math.sin(t*(2+k)+i*1.7)*.5+.5;
+  const RED='#ff2438', DRK='#12040a', BLD='#d4122e', EMB='#ff9a1f';
+  /* рога адского венца вокруг тульи шляпы + багровый глаз на тулье */
+  for(let i=0;i<7;i++){ const a=i/7*Math.PI*2+Math.PI/7, x=Math.cos(a)*.5, z=Math.sin(a)*.5, up=.42+(i%2)*.2+fl(i,3)*.05;
+    S.cone([x,2.3,z],[x*1.35,2.3+up,z*1.35-.04],.06,i%2?DRK:'#2a0a12',{seg:5,shine:.5});
+    G(S,[x*1.35,2.3+up,z*1.35-.04],.034+.012*fl(i,5),i%2?RED:EMB,{rings:3,seg:6}); }
+  S.ell([0,2.62,.3],[.1,.05,.03],RED,{glow:1,rings:5,seg:10});
+  S.ell([0,2.62,.325],[.026,.05,.01],'#050103',{rings:3,seg:6});
+  /* разорванный нимб над шляпой */
+  S.ring([0,3.62+Math.sin(t*2)*.04,-.45],.36,.018,RED,{glow:1,n:10,phase:t*1.4});
+  S.ring([0,3.62+Math.sin(t*2)*.04,-.45],.26,.012,EMB,{glow:1,n:8,phase:-t*2});
+  /* шипы на плечах */
+  for(const s of [-1,1]){ S.cone([s*.5,1.78,0],[s*.78,2.16+fl(s,2)*.05,-.04],.1,DRK,{seg:5,shine:.6}); S.cone([s*.5,1.78,0],[s*.62,1.5,-.05],.07,'#2a0a12',{seg:5}); G(S,[s*.78,2.16,-.04],.04,RED,{rings:3,seg:6}); }
+  /* крылья из чёрного пламени за спиной */
+  const flap=Math.sin(t*1.6)*.14+(ga.kind!=='idle'?Math.sin(ga.p*3.14)*.25:0);
+  for(const s of [-1,1]) for(let k=0;k<6;k++){
+    const f=fl(k+(s>0?6:0),2), ext=.5+k*.24, hgt=1.55+k*.3+flap*(1+k*.2);
+    S.cone([s*.3,1.45,-.28],[s*ext*1.05,hgt+f*.07,-.5-k*.1],.12-.014*k,k%2?'#1a0509':DRK,{seg:5,shine:.4});
+    S.cone([s*.3,1.45,-.3],[s*ext*.94,hgt-.1+f*.06,-.58-k*.1],.05,k%2?RED:BLD,{seg:4,glow:1});
+  }
+  /* тёмные ядра внутри орбов (чёрная дыра с красной каймой) */
+  cs.forEach((c,i)=>{ const a=t*1.8+i*2.094+ga.fx*Math.sin(ga.p*3.14)*5; const yy=1.65+Math.sin(t*2+i)*.12; const p=[Math.cos(a)*.95,yy,Math.sin(a)*.95];
+    S.ell(p,[.1,.1,.1],'#060103',{rings:5,seg:8});
+    S.ring(p,.2,.012,'#ff6a7a',{glow:1,axis:i===1?'x':'z',n:10,phase:-t*5+i}); });
+  /* парящие кровавые руны вокруг героя */
+  for(let i=0;i<8;i++){ const a=-t*.8+i*.785, r=1.3+.1*Math.sin(t+i), y=.6+((i*5)%8)*.28+Math.sin(t*1.5+i)*.1, k=fl(i,2);
+    S.box([Math.cos(a)*r,y,Math.sin(a)*r],[.05+.06*k,.1+.08*k,.02],i%3===0?EMB:RED,{glow:1,rot:[0,-a,.7+i]}); }
+  /* поднимающиеся алые искры */
+  for(let i=0;i<10;i++){ const ph=(t*.3+i/10)%1, a=i*2.4-t*.5, rr=.45+.4*Math.sin(i*1.9+t*.5), sz=.055*(1-ph)+.012;
+    S.box([Math.cos(a)*rr,.1+ph*3.1,Math.sin(a)*rr],[sz,sz,sz],i%3?RED:EMB,{glow:1,rot:[ph*6,ph*5,0]}); }
+  /* перевёрнутая пентаграмма и кольца с шипами под ногами */
+  floorFx(S,()=>{
+    const R=1.05, pts=[0,1,2,3,4].map(i=>{ const a=-t*.35+i*1.2566+Math.PI/2; return [Math.cos(a)*R,.02,Math.sin(a)*R]; });
+    for(let i=0;i<5;i++){ S.obox(pts[i],pts[(i+2)%5],.022,.02,i%2?RED:BLD,{glow:1}); G(S,add(pts[i],[0,.025,0]),.05,'#ff6a7a',{rings:3,seg:6}); }
+    S.ring([0,.02,0],R,.02,RED,{glow:1,n:30,phase:t*.25});
+    S.ring([0,.02,0],R+.14,.012,EMB,{glow:1,n:26,phase:-t*.5});
+    for(let i=0;i<12;i++){ const a=i/12*Math.PI*2+t*.2, c=Math.cos(a), sn=Math.sin(a), h=.14+.1*fl(i,3);
+      S.cone([c*(R+.14),.02,sn*(R+.14)],[c*(R+.2),.02+h,sn*(R+.2)],.04,i%2?DRK:'#2a0a12',{seg:4}); }
+  });
+  embers(S,t,.85,'#ff2438',6,2.8);
+}
+
 MODELS.grisha=(S,d,t,pose)=>{
   const ga=gaState(d.id,pose,t);
-  man(S,{nobelt:true,face:true,cloth:'#4a2a8a',bracer:'#e0c8ff',armR:ga.R,armL:ga.L,glove:'#e8b894',beard:'#d8d2e8',fo:{eye:'#7ad8ff',glow:1,angry:-.05,brow:'#d8d2e8'},collar:'#e0c8ff'});
+  const arc=!!(d&&d.skinId&&String(d.skinId).split('+')[0]==='grishaArcana');   /* 0.10.2: аркана — багровый архимаг */
+  man(S,{nobelt:true,face:true,cloth:'#4a2a8a',bracer:'#e0c8ff',armR:ga.R,armL:ga.L,glove:'#e8b894',beard:'#d8d2e8',fo:{eye:arc?'#ff2438':'#7ad8ff',glow:1,angry:-.05,brow:'#d8d2e8'},collar:'#e0c8ff'});
   robe(S,.62,.42,1.55,'#4a2a8a','#e0c8ff',1);
   for(let i=0;i<5;i++){ S.box([Math.sin(i*1.25-2.5)*.5,.5+((i*3)%4)*.22,Math.cos(i*1.25-2.5)*.6],[.07,.07,.02],'#9be8ff',{glow:1,rot:[0,i,.7]}); }
   S.tube([0,1.35,0],[0,1.42,0],.44,.44,'#e0c8ff',{seg:16,shine:.6});
@@ -496,7 +550,7 @@ MODELS.grisha=(S,d,t,pose)=>{
   S.tube([0,2.3,0],[0,2.42,0],.34,.31,'#ffcf65',{seg:14,shine:.6});
   S.cone([0,2.9,-.2],[0,3.25,-.45],.1,'#27184e',{seg:8});
   for(let i=0;i<4;i++) S.box([Math.sin(i*1.6)*.18,2.55+i*.1,.25-i*.05+Math.cos(i*1.6)*.1],[.07,.07,.02],'#ffcf65',{glow:1,rot:[0,0,i]});
-  const cs=['#75d8ff','#e58bff','#ffcf65'];
+  const cs=arc?['#d4122e','#ff3d6e','#ff9a1f']:['#75d8ff','#e58bff','#ffcf65'];
   const tw=(i,sp)=>Math.pow(Math.max(0,Math.sin(t*sp+i*2.3)),4);   // мерцание бликов
   /* --- шляпа: золотой полумесяц, рубин на ленте, звезда на кончике --- */
   S.ell([0,2.66,.1],[.075,.075,.02],'#ffcf65',{rings:6,seg:10,shine:.9});
@@ -572,6 +626,7 @@ MODELS.grisha=(S,d,t,pose)=>{
       }
     }
   }
+  if(arc) grishaArcanaFx(S,t,ga,cs);
 };
 
 MODELS.golly=(S,d,t)=>{
