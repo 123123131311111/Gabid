@@ -522,7 +522,18 @@ G.menuDemon973 = {
     if(MD.bad >= 3 || perfLevel >= 3 || !G.Hero3D || !Hero3D.models || !Hero3D.models.menuDemon || !Hero3D.render) return false;
     try {
       const dispH = VH * 0.96 * (G.menuDemonScale || 1);   /* 0.10.0.5: update01005.js подгоняет размер демона под свободное место меню */
-      const Hpx = Math.round(Math.min(perfLevel >= 2 ? 300 : (perfLevel >= 1 ? 400 : 580), dispH * (perfLevel >= 2 ? 0.42 : (perfLevel >= 1 ? 0.55 : 0.8))) / 4) * 4, Wpx = Math.round(Hpx * 1.1 / 4) * 4;
+      /* 0.10.1б: раньше демон рисовался в 0.8 от высоты экрана (≤580px) и растягивался — отсюда «шакалы» и зубчатые крылья.
+         Теперь рендер идёт с суперсэмплингом (больше пикселей, чем на экране) и плавно сжимается; качество само подстраивается под скорость. */
+      if(!MD.q) MD.q = 1.5;
+      if(perfLevel === 0 && now - (MD.qAt || 0) > 1.2 && MD.last > 0){
+        MD.qAt = now;
+        if(MD.ms > 38) MD.q = Math.max(0.9, MD.q * 0.9);
+        else if(MD.ms < 17) MD.q = Math.min(2.0, MD.q * 1.06);
+      }
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const qCap = perfLevel >= 2 ? 300 : (perfLevel >= 1 ? 460 : 1180);
+      const qMul = perfLevel >= 2 ? 0.42 : (perfLevel >= 1 ? 0.62 : MD.q * (0.75 + 0.25 * dpr));
+      const Hpx = Math.round(Math.min(qCap, dispH * qMul) / 4) * 4, Wpx = Math.round(Hpx * 1.1 / 4) * 4;
       const D = 9, f = 0.9 * Hpx * D / 4.8, ox = 0.25 * f / D;
       if(!MD.cv || MD.W !== Wpx || MD.H !== Hpx){
         MD.cv = document.createElement('canvas'); MD.cv.width = Wpx; MD.cv.height = Hpx; MD.g = MD.cv.getContext('2d');
@@ -558,7 +569,20 @@ G.menuDemon973 = {
       sh.addColorStop(0, 'rgba(0,0,0,.7)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.save(); ctx.translate(0, gy); ctx.scale(1, 0.22); ctx.translate(0, -gy); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(cx, gy, u * 34, 0, TAU); ctx.fill(); ctx.restore();
       ctx.globalAlpha = a; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.globalCompositeOperation = 'source-over';
       ctx.drawImage(MD.cv, left, top, Wpx * k, Hpx * k);
+      /* тёплые угольки, поднимающиеся вокруг демона */
+      if(perfLevel < 2){
+        ctx.globalCompositeOperation = 'lighter';
+        for(let i = 0; i < 22; i++){
+          const ph = (now * (0.1 + (i % 5) * 0.025) + i * 0.137) % 1, ang = i * 2.399 + now * 0.2;
+          const ex = cx + Math.cos(ang) * dispH * (0.12 + (i % 7) * 0.035) + Math.sin(now * 0.8 + i) * 8;
+          const ey = gy - ph * dispH * 0.85, al = Math.sin(ph * Math.PI) * 0.8;
+          ctx.fillStyle = (i % 3 ? 'rgba(255,150,70,' : 'rgba(255,220,130,') + al.toFixed(3) + ')';
+          const rr = (1.2 + (i % 4) * 0.5) * (1 - ph * 0.5) * Math.max(1, u * 0.06);
+          ctx.beginPath(); ctx.arc(ex, ey, rr, 0, TAU); ctx.fill();
+        }
+      }
       ctx.restore();
       MD.bad = 0;
       return true;

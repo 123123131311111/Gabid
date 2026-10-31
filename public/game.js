@@ -881,7 +881,7 @@ function recipeStatus(hero, id){
   return {have, missing, missingCost, fee:r.fee, need:missingCost + r.fee, owned:hero.inventory.some(it => it && it.id === id)};
 }
 /* ПТ сам является сборкой (Сапог Джоэла + Клыки Васьки), поэтому «докупить» его одной кнопкой нельзя. */
-function recipePartBuyable(pid){ return pid !== 'pt'; }
+function recipePartBuyable(pid){ return true; }
 /* Рецепт, который завершится при покупке предмета id (все остальные компоненты уже в инвентаре). */
 function recipeCompletedBy(hero, id){
   for(const rid in RECIPES){
@@ -936,6 +936,21 @@ const WARD_CFG = {cost:50, duration:150, radius:900, castRange:900, maxStack:4, 
 SHOP_ITEMS.observerWard = {name:'Observer Ward', icon:'◉', cost:WARD_CFG.cost, desc:'Расходуемый предмет (до ' + WARD_CFG.maxStack + ' в стопке). Активируйте и кликните по карте в радиусе ' + WARD_CFG.castRange + ': вард откроет область радиусом ' + WARD_CFG.radius + ' на ' + WARD_CFG.duration + ' сек. Показывает врагов в тумане войны, но не раскрывает невидимых. Враг о варде не знает. До ' + WARD_CFG.maxPerTeam + ' вардов на команду.', color:'#7be9ff', active:true, ward:true};
 SHOP_ITEM_IDS.push('observerWard');
 const SHOP_ITEM_VIEWS = SHOP_ITEM_IDS.map(id => ({...SHOP_ITEMS[id], id}));
+/* ПТ можно купить сразу (цена = Сапог Джоэла + Клыки Васьки + сборка) или собрать из уже купленных частей.
+   В магазине цена ПТ динамическая: платишь только за недостающие компоненты + сборку. */
+function ptPrice(h){
+  const inv = (h && h.inventory) || [];
+  let price = SHOP_ITEMS.pt.cost;                                    /* сборка */
+  if(!inv.some(i => i && i.id === 'joelBoots')) price += SHOP_ITEMS.joelBoots.cost;
+  if(!inv.some(i => i && i.id === 'fangs')) price += SHOP_ITEMS.fangs.cost;
+  return price;
+}
+SHOP_ITEMS.pt.desc = 'Можно купить сразу или собрать из Сапога Джоэла + Клыков Васьки (+150 монет за сборку). Если части уже есть — платишь только 150. Пассивно: +40 урона, +15 скорости передвижения и +15% к скорости атаки.';
+for(const v of SHOP_ITEM_VIEWS){
+  if(v.id !== 'pt') continue;
+  v.desc = SHOP_ITEMS.pt.desc;
+  Object.defineProperty(v, 'cost', {get(){ return ptPrice(typeof playerHero !== 'undefined' ? playerHero : null); }, enumerable:true, configurable:true});
+}
 
 /* Общие помощники для новых предметов. */
 function heroHasItem(unit, id){ return !!(unit && unit.inventory && unit.inventory.some(i => i && i.id === id)); }
@@ -4344,13 +4359,16 @@ function buyShopItemCore(id){
     if(playerHero.inventory.some(i => i && i.id === id)){ flashMsg(playerHero, 'Предмет уже куплен'); return false; }
   }
   if(id === 'pt'){
+    if(playerHero.inventory.some(i => i && i.id === 'pt')){ flashMsg(playerHero, 'ПТ уже собран'); return false; }
     const bootsIndex = playerHero.inventory.findIndex(i => i && i.id === 'joelBoots');
     const fangsIndex = playerHero.inventory.findIndex(i => i && i.id === 'fangs');
-    if(bootsIndex < 0 || fangsIndex < 0){ flashMsg(playerHero, 'Нужны Сапог Джоэла и Клыки Васьки'); return false; }
-    if(playerHero.coins < item.cost){ flashMsg(playerHero, 'Нужно ' + item.cost + ' монет'); return false; }
-    const slot = bootsIndex;
-    playerHero.coins -= item.cost;
-    playerHero.inventory[fangsIndex] = null;
+    const price = ptPrice(playerHero);
+    /* ПТ занимает слот одного из компонентов; если компонентов нет — нужен свободный слот */
+    const slot = bootsIndex >= 0 ? bootsIndex : (fangsIndex >= 0 ? fangsIndex : playerHero.inventory.findIndex(i => !i));
+    if(slot < 0){ flashMsg(playerHero, 'Нет свободного слота'); return false; }
+    if(playerHero.coins < price){ flashMsg(playerHero, 'Нужно ' + price + ' монет'); return false; }
+    playerHero.coins -= price;
+    if(fangsIndex >= 0 && fangsIndex !== slot) playerHero.inventory[fangsIndex] = null;
     playerHero.inventory[slot] = createInventoryItem(id);
     applyItemStats(playerHero, id);
     playAbilitySound('purchase');
@@ -6228,6 +6246,20 @@ function applyOrbBuffs(h){
   }
 }
 
+/* Сила заклинания Призыва. Раньше уровней R было 3, теперь 6: пересчитываем в прежнюю шкалу 1..3,
+   а каждый уровень орба, входящего в комбинацию, добавляет ещё ~2% силы за каждый такой орб. */
+function invokePowerLevel(h, key, rLvl){
+  const base = 1 + (Math.max(1, rLvl) - 1) * 0.4;
+  let bonus = 0;
+  for(let i = 0; i < 3; i++){
+    const cnt = Number(key[i]) || 0;
+    const sk = h.skills && h.skills[i];
+    const ol = sk ? Math.max(1, sk.level) : 1;
+    bonus += cnt * (ol - 1) * 0.02;
+  }
+  return base * (1 + bonus);
+}
+
 const INVOKE_SPELLS = {
   '300': {
     name:'Холодный удар',
@@ -7176,33 +7208,37 @@ const SKILLS = {
 
   /* === СКИЛЛЫ ГРИШИ === */
   quas: {
-    name:'Квас', short:'Q', type:'self', maxLevel:3,
-    cd:[0,0,0,0], mana:[0,0,0,0],
-    desc:'Орб льда. Реген HP.',
+    name:'Квас', short:'Q', type:'self', maxLevel:6,
+    cd:[0,0,0,0,0,0,0], mana:[0,0,0,0,0,0,0],
+    desc:'Орб льда. Реген HP (+ каждый уровень усиливает реген и все заклинания со льдом).',
     cast(h,x,y,lvl){ pushOrb(h, 'Q'); }
   },
   wex: {
-    name:'Векс', short:'W', type:'self', maxLevel:3,
-    cd:[0,0,0,0], mana:[0,0,0,0],
-    desc:'Орб молнии. Скорость и атака.',
+    name:'Векс', short:'W', type:'self', maxLevel:6,
+    cd:[0,0,0,0,0,0,0], mana:[0,0,0,0,0,0,0],
+    desc:'Орб молнии. Скорость и атака (+ каждый уровень усиливает бонусы и все заклинания с молнией).',
     cast(h,x,y,lvl){ pushOrb(h, 'W'); }
   },
   exort: {
-    name:'Экзорт', short:'E', type:'self', maxLevel:3,
-    cd:[0,0,0,0], mana:[0,0,0,0],
-    desc:'Орб огня. Бонусный урон.',
+    name:'Экзорт', short:'E', type:'self', maxLevel:6,
+    cd:[0,0,0,0,0,0,0], mana:[0,0,0,0,0,0,0],
+    desc:'Орб огня. Бонусный урон (+ каждый уровень усиливает урон и все заклинания с огнём).',
     cast(h,x,y,lvl){ pushOrb(h, 'E'); }
   },
   invoke: {
-    name:'Призыв', short:'R', type:'point', maxLevel:3,
-    cd:[0,0,0,0], mana:[0,80,100,120], range:1200, ult:true,
-    desc:'Заклинание по 3 орбам.',
+    name:'Призыв', short:'R', type:'point', maxLevel:6,
+    cd:[0,0,0,0,0,0,0], mana:[0,80,100,120,140,160,180], range:1200, ult:true,
+    desc:'Заклинание по 3 орбам. Каждый уровень Призыва и орбов, входящих в комбинацию, усиливает заклинание.',
     cast(h,x,y,lvl){
       const key = getOrbKey(h.orbs || ['Q','W','E']);
 
       const spell = INVOKE_SPELLS[key];
       if(spell){
-        spell.cast(h, x, y, lvl);
+        /* общий множитель урона от уровня навыка считаем по старой шкале 1..3 (у Призыва теперь 6 уровней) */
+        const prevCasting = h.castingSkillLevel;
+        if(prevCasting > 1) h.castingSkillLevel = 1 + (prevCasting - 1) * 0.4;
+        try { spell.cast(h, x, y, invokePowerLevel(h, key, lvl)); }
+        finally { h.castingSkillLevel = prevCasting; }
         h.lastInvokeKey = key;
         addText(h.x, h.y-90, '→ ' + spell.name, '#ffe066', 1.5, 18);
       } else {
@@ -18043,7 +18079,7 @@ function shopFilteredIds(){
     if(shopTab && shopItemCategory(id) !== shopTab) return false;
     if(!q) return true;
     return (it.name || '').toLowerCase().includes(q) || (it.desc || '').toLowerCase().includes(q);
-  }).sort((a, b) => SHOP_ITEMS[a].cost - SHOP_ITEMS[b].cost);
+  }).sort((a, b) => (id => id === 'pt' ? SHOP_ITEMS.pt.totalCost : SHOP_ITEMS[id].cost)(a) - (id => id === 'pt' ? SHOP_ITEMS.pt.totalCost : SHOP_ITEMS[id].cost)(b));
 }
 function shopLayout(){
   const wide = VW >= 1100, compact = VW < 620;
@@ -19139,11 +19175,15 @@ function drawHUD(){
       ctx.fillText(Math.ceil(activeCd), r.x + r.w/2, r.y + r.h/2 + 8);
     }
 
-    for(let l=0; l<def.maxLevel; l++){
-      const px = r.x + 8 + l*13;
-      const py = r.y + r.h - 14;
-      ctx.fillStyle = l < s.level ? '#ffe066' : 'rgba(255,255,255,0.2)';
-      ctx.fillRect(px, py, 10, 5);
+    {
+      const pipStep = Math.min(13, (r.w - 14) / def.maxLevel);
+      const pipW = Math.max(3, pipStep - 3);
+      for(let l=0; l<def.maxLevel; l++){
+        const px = r.x + 8 + l*pipStep;
+        const py = r.y + r.h - 14;
+        ctx.fillStyle = l < s.level ? '#ffe066' : 'rgba(255,255,255,0.2)';
+        ctx.fillRect(px, py, pipW, 5);
+      }
     }
 
     if(canLevel){

@@ -69,7 +69,7 @@ H3.models.menuDemon = function(S, def, t){
   /* ---------- КРЫЛЬЯ ---------- */
   const HN = [0, 0.22, 1];
   const fan = (A, B, C, col) => {
-    const N = 10, wd = dist(B, C) / N * 1.6 + 0.04;
+    const N = 30, wd = dist(B, C) / N * 1.15 + 0.03;     /* 0.10.1б: больше тонких перьев — перепонка гладкая, а не «расчёска» */
     for(let j = 0; j <= N; j++){
       const u = j / N;
       const P = lerp(lerp(B, C, u), A, 0.12 * sh(u * Math.PI));        /* вогнутый край */

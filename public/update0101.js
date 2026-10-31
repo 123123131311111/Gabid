@@ -18,7 +18,7 @@ const shake = (m, d) => { const F = G.__fx973; if(F && fxLv() < 2){ F.shakeMag =
 
 /* ---------- числа ---------- */
 const DOG_HP   = [0, 260, 340, 430, 520];
-const DOG_DMG  = [0, 38, 50, 62, 76];
+const DOG_DMG  = [0, 27, 36, 45, 55];                    /* нерф 0.10.1б: было 38/50/62/76 */
 const DOG_LEASH = 700;                                   /* радиус вокруг героя, в котором псы Q нападают на врагов */
 const HEAD_DMG = [0, 55, 80, 105, 135];                  /* урон каждой из 8 голов W */
 const HEAD_N = 8, HEAD_INTERVAL = 0.1, HEAD_SPEED = 2600, W_RANGE = 900;
@@ -58,7 +58,7 @@ function spawnDog(h, x, y, o){
   x = clamp(x, 60, WORLD - 60); y = clamp(y, 60, WORLD - 60);
   const dog = new TimedSummon(h, x, y, {
     kind:'vyDog', life:o.life, hp:o.hp, dmg:o.dmg, radius:o.big ? 26 : 22, speed:o.big ? 380 : 340,
-    atkRange:96, atkTime:o.big ? 0.62 : 0.72, armor:o.big ? 5 : 3, copyColor:'#8a2a1e'
+    atkRange:96, atkTime:o.big ? 0.62 : 1.15, armor:o.big ? 5 : 3, copyColor:'#8a2a1e'
   });
   dog.vyLeash = o.leash;
   dog.vySlot = o.slot || 0;
@@ -159,7 +159,23 @@ function headTick(hd, dt){
     if(hd.r >= hd.rOrbit){ hd.r = hd.rOrbit; hd.phase = 1; hd.ph = 0; }
   } else if(hd.phase === 1){                             /* быстрое кружение вокруг героя */
     hd.ang += hd.w * dt;
-    if(hd.ph >= hd.orbitT){ hd.phase = 2; hd.ph = 0; }
+    if(hd.ph >= hd.orbitT){
+      /* покружив, голова летит в ближайшего врага (стараясь раскидать головы по разным целям) */
+      let best = null, bs = 1e18;
+      for(const u of units){
+        if(!enemyOk(u, hd.team)) continue;
+        const d = Math.hypot(u.x - hd.x, u.y - hd.y);
+        if(d > 1300) continue;
+        const sc = d + (hd.assign ? (hd.assign.get(u) || 0) : 0) * 220;
+        if(sc < bs){ bs = sc; best = u; }
+      }
+      if(best){
+        if(hd.assign) hd.assign.set(best, (hd.assign.get(best) || 0) + 1);
+        hd.kind = 't'; hd.target = best; hd.age = 0; hd.life = 1.8; hd.speed = 2200; hd.dmg = hd.rDmg || hd.dmg;
+        return;
+      }
+      hd.phase = 2; hd.ph = 0;
+    }
   } else {                                               /* возвращение */
     hd.r -= hd.speed * dt * 1.1;
     hd.ang += hd.w * dt * 0.5;
@@ -193,7 +209,7 @@ Object.assign(SKILLS, {
   vyPack: {
     name:'Свора', short:'Q', type:'self', maxLevel:4,
     cd:[0, 26, 24, 22, 20], mana:[0, 90, 100, 110, 120],
-    desc:'Призывает 3 пса на 20 секунд (здоровье 260/340/430/520, урон 38/50/62/76). Псы нападают на врагов, пока те в радиусе 700 вокруг Выселок; если врагов в радиусе нет — держатся рядом с героем.',
+    desc:'Призывает 3 пса на 20 секунд (здоровье 260/340/430/520, урон 27/36/45/55, атакуют реже). Псы нападают на врагов, пока те в радиусе 700 вокруг Выселок; если врагов в радиусе нет — держатся рядом с героем.',
     cast(h, x, y, lvl){
       const L = Math.max(1, Math.min(4, lvl || 1));
       const f = Number.isFinite(h.facing) ? h.facing : 0;
@@ -240,7 +256,7 @@ Object.assign(SKILLS, {
   vyUlt: {
     name:'Стая и головы', short:'R', type:'self', maxLevel:3, ult:true,
     cd:[0, 100, 90, 80], mana:[0, 220, 270, 320],
-    desc:'Вызывает стаю из 4 крепких псов (на 2 больше со скипетром Аганима) и бросает вокруг героя 12 голов: они разлетаются, быстро кружат вокруг Выселок и возвращаются. Каждая голова бьёт на 170/250/340 при вылете и возврате, а при кружении задевает врагов постоянно.',
+    desc:'Вызывает стаю из 4 крепких псов (на 2 больше со скипетром Аганима) и бросает вокруг героя 12 голов: они разлетаются, быстро кружат вокруг Выселок, а затем летят в ближайших врагов (если врагов рядом нет — возвращаются). Каждая голова бьёт на 170/250/340 при вылете и в конце полёта во врага, а при кружении задевает врагов постоянно.',
     cast(h, x, y, lvl){
       const L = Math.max(1, Math.min(3, lvl || 1));
       const nd = R_DOGS + (typeof hasScepter === 'function' && hasScepter(h) ? 2 : 0);
@@ -248,10 +264,11 @@ Object.assign(SKILLS, {
         const a = i / nd * TAU + 0.4;
         spawnDog(h, h.x + Math.cos(a) * 110, h.y + Math.sin(a) * 110, {life:24, hp:R_DOG_HP[L], dmg:R_DOG_DMG[L], leash:R_LEASH, big:true, slot:i});
       }
+      const assign = new Map();                              /* сколько голов уже летит в каждого врага */
       for(let i = 0; i < R_HEADS; i++){
         const a = i / R_HEADS * TAU, ring = i % 2;
         pushHead({kind:'r', src:h, team:h.team, dmg:R_HEAD_DMG[L], ang:a, r:40, rOrbit:ring ? 330 : 560, speed:2200, w:(ring ? -1 : 1) * 4.2,
-          phase:0, ph:0, orbitT:1.5, hitR:38, scale:1.15, hitCd:0, pool:new Map(), once:{o:new Set(), b:new Set()},
+          phase:0, ph:0, orbitT:1.2, hitR:38, assign:assign, rDmg:R_HEAD_DMG[L], scale:1.15, hitCd:0, pool:new Map(), once:{o:new Set(), b:new Set()},
           x:h.x + Math.cos(a) * 40, y:h.y + Math.sin(a) * 40});
       }
       fxRing(h.x, h.y, 260, '#ff3a2a', 0.8);

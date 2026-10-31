@@ -30,8 +30,8 @@ const ST_RARITY = {
   phrase:    {name:'ФРАЗА',        col:'#8be9fd'}
 };
 const ST_CATS = {
-  shop:      [['all','ВСЁ'],['hero','СКИНЫ БОЙЦОВ'],['immortal','ИММОРТАЛКИ'],['phrases','ФРАЗЫ']],
-  inventory: [['all','ВСЁ'],['hero','СКИНЫ БОЙЦОВ'],['immortal','ИММОРТАЛКИ']]
+  shop:      [['all','ВСЁ'],['hero','СКИНЫ БОЙЦОВ'],['arcana','АРКАНЫ'],['immortal','ИММОРТАЛКИ'],['phrases','ФРАЗЫ']],
+  inventory: [['all','ВСЁ'],['hero','СКИНЫ БОЙЦОВ'],['arcana','АРКАНЫ'],['immortal','ИММОРТАЛКИ']]
 };
 
 function storeOpenScreen(screen){
@@ -48,7 +48,7 @@ function stRarityKey(sk){ return sk.kind === 'acc' ? 'immortal' : (sk.rarity || 
 function stBalance(){ return (account && account.token && account.profile) ? Math.max(0, Math.floor(account.profile.shards || 0)) : null; }
 function stFmt(n){ return String(Math.floor(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
 
-function stCategoryOf(sk){ return sk.kind === 'acc' ? 'immortal' : (sk.heroId ? 'hero' : 'universal'); }
+function stCategoryOf(sk){ return sk.kind === 'acc' ? 'immortal' : (sk.rarity === 'arcana' ? 'arcana' : (sk.heroId ? 'hero' : 'universal')); }
 function stAllItems(screen){
   syncPaidSkins();
   const out = [];
@@ -59,7 +59,7 @@ function stAllItems(screen){
   if(screen === 'shop'){
     for(const card of STORE_PHRASE_CARDS) out.push({type:'phrase', id:'ph:' + card.id, card, cat:'phrases', heroId:'', order:0});
   }
-  const catOrder = {hero:0, universal:1, immortal:2, phrases:3};
+  const catOrder = {hero:0, universal:1, arcana:2, immortal:3, phrases:4};
   out.sort((a, b) => (catOrder[a.cat] - catOrder[b.cat]) || (a.heroId < b.heroId ? -1 : a.heroId > b.heroId ? 1 : 0) || (a.order - b.order));
   return out;
 }
@@ -68,7 +68,7 @@ function stVisibleItems(){
   let list = stAllItems(scr);
   if(cat !== 'all') list = list.filter(it => it.cat === cat);
   const hf = stHero[scr];
-  if(hf && (cat === 'all' || cat === 'hero')) list = list.filter(it => it.heroId === hf);
+  if(hf && (cat === 'all' || cat === 'hero' || cat === 'arcana')) list = list.filter(it => it.heroId === hf);
   return list;
 }
 function stHeroChips(){
