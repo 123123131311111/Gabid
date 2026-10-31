@@ -9990,6 +9990,14 @@ function drawDraftScreen(){
     skills.forEach((sk,k)=>{
       const ix=I.x+16+k*(isz+10), cx=ix+isz/2, cy=iy+isz/2;
       const hv=mx>=ix&&mx<=ix+isz&&my>=iy&&my<=iy+isz; if(hv) hs=k;
+      if(window.SkillIcons && SkillIcons.has(sk)){
+        ctx.save(); ctx.shadowColor=sk.ult?'#ffd568':def.color2; ctx.shadowBlur=hv?16:6;
+        SkillIcons.draw(ctx,sk,ix,iy,isz); ctx.restore();
+        if(hv){ ctx.save(); ctx.strokeStyle='#fff4d0'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(ix,iy,isz,isz,isz*.14); ctx.stroke(); ctx.restore(); }
+        ctx.save(); ctx.font='bold '+Math.max(9,Math.round(isz*.26))+'px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillStyle='rgba(5,9,16,.8)';
+        ctx.beginPath(); ctx.roundRect(ix+2,iy+2,isz*.34,isz*.3,3); ctx.fill(); ctx.fillStyle='#ffe9a8'; ctx.fillText(sk.short,ix+2+isz*.17,iy+2+isz*.23); ctx.restore();
+        return;
+      }
       ctx.save(); ctx.shadowColor=sk.ult?'#ffd568':def.color2; ctx.shadowBlur=hv?16:6;
       const ig=ctx.createRadialGradient(cx,cy-4,2,cx,cy,isz/2); ig.addColorStop(0,sk.ult?'#a67a2c':def.color2); ig.addColorStop(1,sk.ult?'#4b3513':def.color);
       ctx.fillStyle=ig; ctx.beginPath(); ctx.roundRect(ix,iy,isz,isz,9); ctx.fill(); ctx.shadowBlur=0;
@@ -19146,6 +19154,19 @@ function drawHUD(){
     ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.roundRect(r.x+4,r.y+4,r.w-8,r.h-8,4); ctx.stroke();
 
+    /* 0.10.2.2: иконка навыка (у первых 8 героев); у остальных — прежняя большая буква */
+    const skillIconDrawn = !!(window.SkillIcons && SkillIcons.has(def) && SkillIcons.draw(ctx, def, r.x+3, r.y+3, r.w-6, {dim: s.level>0 ? (ready?0:.35) : .65}));
+    if(skillIconDrawn){
+      if(h.def.id === 'grisha' && i<3){
+        ctx.save(); ctx.strokeStyle = i===0 ? '#7feaff' : i===1 ? '#c8b3ff' : '#ff9955'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.roundRect(r.x+2, r.y+2, r.w-4, r.h-4, 7); ctx.stroke(); ctx.restore();
+      }
+      ctx.save(); ctx.font = 'bold 13px Segoe UI, Arial'; ctx.textAlign = 'center';
+      const kw = Math.max(18, ctx.measureText(def.short).width + 8);
+      ctx.fillStyle = 'rgba(5,9,16,0.82)'; ctx.beginPath(); ctx.roundRect(r.x+4, r.y+4, kw, 17, 4); ctx.fill();
+      ctx.fillStyle = s.level>0 ? '#ffe9a8' : 'rgba(255,255,255,0.45)'; ctx.fillText(def.short, r.x+4+kw/2, r.y+17);
+      ctx.restore();
+    } else {
     if(h.def.id === 'grisha' && i<3){
       const ocol = i===0 ? '#7feaff' : i===1 ? '#c8b3ff' : '#ff9955';
       ctx.fillStyle = ocol;
@@ -19158,6 +19179,7 @@ function drawHUD(){
     ctx.font = 'bold 30px Segoe UI, Arial';
     ctx.textAlign = 'center';
     ctx.fillText(def.short, r.x + r.w/2, r.y + r.h/2 + 10);
+    }
     if(def.passive){
       /* 0.8.9: пассивка — штриховка, пунктирная рамка и значок: нажать нельзя */
       ctx.save();
@@ -20335,10 +20357,12 @@ function drawHeroDetail(def){
     ctx.fillStyle='rgba(12,17,27,.92)'; ctx.beginPath(); ctx.roundRect(rightX,sy,sw,skillH,9); ctx.fill();
     ctx.strokeStyle=sk.ult?'#ffd05c':'rgba(215,179,106,.35)'; ctx.lineWidth=sk.ult?2:1; ctx.stroke();
     const iconX=rightX+31, iconY=sy+skillH/2;
+    if(!(window.SkillIcons && SkillIcons.draw(ctx,sk,iconX-24,iconY-24,48))){
     ctx.fillStyle=sk.ult? '#70552a' : def.color;
     ctx.beginPath(); ctx.arc(iconX,iconY,21,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle=sk.ult?'#ffe69a':def.color2; ctx.lineWidth=2; ctx.stroke();
     ctx.fillStyle='#fff4d0'; ctx.textAlign='center'; ctx.font='bold 14px Segoe UI, Arial'; ctx.fillText(sk.short,iconX,iconY+5);
+    }
     ctx.textAlign='left'; ctx.fillStyle=sk.ult?'#ffd568':'#e8c984'; ctx.font='bold 14px Segoe UI, Arial';
     ctx.fillText(sk.name + (sk.ult?'  •  УЛЬТА':''),rightX+66,sy+24);
     ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='12px Segoe UI, Arial';
@@ -20391,10 +20415,11 @@ function drawDraftSkillPanel(now){
     if(y+58>panel.y+panel.h) return;
     ctx.fillStyle='rgba(24,31,48,0.9)'; ctx.fillRect(panel.x+12,y,panel.w-24,56);
     ctx.strokeStyle=skill.ult?'#ffd568':'rgba(139,233,253,0.42)'; ctx.lineWidth=skill.ult?2:1; ctx.strokeRect(panel.x+12,y,panel.w-24,56);
-    ctx.fillStyle=skill.ult?'#ffd568':def.color2; ctx.font='bold 16px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText(skill.short,panel.x+34,y+23);
-    ctx.textAlign='left'; ctx.fillStyle='#fff0c7'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(skill.name,panel.x+56,y+18);
+    if(window.SkillIcons && SkillIcons.draw(ctx,skill,panel.x+16,y+6,44)){ /* 0.10.2.2: иконка */ }
+    else { ctx.fillStyle=skill.ult?'#ffd568':def.color2; ctx.font='bold 16px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText(skill.short,panel.x+34,y+23); }
+    ctx.textAlign='left'; ctx.fillStyle='#fff0c7'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(skill.name,panel.x+66,y+18);
     ctx.fillStyle='rgba(255,255,255,0.62)'; ctx.font='10px Segoe UI, Arial';
-    wrapMenuText(skill.desc || 'Описание отсутствует.',panel.w-78,'10px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,panel.x+56,y+34+lineIndex*12));
+    wrapMenuText(skill.desc || 'Описание отсутствует.',panel.w-88,'10px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,panel.x+66,y+34+lineIndex*12));
   });
   ctx.restore();
 }

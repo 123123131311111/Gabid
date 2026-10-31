@@ -304,12 +304,15 @@ function drawSkillCard(def, sk, x, y, w, h, t){
   ctx.shadowColor = ult ? 'rgba(255,208,92,.8)' : rgba(def.color2, .7); ctx.shadowBlur = 12;
   const kg = ctx.createLinearGradient(kx, ky, kx, ky + ks);
   kg.addColorStop(0, ult ? '#a87a22' : lighten(def.color, .22)); kg.addColorStop(1, ult ? '#3e2a08' : def.color);
+  if(window.SkillIcons && SkillIcons.has(sk)){ ctx.shadowBlur = 0; SkillIcons.draw(ctx, sk, kx, ky, ks); }   /* 0.10.2.2: иконка навыка */
+  else {
   rr(kx, ky, ks, ks, 11); ctx.fillStyle = kg; ctx.fill();
   ctx.shadowBlur = 0; ctx.strokeStyle = ult ? '#ffe69a' : def.color2; ctx.lineWidth = 2; ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,.14)'; rr(kx + 3, ky + 3, ks - 6, ks * .4, 8); ctx.fill();
   ctx.fillStyle = '#fff6d8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = 'bold ' + Math.round(ks * .46) + 'px Segoe UI, Arial';
   ctx.fillText(sk.short || '?', kx + ks / 2, ky + ks / 2 + 1);
+  }
   ctx.restore();
   /* текст */
   const tx = kx + ks + 14, rightEdge = x + w - 12;
