@@ -77,6 +77,21 @@ const SKIN_TINTS={
     if(h>=170&&h<=215&&s>.25){
       return l>.5 ? hsl2rgb(322,Math.min(.9,s+.1),Math.min(.8,l+.02)) : hsl2rgb(278+(h-170)*.2,Math.min(.7,s*.8),Math.max(.1,l*1.05)); }
     return c; },
+  /* 0.10.3 АРКАНА Иллюзиониста: «Аметистовый маг» — бирюза уходит в глубокий аметист, голубые грани становятся ярким аметистом, золото — в бледно-лиловое серебро; жемчуг и белые блики остаются */
+  illusionistArcana:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(l>.93) return c;
+    if(h>=170&&h<=215&&s>.25) return l>.55 ? hsl2rgb(284+(h-170)*.12,Math.min(.88,s+.14),Math.min(.7,l)) : hsl2rgb(268+(h-170)*.18,Math.min(.72,s*.9+.1),Math.max(.07,l*.86));
+    if(h>=36&&h<=58&&s>.45) return hsl2rgb(290,.38,Math.min(.9,l+.14));
+    if(h>=250&&h<=292&&s>.5&&l>.8) return hsl2rgb(282,.8,.78);   /* жемчужные панели и борода → светлый аметист */
+    return c; },
+  /* 0.10.4 АРКАНА Мо3ги: «Демон разума» — тёмно-багровая броня и обсидиановое железо, багровая кожа, мятные светящиеся детали превращаются в адское пламя; красные гранаты и огоньки остаются */
+  mo3giArcana:c=>{ const [h,s,l]=rgb2hsl(c);
+    if(l>.93) return c;
+    if(h>=120&&h<=175&&s>.4&&l>.55) return hsl2rgb(8+(h-120)*.14,1,Math.min(.62,Math.max(.5,l)));
+    if(h>=8&&h<=40&&s>.3&&l>.5&&l<.82) return hsl2rgb(356,.66,.4);
+    if((h<18||h>340)&&s>.5) return c;
+    if(s<.14) return hsl2rgb(350,.3,Math.max(.04,l*.7));
+    return hsl2rgb(348+(h%24)*.4,Math.min(.85,s*.5+.4),Math.max(.07,l*.74)); },
   /* ---- 0.9.9.3: платные скины за Сенсики (по три на Снайпера, Психа и Мо3ги) ---- */
   /* Снайпер: «Лесной призрак» — маскировочный зелёный */
   sniperGhillie:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(96+(h%36)*.35, Math.min(.62,Math.max(.28,s*.7+.12)), l>.78?l:Math.max(.12,l*.82)); },
@@ -976,10 +991,56 @@ function illusionistPrismFx(S,d,t){
   S.ring([0,.025,0],1.1,.012,ROSE,{glow:1,n:30,phase:t*.7});
   S.ring([0,.025,0],1.3,.01,VIO,{glow:1,n:34,phase:-t*.5});
 }
+
+/* ---- 0.10.3 АРКАНА Иллюзиониста: «Аметистовый маг». Венец из кристаллов на шляпе, парящий огромный аметист с кольцами, крылья из
+   аметистовых кристаллов, кристаллические наплечники, вращающиеся зеркальные самоцветы, мерцающие звёзды и гексаграмма с шипами под ногами. ---- */
+function illusionistArcanaFx(S,d,t){
+  const AM='#b05cff', AM2='#8a3ce0', DEEP='#3a1470', LIL='#e4c8ff', MAG='#ff7ae8', WH='#ffffff';
+  const fl=(i,k)=>Math.sin(t*(2+k)+i*1.7)*.5+.5;
+  const gem=(p,h,r,c1,c2,o)=>{ S.cone(p,[p[0],p[1]+h,p[2]],r,c1,Object.assign({seg:6,shine:.8},o||{})); S.cone(p,[p[0],p[1]-h*.55,p[2]],r,c2||c1,Object.assign({seg:6},o||{})); };
+  /* венец из кристаллов вокруг тульи шляпы */
+  for(let i=0;i<7;i++){ const a=i/7*Math.PI*2+Math.PI/7, x=Math.cos(a)*.34, z=Math.sin(a)*.34, up=.5+(i%2)*.26+fl(i,3)*.05;
+    S.cone([x,2.32,z],[x*1.55,2.32+up,z*1.55-.03],.075,i%2?AM:LIL,{seg:6,shine:.8});
+    G(S,[x*1.55,2.32+up,z*1.55-.03],.032+.012*fl(i,5),i%2?WH:MAG,{rings:3,seg:6}); }
+  /* парящий огромный аметист над шляпой */
+  const gy=3.95+Math.sin(t*1.6)*.07;
+  gem([0,gy,0],.5,.2,AM,AM2,{glow:1}); gem([0,gy,0],.3,.12,LIL,LIL);
+  S.ring([0,gy,0],.34,.014,MAG,{glow:1,n:14,phase:t*2});
+  S.ring([0,gy,0],.4,.012,LIL,{glow:1,axis:'x',n:14,phase:-t*2.4});
+  /* кристаллические наплечники */
+  for(const s of [-1,1]){
+    S.cone([s*.56,1.9,.02],[s*.74,2.42+fl(s,2)*.05,0],.1,AM,{seg:6,shine:.8});
+    S.cone([s*.56,1.9,.02],[s*.68,2.24,.2],.07,LIL,{seg:6,shine:.8});
+    S.cone([s*.56,1.9,.02],[s*.9,2.12,-.12],.07,AM2,{seg:6,shine:.7});
+    G(S,[s*.74,2.42,0],.04,WH,{rings:3,seg:6}); }
+  /* крылья из аметистовых кристаллов */
+  const flap=Math.sin(t*1.5)*.12;
+  for(const s of [-1,1]) for(let k=0;k<6;k++){
+    const ext=.55+k*.3, hgt=1.62+k*.3+flap*(1+k*.2);
+    S.cone([s*.3,1.45,-.28],[s*ext,hgt+fl(k+(s>0?6:0),2)*.05,-.52-k*.09],.115-.012*k,k%2?AM2:AM,{seg:6,shine:.7});
+    S.cone([s*.3,1.45,-.3],[s*ext*.93,hgt-.1,-.58-k*.09],.045,k%2?LIL:MAG,{seg:4,glow:1}); }
+  /* вращающиеся зеркальные самоцветы */
+  for(let i=0;i<8;i++){ const a=-t*.9+i*.785, r=1.45+.12*Math.sin(t*1.3+i), y=.55+((i*5)%8)*.27+Math.sin(t*1.7+i)*.1;
+    gem([Math.cos(a)*r,y,Math.sin(a)*r],.2,.075,i%3===0?MAG:(i%2?AM:LIL),i%2?AM2:AM,{glow:i%2?1:0,seg:4}); }
+  /* мерцающие звёзды */
+  for(let i=0;i<8;i++){ const a=t*.7+i*.79, p=[Math.cos(a)*1.0,1.0+((i*.43)%1.9)+.1*Math.sin(t*2+i),Math.sin(a)*1.0], k=(.6+.4*Math.sin(t*5+i))*.15;
+    S.box(p,[k,.02,.02],i%2?WH:LIL,{glow:1}); S.box(p,[.02,k,.02],i%2?WH:LIL,{glow:1}); }
+  /* гексаграмма и шипы-кристаллы под ногами */
+  floorFx(S,()=>{
+    const R=1.05, P=[0,1,2,3,4,5].map(i=>{ const a=-t*.3+i*Math.PI/3; return [Math.cos(a)*R,.02,Math.sin(a)*R]; });
+    for(let i=0;i<6;i++){ S.obox(P[i],P[(i+2)%6],.022,.02,i%2?AM:MAG,{glow:1}); G(S,add(P[i],[0,.025,0]),.05,WH,{rings:3,seg:6}); }
+    S.ring([0,.02,0],R,.02,AM,{glow:1,n:30,phase:t*.25});
+    S.ring([0,.02,0],R+.14,.012,LIL,{glow:1,n:26,phase:-t*.5});
+    for(let i=0;i<12;i++){ const a=i/12*Math.PI*2+t*.2, c=Math.cos(a), sn=Math.sin(a), h=.18+.12*fl(i,3);
+      S.cone([c*(R+.14),.02,sn*(R+.14)],[c*(R+.2),.02+h,sn*(R+.2)],.045,i%2?AM2:LIL,{seg:5,shine:.8}); }
+  });
+  embers(S,t,.85,'#d9a0ff',6,2.8);
+}
 const _illuBaseModel=MODELS.illusionist;
 MODELS.illusionist=(S,d,t,pose)=>{
   _illuBaseModel(S,d,t,pose);
   if(d&&d.skinId&&String(d.skinId).split('+')[0]==='illusionistPrism') illusionistPrismFx(S,d,t);
+  if(d&&d.skinId&&String(d.skinId).split('+')[0]==='illusionistArcana') illusionistArcanaFx(S,d,t);   /* 0.10.3: аркана */
 };
 
 MODELS.shadow=(S,d,t,pose)=>{
@@ -1167,6 +1228,123 @@ MODELS.mo3gi=(S,d,t,pose)=>{
   S.ell([c[0],c[1]-.14,c[2]+.05],[.03,.03,.03],'#ff4b24',{glow:1,rings:3,seg:5});
   for(const [dx,dz] of [[1,1],[-1,1],[1,-1],[-1,-1]]){ const p=[c[0]+dx*.22,c[1]+.04,c[2]+dz*.22]; S.tube(c,p,.015,.015,'#444',{seg:4}); S.tube(add(p,[0,.01,0]),add(p,[Math.cos(t*30)*.16,.01,Math.sin(t*30)*.16]),.012,.012,'#9aa',{seg:4}); }
   gaFx(S,ga);
+};
+
+/* ---- 0.10.4 АРКАНА Мо3ги: «Демон разума». Красный демонический мозг (общая функция для дрона и мини-дрона у плеча) ---- */
+function demonBrain(S,c,k,opt){
+  opt=opt||{};
+  const B1='#c4122a', B2='#9a0e22', B3='#ff3b55', EMB='#ff7a2a';
+  const P=(x,y,z)=>[c[0]+x*k,c[1]+y*k,c[2]+z*k];
+  for(const sd of [-1,1]){
+    S.ell(P(sd*.26,0,0),[.38*k,.46*k,.64*k],sd>0?B1:B2,{rings:9,seg:16,shine:.25});
+    /* извилины: дуги поперёк полушария */
+    for(let i=0;i<5;i++){
+      const z=-.46+i*.23, sq=Math.sqrt(Math.max(0,1-(z/.64)*(z/.64))), wob=(i%2?1:-1)*.03;
+      let prev=null;
+      for(let j=0;j<=4;j++){
+        const ph=(25+j*32.5)*Math.PI/180, w=1+(j%2?.035:-.01);
+        const q=P(sd*(.26+.385*Math.cos(ph)*w*sq),.465*Math.sin(ph)*sq*w+wob*.3,z);
+        if(prev) S.tube(prev,q,.05*k,.05*k,(i+j)%2?'#ff5a6e':'#e8203f',{seg:5,shine:.3});
+        prev=q;
+      }
+    }
+  }
+  for(const sd of [-1,1]) for(let r=0;r<3;r++){                                         /* продольные извилистые складки */
+    const ph=(48+r*40)*Math.PI/180; let prev=null;
+    for(let i=0;i<=9;i++){
+      const z=-.56+i*.125, sq=Math.sqrt(Math.max(0,1-(z/.64)*(z/.64))), w=1+Math.sin(i*1.9+r*2+sd)*.05;
+      const q=P(sd*(.26+.385*Math.cos(ph)*w*sq),.465*Math.sin(ph)*sq*w,z);
+      if(prev) S.tube(prev,q,.036*k,.036*k,(i+r)%2?'#ff6a7c':'#ff3b55',{seg:5});
+      prev=q;
+    }
+  }
+  S.box(P(0,.44,0),[.07*k,.12*k,1.05*k],'#1c0207');                                     /* продольная борозда */
+  S.ell(P(0,-.3,-.5),[.34*k,.22*k,.26*k],'#8a0c20',{rings:7,seg:12,shine:.45});        /* мозжечок */
+  for(let i=0;i<3;i++) S.tube(P(-.2,-.24+i*.08,-.66+.02*i),P(.2,-.24+i*.08,-.66+.02*i),.03*k,.03*k,'#ff3b55',{seg:5});
+  S.tube(P(0,-.4,-.35),P(0,-.8,-.28),.1*k,.07*k,'#7a0a1c',{seg:8});                    /* ствол мозга и «позвоночник» */
+  for(let i=0;i<6;i++) S.ell(P(Math.sin(i*1.1)*.05*(i+1)/3,-.88-i*.13,-.28-i*.07),[.065*k*(1-i*.1),.05*k,.065*k*(1-i*.1)],i%2?'#d8d0c0':'#b8b0a0',{rings:4,seg:6});
+  for(let i=0;i<7;i++){ const a=i*2.4; G(S,P(Math.cos(a)*.42,.1+Math.sin(a*1.3)*.28,Math.sin(a)*.5+.05),.03*k,EMB,{rings:3,seg:6}); }   /* тлеющие точки на извилинах */
+  for(const sd of [-1,1]){                                                              /* рожки */
+    S.tube(P(sd*.3,.38,.12),P(sd*.46,.62,.08),.075*k,.05*k,'#1a0508',{seg:6,shine:.8});
+    S.tube(P(sd*.46,.62,.08),P(sd*.48,.88,-.04),.05*k,.018*k,'#1a0508',{seg:6,shine:.8});
+    G(S,P(sd*.48,.9,-.05),.03*k,EMB,{rings:3,seg:6});
+  }
+  if(opt.eye!==false){                                                                  /* демонический глаз спереди */
+    S.ell(P(0,.0,.46),[.17*k,.12*k,.09*k],'#ffe27a',{glow:1,rings:5,seg:10});
+    S.ell(P(0,.0,.54),[.035*k,.1*k,.03*k],'#1a0000',{rings:4,seg:6});
+  }
+}
+MODELS.mon_drone_brain=(S,d)=>{
+  const team=(((d&&d.skinId)||'t0').charAt(1)==='1');
+  const LED=team?'#ff5a4a':'#7dffb0';
+  demonBrain(S,[0,1.5,0],1.25);
+  S.ring([0,.85,0],.62,.03,LED,{glow:1,n:22});                                          /* кольцо команды под «парящим» мозгом */
+  S.ring([0,.85,0],.78,.014,'#ff3b4e',{glow:1,n:26});
+  for(let i=0;i<5;i++){ const a=i*1.2566; G(S,[Math.cos(a)*.5,.95,Math.sin(a)*.5],.045,'#ff7a2a',{rings:3,seg:6}); }
+};
+
+function mo3giArcanaFx(S,d,t){
+  const RED='#ff2a44', BLD='#c4122a', DK='#1a0508', DK2='#2e0a12', EMB='#ff7a2a', GLD='#ffc14a', VIO='#7a1e5a';
+  const fl=(i,k)=>Math.sin(t*(2+k)+i*1.7)*.5+.5;
+  const horn=(pts,r0,col,o)=>{ const n=pts.length-1; for(let i=0;i<n;i++) S.tube(pts[i],pts[i+1],r0*(1-i/n),r0*(1-(i+1)/n),col,o||{seg:6,shine:.8}); };
+  /* рога на шлеме */
+  for(const s of [-1,1]){
+    horn([[s*.2,2.3,.02],[s*.34,2.5,-.02],[s*.46,2.76,-.1],[s*.4,3.06,-.16]],.085,DK2);
+    G(S,[s*.4,3.08,-.16],.035+.015*fl(s,4),EMB,{rings:3,seg:6});
+    horn([[s*.3,2.1,.1],[s*.46,2.15,.12],[s*.55,2.3,.1]],.05,DK2);
+    S.box([s*.08,2.03,.31],[.08,.035,.02],RED,{glow:1});                                  /* горящие глаза на визоре */
+  }
+  /* шипы на плечах */
+  for(const s of [-1,1]){
+    S.cone([s*.5,1.95,0],[s*.72,2.5+fl(s,2)*.04,-.05],.1,DK2,{seg:6,shine:.8});
+    S.cone([s*.56,1.9,.1],[s*.84,2.22,.14],.07,DK2,{seg:6,shine:.8});
+    G(S,[s*.72,2.52,-.05],.03,EMB,{rings:3,seg:6});
+  }
+  /* знак на груди */
+  S.ring([0,1.63,.4],.11,.012,RED,{glow:1,axis:'z',n:12});
+  for(let i=0;i<5;i++){ const a=-Math.PI/2+i*Math.PI*2/5, b=-Math.PI/2+((i+2)%5)*Math.PI*2/5;
+    S.obox([Math.cos(a)*.1,1.63+Math.sin(a)*.1,.41],[Math.cos(b)*.1,1.63+Math.sin(b)*.1,.41],.016,.012,RED,{glow:1}); }
+  /* перепончатые крылья */
+  const fw=Math.sin(t*1.7)*.12;
+  for(const s of [-1,1]){
+    const sh=[s*.32,1.95,-.5], el=[s*1.05,2.72+fw*.5,-.8], wr=[s*1.95,2.38+fw,-1.1], A=[s*.3,1.25,-.5];
+    S.tube(sh,el,.07,.055,DK2,{seg:6,shine:.6}); S.tube(el,wr,.055,.03,DK2,{seg:6,shine:.6});
+    const tips=[[s*2.05,1.6+fw*.8,-1.2],[s*1.7,1.05+fw*.6,-1.05],[s*1.25,.85+fw*.4,-.92],[s*.8,1.05,-.78]];
+    for(let i=0;i<tips.length;i++){
+      const tp=tips[i];
+      S.obox(A,tp,.34,.02,i%2?BLD:'#8a0c20',{hint:[0,0,1],shine:.3});
+      S.obox(wr,tp,.22,.02,i%2?'#8a0c20':BLD,{hint:[0,0,1],shine:.3});
+      S.tube(wr,tp,.03,.014,DK2,{seg:5});
+      G(S,tp,.025,EMB,{rings:3,seg:6});
+    }
+    S.cone(wr,[wr[0]+s*.2,wr[1]+.28,wr[2]-.05],.045,DK,{seg:5,shine:.8});
+  }
+  /* хвост с огненным остриём */
+  let p0=[0,1.0,-.42];
+  for(let i=1;i<=8;i++){
+    const k=i/8, p1=[Math.sin(t*2+i*.6)*.2*k,1.0-Math.sin(k*2.2)*.38+k*.1,-.42-k*.95];
+    S.tube(p0,p1,.075*(1-k*.7),.075*(1-(k+.125)*.7),i%2?DK2:'#3a0d16',{seg:6,shine:.5}); p0=p1;
+  }
+  S.cone(p0,[p0[0],p0[1]+.28+fl(3,5)*.06,p0[2]-.12],.09,EMB,{glow:1,seg:5});
+  G(S,p0,.05,GLD,{rings:3,seg:6});
+  /* мини-дрон у плеча превращается в плавающий красный мозг */
+  const by=2.45+Math.sin(t*2)*.08;
+  demonBrain(S,[1.05,by+.14,.25],.22,{eye:false});
+  /* пентаграмма и шипы на земле */
+  floorFx(S,()=>{
+    const R=1.1, P5=[0,1,2,3,4].map(i=>{ const a=-t*.25+i*Math.PI*2/5; return [Math.cos(a)*R,.02,Math.sin(a)*R]; });
+    for(let i=0;i<5;i++){ S.obox(P5[i],P5[(i+2)%5],.024,.02,i%2?RED:EMB,{glow:1}); G(S,add(P5[i],[0,.03,0]),.05,GLD,{rings:3,seg:6}); }
+    S.ring([0,.02,0],R,.022,RED,{glow:1,n:32,phase:t*.2});
+    S.ring([0,.02,0],R+.16,.012,EMB,{glow:1,n:28,phase:-t*.5});
+    for(let i=0;i<12;i++){ const a=i/12*Math.PI*2+t*.2, c=Math.cos(a), sn=Math.sin(a), h=.2+.14*fl(i,3);
+      S.cone([c*(R+.16),.02,sn*(R+.16)],[c*(R+.24),.02+h,sn*(R+.24)],.045,i%2?DK2:BLD,{seg:5,shine:.8}); }
+  });
+  embers(S,t,.9,'#ff6a3a',7,2.6);
+}
+const _mo3giBaseModel=MODELS.mo3gi;
+MODELS.mo3gi=(S,d,t,pose)=>{
+  _mo3giBaseModel(S,d,t,pose);
+  if(d&&d.skinId&&String(d.skinId).split('+')[0]==='mo3giArcana') mo3giArcanaFx(S,d,t);   /* 0.10.4: аркана */
 };
 
 MODELS.tribupainer=(S,d,t,pose)=>{

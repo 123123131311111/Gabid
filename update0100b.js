@@ -161,7 +161,8 @@ function drawCard(def, i, r, hover, now, t){
   if(ml >= 0){
     ctx.textAlign = 'right'; ctx.font = (small ? 9 : 11) + 'px Segoe UI, Arial';
     for(let s = 4; s >= 0; s--){
-      ctx.fillStyle = s < ml ? '#ffd568' : 'rgba(255,255,255,.2)';
+      /* 10 уровней на 5 звёзд: каждая звезда = 2 уровня, половинная — один */
+      ctx.fillStyle = ml >= 2 * (s + 1) ? '#ffd568' : ml === 2 * s + 1 ? '#a5822f' : 'rgba(255,255,255,.2)';
       ctx.fillText('★', r.x + r.w - 10 - (4 - s) * (small ? 9 : 11), sy + 33);
     }
   }

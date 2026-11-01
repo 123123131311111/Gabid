@@ -679,7 +679,7 @@ const SHOP_ITEMS = {
   tango: {name:'Танго', icon:'♣', cost:90, desc:'Активный расходуемый предмет: съедает ближайшее дерево и восстанавливает 90 HP.', color:'#79d46c', active:true},
   fangs: {name:'Клыки Васьки', icon:'✦', cost:500, desc:'Пассивно: +20 к урону обычных атак и +5 к урону каждой способности.', color:'#ff8d8d', damage:20, spellDamage:5, active:false},
   bkb: {name:'БКБ', icon:'✚', cost:1750, desc:'Активный: на 10 сек. снижает урон обычных атак на 60% и снимает оглушение. КД 50 сек.', color:'#f0c36a', active:true},
-  pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 150 монет. Пассивно: +40 урона, +15 скорости передвижения и +15% к скорости атаки.', color:'#ff9e5d', active:false, damage:40, speed:15, attackSpeedBonus:0.15},
+  pt: {name:'ПТ', icon:'◆', cost:200, totalCost:1200, desc:'Сборка: Сапог Джоэла + Клыки Васьки + 100 монет. Пассивно: +40 урона, +15 скорости передвижения и +15% к скорости атаки.', color:'#ff9e5d', active:false, damage:40, speed:15, attackSpeedBonus:0.15},
   blink: {name:'Блинк', icon:'◇', cost:1150, range:500, desc:'Активный: телепортирует героя к курсору на расстояние до 500 единиц, сбрасывая движение и атаку. КД 20 сек.', color:'#8fd8ff', active:true},
   evsyutin: {name:'Еблет Евсютина', icon:'♥', cost:1250, desc:'Пассивно: +500 к максимальному и текущему здоровью.', color:'#ff7898', hp:500, active:false},
   mantledSteel: {name:'Мантированная сталь', icon:'▣', cost:2400, desc:'Активный: создаёт 3 точные копии героя на 7 секунд. КД 14 сек.', color:'#b8c7d9', manaCost:80, active:true},
@@ -715,8 +715,14 @@ for(const item of Object.values(SHOP_ITEMS)){
   if(typeof item.totalCost === 'number') item.totalCost = Math.round(item.totalCost * 0.93);
 }
 /* 0.9.8.9: баланс. ПТ: рецепт 150 (сборка целиком 930 + 150), Научилсяловить 200, Супер сапог 1350 — ровно, без множителя 0.93. */
-SHOP_ITEMS.pt.cost = 150;
-SHOP_ITEMS.pt.totalCost = SHOP_ITEMS.pt.totalCost - 186 + 150;
+/* 0.10.3: рецепт ПТ подешевел на 50 монет — 100 вместо 150 (сборка целиком на 50 дешевле) */
+/* 0.10.4: «Еблет Евсютина» подешевел на 200 монет: было 1163 (1250 × 0.93), стало 963 */
+SHOP_ITEMS.evsyutin.cost = 963;
+/* 0.10.4.2: Танго и Манго подешевели на 30 монет: Танго 84 → 54, Манго 65 → 35 */
+SHOP_ITEMS.tango.cost = 54;
+SHOP_ITEMS.mango.cost = 35;
+SHOP_ITEMS.pt.cost = 100;
+SHOP_ITEMS.pt.totalCost = SHOP_ITEMS.pt.totalCost - 186 + 100;
 SHOP_ITEMS.manaTome.cost = 200;
 SHOP_ITEMS.superBoots.cost = 1350;
 SHOP_ITEMS.bkb.cost = 1750;
@@ -954,7 +960,7 @@ function ptPrice(h){
   if(!inv.some(i => i && i.id === 'fangs')) price += SHOP_ITEMS.fangs.cost;
   return price;
 }
-SHOP_ITEMS.pt.desc = 'Можно купить сразу или собрать из Сапога Джоэла + Клыков Васьки (+150 монет за сборку). Если части уже есть — платишь только 150. Пассивно: +40 урона, +15 скорости передвижения и +15% к скорости атаки.';
+SHOP_ITEMS.pt.desc = 'Можно купить сразу или собрать из Сапога Джоэла + Клыков Васьки (+100 монет за сборку). Если части уже есть — платишь только 100. Пассивно: +40 урона, +15 скорости передвижения и +15% к скорости атаки.';
 for(const v of SHOP_ITEM_VIEWS){
   if(v.id !== 'pt') continue;
   v.desc = SHOP_ITEMS.pt.desc;
@@ -1003,7 +1009,7 @@ const CREATOR_BUILDS = {
     title:'Шадоу  /  Повелитель душ',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['mango','Мана для койлов. Шадоу хочет давить с первых волн, а не ждать идеальный момент.'],['tango','Дерево превращается в здоровье: держи дистанцию и фарми под постоянным восстановлением.']]},
-      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать дальнюю дистанцию и собирать души безопаснее.'],['fangs','Клыки усиливают и автоатаки, и койлы. Собери ПТ: Сапог Джоэла + Клыки Васьки + 150 монет.']]},
+      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать дальнюю дистанцию и собирать души безопаснее.'],['fangs','Клыки усиливают и автоатаки, и койлы. Собери ПТ: Сапог Джоэла + Клыки Васьки + 100 монет.']]},
       {name:'CORE', items:[['pt','ПТ дает урон, скорость и темп атак. Это главный мост от фарма к Реквиему.'],['ilyaHair','Урон, скорость и стан на 4 секунды: враг не переживает твой залп душ.'],['enemy302','-30% к перезарядке превращает койлы в конвейер давления.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['arcadiaScar','Когда нужен взрывной прокаст и добивание героя.'],['kinglandia','+250 урона атак и +50 к каждой способности превращают накопленные души в приговор.'],['aghanimShard','Отдельный навык усиливает план героя, не занимая слот инвентаря.']]}
     ]
@@ -1012,7 +1018,7 @@ const CREATOR_BUILDS = {
     title:'Илья  /  Владыка ядовитой ауры',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['tango','Лечение через дерево держит толстяка на линии, пока аура выжигает врагов.'],['mango','Мана нужна для крюка и брюха: не превращай Илью в просто большой мишень.']]},
-      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Подтянись к цели и не отпускай. Скорость делает крюк надежнее.'],['fangs','Клыки усиливают каждый спелл и удар, затем собирай ПТ из двух компонентов и 150 монет.']]},
+      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Подтянись к цели и не отпускай. Скорость делает крюк надежнее.'],['fangs','Клыки усиливают каждый спелл и удар, затем собирай ПТ из двух компонентов и 100 монет.']]},
       {name:'CORE', items:[['pt','ПТ дает Илье урон и мобильность для ауры в центре драки.'],['satanic','+660 здоровья и вампиризм позволяют пережить фокус, пока враги стоят в яде.'],['ilyaHair','Пассивная стойкость к атакам и стан превращают вход в драку в ультиматум.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['tornBrainHand','Притяни ключевую цель, нанеси 350 и начни пир толстяка с выгодной позиции.'],['gur','Подбрось врага и получи окно для ауры и ульта.'],['aghanimShard','Ядовитое поле запрещает способности внутри. Ставь его там, где враг хочет драться.']]}
     ]
@@ -1021,7 +1027,7 @@ const CREATOR_BUILDS = {
     title:'Голли  /  Повелитель льда',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['mango','Дополнительная мана для кристаллов и заморозки на первых уровнях.'],['tango','Дешевое лечение, пока Голли собирает пространство под ледяную атаку.']]},
-      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать врага в радиусе ледяной орды.'],['fangs','Урон спеллов растет сразу; затем собери ПТ из Сапога Джоэла, Клыков и 150 монет.']]},
+      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Скорость помогает держать врага в радиусе ледяной орды.'],['fangs','Урон спеллов растет сразу; затем собери ПТ из Сапога Джоэла, Клыков и 100 монет.']]},
       {name:'CORE', items:[['pt','Темп, урон и скорость: Голли быстрее добегает до позиции для големов.'],['superBoots','Активация дает нужный разгон для входа, выхода и повторного контроля.'],['aghanimShard','Ледяная броня усиливает выживаемость в центре драки.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['mantledSteel','Три копии добавляют тел и целей, пока твои кристаллы контролируют поле.'],['bkb','Защищает каст големов от вражеского контроля.'],['aghanimShard','Отдельный навык усиливает Голли, не ломая шесть слотов инвентаря.']]}
     ]
@@ -1030,7 +1036,7 @@ const CREATOR_BUILDS = {
     title:'Аркадий  /  Огненный стрелок',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП', items:[['mango','Мана на огненные шары и Молотов. Дави линию, пока враг еще без защиты.'],['tango','Восстановление для дальнего героя, которому нельзя терять темп фарма.']]},
-      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Дальность не спасает от плохой позиции: скорость делает стрелка мобильным.'],['fangs','Усиливает шары и автоатаки; собери ПТ из Сапога Джоэла + Клыков + 150.']]},
+      {name:'РАННЯЯ ИГРА', items:[['joelBoots','Дальность не спасает от плохой позиции: скорость делает стрелка мобильным.'],['fangs','Усиливает шары и автоатаки; собери ПТ из Сапога Джоэла + Клыков + 100.']]},
       {name:'CORE', items:[['pt','Больше урона, скорости и скорострельности для постоянного огня.'],['munition','На 2 секунды превращает залп в пулемет. Используй перед взрывом.'],['arcadiaScar','+250 урона и скорострельность дают жесткое окно для Молотова и динамита.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ', items:[['dagonEmpire','500 магического урона закрывают бой с убегающим героем.'],['kinglandia','Максимальный физический урон, когда враг уже не может пережить дистанционный фокус.'],['aghanimShard','Отдельный навык добавляет еще один огненный аргумент без потери предмета.']]}
     ]
@@ -1089,7 +1095,7 @@ const CREATOR_BUILDS = {
     title:'Ригина  /  Серия яростных ударов',
     categories:[
       {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение помогает пережить первые размены в ближнем бою.'],['joelBoots','Скорость нужна, чтобы быстро добраться до цели и начать серию.']]},
-      {name:'РАННЯЯ ИГРА',items:[['fangs','Клыки усиливают каждый быстрый удар и урон от Q/W.'],['pt','Собери ПТ из Сапога Джоэла, Клыков Васьки и 150 монет: это главный темп Ригины.']]},
+      {name:'РАННЯЯ ИГРА',items:[['fangs','Клыки усиливают каждый быстрый удар и урон от Q/W.'],['pt','Собери ПТ из Сапога Джоэла, Клыков Васьки и 100 монет: это главный темп Ригины.']]},
       {name:'CORE',items:[['munition','Активация превращает заряды ярости в почти непрерывный шквал ударов.'],['arcadiaScar','Даёт большое окно урона и скорострельности для финального удара серии.'],['satanic','Здоровье и вампиризм помогают не прерывать серию под фокусом.']]},
       {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['bkb','Защищает Ригину во время прыжка и всей яростной серии.'],['kinglandia','Максимально усиливает каждый удар и волну на последнем заряде.'],['aghanimScepter','Увеличивает запас зарядов и радиус финальной волны ульты.']]}
     ]
@@ -9990,11 +9996,19 @@ function drawDraftScreen(){
     skills.forEach((sk,k)=>{
       const ix=I.x+16+k*(isz+10), cx=ix+isz/2, cy=iy+isz/2;
       const hv=mx>=ix&&mx<=ix+isz&&my>=iy&&my<=iy+isz; if(hv) hs=k;
+      if(window.SkillIcons && SkillIcons.has(sk)){
+        ctx.save(); ctx.shadowColor=sk.ult?'#ffd568':def.color2; ctx.shadowBlur=hv?16:6;
+        SkillIcons.draw(ctx,sk,ix,iy,isz); ctx.restore();
+        if(hv){ ctx.save(); ctx.strokeStyle='#fff4d0'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(ix,iy,isz,isz,isz*.14); ctx.stroke(); ctx.restore(); }
+        ctx.save(); ctx.font='bold '+Math.max(9,Math.round(isz*.26))+'px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillStyle='rgba(5,9,16,.8)';
+        ctx.beginPath(); ctx.roundRect(ix+2,iy+2,isz*.34,isz*.3,3); ctx.fill(); ctx.fillStyle='#ffe9a8'; ctx.fillText(sk.short,ix+2+isz*.17,iy+2+isz*.23); ctx.restore();
+        return;
+      }
       ctx.save(); ctx.shadowColor=sk.ult?'#ffd568':def.color2; ctx.shadowBlur=hv?16:6;
       const ig=ctx.createRadialGradient(cx,cy-4,2,cx,cy,isz/2); ig.addColorStop(0,sk.ult?'#a67a2c':def.color2); ig.addColorStop(1,sk.ult?'#4b3513':def.color);
       ctx.fillStyle=ig; ctx.beginPath(); ctx.roundRect(ix,iy,isz,isz,9); ctx.fill(); ctx.shadowBlur=0;
       ctx.strokeStyle=sk.ult?'#ffe69a':'rgba(215,179,106,.7)'; ctx.lineWidth=hv?2.5:1.5; ctx.stroke();
-      if(!(window.drawSkillIcon && window.drawSkillIcon(ctx,sk,ix+2,iy+2,isz-4,isz-4,7,true))){ ctx.fillStyle='#fff4d0'; ctx.textAlign='center'; ctx.font='bold '+Math.round(isz*.36)+'px Segoe UI, Arial'; ctx.fillText(sk.short,cx,cy+isz*.13); }
+      ctx.fillStyle='#fff4d0'; ctx.textAlign='center'; ctx.font='bold '+Math.round(isz*.36)+'px Segoe UI, Arial'; ctx.fillText(sk.short,cx,cy+isz*.13);
       ctx.restore();
     });
     const sk=skills[hs>=0?hs:0];
@@ -14291,6 +14305,10 @@ function drawUnit(u){
   if((u.type === 'hero' || (u.copyDef && u.skinId)) && window.drawPsihArcanaAura && !u.dead && !perfLite()) window.drawPsihArcanaAura(u);
   /* 0.10.2: аркана Гриши «Багровый Архимаг» — пентаграмма и тёмное пламя у ног (update0102.js) */
   if(u.type === 'hero' && window.drawGrishaArcanaAura && !u.dead && !perfLite()) window.drawGrishaArcanaAura(u);
+  /* 0.10.3: аркана Иллюзиониста «Аметистовый Мираж» — гексаграмма и кристаллы у ног героя и его иллюзий (update0103.js) */
+  if((u.type === 'hero' || (u.copyDef && u.skinId)) && window.drawIllusionistArcanaAura && !u.dead && !perfLite()) window.drawIllusionistArcanaAura(u);
+  /* 0.10.4: аркана Мо3ги «Демон разума» — пентаграмма и адское пламя у ног (update0104.js) */
+  if(u.type === 'hero' && window.drawMo3giArcanaAura && !u.dead && !perfLite()) window.drawMo3giArcanaAura(u);
   /* новые скины Шадоу («Пустотный жнец») и Иллюзиониста («Розовый фокусник») — аура у ног (update0100f.js) */
   if((u.type === 'hero' || isIllusionClone(u)) && window.drawNewSkinAura && !u.dead && !perfLite()) window.drawNewSkinAura(u);
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
@@ -14490,7 +14508,9 @@ function drawUnit(u){
   }
   /* 0.8.6: боевой дрон Мо3ги — настоящая 3D-модель FPV-дрона с боеприпасом (вместо плоского значка) */
   if(!hero3dSpr && u.type === 'summon' && u.summonKind === 'mo3giDrone' && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
-    const dd = {id:'mon_drone', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#ffffff'};
+    /* 0.10.4: у Мо3ги с арканой «Демон разума» дрон — красный демонический мозг (модель mon_drone_brain в hero3d.js) */
+    const brainDrone = !!(u.owner && u.owner.def && u.owner.def.id === 'mo3gi' && baseSkin(u.owner.skinId) === 'mo3giArcana');
+    const dd = {id: brainDrone ? 'mon_drone_brain' : 'mon_drone', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#ffffff'};
     const fa = u.facing || 0;
     hero3dSpr = Hero3D.battleSprite(dd, u.radius, fa, gameTime, null);
     if(hero3dSpr){
@@ -14498,8 +14518,8 @@ function drawUnit(u){
       const ph = (u.dronePulse||0);
       /* зелёное свечение и кольцо под дроном — видно, что он в воздухе */
       ctx.save();
-      ctx.globalAlpha = 0.55 + Math.sin(ph*8)*0.12; ctx.strokeStyle = '#65ff9a'; ctx.lineWidth = 2;
-      ctx.shadowColor = '#65ff9a'; ctx.shadowBlur = 12;
+      ctx.globalAlpha = 0.55 + Math.sin(ph*8)*0.12; ctx.strokeStyle = brainDrone ? '#ff3b4e' : '#65ff9a'; ctx.lineWidth = 2;
+      ctx.shadowColor = brainDrone ? '#ff2a44' : '#65ff9a'; ctx.shadowBlur = 12;
       ctx.beginPath(); ctx.ellipse(0, footY, u.radius*1.05, u.radius*0.52, 0, 0, Math.PI*2); ctx.stroke();
       ctx.restore();
       /* лёгкое зависание: покачивание вверх-вниз и наклон по ходу движения */
@@ -16324,6 +16344,7 @@ function drawWorldObjects(){
   RuneVisuals.draw(ctx,runes,RUNE_SPOTS.map(spot=>mapPoint(spot.x,spot.y)));
   for(const mine of mo3giMines){
     if(mine.owner.team!==0) continue;
+    if(window.drawMo3giArcanaMine && mine.owner.def && mine.owner.def.id==='mo3gi' && baseSkin(mine.owner.skinId)==='mo3giArcana'){ window.drawMo3giArcanaMine(mine); continue; }   /* 0.10.4: аркана — демонический знак вместо мины */
     ctx.save(); ctx.translate(mine.x,mine.y);
     ctx.globalAlpha=0.72+Math.sin(gameTime*7+mine.x)*0.18;
     ctx.fillStyle='#87d957'; ctx.shadowColor='#a5ff62'; ctx.shadowBlur=14;
@@ -19145,30 +19166,32 @@ function drawHUD(){
     ctx.strokeStyle=skillColor; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(r.x,r.y,r.w,r.h,6); ctx.stroke();
     ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.roundRect(r.x+4,r.y+4,r.w-8,r.h-8,4); ctx.stroke();
-    /* 0.10.2.2: иконка скилла как в Доте (если для скилла есть картинка) */
-    const skillIconDrawn = window.drawSkillIcon ? window.drawSkillIcon(ctx, def, r.x+3, r.y+3, r.w-6, r.h-6, 4, s.level>0) : false;
 
+    /* 0.10.2.2: иконка навыка (у первых 8 героев); у остальных — прежняя большая буква */
+    const skillIconDrawn = !!(window.SkillIcons && SkillIcons.has(def) && SkillIcons.draw(ctx, def, r.x+3, r.y+3, r.w-6, {dim: s.level>0 ? (ready?0:.35) : .65}));
+    if(skillIconDrawn){
+      if(h.def.id === 'grisha' && i<3){
+        ctx.save(); ctx.strokeStyle = i===0 ? '#7feaff' : i===1 ? '#c8b3ff' : '#ff9955'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.roundRect(r.x+2, r.y+2, r.w-4, r.h-4, 7); ctx.stroke(); ctx.restore();
+      }
+      ctx.save(); ctx.font = 'bold 13px Segoe UI, Arial'; ctx.textAlign = 'center';
+      const kw = Math.max(18, ctx.measureText(def.short).width + 8);
+      ctx.fillStyle = 'rgba(5,9,16,0.82)'; ctx.beginPath(); ctx.roundRect(r.x+4, r.y+4, kw, 17, 4); ctx.fill();
+      ctx.fillStyle = s.level>0 ? '#ffe9a8' : 'rgba(255,255,255,0.45)'; ctx.fillText(def.short, r.x+4+kw/2, r.y+17);
+      ctx.restore();
+    } else {
     if(h.def.id === 'grisha' && i<3){
       const ocol = i===0 ? '#7feaff' : i===1 ? '#c8b3ff' : '#ff9955';
       ctx.fillStyle = ocol;
-      ctx.globalAlpha = skillIconDrawn ? 0.26 : 0.55;
+      ctx.globalAlpha = 0.55;
       ctx.fillRect(r.x+3, r.y+3, r.w-6, r.h-6);
       ctx.globalAlpha = 1;
     }
 
-    if(skillIconDrawn){
-      ctx.textAlign = 'center';
-      if(!def.passive){
-        ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.beginPath(); ctx.roundRect(r.x+4, r.y+4, 17, 17, 4); ctx.fill();
-        ctx.fillStyle = s.level>0 ? '#fff' : 'rgba(255,255,255,0.55)';
-        ctx.font = 'bold 12px Segoe UI, Arial';
-        ctx.fillText(def.short, r.x + 12.5, r.y + 17);
-      }
-    } else {
-      ctx.fillStyle = s.level>0 ? '#fff' : 'rgba(255,255,255,0.35)';
-      ctx.font = 'bold 30px Segoe UI, Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(def.short, r.x + r.w/2, r.y + r.h/2 + 10);
+    ctx.fillStyle = s.level>0 ? '#fff' : 'rgba(255,255,255,0.35)';
+    ctx.font = 'bold 30px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(def.short, r.x + r.w/2, r.y + r.h/2 + 10);
     }
     if(def.passive){
       /* 0.8.9: пассивка — штриховка, пунктирная рамка и значок: нажать нельзя */
@@ -19186,7 +19209,6 @@ function drawHUD(){
 
 
     if(s.level > 0 && manaVal > 0){
-      if(skillIconDrawn){ ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(r.x + r.w - 26, r.y + r.h - 20, 24, 15); }
       ctx.font = 'bold 12px Segoe UI, Arial';
       ctx.fillStyle = h.mp >= manaVal ? '#8fc4ff' : '#ff7070';
       ctx.fillText(manaVal, r.x + r.w - 8, r.y + r.h - 6);
@@ -19204,7 +19226,6 @@ function drawHUD(){
     {
       const pipStep = Math.min(13, (r.w - 14) / def.maxLevel);
       const pipW = Math.max(3, pipStep - 3);
-      if(skillIconDrawn){ ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(r.x + 4, r.y + r.h - 17, 8 + def.maxLevel*pipStep, 11); }
       for(let l=0; l<def.maxLevel; l++){
         const px = r.x + 8 + l*pipStep;
         const py = r.y + r.h - 14;
@@ -20349,10 +20370,12 @@ function drawHeroDetail(def){
     ctx.fillStyle='rgba(12,17,27,.92)'; ctx.beginPath(); ctx.roundRect(rightX,sy,sw,skillH,9); ctx.fill();
     ctx.strokeStyle=sk.ult?'#ffd05c':'rgba(215,179,106,.35)'; ctx.lineWidth=sk.ult?2:1; ctx.stroke();
     const iconX=rightX+31, iconY=sy+skillH/2;
+    if(!(window.SkillIcons && SkillIcons.draw(ctx,sk,iconX-24,iconY-24,48))){
     ctx.fillStyle=sk.ult? '#70552a' : def.color;
     ctx.beginPath(); ctx.arc(iconX,iconY,21,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle=sk.ult?'#ffe69a':def.color2; ctx.lineWidth=2; ctx.stroke();
-    if(!(window.drawSkillIcon && window.drawSkillIcon(ctx,sk,iconX-20,iconY-20,40,40,20,true))){ ctx.fillStyle='#fff4d0'; ctx.textAlign='center'; ctx.font='bold 14px Segoe UI, Arial'; ctx.fillText(sk.short,iconX,iconY+5); }
+    ctx.fillStyle='#fff4d0'; ctx.textAlign='center'; ctx.font='bold 14px Segoe UI, Arial'; ctx.fillText(sk.short,iconX,iconY+5);
+    }
     ctx.textAlign='left'; ctx.fillStyle=sk.ult?'#ffd568':'#e8c984'; ctx.font='bold 14px Segoe UI, Arial';
     ctx.fillText(sk.name + (sk.ult?'  •  УЛЬТА':''),rightX+66,sy+24);
     ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='12px Segoe UI, Arial';
@@ -20405,10 +20428,11 @@ function drawDraftSkillPanel(now){
     if(y+58>panel.y+panel.h) return;
     ctx.fillStyle='rgba(24,31,48,0.9)'; ctx.fillRect(panel.x+12,y,panel.w-24,56);
     ctx.strokeStyle=skill.ult?'#ffd568':'rgba(139,233,253,0.42)'; ctx.lineWidth=skill.ult?2:1; ctx.strokeRect(panel.x+12,y,panel.w-24,56);
-    if(!(window.drawSkillIcon && window.drawSkillIcon(ctx,skill,panel.x+14,y+8,40,40,6,true))){ ctx.fillStyle=skill.ult?'#ffd568':def.color2; ctx.font='bold 16px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText(skill.short,panel.x+34,y+23); }
-    ctx.textAlign='left'; ctx.fillStyle='#fff0c7'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(skill.name,panel.x+56,y+18);
+    if(window.SkillIcons && SkillIcons.draw(ctx,skill,panel.x+16,y+6,44)){ /* 0.10.2.2: иконка */ }
+    else { ctx.fillStyle=skill.ult?'#ffd568':def.color2; ctx.font='bold 16px Segoe UI, Arial'; ctx.textAlign='center'; ctx.fillText(skill.short,panel.x+34,y+23); }
+    ctx.textAlign='left'; ctx.fillStyle='#fff0c7'; ctx.font='bold 11px Segoe UI, Arial'; ctx.fillText(skill.name,panel.x+66,y+18);
     ctx.fillStyle='rgba(255,255,255,0.62)'; ctx.font='10px Segoe UI, Arial';
-    wrapMenuText(skill.desc || 'Описание отсутствует.',panel.w-78,'10px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,panel.x+56,y+34+lineIndex*12));
+    wrapMenuText(skill.desc || 'Описание отсутствует.',panel.w-88,'10px Segoe UI, Arial').slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,panel.x+66,y+34+lineIndex*12));
   });
   ctx.restore();
 }
@@ -23629,6 +23653,7 @@ function loop(now){
           warmList.push([{id:'mon_shroom', skinId:'t2', color:'#ffffff'}, 18], [{id:'mon_hound', skinId:'t2', color:'#ffffff'}, 16],
                         [{id:'mon_golem', skinId:'t2', color:'#ffffff'}, 24], [{id:'mon_imp', skinId:'t2r', color:'#ffffff'}, 21]);
           if(heroes.some(h => h.def && h.def.id === 'mo3gi')) for(const sk of ['t0','t1']) warmList.push([{id:'mon_drone', skinId:sk, color:'#ffffff'}, 22]);
+          if(heroes.some(h => h.def && h.def.id === 'mo3gi' && baseSkin(h.skinId) === 'mo3giArcana')) for(const sk of ['t0','t1']) warmList.push([{id:'mon_drone_brain', skinId:sk, color:'#ffffff'}, 22]);
           Hero3D.prewarm(warmList);
         } catch(err) {}
       }
