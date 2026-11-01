@@ -718,6 +718,9 @@ for(const item of Object.values(SHOP_ITEMS)){
 /* 0.10.3: рецепт ПТ подешевел на 50 монет — 100 вместо 150 (сборка целиком на 50 дешевле) */
 /* 0.10.4: «Еблет Евсютина» подешевел на 200 монет: было 1163 (1250 × 0.93), стало 963 */
 SHOP_ITEMS.evsyutin.cost = 963;
+/* 0.10.4.2: Танго и Манго подешевели на 30 монет: Танго 84 → 54, Манго 65 → 35 */
+SHOP_ITEMS.tango.cost = 54;
+SHOP_ITEMS.mango.cost = 35;
 SHOP_ITEMS.pt.cost = 100;
 SHOP_ITEMS.pt.totalCost = SHOP_ITEMS.pt.totalCost - 186 + 100;
 SHOP_ITEMS.manaTome.cost = 200;
@@ -957,7 +960,7 @@ function ptPrice(h){
   if(!inv.some(i => i && i.id === 'fangs')) price += SHOP_ITEMS.fangs.cost;
   return price;
 }
-SHOP_ITEMS.pt.desc = 'Можно купить сразу или собрать из Сапога Джоэла + Клыков Васьки (+100 монет за сборку). Если части уже есть — платишь только 150. Пассивно: +40 урона, +15 скорости передвижения и +15% к скорости атаки.';
+SHOP_ITEMS.pt.desc = 'Можно купить сразу или собрать из Сапога Джоэла + Клыков Васьки (+100 монет за сборку). Если части уже есть — платишь только 100. Пассивно: +40 урона, +15 скорости передвижения и +15% к скорости атаки.';
 for(const v of SHOP_ITEM_VIEWS){
   if(v.id !== 'pt') continue;
   v.desc = SHOP_ITEMS.pt.desc;
