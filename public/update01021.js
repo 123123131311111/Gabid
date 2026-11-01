@@ -14,7 +14,7 @@ const QUEST_ICON = '<svg class="qb-ico" viewBox="0 0 24 24" aria-hidden="true"><
   '<path d="M6 3h11a2 2 0 0 1 2 2v13a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V4a1 1 0 0 1 1-1z" fill="url(#qb-g)" stroke="#fff0c7" stroke-width="1"/>' +
   '<path d="M8.5 9h7M8.5 12.5h7M8.5 16h4" stroke="#2a1a02" stroke-width="1.6" stroke-linecap="round"/></svg>';
 
-const TABS = [['daily', 'Ежедневные'], ['life', 'Постоянные'], ['mega', 'Мега-задание']];
+const TABS = [['daily', 'Ежедневные'], ['life', 'Постоянные']];   /* 0.10.3.5: мега-задание живёт во вкладке «Постоянные» */
 let tab = 'daily';
 let busy = false;
 let flash = '';
@@ -99,7 +99,7 @@ function simpleCard(it){
 
 function megaCard(q){
   const card = el('div', 'qm-card qm-mega' + (q.ready ? ' ready' : '') + (q.claimed ? ' done' : ''));
-  const txt = el('div'); txt.appendChild(el('div', 'qm-eyebrow', 'МЕГА-ЗАДАНИЕ · ОДИН РАЗ ЗА ВСЁ ВРЕМЯ'));
+  const txt = el('div'); txt.appendChild(el('div', 'qm-eyebrow', 'ПОСТОЯННОЕ МЕГА-ЗАДАНИЕ · ОДИН РАЗ ЗА ВСЁ ВРЕМЯ'));
   txt.appendChild(el('h3', '', q.title)); txt.appendChild(el('p', '', q.desc));
   card.appendChild(txt); card.appendChild(rewardChip(q.reward));
   let sum = 0, tot = 0;
@@ -126,8 +126,8 @@ function render(){
   if(!p){ box.classList.remove('has-ready'); if(isOpen()) closeModal(); return; }
   const daily = dailyItems(p), life = lifeItems(p);
   const normal = life.filter(q => !q.mega), mega = life.find(q => q.mega) || null;
-  const counts = {daily: readyCount(daily), life: readyCount(normal), mega: mega && mega.ready ? 1 : 0};
-  box.classList.toggle('has-ready', counts.daily + counts.life + counts.mega > 0);
+  const counts = {daily: readyCount(daily), life: readyCount(normal) + (mega && mega.ready ? 1 : 0)};
+  box.classList.toggle('has-ready', counts.daily + counts.life > 0);
   if(!isOpen()) return;
 
   balEl.textContent = fmt(p.shards);
@@ -150,6 +150,7 @@ function render(){
     bodyEl.appendChild(el('p', 'qm-note', 'Каждое задание выполняется один раз за всё время. Прогресс идёт по всей твоей статистике — победы и убийства, которые у тебя уже есть, тоже считаются.'));
     if(normal.length) normal.forEach(it => bodyEl.appendChild(simpleCard({kind:'life', id:it.id, title:it.title, desc:it.desc, reward:it.reward, progress:it.parts[0].progress, target:it.parts[0].target, claimed:it.claimed, ready:it.ready})));
     else bodyEl.appendChild(el('div', 'qm-empty', 'Постоянные задания пока недоступны. Обнови страницу и войди в аккаунт заново.'));
+    if(mega) bodyEl.appendChild(megaCard(mega));
   } else {
     if(mega) bodyEl.appendChild(megaCard(mega));
     else bodyEl.appendChild(el('div', 'qm-empty', 'Мега-задание пока недоступно. Обнови страницу и войди в аккаунт заново.'));
