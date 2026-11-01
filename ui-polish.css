@@ -1,0 +1,39 @@
+/* ui-polish.css — единый слой «отзывчивости» DOM-интерфейса (грузится ПОСЛЕ остальных стилей).
+   Только transform/opacity/box-shadow → без перерасчёта layout, анимации идут на композиторе (60/120 FPS). */
+:root {
+  --ui-ease: cubic-bezier(.22, .8, .24, 1);
+  --ui-fast: 140ms;
+  --ui-glow: 0 0 0 1px rgba(255, 224, 160, .35), 0 6px 22px rgba(215, 179, 106, .28);
+  font-family: 'Rubik', 'Segoe UI', system-ui, sans-serif;
+}
+body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+:where(button, [role="button"], .qm-btn, #game-tools button, input[type="button"], input[type="submit"]) {
+  transition: transform var(--ui-fast) var(--ui-ease), box-shadow var(--ui-fast) var(--ui-ease),
+              filter var(--ui-fast) var(--ui-ease), background-color var(--ui-fast) var(--ui-ease), border-color var(--ui-fast) var(--ui-ease);
+  will-change: transform; backface-visibility: hidden; -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  :where(button, [role="button"], .qm-btn, #game-tools button):not(:disabled):hover {
+    transform: translateY(-2px); box-shadow: var(--ui-glow); filter: brightness(1.12) saturate(1.08);
+  }
+}
+:where(button, [role="button"], .qm-btn, #game-tools button):not(:disabled):active {
+  transform: translateY(0) scale(.965); filter: brightness(.95); transition-duration: 60ms;
+}
+:where(button, [role="button"], input, select, textarea):focus-visible { outline: 2px solid var(--gold-light, #fff0c7); outline-offset: 2px; }
+:where(button, .qm-btn)[disabled], :where(button, .qm-btn):disabled { opacity: .5; cursor: not-allowed; filter: grayscale(.4); }
+/* панели/модалки: мягкое появление */
+:where([class*="modal"], [class*="panel"], [id$="-modal"], [id$="-panel"]):not([hidden]) { animation: ui-pop .22s var(--ui-ease) both; }
+@keyframes ui-pop { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+/* аккуратные скроллбары */
+* { scrollbar-width: thin; scrollbar-color: rgba(215, 179, 106, .45) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(215, 179, 106, .4); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(215, 179, 106, .7); }
+/* низкие тиры графики: без лишних анимаций и теней у DOM */
+body.perf-low :where(button, .qm-btn, #game-tools button):hover { box-shadow: none; filter: none; }
+body.perf-low :where([class*="modal"], [class*="panel"]) { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  :where(button, .qm-btn) { transition: none; }
+  :where([class*="modal"], [class*="panel"]) { animation: none !important; }
+}

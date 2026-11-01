@@ -1,0 +1,241 @@
+--- game.orig.js	2026-11-01 16:00:32.602515182 +0000
++++ proj/dotasense/public/game.js	2026-11-01 16:00:47.443641753 +0000
+@@ -41,7 +41,9 @@
+ function perfLite(){ return perfLevel >= 3; }
+ let appliedRenderScale = 1;
+ /* в меню разрешение полное (текст читаем), мыло включается только в матче */
+-function perfRenderScale(){ return (perfLevel >= 3 && gameState !== 'menu') ? 0.5 : 1; }
++function perfRenderScale(){ return Engine.Display.scale(perfLevel, gameState !== 'menu'); }
++/* Ultra: bloom включается только на «Высокой» с максимальным свечением; при <40 FPS perfSample сам понизит тир */
++function bloomActive(){ return perfLevel === 0 && GFX.glow === 2 && gameState !== 'menu'; }
+ function setPerfLevel(level, silent, opts_keepGfx){
+   const prevScale = perfRenderScale();
+   perfLevel = clamp(level, 0, 3);
+@@ -51,7 +53,7 @@
+   try { localStorage.setItem('dota-sens-perf', String(perfLevel)); } catch(err) {}
+   terrainFrameValid = false;
+   if(document.body) document.body.classList.toggle('perf-low', perfLevel >= 1);
+-  if(perfLevel < 3){ particles.length = Math.min(particles.length, particleCap()); grassBends.length = 0; }
++  if(perfLevel < 3){ while(particles.length > particleCap()){ const q = particles.pop(); if(q._pooled) PARTICLE_POOL.release(q); } grassBends.length = 0; }
+   if(prevScale !== perfRenderScale()){ try { resize(); } catch(err) {} }
+   if(!silent){
+     perfNoticeText = 'Графика: ' + PERF_NAMES[perfLevel] + (perfLevel > 0 ? ' — для плавности. F8 — сменить (или в Настройках)' : '');
+@@ -84,6 +86,7 @@
+ const onlineEntryElement = document.getElementById('online-entry');
+ const terrainFrameCanvas = document.createElement('canvas');
+ const terrainFrameCtx = terrainFrameCanvas.getContext('2d');
++let terrainScale = 1;   /* плотность пикселей слоя рельефа (≥1): держит землю резкой на HiDPI */
+ let terrainFrameValid = false;
+ let terrainFrameIndex = 0;
+ const fogCanvas = document.createElement('canvas');
+@@ -3171,6 +3174,16 @@
+   if(texts.length > 180) texts.splice(0, texts.length - 180);
+   texts.push({x,y,str,color,life:life||0.9,t:0,size:size||14});
+ }
++/* ---- пул частиц: объекты не создаются заново на каждый взрыв, мёртвые возвращаются в пул ---- */
++const PARTICLE_POOL = new Engine.Pool(
++  () => ({x:0,y:0,vx:0,vy:0,color:'#fff',size:1,t:0,life:1,gravity:0,drag:0.9,spark:false,dust:false,bubble:false,blade:false,angle:0,_pooled:true}),
++  p => { p.t = 0; p.spark = false; p.dust = false; p.bubble = false; p.blade = false; p.angle = 0; },
++  2400);
++function acquireParticle(x,y,vx,vy,color,size,life,gravity,drag,spark){
++  const p = PARTICLE_POOL.acquire();
++  p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.color = color; p.size = size; p.life = life; p.gravity = gravity; p.drag = drag; p.spark = spark;
++  return p;
++}
+ function spawnParticles(x,y,color,count=16,spread=1){
+   if(perfLite()){ count = Math.ceil(count*0.25); if(count <= 0) return; }
+   else if(GFX.particles < 2){ count = Math.ceil(count * (GFX.particles === 0 ? 0.45 : 0.75)); }
+@@ -3178,11 +3191,8 @@
+   for(let i=0;i<count;i++){
+     const angle = Math.random()*Math.PI*2;
+     const speed = rnd(55, 260)*spread;
+-    particles.push({
+-      x, y, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed,
+-      color, size:rnd(2,6), t:0, life:rnd(0.35,0.9),
+-      gravity:rnd(12,70), drag:rnd(0.86,0.96), spark:Math.random()<0.42
+-    });
++    particles.push(acquireParticle(x, y, Math.cos(angle)*speed, Math.sin(angle)*speed,
++      color, rnd(2,6), rnd(0.35,0.9), rnd(12,70), rnd(0.86,0.96), Math.random()<0.42));
+   }
+ }
+ function spawnFootstepDust(x,y,color){
+@@ -3192,12 +3202,9 @@
+   for(let i=0;i<n;i++){
+     const angle = Math.random()*Math.PI*2;
+     const speed = rnd(6,26);
+-    particles.push({
+-      x:x+rnd(-3,3), y:y+rnd(-2,2),
+-      vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed - rnd(4,12),
+-      color, size:rnd(1.6,3.4), t:0, life:rnd(0.28,0.5),
+-      gravity:rnd(26,55), drag:0.9, spark:false, dust:true
+-    });
++    const dp = acquireParticle(x+rnd(-3,3), y+rnd(-2,2), Math.cos(angle)*speed, Math.sin(angle)*speed - rnd(4,12),
++      color, rnd(1.6,3.4), rnd(0.28,0.5), rnd(26,55), 0.9, false);
++    dp.dust = true; particles.push(dp);
+   }
+ }
+ /* 0.9.5: синие пузырьки Вирсуди (Сларк) — шлейф при ходьбе и редкие пузырьки в покое */
+@@ -10692,19 +10699,29 @@
+ /* Ближайший видимый вражеский боец (раненых предпочитаем). */
+ /* боты видят у клона здоровье оригинала */
+ function botHpSrc(u){ return isIllusionClone(u) ? u.owner : u; }
++/* Хеш бойцов/клонов: строится раз за тик (update), запрос по радиусу вместо обхода всех юнитов для каждого бота */
++const HERO_HASH = new Engine.SpatialHash(256);
++function rebuildHeroHash(){
++  HERO_HASH.clear();
++  for(let i = 0; i < units.length; i++){
++    const u = units[i];
++    if(u && !u.dead && (u.type === 'hero' || isIllusionClone(u))) HERO_HASH.insert(u, u.x, u.y);
++  }
++}
+ function botPickVisibleEnemy(h){
+   let best = null, bestScore = Infinity;
+   /* клоны Иллюзиониста для ботов неотличимы от настоящих бойцов (здоровье берётся у оригинала) — они путаются и тратят время на копии */
+-  for(const u of units){
+-    if(!u || u.dead || u.team === h.team || u.invulnerable || u.windTimer > 0 || isHiddenFrom(u, h.team)) continue;
++  const visit = (u) => {
++    if(!u || u.dead || u.team === h.team || u.invulnerable || u.windTimer > 0 || isHiddenFrom(u, h.team)) return;
+     const clone = isIllusionClone(u);
+-    if(!(clone || (u.type === 'hero' && !u.isIllusion))) continue;
++    if(!(clone || (u.type === 'hero' && !u.isIllusion))) return;
+     const d = Math.hypot(u.x - h.x, u.y - h.y);
+-    if(d > h.vision) continue;
++    if(d > h.vision) return;
+     const src = clone ? u.owner : u;
+     const score = d + (src.hp / Math.max(1, src.maxHp)) * 250;
+     if(score < bestScore){ bestScore = score; best = u; }
+-  }
++  };
++  HERO_HASH.query(h.x, h.y, h.vision + 80, visit);   /* +80 — запас на смещение юнитов за тик */
+   return best;
+ }
+ 
+@@ -11331,6 +11348,7 @@
+   if(gameState !== 'playing') return;
+   /* Подготовка к бою: мир живёт полностью (герои ходят по всей карте, бои возможны),
+      но игровое время, волны крипов, доход и сценарии ботов ждут конца отсчёта. */
++  rebuildHeroHash();
+   const pre = prematchTime > 0;
+   if(pre) updatePrematch(dt);
+   else gameTime += dt;
+@@ -11501,7 +11519,7 @@
+       p.x += dx/d*step; p.y += dy/d*step;
+     }
+   }
+-  projectiles = projectiles.filter(p => !p.dead);
++  Engine.compact(projectiles, p => !p.dead);
+ 
+   for(const a of aoes){
+     if(a.dead) continue;
+@@ -11754,26 +11772,27 @@
+       }
+     }
+   }
+-  walls = walls.filter(w => w.t < w.life);
++  Engine.compact(walls, w => w.t < w.life);
+ 
+   for(const f of fxs) f.t += dt;
+-  fxs = fxs.filter(f => f.t < f.life);
++  Engine.compact(fxs, f => f.t < f.life);
+   for(const p of particles){
++    const dk = Math.pow(p.drag, dt*60);          /* один pow на частицу вместо двух */
+     p.t += dt;
+     p.x += p.vx * dt;
+     p.y += p.vy * dt;
+-    p.vx *= Math.pow(p.drag, dt*60);
+-    p.vy = p.vy * Math.pow(p.drag, dt*60) + p.gravity * dt;
++    p.vx *= dk;
++    p.vy = p.vy * dk + p.gravity * dt;
+   }
+-  particles = particles.filter(p => p.t < p.life);
++  Engine.compact(particles, p => p.t < p.life, p => { if(p._pooled) PARTICLE_POOL.release(p); });
+   updateTowerFx(dt);
+   for(const gb of grassBends) gb.t += dt;
+-  grassBends = grassBends.filter(gb => gb.t < gb.life);
++  Engine.compact(grassBends, gb => gb.t < gb.life);
+   for(const t of texts){ t.t += dt; t.y -= 28*dt; }
+   updateDamageNumbers(dt);
+-  texts = texts.filter(t => t.t < t.life);
++  Engine.compact(texts, t => t.t < t.life);
+ 
+-  units = units.filter(u => !(u.dead && u.type !== 'hero' && u.type !== 'neutral'));
++  Engine.compact(units, u => !(u.dead && u.type !== 'hero' && u.type !== 'neutral'));
+ 
+   if(playerHero){
+     const focusUnit=getControlledUnit();
+@@ -23619,9 +23638,8 @@
+ function loop(now){
+   try {
+     fpsTick(now);
+-    let dt = (now - lastTime)/1000;
+-    lastTime = now;
+-    if(dt > 0.1) dt = 0.1;
++    /* Engine.Clock: dt=0 на первом кадре после потери фокуса/возврата вкладки, потолок 0.1 с */
++    const dt = Engine.Clock.tick(now);
+     perfSample(now);
+     if(perfRenderScale() !== appliedRenderScale) resize();
+ 
+@@ -23657,7 +23675,9 @@
+           Hero3D.prewarm(warmList);
+         } catch(err) {}
+       }
+-      update(dt);
++      /* Подшаги: при просадке FPS симуляция идёт мелкими шагами ≤1/30 c — снаряды не «телепортируются» сквозь цели */
++      const subN = Engine.Clock.steps(dt), subDt = dt / subN;
++      for(let si = 0; si < subN; si++) update(subDt);
+       fx973Tick(dt);
+       if(!Number.isFinite(cam.x) || !Number.isFinite(cam.y)){
+         cam.x = playerHero && Number.isFinite(playerHero.x) ? playerHero.x : WORLD/2;
+@@ -23677,7 +23697,8 @@
+         try {
+           terrainFrameCtx.setTransform(1,0,0,1,0,0);
+           terrainFrameCtx.clearRect(0,0,terrainFrameCanvas.width,terrainFrameCanvas.height);
+-          terrainFrameCtx.translate(-cam.x + terrainFrameCanvas.width/2, -cam.y + terrainFrameCanvas.height/2);
++          terrainFrameCtx.setTransform(terrainScale,0,0,terrainScale,0,0);
++          terrainFrameCtx.translate(-cam.x + terrainFrameCanvas.width/terrainScale/2, -cam.y + terrainFrameCanvas.height/terrainScale/2);
+           drawTerrain();
+         } finally {
+           terrainFrameCtx.setTransform(1,0,0,1,0,0);
+@@ -23688,7 +23709,7 @@
+       }
+       ctx.save();
+       ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0);
+-      ctx.drawImage(terrainFrameCanvas, Math.round(terrainCamX - cam.x - TERRAIN_MARGIN + fx973SX()), Math.round(terrainCamY - cam.y - TERRAIN_MARGIN + fx973SY()));
++      ctx.drawImage(terrainFrameCanvas, Math.round(terrainCamX - cam.x - TERRAIN_MARGIN + fx973SX()), Math.round(terrainCamY - cam.y - TERRAIN_MARGIN + fx973SY()), terrainFrameCanvas.width/terrainScale, terrainFrameCanvas.height/terrainScale);
+       ctx.restore();
+       drawItemRangePreview();
+       try { drawAmbientWorld(); } catch(err) { console.warn('ambient fx', err); }
+@@ -23700,6 +23721,7 @@
+       ctx.restore();
+       drawFog();
+       fx973Post();
++      if(bloomActive()){ try { Engine.Bloom.apply(ctx, canvas, 0.2); } catch(err) {} }
+       drawMinimap();
+       drawHUD();
+       drawTouchControls();
+@@ -23752,14 +23774,22 @@
+   appliedRenderScale = perfRenderScale();
+   canvas.width  = Math.max(1, Math.round(VW * appliedRenderScale));
+   canvas.height = Math.max(1, Math.round(VH * appliedRenderScale));
++  Engine.Display.applyCss(canvas, appliedRenderScale);   /* <1 → image-rendering: pixelated (чёткие пиксели вместо «мыла») */
+   fogCanvas.width  = VW;
+   fogCanvas.height = VH;
+-  terrainFrameCanvas.width = VW + TERRAIN_MARGIN*2;
+-  terrainFrameCanvas.height = VH + TERRAIN_MARGIN*2;
++  terrainScale = Math.max(1, appliedRenderScale);
++  terrainFrameCanvas.width = Math.round((VW + TERRAIN_MARGIN*2) * terrainScale);
++  terrainFrameCanvas.height = Math.round((VH + TERRAIN_MARGIN*2) * terrainScale);
+   terrainFrameValid = false;
+ }
+-window.addEventListener('resize', resize);
++/* ресайз приходит пачками (перетаскивание окна) — пересоздаём буферы не чаще раза в кадр */
++let resizeQueued = false;
++function queueResize(){ if(resizeQueued) return; resizeQueued = true; requestAnimationFrame(() => { resizeQueued = false; resize(); }); }
++window.addEventListener('resize', queueResize);
++window.addEventListener('orientationchange', queueResize);
+ resize();
++/* потеря фокуса: сбрасываем «залипшие» клавиши камеры/края экрана/таб-таблицы */
++window.addEventListener('blur', () => { cameraKeys.x = 0; cameraKeys.y = 0; edgePan.x = 0; edgePan.y = 0; scoreboardOpen = false; });
+ 
+ requestAnimationFrame(loop);
+ 
