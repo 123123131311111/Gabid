@@ -716,6 +716,8 @@ for(const item of Object.values(SHOP_ITEMS)){
 }
 /* 0.9.8.9: баланс. ПТ: рецепт 150 (сборка целиком 930 + 150), Научилсяловить 200, Супер сапог 1350 — ровно, без множителя 0.93. */
 /* 0.10.3: рецепт ПТ подешевел на 50 монет — 100 вместо 150 (сборка целиком на 50 дешевле) */
+/* 0.10.4: «Еблет Евсютина» подешевел на 200 монет: было 1163 (1250 × 0.93), стало 963 */
+SHOP_ITEMS.evsyutin.cost = 963;
 SHOP_ITEMS.pt.cost = 100;
 SHOP_ITEMS.pt.totalCost = SHOP_ITEMS.pt.totalCost - 186 + 100;
 SHOP_ITEMS.manaTome.cost = 200;
@@ -14302,6 +14304,8 @@ function drawUnit(u){
   if(u.type === 'hero' && window.drawGrishaArcanaAura && !u.dead && !perfLite()) window.drawGrishaArcanaAura(u);
   /* 0.10.3: аркана Иллюзиониста «Аметистовый Мираж» — гексаграмма и кристаллы у ног героя и его иллюзий (update0103.js) */
   if((u.type === 'hero' || (u.copyDef && u.skinId)) && window.drawIllusionistArcanaAura && !u.dead && !perfLite()) window.drawIllusionistArcanaAura(u);
+  /* 0.10.4: аркана Мо3ги «Демон разума» — пентаграмма и адское пламя у ног (update0104.js) */
+  if(u.type === 'hero' && window.drawMo3giArcanaAura && !u.dead && !perfLite()) window.drawMo3giArcanaAura(u);
   /* новые скины Шадоу («Пустотный жнец») и Иллюзиониста («Розовый фокусник») — аура у ног (update0100f.js) */
   if((u.type === 'hero' || isIllusionClone(u)) && window.drawNewSkinAura && !u.dead && !perfLite()) window.drawNewSkinAura(u);
   if((u.type === 'hero' || isIllusionClone(u)) && !perfLite()){
@@ -14501,7 +14505,9 @@ function drawUnit(u){
   }
   /* 0.8.6: боевой дрон Мо3ги — настоящая 3D-модель FPV-дрона с боеприпасом (вместо плоского значка) */
   if(!hero3dSpr && u.type === 'summon' && u.summonKind === 'mo3giDrone' && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
-    const dd = {id:'mon_drone', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#ffffff'};
+    /* 0.10.4: у Мо3ги с арканой «Демон разума» дрон — красный демонический мозг (модель mon_drone_brain в hero3d.js) */
+    const brainDrone = !!(u.owner && u.owner.def && u.owner.def.id === 'mo3gi' && baseSkin(u.owner.skinId) === 'mo3giArcana');
+    const dd = {id: brainDrone ? 'mon_drone_brain' : 'mon_drone', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#ffffff'};
     const fa = u.facing || 0;
     hero3dSpr = Hero3D.battleSprite(dd, u.radius, fa, gameTime, null);
     if(hero3dSpr){
@@ -14509,8 +14515,8 @@ function drawUnit(u){
       const ph = (u.dronePulse||0);
       /* зелёное свечение и кольцо под дроном — видно, что он в воздухе */
       ctx.save();
-      ctx.globalAlpha = 0.55 + Math.sin(ph*8)*0.12; ctx.strokeStyle = '#65ff9a'; ctx.lineWidth = 2;
-      ctx.shadowColor = '#65ff9a'; ctx.shadowBlur = 12;
+      ctx.globalAlpha = 0.55 + Math.sin(ph*8)*0.12; ctx.strokeStyle = brainDrone ? '#ff3b4e' : '#65ff9a'; ctx.lineWidth = 2;
+      ctx.shadowColor = brainDrone ? '#ff2a44' : '#65ff9a'; ctx.shadowBlur = 12;
       ctx.beginPath(); ctx.ellipse(0, footY, u.radius*1.05, u.radius*0.52, 0, 0, Math.PI*2); ctx.stroke();
       ctx.restore();
       /* лёгкое зависание: покачивание вверх-вниз и наклон по ходу движения */
@@ -16335,6 +16341,7 @@ function drawWorldObjects(){
   RuneVisuals.draw(ctx,runes,RUNE_SPOTS.map(spot=>mapPoint(spot.x,spot.y)));
   for(const mine of mo3giMines){
     if(mine.owner.team!==0) continue;
+    if(window.drawMo3giArcanaMine && mine.owner.def && mine.owner.def.id==='mo3gi' && baseSkin(mine.owner.skinId)==='mo3giArcana'){ window.drawMo3giArcanaMine(mine); continue; }   /* 0.10.4: аркана — демонический знак вместо мины */
     ctx.save(); ctx.translate(mine.x,mine.y);
     ctx.globalAlpha=0.72+Math.sin(gameTime*7+mine.x)*0.18;
     ctx.fillStyle='#87d957'; ctx.shadowColor='#a5ff62'; ctx.shadowBlur=14;
@@ -23643,6 +23650,7 @@ function loop(now){
           warmList.push([{id:'mon_shroom', skinId:'t2', color:'#ffffff'}, 18], [{id:'mon_hound', skinId:'t2', color:'#ffffff'}, 16],
                         [{id:'mon_golem', skinId:'t2', color:'#ffffff'}, 24], [{id:'mon_imp', skinId:'t2r', color:'#ffffff'}, 21]);
           if(heroes.some(h => h.def && h.def.id === 'mo3gi')) for(const sk of ['t0','t1']) warmList.push([{id:'mon_drone', skinId:sk, color:'#ffffff'}, 22]);
+          if(heroes.some(h => h.def && h.def.id === 'mo3gi' && baseSkin(h.skinId) === 'mo3giArcana')) for(const sk of ['t0','t1']) warmList.push([{id:'mon_drone_brain', skinId:sk, color:'#ffffff'}, 22]);
           Hero3D.prewarm(warmList);
         } catch(err) {}
       }
