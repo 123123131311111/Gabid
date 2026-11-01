@@ -533,6 +533,177 @@ ICONS.marinFleet = {bg:['#06080f', '#1a2848'], glow:'rgba(255,179,71,.45)', ult:
   g.line('M8 20 L14 20 M86 18 L92 18', 'rgba(255,224,160,.7)', 2); g.star(50, 20, 5, '#ffe9a0');
 }};
 
+/* ===== ОСТАЛЬНЫЕ ГЕРОИ (0.10.2.2c) ===== */
+const STEEL = ['#f4fbff', '#8ea6bc'];
+function fig(g, x, y, s, c1, c2, alpha, rot){
+  g.at(x, y, rot || 0, () => { g.c.scale(s, s); g.c.save(); g.c.globalAlpha = alpha == null ? 1 : alpha;
+    g.both('M-13 22 L-9 -8 Q0 -13 9 -8 L13 22 Z', g.lg(0, -10, 0, 22, [c1, c2]), 'rgba(255,255,255,.7)', 1.6);
+    g.circ(0, -19, 8.5, g.rg(0, -19, 9, [c1, c2], -3, -22), 'rgba(255,255,255,.7)', 1.6); g.c.restore(); });
+}
+function bolt(g, x, y, s, rot, col){
+  g.at(x, y, rot || 0, () => { g.c.scale(s, s); g.both('M5 -26 L-11 3 L-1 3 L-6 26 L12 -6 L3 -6 Z', g.lg(0, -26, 0, 26, [col || '#ffffff', '#7feaff']), '#e6ffff', 1); });
+}
+function blade(g, x, y, len, rot, grip){
+  g.at(x, y, rot || 0, () => {
+    g.both('M-3.4 0 L0 ' + (-len) + ' L3.4 0 Z', g.lg(-3, 0, 3, 0, [STEEL[0], STEEL[1], STEEL[0]]), '#e6f6ff', 1);
+    g.line('M-8 1 H8', '#e6b84a', 3.4); g.line('M0 1 V' + (grip || 12), '#5a3418', 4);
+  });
+}
+function skull(g, x, y, s){
+  g.at(x, y, 0, () => { g.c.scale(s, s);
+    g.both('M-16 0 Q-18 -22 0 -22 Q18 -22 16 0 Q16 8 8 10 V18 H-8 V10 Q-16 8 -16 0 Z', g.lg(0, -22, 0, 18, ['#fffdf0', '#cfc8b0']), '#3a3020', 1.4);
+    g.fill('M-10 -6 H-3 V3 H-10 Z M3 -6 H10 V3 H3 Z', '#1a1008'); g.fill('M0 4 L-3 10 H3 Z', '#1a1008'); g.line('M-4 12 V18 M0 12 V18 M4 12 V18', '#3a3020', 1.2); });
+}
+function burst(g, x, y, R, r, n, col1, col2){ g.both(polyStar(x, y, R, r, n, -Math.PI / 2), g.rg(x, y, R, [col1, col2]), 'rgba(255,255,255,.55)', 1.2); }
+function txt(g, s, x, y, size, col){ const c = g.c; c.save(); c.font = 'bold ' + size + 'px Consolas, monospace'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = col; c.fillText(s, x, y); c.restore(); }
+function arrowArc(g, d, col, w){ g.line(d, col, w || 3); }
+function fistG(g, x, y, s, rot, c1, c2){
+  g.at(x, y, rot || 0, () => { g.c.scale(s, s);
+    g.both('M-18 -14 Q-18 -22 -8 -22 H14 Q22 -22 22 -12 V10 Q22 22 8 22 H-8 Q-18 22 -18 10 Z', g.lg(-18, -22, 22, 22, [c1, c2]), 'rgba(255,255,255,.7)', 1.6);
+    g.line('M-8 -22 V-6 M2 -22 V-6 M12 -22 V-6', 'rgba(0,0,0,.4)', 1.6); g.both('M-18 -2 L-26 4 L-18 12 Z', c2, 'rgba(255,255,255,.6)', 1.2); });
+}
+
+/* --- Иллюзионист --- */
+const IL = {bg:['#031a22', '#0e5461'], glow:'rgba(100,230,230,.45)'};
+ICONS.illusionistDouble = {...IL, draw(g){ fig(g, 62, 56, 1.15, '#7ff0f0', '#0e6a78', .45); g.c.save(); g.c.setLineDash([3, 3]); g.line('M44 76 L56 20', 'rgba(0,0,0,0)', 1); g.c.restore(); fig(g, 38, 58, 1.25, '#e6ffff', '#168a98'); g.star(80, 22, 5, '#d6ffff'); g.star(18, 24, 4, '#d6ffff'); }};
+ICONS.illusionistSwap = {...IL, draw(g){ fig(g, 24, 60, .85, '#e6ffff', '#168a98'); fig(g, 76, 60, .85, '#7ff0f0', '#0e6a78', .55); arrowArc(g, 'M30 34 Q50 10 70 34', '#ffe36a', 3.4); arrowArc(g, 'M70 88 Q50 100 30 88', '#ffe36a', 3.4); g.fill('M70 34 L60 30 L66 40 Z', '#ffe36a'); g.fill('M30 88 L40 92 L34 82 Z', '#ffe36a'); g.star(50, 62, 6, '#fff'); }};
+ICONS.illusionistPhantom = {...IL, passive:true, draw(g){ fig(g, 22, 58, 1, '#7ff0f0', '#0e6a78', .25); fig(g, 36, 58, 1.1, '#7ff0f0', '#0e6a78', .4); fig(g, 70, 56, 1.3, '#e6ffff', '#168a98'); g.star(24, 20, 4, '#d6ffff'); g.star(84, 18, 4, '#d6ffff'); }};
+ICONS.illusionistFinale = {...IL, ult:true, draw(g){ g.glow(50, 50, 42, 'rgba(120,255,255,.6)'); g.fill(polyStar(50, 50, 40, 14, 8, 0), 'rgba(160,255,255,.22)'); fig(g, 24, 64, .8, '#7ff0f0', '#0e6a78', .6); fig(g, 76, 64, .8, '#7ff0f0', '#0e6a78', .6); fig(g, 50, 74, .8, '#7ff0f0', '#0e6a78', .6); fig(g, 50, 46, 1.2, '#ffffff', '#1aa0b0'); g.star(50, 12, 6, '#fff'); }};
+
+/* --- Шадоу --- */
+const SH = {bg:['#0c0304', '#3a0a08'], glow:'rgba(255,70,30,.5)'};
+function coil(g, y, r){ g.glow(50, y, r * 1.8, 'rgba(255,70,30,.7)'); burst(g, 50, y, r * 1.25, r * .8, 12, '#ffd070', '#c8200a'); g.circ(50, y, r * .55, '#1a0404', '#ff7a30', 2); g.circ(50, y, r * .25, '#ff9a40'); fig(g, 50, 88, .5, '#3a1a18', '#0a0404'); g.line('M50 76 L50 ' + (y + r + 2), 'rgba(255,120,50,.5)', 1.6); }
+ICONS.shadowCoilQ = {...SH, draw(g){ coil(g, 52, 24); }};
+ICONS.shadowCoilW = {...SH, draw(g){ coil(g, 40, 19); }};
+ICONS.shadowCoilE = {...SH, draw(g){ coil(g, 28, 14); }};
+ICONS.shadowRequiem = {...SH, ult:true, draw(g){ g.glow(50, 50, 44, 'rgba(255,70,30,.7)'); for(let i = 0; i < 10; i++) g.at(50, 50, i * Math.PI / 5, () => { g.line('M0 -20 Q6 -30 0 -42', 'rgba(255,200,170,.8)', 2.4); g.circ(0, -43, 2.4, '#fff'); }); g.circ(50, 50, 30, 'rgba(20,0,0,.5)', '#ff5a24', 2.4); skull(g, 50, 50, 1.15); }};
+
+/* --- Электрический Гоша --- */
+const EG = {bg:['#041a2a', '#0c4a78'], glow:'rgba(110,230,255,.5)'};
+ICONS.electricRemnant = {...EG, draw(g){ fig(g, 50, 56, 1.4, 'rgba(180,250,255,.9)', 'rgba(30,140,200,.8)', .8); bolt(g, 20, 36, .7, -.3); bolt(g, 82, 66, .7, .4); bolt(g, 80, 24, .5, .2); g.circ(50, 56, 36, null, 'rgba(160,240,255,.5)', 1.4); }};
+ICONS.electricVortex = {...EG, draw(g){ let d = 'M50 50'; for(let a = 0; a < 15; a += .25){ const r = 2.6 * a; d += ' L' + (50 + Math.cos(a) * r).toFixed(1) + ' ' + (50 + Math.sin(a) * r).toFixed(1); } g.line(d, '#7feaff', 3.4); g.line(d, '#fff', 1); bolt(g, 50, 50, .8, .3); g.fill('M88 50 L78 44 L78 56 Z', '#e6ffff'); }};
+ICONS.electricOverload = {...EG, passive:false, draw(g){ g.glow(50, 50, 42, 'rgba(120,240,255,.7)'); g.circ(50, 50, 30, null, '#7feaff', 3); g.circ(50, 50, 38, null, 'rgba(160,240,255,.5)', 1.6); g.orb(50, 50, 16, '#ffffff', '#5adcff', '#0c5a9a'); for(let i = 0; i < 6; i++) g.at(50, 50, i * Math.PI / 3, () => bolt(g, 0, -34, .38, 0)); }};
+ICONS.ballLightning = {...EG, ult:true, draw(g){ g.glow(60, 52, 36, 'rgba(120,240,255,.8)'); g.line('M6 88 L22 66 L18 62 L38 46 L34 42 L52 40', '#7feaff', 4); g.line('M6 88 L22 66 L18 62 L38 46 L34 42 L52 40', '#fff', 1.4); g.orb(64, 48, 22, '#ffffff', '#5adcff', '#0c5a9a'); bolt(g, 64, 48, .55, .2, '#fff'); g.star(88, 20, 5, '#e6ffff'); g.star(20, 24, 4, '#e6ffff'); }};
+
+/* --- Мо3ги --- */
+const MG = {bg:['#06140c', '#1c4a30'], glow:'rgba(125,255,176,.4)'};
+ICONS.mo3giDrone = {...MG, draw(g){ [[22, 28], [78, 28], [22, 72], [78, 72]].forEach(p => { g.line('M50 50 L' + p[0] + ' ' + p[1], '#8aa092', 4); g.ell(p[0], p[1], 14, 4.4, 'rgba(200,255,220,.35)', '#d8ffe8', 1.6); g.circ(p[0], p[1], 3, '#3a4a40'); }); g.both('M36 38 H64 Q70 38 70 44 V56 Q70 62 64 62 H36 Q30 62 30 56 V44 Q30 38 36 38 Z', g.lg(0, 38, 0, 62, ['#6a8a78', '#26382e']), '#c8ffe0', 1.6); g.circ(50, 50, 8, g.rg(50, 50, 8, ['#ffffff', '#ff5a4a', '#6a0a0a'])); }};
+ICONS.mo3giGift = {...MG, draw(g){ g.both('M12 44 Q50 -6 88 44 Q70 36 50 44 Q30 36 12 44 Z', g.lg(0, 10, 0, 44, ['#e8ffee', '#7dffb0', '#2a8a58']), '#e8ffee', 1.6); g.line('M12 44 L40 72 M50 44 L50 72 M88 44 L60 72', 'rgba(230,255,240,.8)', 1.4); g.both('M36 70 H64 V90 H36 Z', g.lg(0, 70, 0, 90, ['#8a6a38', '#4a3416']), '#d8b878', 1.4); g.line('M50 70 V90', '#d8b878', 1.4); g.fill(dropPath(80, 62, 5), g.lg(0, 62, 0, 78, ['#bff0ff', '#2a80e0'])); g.fill(dropPath(20, 60, 4), g.lg(0, 60, 0, 72, ['#bff0ff', '#2a80e0'])); }};
+ICONS.mo3giMines = {...MG, draw(g){ g.ell(50, 74, 36, 8, 'rgba(0,0,0,.45)'); for(let i = 0; i < 5; i++) g.at(50, 66, -1 + i * .5, () => g.line('M0 -16 V-26', '#9aa8a0', 3)); g.both('M16 70 Q16 48 50 48 Q84 48 84 70 Q84 78 50 78 Q16 78 16 70 Z', g.lg(0, 48, 0, 78, ['#7a8a80', '#2a3a30']), '#d0e4d8', 1.6); g.circ(50, 56, 5, g.rg(50, 56, 6, ['#ffffff', '#ff4a3a', '#7a0a0a'])); g.glow(50, 56, 14, 'rgba(255,60,50,.7)'); g.line('M26 66 H74', 'rgba(0,0,0,.35)', 1.6); }};
+ICONS.mo3giBike = {...MG, ult:true, draw(g){ [[8, 52, 22], [4, 66, 16], [10, 80, 24]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.4) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.4) + ' Z', 'rgba(220,255,235,.7)')); g.circ(34, 74, 14, '#12181a', '#9aa8a0', 3); g.circ(78, 74, 14, '#12181a', '#9aa8a0', 3); g.circ(34, 74, 4, '#c0ccc4'); g.circ(78, 74, 4, '#c0ccc4'); g.both('M34 74 L48 50 H64 L78 74 L66 70 L52 70 Z', g.lg(0, 50, 0, 74, ['#7a9a86', '#2a4a38']), '#d0f0dc', 1.6); g.both('M44 50 L52 38 L64 38 L66 50 Z', '#4a6a58', '#d0f0dc', 1.2); g.line('M64 38 L78 34 L82 40', '#d0f0dc', 3); g.fill('M80 36 H88 V44 H80 Z', '#fff6a0'); g.star(86, 16, 4, '#fff6a0'); }};
+
+/* --- Трибупейнер --- */
+const TB = {bg:['#1c0e08', '#5a3020'], glow:'rgba(255,170,90,.4)'};
+ICONS.tribuIncendiary = {...TB, draw(g){ g.glow(50, 36, 32, 'rgba(255,150,40,.7)'); g.flame(50, 54, 46, 15, ['#c4260a', '#ff6a10', '#ffd23a', '#ffffff']); g.both('M34 50 H66 V84 Q66 88 62 88 H38 Q34 88 34 84 Z', g.lg(34, 0, 66, 0, ['#a81c1c', '#e0402e', '#7a1010']), '#ffb0a0', 1.6); g.both('M34 74 H66 V88 H34 Z', g.lg(0, 74, 0, 88, ['#f0d070', '#a07a20']), '#fff0b0', 1.4); g.line('M42 54 V70', 'rgba(255,255,255,.4)', 2); }};
+ICONS.tribuShield = {...TB, draw(g){ g.circ(50, 52, 34, g.rg(50, 52, 36, ['#d8b890', '#8a6038', '#3e2814'], 40, 40), '#ffe0b0', 2.4); g.circ(50, 52, 24, null, 'rgba(255,224,176,.6)', 1.6); g.both('M10 62 H90 V70 H10 Z', g.lg(0, 62, 0, 70, ['#8a8a96', '#2a2a34']), '#d0d0e0', 1.4); g.both('M50 40 L56 52 L50 64 L44 52 Z', '#ffd23a', '#fff6c0', 1); g.line('M80 62 V70', '#ffb36b', 3); }};
+ICONS.tribuInvisibility = {...TB, passive:false, draw(g){ g.both('M8 84 Q16 52 50 50 Q84 52 92 84 Z', g.lg(0, 50, 0, 84, ['#7a5a38', '#34200e']), '#c8a070', 1.6); g.c.save(); g.c.setLineDash([4, 4]); g.circ(50, 40, 22, 'rgba(255,200,140,.1)', 'rgba(255,220,170,.8)', 2); g.c.restore(); g.ell(41, 38, 5, 3, '#ffd23a'); g.ell(59, 38, 5, 3, '#ffd23a'); g.glow(41, 38, 9, 'rgba(255,210,60,.7)'); g.glow(59, 38, 9, 'rgba(255,210,60,.7)'); g.line('M20 80 L24 70 M76 80 L80 70 M50 82 V72', '#4a3016', 2.4); }};
+ICONS.tribuExecution = {...TB, ult:true, draw(g){ g.glow(50, 50, 44, 'rgba(255,120,30,.75)'); burst(g, 50, 50, 38, 20, 14, '#fff2a0', '#e0501a'); skull(g, 50, 50, .95); g.circ(50, 50, 30, null, '#ff3a2a', 2.2); g.line('M50 12 V30 M50 70 V88 M12 50 H30 M70 50 H88', '#ff3a2a', 2.6); }};
+
+/* --- Охотник на магов --- */
+const MH = {bg:['#100620', '#3a1070'], glow:'rgba(210,140,255,.5)'};
+ICONS.mageHunterManaBurn = {...MH, passive:true, draw(g){ g.orb(50, 62, 24, '#e0f4ff', '#4a9aff', '#103a9a'); for(let i = -1; i <= 1; i++) g.at(50 + i * 14, 42, i * .15, () => g.flame(0, 0, 44 - Math.abs(i) * 10, 10, ['#5a1ab0', '#b04aff', '#f0c8ff'])); g.star(20, 24, 4, '#e8d0ff'); g.star(82, 20, 4, '#e8d0ff'); }};
+ICONS.mageHunterBlink = {...MH, draw(g){ [[6, 40, 40], [2, 56, 30], [8, 72, 40]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 2) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 2) + ' Z', g.lg(l[0], 0, l[0] + l[2], 0, ['rgba(200,140,255,0)', '#d58cff']))); blade(g, 64, 70, 46, .75); blade(g, 64, 70, 46, -.75); g.star(78, 22, 6, '#f0d8ff'); g.star(88, 56, 4, '#f0d8ff'); }};
+ICONS.mageHunterReflect = {...MH, draw(g){ g.both('M10 76 Q10 18 50 18 Q90 18 90 76 Z', g.rg(50, 76, 46, ['rgba(220,160,255,.55)', 'rgba(120,60,220,.3)']), '#e8c8ff', 2.4); g.line('M18 76 Q18 30 50 28', 'rgba(255,255,255,.4)', 2); g.line('M6 40 L30 52 L18 34', '#ffb0b0', 3); g.line('M30 52 L58 30 L82 12', 'rgba(255,230,255,.9)', 3); g.fill('M82 12 L70 14 L78 24 Z', '#fff'); g.star(30, 52, 6, '#fff'); fig(g, 50, 74, .5, '#a080e0', '#2a1050'); }};
+ICONS.mageHunterUlt = {...MH, ult:true, draw(g){ g.glow(50, 50, 42, 'rgba(210,120,255,.7)'); burst(g, 50, 50, 40, 22, 12, '#f0c8ff', '#7a20d0'); g.circ(50, 50, 22, 'rgba(10,4,30,.8)', '#e0b0ff', 2.4); g.line('M42 36 L52 50 L44 62', 'rgba(255,255,255,.7)', 2); g.line('M60 40 L56 52', 'rgba(255,255,255,.5)', 1.6); }};
+
+/* --- Ригина --- */
+const RG = {bg:['#2a0a18', '#6a1c3a'], glow:'rgba(255,150,190,.45)'};
+ICONS.reginaDispose = {...RG, draw(g){ g.line('M14 78 Q50 -8 86 78', 'rgba(255,220,235,.9)', 2.6); g.fill('M86 78 L76 70 L90 68 Z', '#ffe0ec'); fig(g, 50, 24, .6, '#ffb0cc', '#a02a5a', 1, .5); g.ell(86, 84, 12, 4, 'rgba(255,150,190,.5)', '#ffd0e0', 1.4); g.ell(14, 84, 12, 4, 'rgba(255,150,190,.3)'); g.star(24, 28, 4, '#ffe0ec'); }};
+ICONS.reginaRebound = {...RG, draw(g){ g.circ(50, 78, 12, g.rg(50, 78, 12, ['#8a8a96', '#34343e']), '#c0c0d0', 1.4); g.line('M14 66 Q50 -8 86 66', 'rgba(255,220,235,.9)', 2.6); fig(g, 50, 22, .55, '#ffb0cc', '#a02a5a'); [[38, 74], [62, 74], [50, 62]].forEach(p => g.star(p[0], p[1], 4, '#ffe36a')); g.line('M84 66 L90 54 M16 66 L10 54', '#ffd0e0', 2.4); }};
+ICONS.reginaUnleash = {...RG, ult:true, draw(g){ g.glow(50, 50, 44, 'rgba(255,60,100,.6)'); [[24, 14, 44, 88], [44, 10, 64, 90], [64, 14, 84, 86]].forEach((l, i) => { g.line('M' + l[0] + ' ' + l[1] + ' L' + l[2] + ' ' + l[3], '#ff5a8a', 7 - i); g.line('M' + l[0] + ' ' + l[1] + ' L' + l[2] + ' ' + l[3], '#ffffff', 1.8); }); g.star(14, 80, 5, '#ffd0e0'); g.star(88, 22, 5, '#ffd0e0'); }};
+ICONS.reginaCrimson = {...RG, draw(g){ [[4, 34, 44], [8, 50, 30], [4, 66, 40]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.6) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.6) + ' Z', g.lg(l[0], 0, l[0] + l[2], 0, ['rgba(255,90,140,0)', '#ff7aa0']))); g.fill('M30 20 C62 24 88 44 92 52 C80 54 52 62 30 82 C44 62 46 38 30 20 Z', g.lg(30, 0, 92, 0, ['#ff5a8a', '#ffffff'])); blade(g, 54, 66, 50, 1.2, 8); g.star(86, 28, 4, '#ffe0ec'); }};
+
+/* --- Йосып --- */
+const YO = {bg:['#0c1a04', '#2c5a0c'], glow:'rgba(160,255,90,.45)'};
+ICONS.yosypBlowback = {...YO, passive:true, draw(g){ g.fill(dropPath(50, 10, 26), g.lg(0, 10, 0, 86, ['#d4ff7a', '#5ac020', '#1c5008'])); g.line(dropPath(50, 10, 26), '#e8ffb0', 1.6); skull(g, 50, 56, .85); g.circ(24, 30, 4, null, '#d4ff7a', 1.6); g.circ(78, 24, 5, null, '#d4ff7a', 1.6); g.circ(82, 60, 3, null, '#d4ff7a', 1.6); }};
+ICONS.yosypPuddles = {...YO, draw(g){ [[50, 22], [78, 50], [50, 80], [22, 50]].forEach(p => { g.ell(p[0], p[1], 16, 10, g.rg(p[0], p[1], 16, ['#e0ff90', '#6ac828', '#245a0a']), '#e8ffb0', 1.4); g.circ(p[0] - 4, p[1] - 2, 2.4, 'rgba(255,255,255,.6)'); }); g.star(50, 50, 8, '#d4ff7a'); }};
+ICONS.yosypAcid = {...YO, draw(g){ g.line('M12 74 Q34 14 78 52', 'rgba(210,255,140,.9)', 2.6); g.fill(dropPath(20, 56, 6), '#c4ff5a'); g.ell(80, 74, 18, 8, g.rg(80, 74, 18, ['#e0ff90', '#6ac828', '#245a0a']), '#e8ffb0', 1.4); g.fill('M80 60 L74 46 L80 52 L88 42 L86 58 Z', '#c4ff5a'); [[62, 60], [96, 62], [70, 40]].forEach(p => g.circ(p[0], p[1], 3, '#d4ff7a')); }};
+ICONS.yosypDrain = {...YO, ult:true, draw(g){ fig(g, 20, 66, .8, '#8ae040', '#2a6a10'); fig(g, 82, 66, .8, '#e08a6a', '#6a2a1a'); g.line('M30 54 Q50 24 72 54', '#c4ff5a', 5); g.line('M30 54 Q50 24 72 54', '#fff', 1.4); [[40, 36], [50, 30], [62, 38]].forEach(p => g.fill(dropPath(p[0], p[1], 3), '#ff5a6a')); g.star(50, 14, 5, '#e8ffb0'); }};
+
+/* --- Рассветная дева --- */
+const DM = {bg:['#2a1c04', '#7a5410'], glow:'rgba(255,225,130,.55)'};
+function hammerG(g, x, y, s, rot){ g.at(x, y, rot || 0, () => { g.c.scale(s, s); g.line('M0 -4 V44', '#7a4a20', 7); g.line('M0 -4 V44', '#c88a4a', 2); g.both('M-24 -26 H24 V0 H-24 Z', g.lg(0, -26, 0, 0, ['#fff4c0', '#e0a43a', '#8a5a14']), '#fff8d8', 2); g.line('M-24 -13 H24', 'rgba(255,255,255,.5)', 1.4); g.star(0, -13, 7, '#fff'); }); }
+ICONS.dawnHammer = {...DM, draw(g){ g.glow(50, 40, 40, 'rgba(255,230,140,.8)'); for(let i = 0; i < 12; i++) g.at(50, 40, i * Math.PI / 6, () => g.fill('M-2.4 -30 L0 -44 L2.4 -30 Z', '#fff0a0')); hammerG(g, 50, 44, 1.2, 0); g.ell(50, 90, 30, 5, 'rgba(255,220,120,.4)'); }};
+ICONS.dawnHammerThrow = {...DM, draw(g){ [[6, 60, 34], [4, 74, 26], [10, 86, 32]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 2) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 2) + ' Z', g.lg(l[0], 0, l[0] + l[2], 0, ['rgba(255,230,140,0)', '#ffe39a']))); g.glow(64, 40, 30, 'rgba(255,230,140,.8)'); hammerG(g, 64, 50, .95, .85); g.star(86, 80, 5, '#fff0a0'); g.star(20, 24, 4, '#fff0a0'); }};
+ICONS.dawnBlessing = {...DM, passive:true, draw(g){ g.glow(50, 50, 44, 'rgba(255,230,140,.8)'); g.circ(50, 50, 20, g.rg(50, 50, 20, ['#ffffff', '#ffe36a', '#e09a1c']), '#fff8d8', 1.6); for(let i = 0; i < 8; i++) g.at(50, 50, i * Math.PI / 4, () => g.fill('M-3 -24 L0 -42 L3 -24 Z', '#fff0a0')); g.both('M44 42 H56 V48 H62 V60 H56 V66 H44 V60 H38 V48 H44 Z', '#fff', '#ffd23a', 1); }};
+ICONS.dawnGlobalJump = {...DM, ult:true, draw(g){ g.glow(50, 22, 30, 'rgba(255,240,170,.9)'); g.circ(50, 20, 12, g.rg(50, 20, 12, ['#ffffff', '#ffe36a', '#e09a1c'])); g.fill('M40 30 L60 30 L84 82 L16 82 Z', g.lg(0, 30, 0, 82, ['rgba(255,240,170,.8)', 'rgba(255,220,100,.1)'])); g.ell(50, 84, 38, 9, 'rgba(255,230,140,.35)', '#fff0a0', 2.4); g.ell(50, 84, 24, 6, null, '#fff', 1.6); fig(g, 50, 70, .5, '#fff0b0', '#c88a1c'); }};
+
+/* --- Рыцарь-изгнанник --- */
+const EK = {bg:['#2a0608', '#6a1018'], glow:'rgba(255,90,100,.5)'};
+ICONS.exileGauntlet = {...EK, draw(g){ [[4, 40, 30], [0, 54, 24], [6, 68, 30]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.6) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.6) + ' Z', g.lg(l[0], 0, l[0] + l[2], 0, ['rgba(255,120,120,0)', '#ff9090']))); g.glow(70, 52, 28, 'rgba(255,90,90,.6)'); fistG(g, 56, 52, 1.2, .2, '#c0c8d8', '#5a6070'); g.circ(84, 52, 10, null, '#ffd0d0', 2); g.star(86, 24, 5, '#ffd0d0'); }};
+ICONS.exileCleave = {...EK, passive:true, draw(g){ g.both('M20 20 H80 V50 Q80 76 50 90 Q20 76 20 50 Z', g.lg(20, 20, 80, 90, ['#c0c8d8', '#6a7284', '#32384a']), '#e8f0ff', 2); g.line('M56 14 L46 38 L58 50 L44 70 L52 92', '#14080a', 3.4); g.line('M56 14 L46 38 L58 50 L44 70 L52 92', '#ff6a70', 1.2); g.fill('M26 28 H44 L40 40 H26 Z', 'rgba(255,255,255,.3)'); g.star(80, 82, 4, '#ffd0d0'); }};
+ICONS.exileBattleCry = {...EK, draw(g){ ['M10 38 Q2 50 10 62', 'M18 30 Q6 50 18 70'].forEach(d => g.line(d, 'rgba(255,170,170,.85)', 2.4)); ['M90 38 Q98 50 90 62', 'M82 30 Q94 50 82 70'].forEach(d => g.line(d, 'rgba(255,170,170,.85)', 2.4)); g.both('M28 78 V44 Q28 22 50 22 Q72 22 72 44 V78 H60 V60 H40 V78 Z', g.lg(0, 22, 0, 78, ['#d0d8e8', '#7a8296', '#3a4054']), '#f0f4ff', 1.8); g.fill('M36 44 H64 V52 H36 Z', '#14080a'); g.line('M50 22 V10', '#e03a44', 5); g.fill('M44 10 H56 L50 2 Z', '#e03a44'); }};
+ICONS.exileGodRage = {...EK, ult:true, draw(g){ g.glow(50, 50, 44, 'rgba(255,50,60,.8)'); [[24, 82, 30, 9], [50, 88, 40, 11], [76, 82, 30, 9]].forEach(f => g.flame(f[0], f[1], f[2] + 14, f[3], ['#a80c1c', '#ff3a3a', '#ffb02a'])); g.both('M28 78 V44 Q28 22 50 22 Q72 22 72 44 V78 H60 V60 H40 V78 Z', g.lg(0, 22, 0, 78, ['#d0d8e8', '#7a8296', '#3a4054']), '#ffd0d0', 1.8); g.fill('M36 44 H64 V52 H36 Z', '#14080a'); g.glow(42, 48, 8, 'rgba(255,60,60,.9)'); g.glow(58, 48, 8, 'rgba(255,60,60,.9)'); }};
+
+/* --- Джувсют --- */
+const JV = {bg:['#2a1404', '#6a3a10'], glow:'rgba(255,170,70,.45)'};
+ICONS.juvsyutShoulder = {...JV, draw(g){ [[4, 40, 30], [0, 54, 22], [6, 68, 28]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.6) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.6) + ' Z', g.lg(l[0], 0, l[0] + l[2], 0, ['rgba(255,200,120,0)', '#ffd090']))); g.circ(44, 54, 26, g.rg(44, 54, 28, ['#ffd8a0', '#e09a50', '#8a4a1a'], 36, 44), '#ffe8c0', 1.8); g.circ(44, 42, 10, '#e8b070', '#ffe8c0', 1.2); burst(g, 82, 52, 14, 6, 8, '#ffffff', '#ffd23a'); }};
+ICONS.juvsyutGuard = {...JV, draw(g){ g.both('M50 10 L84 22 V50 C84 72 68 84 50 92 C32 84 16 72 16 50 V22 Z', g.rg(50, 50, 46, ['#fff0b0', '#f0b84a', '#a86a1a'], 40, 36), '#fff4d0', 2.2); [[36, 38], [60, 52], [42, 66]].forEach(p => g.ell(p[0], p[1], 9, 5, 'rgba(255,255,255,.28)')); g.line('M50 22 V82 M26 40 H74', 'rgba(120,60,10,.35)', 1.6); g.star(30, 26, 4, '#fff'); }};
+ICONS.juvsyutRoll = {...JV, draw(g){ [[2, 38, 30], [0, 52, 24], [4, 66, 30]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.6) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.6) + ' Z', 'rgba(255,220,160,.7)')); g.circ(58, 52, 30, g.rg(58, 52, 32, ['#ffd8a0', '#e09a50', '#8a4a1a'], 50, 42), '#ffe8c0', 1.8); let d = 'M58 52'; for(let a = 0; a < 12; a += .25){ const r = 2.2 * a; d += ' L' + (58 + Math.cos(a) * r).toFixed(1) + ' ' + (52 + Math.sin(a) * r).toFixed(1); } g.line(d, 'rgba(120,60,10,.6)', 2); g.ell(58, 88, 24, 4, 'rgba(0,0,0,.35)'); }};
+ICONS.juvsyutFeast = {...JV, ult:true, draw(g){ g.glow(50, 50, 40, 'rgba(255,190,90,.6)'); g.line('M30 74 L60 44', '#f0e0c0', 9); g.circ(28, 76, 6, '#f0e0c0'); g.circ(22, 70, 6, '#f0e0c0'); g.both('M50 20 Q82 14 84 44 Q84 66 58 66 Q36 66 36 42 Q36 24 50 20 Z', g.lg(0, 20, 0, 66, ['#c86a2a', '#7a3410']), '#ffd8a0', 2); g.circ(70, 28, 9, '#1a1008'); g.circ(84, 38, 7, '#1a1008'); g.line('M46 34 Q60 28 74 36', 'rgba(255,230,180,.55)', 2); g.fill('M64 48 L68 54 L72 48 Z', '#fff'); }};
+
+/* --- Чип --- */
+const CH = {bg:['#1c1404', '#5a4410'], glow:'rgba(255,215,90,.5)'};
+function crownG(g, x, y, s){ g.at(x, y, 0, () => { g.c.scale(s, s); g.both('M-32 24 L-36 -16 L-16 2 L0 -26 L16 2 L36 -16 L32 24 Z', g.lg(0, -26, 0, 24, ['#fff0a0', '#e0a43a', '#6a4010']), '#fff4c0', 1.8); g.both('M-32 24 H32 V34 H-32 Z', g.lg(0, 24, 0, 34, ['#c88a2a', '#5a3a10']), '#fff4c0', 1.4); [[-36, -16], [0, -26], [36, -16]].forEach(p => g.circ(p[0], p[1], 4.4, g.rg(p[0], p[1], 5, ['#ffffff', '#e04a6a', '#6a0a24']))); }); }
+ICONS.chipCommand = {...CH, draw(g){ g.line('M50 8 V58', '#c88a2a', 6); g.line('M50 8 V58', '#fff0a0', 1.6); g.circ(50, 12, 9, g.rg(50, 12, 9, ['#ffffff', '#e04a6a', '#6a0a24']), '#fff0a0', 1.6); ['M30 62 L50 78 L70 62', 'M30 76 L50 92 L70 76'].forEach((d, i) => g.line(d, i ? '#ffb02a' : '#ffd45a', 6)); g.star(18, 30, 4, '#fff0a0'); g.star(84, 36, 4, '#fff0a0'); }};
+ICONS.chipCrown = {...CH, draw(g){ g.glow(50, 50, 40, 'rgba(255,215,90,.6)'); crownG(g, 50, 52, 1.2); g.star(16, 20, 4, '#fff0a0'); g.star(86, 20, 4, '#fff0a0'); }};
+ICONS.chipCoin = {...CH, draw(g){ g.glow(50, 50, 40, 'rgba(255,215,90,.6)'); g.ell(50, 50, 30, 34, g.lg(20, 20, 80, 80, ['#fff4b0', '#e0a43a', '#8a5a14']), '#fff8d0', 2.4); g.ell(50, 50, 22, 26, null, 'rgba(120,70,10,.6)', 2); g.at(50, 50, 0, () => { crownG(g, 0, 2, .38); }); g.fill('M26 30 Q36 20 46 22 Q36 30 30 44 Z', 'rgba(255,255,255,.5)'); g.star(84, 18, 5, '#fff'); g.line('M6 70 Q14 78 24 76', 'rgba(255,230,140,.7)', 2); }};
+ICONS.chipThrone = {...CH, ult:true, draw(g){ g.both('M26 10 H74 V56 H26 Z', g.lg(0, 10, 0, 56, ['#b02a3a', '#5a0a18']), '#ffd23a', 2); g.both('M18 40 H30 V70 H18 Z M70 40 H82 V70 H70 Z', g.lg(0, 40, 0, 70, ['#fff0a0', '#c88a2a']), '#fff4c0', 1.4); g.both('M26 56 H74 V72 H26 Z', g.lg(0, 56, 0, 72, ['#e0a43a', '#7a4a10']), '#fff4c0', 1.4); g.line('M30 72 V88 M70 72 V88', '#c88a2a', 5); crownG(g, 50, 30, .5); g.ell(50, 90, 40, 6, 'rgba(255,215,90,.45)', '#fff0a0', 1.6); }};
+
+/* --- Савелий --- */
+const SV = {bg:['#041a2a', '#103a6a'], glow:'rgba(120,200,255,.45)'};
+ICONS.savelyEvade = {...SV, passive:true, draw(g){ fig(g, 66, 56, 1.1, '#bfe6ff', '#2a6aa8', .35); fig(g, 44, 58, 1.2, '#e6f6ff', '#2a7ac0'); g.line('M6 30 L32 44', 'rgba(255,220,120,.9)', 3); g.line('M12 80 L30 64', 'rgba(255,220,120,.5)', 2); g.fill('M32 44 L22 44 L28 36 Z', '#ffd23a'); g.line('M82 28 L92 20 M84 40 L96 36', 'rgba(200,230,255,.6)', 2); }};
+ICONS.savelyCry = {...SV, draw(g){ g.both('M14 40 H34 L66 20 V80 L34 60 H14 Z', g.lg(0, 20, 0, 80, ['#ffd45a', '#d08a1a']), '#fff0b0', 2); g.line('M24 60 L30 80', '#8a5a14', 5); ['M72 36 Q84 50 72 64', 'M80 26 Q98 50 80 74', 'M88 16 Q112 50 88 84'].forEach((d, i) => g.line(d, 'rgba(190,230,255,' + (.95 - i * .25) + ')', 3)); g.star(20, 20, 4, '#e6f6ff'); }};
+ICONS.savelyTransformer = {...SV, draw(g){ g.both('M28 28 H72 V70 H28 Z', g.lg(0, 28, 0, 70, ['#d0d8e4', '#6a7690', '#2a3248']), '#e8f0ff', 2); g.both('M34 40 H66 V54 H34 Z', '#0a1428', '#7feaff', 1.4); g.glow(42, 47, 7, 'rgba(100,230,255,.95)'); g.glow(58, 47, 7, 'rgba(100,230,255,.95)'); g.line('M38 62 H62', '#2a3248', 2.4); g.line('M50 28 V14', '#c0c8d8', 3); g.circ(50, 12, 4, '#ff4a4a'); g.circ(24, 50, 6, '#6a7690', '#e8f0ff', 1.4); g.circ(76, 50, 6, '#6a7690', '#e8f0ff', 1.4); g.line('M32 80 H68', '#6a7690', 6); }};
+ICONS.savelyFear = {...SV, ult:true, draw(g){ g.glow(24, 50, 30, 'rgba(255,200,90,.6)'); g.fill('M26 46 L94 14 V86 L26 54 Z', g.lg(26, 0, 94, 0, ['rgba(190,230,255,.8)', 'rgba(190,230,255,.08)'])); ['M44 40 Q54 50 44 60', 'M58 34 Q72 50 58 66', 'M74 26 Q92 50 74 74'].forEach(d => g.line(d, '#e6f6ff', 2.6)); g.both('M12 50 Q12 36 24 36 Q36 36 36 50 Q36 64 24 64 Q12 64 12 50 Z', g.lg(0, 36, 0, 64, ['#ffd45a', '#c88a1a']), '#fff0b0', 1.6); g.fill('M16 48 H32 V58 H16 Z', '#2a0a08'); g.fill('M18 48 L20 52 L22 48 Z M24 48 L26 52 L28 48 Z', '#fff'); }};
+
+/* --- Джаггернаут --- */
+const JG = {bg:['#1c0a08', '#5a2018'], glow:'rgba(255,120,70,.45)'};
+ICONS.juggernautBladeFury = {...JG, draw(g){ g.glow(50, 50, 40, 'rgba(255,130,70,.6)'); g.line('M86 50 A36 36 0 1 1 50 14', 'rgba(255,200,160,.85)', 2.6); g.line('M76 50 A26 26 0 1 1 50 24', 'rgba(255,200,160,.5)', 1.8); for(let i = 0; i < 3; i++) g.at(50, 50, i * Math.PI * 2 / 3 + .4, () => blade(g, 0, -10, 32, 0, 0)); g.circ(50, 50, 8, g.rg(50, 50, 8, ['#ffffff', '#ff8a4a', '#8a2010'])); g.star(86, 20, 4, '#ffd0b0'); }};
+ICONS.juggernautHealingWard = {...JG, draw(g){ g.glow(50, 50, 42, 'rgba(120,255,140,.6)'); g.both('M34 20 H66 V86 H34 Z', g.lg(34, 0, 66, 0, ['#9a6a3a', '#6a4220', '#3a2210']), '#e0b080', 1.8); g.both('M30 14 H70 L66 28 H34 Z', g.lg(0, 14, 0, 28, ['#c8402e', '#6a1a10']), '#ffb090', 1.4); g.fill('M40 40 H48 V46 H40 Z M52 40 H60 V46 H52 Z', '#ffe36a'); g.line('M42 62 Q50 68 58 62', '#2a1408', 2.6); g.both('M44 70 H56 V76 H62 V84 H56 V90 H44 V84 H38 V76 H44 Z', '#7dff90', '#e6ffe8', 1); g.star(18, 40, 4, '#c8ffd0'); g.star(84, 50, 4, '#c8ffd0'); }};
+ICONS.juggernautBladeDance = {...JG, passive:true, draw(g){ blade(g, 30, 88, 78, .62, 8); blade(g, 70, 88, 78, -.62, 8); burst(g, 50, 40, 16, 7, 8, '#ffffff', '#ffb02a'); g.star(18, 22, 4, '#ffd0b0'); g.star(84, 24, 4, '#ffd0b0'); }};
+ICONS.juggernautOmnislash = {...JG, ult:true, draw(g){ g.glow(50, 50, 44, 'rgba(255,120,60,.7)'); [[12, 14, 88, 86], [86, 18, 14, 82], [50, 6, 50, 94], [8, 52, 92, 48]].forEach((l, i) => { g.line('M' + l[0] + ' ' + l[1] + ' L' + l[2] + ' ' + l[3], i % 2 ? '#ff9a5a' : '#ffffff', 3.4 - i * .3); }); g.circ(50, 50, 9, g.rg(50, 50, 9, ['#ffffff', '#ff8a4a', '#8a2010'])); g.star(50, 50, 20, 'rgba(255,255,255,.9)'); }};
+
+/* --- Шмедик (Earthshaker) --- */
+const ES = {bg:['#1c1008', '#5a3a18'], glow:'rgba(255,170,80,.4)'};
+ICONS.earthshakerFissure = {...ES, draw(g){ g.fill('M6 70 L30 56 L46 62 L60 46 L94 36 L94 48 L62 58 L48 74 L28 68 L8 82 Z', '#0a0604'); g.line('M6 76 L30 62 L46 68 L60 52 L94 42', '#ff8a2a', 2.6); g.line('M6 76 L30 62 L46 68 L60 52 L94 42', '#ffe0a0', .9); [[22, 40, 11], [74, 76, 10], [50, 30, 9], [84, 22, 8]].forEach(r => g.both('M' + (r[0] - r[2]) + ' ' + r[1] + ' L' + r[0] + ' ' + (r[1] - r[2]) + ' L' + (r[0] + r[2]) + ' ' + r[1] + ' L' + (r[0] + r[2] * .6) + ' ' + (r[1] + r[2] * .7) + ' L' + (r[0] - r[2] * .6) + ' ' + (r[1] + r[2] * .7) + ' Z', g.lg(0, r[1] - r[2], 0, r[1] + r[2], ['#c8a070', '#5a3a1c']), '#f0d0a0', 1.2)); }};
+ICONS.earthshakerEnchantTotem = {...ES, draw(g){ g.glow(50, 30, 34, 'rgba(255,200,90,.7)'); g.line('M50 34 V92', '#7a4a20', 9); g.line('M50 34 V92', '#c88a4a', 2); g.both('M20 10 H80 V36 H20 Z', g.lg(0, 10, 0, 36, ['#d8a060', '#7a4a20', '#3a2210']), '#ffe0b0', 2); g.fill('M30 18 H40 V26 H30 Z M60 18 H70 V26 H60 Z', '#ffe36a'); g.line('M40 32 H60', '#2a1408', 2.4); burst(g, 50, 22, 8, 3.4, 8, '#fff', '#ffb02a'); g.star(16, 56, 4, '#ffe0a0'); g.star(86, 52, 4, '#ffe0a0'); }};
+ICONS.earthshakerAftershock = {...ES, passive:true, draw(g){ [38, 28, 18].forEach((r, i) => g.ell(50, 58, r + 8, r * .55, null, 'rgba(255,200,120,' + (.95 - i * .25) + ')', 3.2 - i * .6)); g.line('M50 58 L22 78 M50 58 L84 74 M50 58 L40 90 M50 58 L72 36 M50 58 L24 40', '#0a0604', 2.4); g.star(50, 58, 8, '#fff0c0'); g.star(18, 22, 4, '#ffe0a0'); g.star(86, 24, 4, '#ffe0a0'); }};
+ICONS.earthshakerEchoSlam = {...ES, ult:true, draw(g){ g.glow(50, 56, 40, 'rgba(255,170,70,.65)'); [40, 30, 20].forEach((r, i) => g.ell(50, 62, r + 8, r * .5, 'rgba(255,170,70,' + (.1 + i * .06) + ')', 'rgba(255,224,160,' + (.95 - i * .22) + ')', 3)); g.both('M26 8 H74 V34 H26 Z', g.lg(0, 8, 0, 34, ['#d8a060', '#7a4a20']), '#ffe0b0', 2); g.line('M50 34 V58', '#7a4a20', 7); burst(g, 50, 66, 14, 6, 8, '#ffffff', '#ffb02a'); }};
+
+/* --- Снайпер --- */
+const SN = {bg:['#101408', '#3a4a1c'], glow:'rgba(200,230,110,.35)'};
+ICONS.sniperShrapnel = {...SN, draw(g){ g.glow(50, 56, 36, 'rgba(255,170,60,.6)'); burst(g, 50, 56, 30, 14, 12, '#fff0a0', '#e0601a'); for(let i = 0; i < 8; i++) g.at(50, 56, i * Math.PI / 4 + .2, () => g.both('M-2 -34 L0 -46 L2 -34 L0 -30 Z', '#d8dce8', '#fff', .8)); g.ell(50, 86, 34, 5, 'rgba(0,0,0,.4)'); }};
+ICONS.sniperHeadshot = {...SN, passive:true, draw(g){ g.both('M26 80 V50 Q26 18 52 18 Q76 18 76 46 Q76 62 66 68 V80 Z', g.lg(0, 18, 0, 80, ['#8a9a6a', '#3a4a22']), '#d8e8b0', 1.8); g.circ(58, 38, 12, null, '#ff4a3a', 2); g.line('M58 22 V54 M42 38 H74', '#ff4a3a', 1.6); g.circ(58, 38, 3, '#ff4a3a'); g.line('M92 22 L72 34', '#ffd23a', 2.4); g.fill('M72 34 L80 30 L78 38 Z', '#ffd23a'); }};
+ICONS.sniperTakeAim = {...SN, draw(g){ g.circ(50, 50, 32, 'rgba(10,20,5,.5)', '#d8f090', 3); g.circ(50, 50, 18, null, 'rgba(216,240,144,.7)', 1.6); g.line('M50 8 V90 M8 50 H92', '#d8f090', 1.8); g.circ(50, 50, 3, '#ff4a3a'); g.fill('M92 50 L80 44 V56 Z', '#ffd23a'); g.fill('M8 50 L20 44 V56 Z', '#ffd23a'); g.line('M22 50 L32 50 M68 50 L78 50', '#ffd23a', 3); }};
+ICONS.sniperAssassinate = {...SN, ult:true, draw(g){ g.glow(50, 50, 40, 'rgba(255,90,60,.5)'); g.circ(66, 50, 28, null, '#ff4a3a', 2.4); g.circ(66, 50, 15, null, 'rgba(255,100,80,.7)', 1.4); g.line('M66 14 V86 M30 50 H102', '#ff4a3a', 1.6); [[4, 46, 36], [0, 52, 28]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.4) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.4) + ' Z', 'rgba(255,230,160,.7)')); g.both('M26 44 H56 L66 50 L56 56 H26 Z', g.lg(0, 44, 0, 56, ['#fff0b0', '#c88a2a']), '#fff8d8', 1.4); g.fill('M26 44 H34 V56 H26 Z', '#8a5a14'); }};
+
+/* --- Васпассир --- */
+const VP = {bg:['#1c1204', '#5a3c08'], glow:'rgba(255,170,50,.45)'};
+ICONS.vaspPassive = {...VP, passive:true, draw(g){ [[4, 34, 34], [0, 50, 26], [6, 66, 34]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.6) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.6) + ' Z', g.lg(l[0], 0, l[0] + l[2], 0, ['rgba(255,200,100,0)', '#ffc060']))); bolt(g, 62, 50, 1.5, .1, '#fff6c0'); g.line('M76 20 L88 32 L76 44', '#ffd23a', 4); g.star(24, 20, 4, '#ffe0a0'); }};
+ICONS.vaspGrenades = {...VP, draw(g){ [[50, 30], [26, 64], [74, 64]].forEach((p, i) => { g.at(p[0], p[1], 0, () => { g.both('M-12 -2 Q-12 -14 0 -14 Q12 -14 12 -2 V12 Q12 20 0 20 Q-12 20 -12 12 Z', g.lg(-12, -14, 12, 20, ['#a0f070', '#3a9a24', '#164a0c']), '#d8ffc0', 1.4); g.line('M-12 4 H12 M0 -14 V20', 'rgba(0,40,0,.4)', 1.2); g.both('M-5 -20 H5 V-14 H-5 Z', '#c0c8c0', '#fff', 1); g.line('M5 -20 Q12 -26 14 -18', '#e6e6e6', 1.6); }); }); g.star(50, 50, 6, '#fff6a0'); }};
+ICONS.vaspCopies = {...VP, draw(g){ fig(g, 32, 58, 1.2, '#ffc060', '#c06a10'); fig(g, 68, 58, 1.2, '#8ad0ff', '#1c5a9a'); g.star(50, 24, 6, '#fff6c0'); g.line('M40 40 L60 40', 'rgba(255,255,255,.6)', 2); }};
+ICONS.vaspUltimate = {...VP, ult:true, draw(g){ g.glow(50, 50, 42, 'rgba(255,200,80,.55)'); [['#ffe36a', '#b8860a'], ['#ffe36a', '#b8860a'], ['#c08aff', '#5a2a9a'], ['#c08aff', '#5a2a9a'], ['#8ad0ff', '#1c5a9a'], ['#8ad0ff', '#1c5a9a']].forEach((c, i) => { const a = i * Math.PI / 3 - Math.PI / 2; fig(g, 50 + Math.cos(a) * 30, 50 + Math.sin(a) * 28, .62, c[0], c[1]); }); g.star(50, 50, 10, '#fff6c0'); }};
+
+/* --- Олекс --- */
+const OL = {bg:['#04101c', '#0c3a5a'], glow:'rgba(80,220,255,.4)'};
+ICONS.olexQ = {...OL, draw(g){ [[4, 40, 30], [0, 54, 22]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.6) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.6) + ' Z', g.lg(l[0], 0, l[0] + l[2], 0, ['rgba(80,220,255,0)', '#5ae0ff']))); g.glow(58, 48, 30, 'rgba(80,220,255,.6)'); g.both('M30 28 H88 V68 H30 Z', 'rgba(4,20,36,.9)', '#5ae0ff', 2); txt(g, '</>', 59, 48, 22, '#8affb0'); g.line('M30 78 H70', 'rgba(90,224,255,.6)', 2); }};
+ICONS.olexW = {...OL, draw(g){ g.both('M50 28 Q70 28 70 48 Q70 68 50 68 Q30 68 30 48 Q30 28 50 28 Z', g.rg(50, 48, 22, ['#ff9a9a', '#e03a4a', '#6a0a14']), '#ffc0c0', 1.6); g.line('M32 40 L16 32 M32 50 L12 50 M32 60 L16 68 M68 40 L84 32 M68 50 L88 50 M68 60 L84 68 M42 30 L36 16 M58 30 L64 16', '#ff7a8a', 2.6); g.circ(43, 46, 3, '#fff'); g.circ(57, 46, 3, '#fff'); g.both('M62 62 H92 V78 Q92 90 77 94 Q62 90 62 78 Z', g.lg(0, 62, 0, 94, ['#7ae0ff', '#1c6aa8']), '#e6ffff', 1.6); g.line('M70 76 L76 82 L86 70', '#fff', 2.6); }};
+ICONS.olexE = {...OL, draw(g){ g.both('M24 90 L34 66 H66 L76 90 Z', g.lg(0, 66, 0, 90, ['#6a7a90', '#2a3448']), '#c8d8f0', 1.6); g.both('M34 66 Q34 44 50 44 Q66 44 66 66 Z', g.lg(0, 44, 0, 66, ['#8a9ab0', '#3a4458']), '#c8d8f0', 1.6); g.both('M50 54 L90 38 V46 L50 62 Z', '#2a3448', '#c8d8f0', 1.4); g.line('M90 42 L100 38', '#ff4a4a', 2.4); g.fill('M88 36 L96 42 L88 48 Z', '#ff9a9a'); g.line('M50 54 L84 40', 'rgba(255,60,60,.0)', 1); g.glow(90, 42, 8, 'rgba(255,60,60,.9)'); g.circ(50, 56, 5, '#ff4a4a'); }};
+ICONS.olexR = {...OL, ult:true, draw(g){ g.both('M14 16 H86 V70 H14 Z', g.lg(0, 16, 0, 70, ['#2a6ad8', '#0a2a8a']), '#bfe0ff', 2.2); txt(g, ':(', 50, 40, 26, '#ffffff'); g.line('M30 56 H70 M30 62 H56', 'rgba(255,255,255,.7)', 2.4); g.line('M92 8 V30 M98 20 V44 M6 24 V50 M10 14 V30', '#8affb0', 2.4); g.line('M32 80 H68 M50 70 V80', '#8a9ab0', 4); }};
+ICONS.olexT = {...OL, draw(g){ g.line('M14 56 H64', '#5ae0ff', 5); ['M54 36 L74 56 L54 76', 'M70 36 L90 56 L70 76'].forEach((d, i) => g.line(d, i ? '#ffffff' : '#7ae8ff', 6)); g.circ(30, 26, 14, 'rgba(4,20,36,.8)', '#8affb0', 2.4); g.line('M30 26 V18 M30 26 L36 30', '#8affb0', 2.4); g.line('M16 22 Q18 12 28 12', '#8affb0', 2.4); g.fill('M12 24 L20 18 L20 28 Z', '#8affb0'); }};
+
+/* --- Псих: T --- */
+ICONS.psihT = {bg:['#1c0608', '#4a1236'], glow:'rgba(255,60,60,.5)', draw(g){
+  g.line('M50 90 V62', 'rgba(255,90,90,.35)', 8); g.line('M50 90 V62', 'rgba(255,200,200,.55)', 2); g.line('M30 88 L38 66 M70 88 L62 66', 'rgba(255,120,120,.35)', 3);
+  g.glow(50, 42, 34, 'rgba(255,60,60,.7)');
+  g.circ(50, 40, 25, g.rg(50, 40, 27, ['#ff8a8a', '#d02a2a', '#5a0a10'], 42, 30), '#ffc0c0', 1.8);
+  g.ell(40, 38, 8, 10, '#fff', '#2a0408', 1.4); g.ell(60, 38, 8, 10, '#fff', '#2a0408', 1.4);
+  g.circ(42, 40, 3.4, '#1a0204'); g.circ(58, 36, 3.4, '#1a0204');
+  g.line('M36 56 Q50 66 64 54', '#2a0408', 3); g.fill('M42 59 L44 65 L47 61 Z M54 61 L57 65 L59 58 Z', '#fff');
+  g.line('M16 18 L24 26 M84 18 L76 26', '#ffd0d0', 2.6); g.star(18, 56, 4, '#ffb0b0'); g.star(84, 58, 4, '#ffb0b0');
+}};
+
 /* ---------- кэш и рамка ---------- */
 function frame(c, spec){
   const R = 14;
