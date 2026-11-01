@@ -1,5 +1,5 @@
 /* DotaSense 0.10.0 — «МАСТЕРСТВО ГЕРОЕВ».
-   • все бойцы получили мастерство: 5 уровней, растут за победы на герое в любом режиме.
+   • все бойцы получили мастерство: 5 уровней (с 0.10.3.9 — 10 уровней, список наград прокручивается колесом/пальцем; на 10 уровне — анимированная аватарка), растут за победы на герое в любом режиме.
    • За каждый уровень — награда в Сенсиках (забирается вручную, по порядку).
    • Кнопка «МАСТЕРСТВО» в профиле героя (вкладка «Бойцы») открывает панель с уровнями и наградами.
    Дополнение: мастерство у ВСЕХ героев, красивая панель (портрет, значок уровня, шкала с отметками, анимация).
@@ -27,12 +27,17 @@ function btnRect(){
   return {x: g.x - 196, y: g.y, w: 190, h: g.h};
 }
 function panelRect(){
-  const w = Math.min(580, VW - 30), h = Math.min(580, VH - 40);
+  const w = Math.min(580, VW - 30), h = Math.min(680, VH - 40);
   return {x: (VW - w) / 2, y: Math.max(20, (VH - h) / 2), w, h};
 }
 const HEAD_H = 172;
 function closeRect(P){ return {x: P.x + P.w - 42, y: P.y + 12, w: 30, h: 30}; }
-function rowRect(P, i){ const top = P.y + HEAD_H, rh = Math.floor((P.h - HEAD_H - 14) / 5); return {x: P.x + 16, y: top + i * rh, w: P.w - 32, h: rh - 7}; }
+const ROW_H = 52;
+let listScroll = 0;
+function listView(P){ return {top: P.y + HEAD_H, h: P.h - HEAD_H - 14}; }
+function maxScroll(P, n){ return Math.max(0, n * ROW_H - listView(P).h); }
+function rowRect(P, i){ return {x: P.x + 16, y: P.y + HEAD_H + i * ROW_H - listScroll, w: P.w - 40, h: ROW_H - 7}; }
+function scrollTo(P, n, v){ listScroll = Math.max(0, Math.min(maxScroll(P, n), v)); }
 function claimRect(R){ return {x: R.x + R.w - 128, y: R.y + (R.h - 32) / 2, w: 116, h: 32}; }
 function inR(r, x, y){ return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
 function rrect(x, y, w, h, r){
@@ -157,11 +162,14 @@ function drawPanel(def, c){
   ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillText('✕', cl.x + cl.w / 2, cl.y + 21);
 
-  /* строки наград */
+  /* строки наград (список прокручивается) */
+  const LV = listView(P);
+  scrollTo(P, max, listScroll);
+  ctx.save(); ctx.beginPath(); ctx.rect(P.x + 4, LV.top - 2, P.w - 8, LV.h + 4); ctx.clip();
   for(let i = 0; i < max; i++){
     const R = rowRect(P, i), n = i + 1;
     const reached = st.wins >= c.wins[i], got = st.claimed >= n, ready = reached && !got && st.claimed === i;
-    const slide = Math.max(0, Math.min(1, (performance.now() - openAt) / 1000 * 3 - i * 0.18));
+    const slide = Math.max(0, Math.min(1, (performance.now() - openAt) / 1000 * 3 - i * 0.07));
     ctx.save(); ctx.globalAlpha = ctx.globalAlpha * slide; ctx.translate((1 - slide) * 30, 0);
     if(ready){ ctx.shadowColor = rgba('#ffd568', .45 + Math.sin(now * 4) * .15); ctx.shadowBlur = 16; }
     rrect(R.x, R.y, R.w, R.h, 11);
@@ -189,11 +197,34 @@ function drawPanel(def, c){
     const w1 = ctx.measureText(c.wins[i] + ' ' + winsWord(c.wins[i]) + '  ·  ').width;
     ctx.fillStyle = reached ? '#ffd568' : 'rgba(255,213,104,.5)'; ctx.font = 'bold 12px Segoe UI, Arial';
     ctx.fillText('+' + c.rewards[i] + ' Сенсиков', lx + w1, R.y + R.h / 2 + 15);
+    if(n === max){
+      const w2 = ctx.measureText('+' + c.rewards[i] + ' Сенсиков').width;
+      ctx.fillStyle = reached ? '#ff9ae8' : 'rgba(255,154,232,.55)'; ctx.font = 'bold 12px Segoe UI, Arial';
+      ctx.fillText('  ·  + АНИМИРОВАННАЯ АВАТАРКА', lx + w1 + w2, R.y + R.h / 2 + 15);
+    }
 
     const B = claimRect(R);
     drawMenuButton(B, got ? 'ПОЛУЧЕНО ✓' : ready ? 'ЗАБРАТЬ +' + c.rewards[i] : reached ? 'СНАЧАЛА ПРЕДЫДУЩИЙ' : (st.wins + ' / ' + c.wins[i]), {radius:8, fontSize:11, primary:ready, active:got});
     ctx.restore();
   }
+
+  ctx.restore();
+  /* полоса прокрутки */
+  const ms = maxScroll(P, max);
+  if(ms > 0){
+    const th = Math.max(30, LV.h * LV.h / (max * ROW_H)), ty = LV.top + (LV.h - th) * (listScroll / ms);
+    rrect(P.x + P.w - 12, ty, 4, th, 2); ctx.fillStyle = 'rgba(232,201,132,.5)'; ctx.fill();
+  }
+  /* превью анимированной аватарки 10 уровня */
+  try {
+    const av = window.__dsAnimAvatarFrame && P.w >= 480 ? window.__dsAnimAvatarFrame(def.id, 84, lvl < max) : null;
+    if(av){
+      const ax = P.x + P.w - 112, ay = P.y + 46;
+      ctx.drawImage(av, ax, ay, 84, 84);
+      ctx.font = 'bold 9px Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = lvl >= max ? '#ff9ae8' : 'rgba(255,255,255,.5)';
+      ctx.fillText(lvl >= max ? 'АВАТАРКА ОТКРЫТА' : 'АВАТАРКА НА ' + max + ' УР.', ax + 42, ay + 98);
+    }
+  } catch(err) { warn('avatar', err); }
 
   if(performance.now() < msgUntil){
     ctx.textAlign = 'center'; ctx.font = 'bold 14px Segoe UI, Arial'; ctx.fillStyle = '#ffe08a';
@@ -227,15 +258,15 @@ handleMenuClick = function(mx, my){
           if(inR(closeRect(P), mx, my) || !inR(P, mx, my)){ panelOpen = false; return; }
           const st = stateOf(def.id);
           for(let i = 0; i < c.wins.length; i++){
-            const B = claimRect(rowRect(P, i));
-            if(inR(B, mx, my)){
+            const B = claimRect(rowRect(P, i)), V = listView(P);
+            if(my >= V.top && my <= V.top + V.h && inR(B, mx, my)){
               if(st.claimed === i && st.wins >= c.wins[i]) claim(def.id, i + 1);
               return;
             }
           }
           return;
         }
-        if(inR(btnRect(), mx, my)){ panelOpen = true; openAt = performance.now(); return; }
+        if(inR(btnRect(), mx, my)){ panelOpen = true; openAt = performance.now(); const st0 = stateOf(def.id); scrollTo(panelRect(), c.wins.length, Math.max(0, (Math.min(st0.claimed, c.wins.length - 1) - 1) * ROW_H)); return; }
       } else if(inR(btnRect(), mx, my) && !cfg()){
         /* кнопка скрыта без аккаунта — клик по этому месту ничего не делает */
       }
@@ -244,5 +275,19 @@ handleMenuClick = function(mx, my){
   return _prevClick.apply(this, arguments);
 };
 
+function wheelScroll(dy){
+  const c = cfg(); if(!c) return;
+  scrollTo(panelRect(), c.wins.length, listScroll + dy);
+}
+canvas.addEventListener('wheel', e => {
+  if(!panelOpen) return;
+  wheelScroll(e.deltaY); e.preventDefault(); e.stopPropagation();
+}, {passive:false, capture:true});
+let touchY = null;
+canvas.addEventListener('touchstart', e => { touchY = panelOpen && e.touches.length === 1 ? e.touches[0].clientY : null; }, {passive:true, capture:true});
+canvas.addEventListener('touchmove', e => {
+  if(!panelOpen || touchY == null || e.touches.length !== 1) return;
+  const y = e.touches[0].clientY; wheelScroll(touchY - y); touchY = y;
+}, {passive:true, capture:true});
 window.addEventListener('keydown', e => { if(e.key === 'Escape' && panelOpen){ panelOpen = false; e.stopPropagation(); } }, true);
 })();

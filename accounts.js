@@ -88,9 +88,12 @@ function lifeState(acc){
 /* ===== 0.10.0: МАСТЕРСТВО ГЕРОЕВ. Все бойцы, 5 уровней. Уровень растёт за победы на этом герое в любом режиме.
    Награда за каждый уровень — Сенсики, забирается вручную по порядку (1 → 5). Все числа лежат только на сервере. ===== */
 const MASTERY_HEROES = Array.from(HERO_IDS);   /* 0.10.0 (дополнение): мастерство есть у ВСЕХ героев */
-const MASTERY_WINS = [1, 3, 6, 10, 15];          /* суммарно побед для уровней 1..5 */
-const MASTERY_REWARDS = [150, 300, 500, 800, 1500]; /* Сенсики за уровни 1..5 */
+/* 0.10.3.9: уровней мастерства стало 10 (было 5). На 10 уровне открывается уникальная анимированная аватарка героя. */
+const MASTERY_WINS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55];            /* суммарно побед для уровней 1..10 */
+const MASTERY_REWARDS = [150, 300, 500, 800, 1500, 1000, 1200, 1500, 1800, 2500]; /* Сенсики за уровни 1..10 */
+const MASTERY_AVATAR_PREFIX = 'm10_';   /* аватарка «m10_<id героя>» — награда за 10 уровень мастерства этого героя */
 const MASTERY_SET = new Set(MASTERY_HEROES);
+for(const hid of HERO_IDS){ AVATAR_IDS.add(hid); AVATAR_IDS.add(MASTERY_AVATAR_PREFIX + hid); }   /* обычная аватарка у каждого героя + анимированная за 10 уровень */
 const EXTRA_QUEST_BY_ID = Object.fromEntries(EXTRA_QUESTS.map(q => [q.id, q]));
 const MAX_QUEST_ASSISTS_PER_MATCH = 40;
 /* 0.9.8.6: активация «Дотасенс +» — разовая покупка навсегда. Цена хранится только на сервере. */
@@ -265,7 +268,7 @@ function masteryState(acc){
   const toObj = m => m instanceof Map ? Object.fromEntries(m) : (m || {});
   const wins = toObj(acc.mastery), claimed = toObj(acc.masteryClaimed);
   const out = {};
-  for(const id of MASTERY_HEROES) out[id] = { wins: Math.max(0, Number(wins[id]) || 0), claimed: Math.max(0, Math.min(5, Number(claimed[id]) || 0)) };
+  for(const id of MASTERY_HEROES) out[id] = { wins: Math.max(0, Number(wins[id]) || 0), claimed: Math.max(0, Math.min(MASTERY_WINS.length, Number(claimed[id]) || 0)) };
   return out;
 }
 const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), life: lifeState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE, skins: Array.isArray(acc.skins) ? acc.skins.filter(id => SKIN_PRICES[id]) : [], mastery: masteryState(acc), masteryCfg: { heroes: MASTERY_HEROES, wins: MASTERY_WINS, rewards: MASTERY_REWARDS } });
@@ -398,6 +401,10 @@ const routes = {
     if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
     const id = String(body.avatar || '');
     if(id && !AVATAR_IDS.has(id)) return [400, { error: 'Неизвестная аватарка' }];
+    if(id.startsWith(MASTERY_AVATAR_PREFIX)){
+      const wins = Number(mapObj(auth.acc.mastery)[id.slice(MASTERY_AVATAR_PREFIX.length)]) || 0;
+      if(wins < MASTERY_WINS[MASTERY_WINS.length - 1]) return [403, { error: 'Эта аватарка откроется на 10 уровне мастерства героя' }];
+    }
     await Account.updateOne({ _id: auth.acc._id }, { $set: { avatar: id } });
     const updated = await Account.findById(auth.acc._id);
     return [200, { profile: ownProfile(updated) }];
