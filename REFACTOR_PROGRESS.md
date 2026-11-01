@@ -144,3 +144,12 @@
 - `js/data/changelog.js`: `GAME_VERSION = '0.10.5.3'` и запись; `index.html`, `package.json` — версия 0.10.5.3. `game.js` не менялся.
 - Проверено: node --check; матч в headless Chromium (скрипты без ошибок, мини-карта рисуется ~0,6 мс), клик/перетаскивание двигают камеру. Онлайн и звук не запускались.
 
+## 0.10.5.4 (feature update)
+- Новый файл `public/update01054.js` (после `update01053.js`): ещё двенадцать 3D-иконок через реестр `window.__reg3d`: mango, tango, manaTome, manaHooves, aghanimShard, chronoHourglass, reaperScythe, phoenixFeather, windWaker, holyLocket, nullifier, eggGolly.
+- `js/data/changelog.js`: `GAME_VERSION = '0.10.5.4'` и запись; `index.html`, `package.json` — версия 0.10.5.4. `game.js` не менялся.
+- Проверено: node --check, отрисовка всех двенадцати иконок в headless Chromium (без ошибок). Матч, онлайн и звук не запускались.
+
+## 0.10.5.5 (feature update)
+- Новый файл `public/update01055.js` (после `update01054.js`): 3D-иконки для всех оставшихся предметов (25) через `window.__reg3d`.
+- `js/data/changelog.js`: `GAME_VERSION = '0.10.5.5'` и запись; `index.html`, `package.json` — версия 0.10.5.5. `game.js` не менялся.
+- Проверено: node --check, отрисовка всех иконок в headless Chromium (без ошибок).
