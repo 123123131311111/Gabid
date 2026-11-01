@@ -133,3 +133,14 @@
 - `update973.js`: размер демона умножается на `window.menuDemonScale`.
 - `js/data/changelog.js`: `GAME_VERSION = '0.10.0.5'` и запись об обновлении.
 - Проверено: node --check, отрисовка в Node, меню в headless Chromium. Матч, онлайн и звук не запускались.
+
+## 0.10.5.2 (feature update)
+- Новый файл `public/update01052.js` (после `update01051.js`): ещё десять 3D-иконок через реестр `window.__reg3d`: fangs, hatchet, timurPillow, gur, brainEye, munition, refresherOrb, octarineCore, abyssEye, hushCloak.
+- `js/data/changelog.js`: `GAME_VERSION = '0.10.5.2'` и запись об обновлении; `index.html` и `package.json` — версия 0.10.5.2.
+- Проверено: node --check, отрисовка всех десяти иконок в headless Chromium (без ошибок). Матч, онлайн и звук не запускались.
+
+## 0.10.5.3 (feature update)
+- Новый файл `public/update01053.js` (после `update01052.js`): замена `drawMinimap()` — аватарки героев (через `specPortrait`), рельеф/река/лес/лагеря/руны в кэш-слое, туман по `visGrid`/`explored`, значки башен/казарм/тронов (увиденные вражеские остаются), клик и перетаскивание по мини-карте двигают камеру (`cam`, `cameraManual`). Мини-карта собирается на отдельном canvas; при ошибке включается прежняя `drawMinimap`.
+- `js/data/changelog.js`: `GAME_VERSION = '0.10.5.3'` и запись; `index.html`, `package.json` — версия 0.10.5.3. `game.js` не менялся.
+- Проверено: node --check; матч в headless Chromium (скрипты без ошибок, мини-карта рисуется ~0,6 мс), клик/перетаскивание двигают камеру. Онлайн и звук не запускались.
+
