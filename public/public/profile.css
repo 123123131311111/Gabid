@@ -1,0 +1,69 @@
+/* DotaSense 0.10.3.9 — новый профиль: шапка, плитки статистики, вкладки, анимированные аватарки мастерства */
+#acc-user .acc-card.pf-hero { position: relative; gap: 18px; padding: 18px; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(226,184,88,.4); border-radius: 12px;
+  background: radial-gradient(120% 140% at 0% 0%, rgba(226,184,88,.20), transparent 55%), linear-gradient(135deg, rgba(40,22,26,.95), rgba(12,14,22,.95)); box-shadow: inset 0 0 30px rgba(0,0,0,.35); }
+#acc-user .acc-card.pf-hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,.05) 50%, transparent 60%); background-size: 250% 100%; animation: pf-sheen 6s linear infinite; }
+@keyframes pf-sheen { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+#acc-user .pf-hero .acc-avatar { position: relative; width: 104px; height: 104px; overflow: hidden; border-radius: 12px; border-width: 3px; font-size: 44px; }
+#acc-user .pf-hero .acc-avatar.pf-av-mastery { border-color: #ffd568; box-shadow: 0 0 0 2px rgba(255,213,104,.35), 0 0 22px rgba(255,213,104,.5); }
+.pf-anim { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#acc-user .pf-hero .acc-info { gap: 5px; }
+#acc-user .pf-hero .acc-info strong { font-size: 24px; letter-spacing: .02em; }
+#acc-user .pf-hero .acc-info span { font-size: 13px; }
+#acc-user .pf-hero #acc-stats { display: none; }
+#acc-user .pf-xp { display: block; margin-top: 6px; }
+#acc-user .pf-xp-bar { height: 8px; overflow: hidden; border-radius: 6px; background: rgba(255,255,255,.1); }
+#acc-user .pf-xp-bar i { display: block; height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #c58a2a, #ffe39a); box-shadow: 0 0 10px rgba(255,213,104,.5); transition: width .5s; }
+#acc-user .pf-xp span { display: block; margin-top: 4px; color: rgba(255,240,199,.6); font: 11px 'Segoe UI', sans-serif; }
+#acc-user .pf-hero .acc-level { position: relative; display: grid; width: 84px; height: 84px; flex: 0 0 auto; place-items: center; align-content: center; border-radius: 50%;
+  background: conic-gradient(#ffd568 calc(var(--xp, 0) * 1%), rgba(255,255,255,.12) 0); }
+#acc-user .pf-hero .acc-level::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, #2a1f22, #0d0b10); }
+#acc-user .pf-hero .acc-level small, #acc-user .pf-hero .acc-level b { position: relative; z-index: 1; }
+#acc-user .pf-hero .acc-level b { margin-top: -4px; font-size: 32px; line-height: 1; }
+
+.pf-tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
+.pf-tile { position: relative; padding: 10px 6px; text-align: center; border: 1px solid rgba(226,184,88,.22); border-radius: 9px; background: linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); }
+.pf-tile b { display: block; color: #fff3cf; font: 800 18px Georgia, serif; }
+.pf-tile span { display: block; margin-top: 3px; color: rgba(255,240,199,.5); font: 700 9px Consolas, monospace; letter-spacing: .14em; }
+.pf-tile.rate::after { content: ""; position: absolute; left: 8px; bottom: 5px; height: 3px; width: calc(100% - 16px); border-radius: 2px; background: linear-gradient(90deg, #6fd68a var(--r, 0%), rgba(255,255,255,.12) 0); }
+
+.pf-tabs { display: flex; gap: 6px; margin-bottom: 12px; padding: 4px; overflow-x: auto; border-radius: 10px; background: rgba(0,0,0,.35); scrollbar-width: none; }
+.pf-tab { flex: 1 0 auto; padding: 9px 14px; border: 0; border-radius: 8px; background: transparent; color: rgba(255,240,199,.6); font: 800 12px 'Trebuchet MS', sans-serif; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: background .15s, color .15s; }
+.pf-tab:hover { color: #fff3cf; background: rgba(255,255,255,.06); }
+.pf-tab.on { color: #2b1c05; background: linear-gradient(180deg, #ffe39a, #c58a2a); box-shadow: 0 2px 10px rgba(197,138,42,.4); }
+.pf-pane[hidden] { display: none; }
+#acc-user .pf-pane .career-panel { margin-top: 0; }
+#acc-user .pf-pane #career-summary { display: none; }       /* то же самое теперь в плитках шапки */
+#acc-user .pf-pane .acc-avatars { grid-template-columns: repeat(6, 1fr); }
+#acc-user .pf-pane .acc-avatars-title { margin-top: 4px; }
+
+.pf-mgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 8px; }
+.pf-mtile { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 8px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.03); color: #fff3cf; cursor: default; }
+.pf-mtile.open { cursor: pointer; border-color: rgba(255,213,104,.45); }
+.pf-mtile.open:hover { transform: translateY(-2px); border-color: #ffd568; }
+.pf-mtile.selected { border-color: #ffd568; box-shadow: 0 0 0 2px rgba(255,213,104,.35), 0 0 16px rgba(255,213,104,.4); }
+.pf-mtile strong { font: 700 12px 'Segoe UI', sans-serif; }
+.pf-mtile small { color: rgba(255,240,199,.55); font: 700 9px Consolas, monospace; letter-spacing: .1em; }
+.pf-mtile.open small { color: #6fd68a; } .pf-mtile.selected small { color: #ffd568; }
+.pf-mbox { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 6px; }
+
+.pf-msum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.pf-mlist { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
+.pf-mrow { position: relative; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(255,255,255,.03); }
+.pf-mrow.max { border-color: rgba(255,213,104,.5); background: linear-gradient(90deg, rgba(255,213,104,.12), rgba(255,255,255,.02)); }
+.pf-mpic { width: 44px; height: 44px; flex: 0 0 auto; border-radius: 8px; background: #14090c; }
+.pf-mmid { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.pf-mmid strong { color: #fff3cf; font: 700 14px 'Segoe UI', sans-serif; }
+.pf-mmid small { color: rgba(255,240,199,.55); font: 11px 'Segoe UI', sans-serif; }
+.pf-mbar { height: 5px; margin-top: 3px; overflow: hidden; border-radius: 3px; background: rgba(255,255,255,.1); }
+.pf-mbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #c58a2a, #ffe39a); }
+.pf-mlv { min-width: 46px; text-align: center; } .pf-mlv b { display: block; color: #ffd568; font: 900 22px Georgia, serif; line-height: 1; } .pf-mlv span { color: rgba(255,240,199,.45); font: 700 9px Consolas, monospace; }
+.pf-mdot { position: absolute; top: -5px; right: -4px; display: grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; background: #ff4d5e; border: 1.5px solid #fff; color: #fff; font: 800 11px sans-serif; font-style: normal; }
+.pf-empty { padding: 18px; text-align: center; color: rgba(255,240,199,.5); }
+
+@media (max-width: 640px) {
+  #acc-user .acc-card.pf-hero { flex-wrap: wrap; justify-content: center; text-align: center; }
+  #acc-user .pf-hero .acc-info { flex-basis: 100%; align-items: center; order: 3; }
+  .pf-tiles { grid-template-columns: repeat(3, 1fr); }
+  .pf-mgrid { grid-template-columns: repeat(3, 1fr); }
+  #acc-user .pf-pane .acc-avatars { grid-template-columns: repeat(4, 1fr); }
+}
