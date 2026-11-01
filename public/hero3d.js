@@ -56,6 +56,10 @@ function hsl2rgb(h,s,l){
   return [Math.round(f(h+1/3)*255),Math.round(f(h)*255),Math.round(f(h-1/3)*255)];
 }
 const SKIN_TINTS={
+  /* 0.10.6.2 АРКАНА Васпассира: «Чёрно-белый гамбит» — монохром. Герой и «белые» копии: слоновая кость + чёрная одежда; «чёрные» копии: чернильная кожа, белые кристаллы и глаза */
+  vaspassirArcana:c=>{ const [h,s,l]=rgb2hsl(c); const v=l>.62?.97:(l>.45?.72+(l-.45)*1.4:(l>.3?.3+(l-.3)*2.8:l*.32)); return hsl2rgb(0,0,Math.min(.98,v)); },
+  vaspassirArcanaIvory:c=>{ const [h,s,l]=rgb2hsl(c); const v=l>.62?.97:(l>.45?.72+(l-.45)*1.4:(l>.3?.3+(l-.3)*2.8:l*.32)); return hsl2rgb(0,0,Math.min(.98,v)); },
+  vaspassirArcanaInk:c=>{ const [h,s,l]=rgb2hsl(c); const v=l>.62?.95:(l>.5?.34+(l-.5)*2:l*.2); return hsl2rgb(0,0,Math.min(.98,v)); },
   /* 0.10.0.7: три новых скина-перекраски */
   /* Джаггернаут: «Нефритовый самурай» — нефритово-зелёная броня, светлые детали остаются жемчужными */
   juggernautJade:c=>{ const [h,s,l]=rgb2hsl(c); if(l>.88) return c; return hsl2rgb(150+(h%30)*.3, Math.min(.72,Math.max(.32,s*.6+.2)), l>.7?Math.min(.9,l):Math.max(.1,l*.92)); },
@@ -3883,6 +3887,21 @@ function vaspModel(P){
     for(let i=0;i<4;i++) S.box([-.1+i*.07,1.18,.2],[.025,.12,.02],P.dark);
     /* зелёные гранаты на поясе */
     for(const s of [-1,1]) S.ell([s*.3,.98,.22],[.07,.09,.07],'#58b83a',{rings:5,seg:8,shine:.6});
+    /* 0.10.6.2: аркана «Чёрно-белый гамбит» — шахматная корона, нимб и крылья из чёрных и белых перьев */
+    if(d && d.skinId && String(d.skinId).split('+')[0].indexOf('vaspassirArcana')===0){
+      const CW='#ffffff', CB='#0a0a0a';
+      for(let i=0;i<6;i++){
+        const a=i/6*Math.PI*2, x=Math.cos(a)*.2, z=Math.sin(a)*.2;
+        S.cone([x,2.22,z],[x*1.25,2.58+(i%2)*.12,z*1.25],.065,i%2?CW:CB,{seg:5,shine:.8});
+      }
+      S.ring([0,2.86,0],.42,.03,CW,{glow:1,n:20,axis:'y'});
+      S.ring([0,2.86,0],.5,.014,CB,{n:20,axis:'y'});
+      for(const s of [-1,1]) for(let k=0;k<4;k++){
+        S.tube([s*.12,1.7-k*.1,-.2],[s*(.55+k*.2),2.15+k*.12-k*.22,-.5-k*.06],.07-k*.012,.012,k%2?CW:CB,{seg:6,shine:.6});
+      }
+      S.ring([0,1.0,.02],.26,.04,CB,{n:12,axis:'y'});
+      for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; S.box([Math.cos(a)*.27,1.0,.02+Math.sin(a)*.27],[.07,.07,.07],i%2?CW:CB); }
+    }
     const _h=hmark(S);
     /* посох с кристаллом в правой руке */
     S.tube([.5,.1,.62],[.5,2.55,.62],.045,.04,P.dark,{seg:8,shine:.4});
