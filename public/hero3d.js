@@ -56,6 +56,18 @@ function hsl2rgb(h,s,l){
   return [Math.round(f(h+1/3)*255),Math.round(f(h)*255),Math.round(f(h-1/3)*255)];
 }
 const SKIN_TINTS={
+  /* 0.10.6.3: четыре обычных скина за 500 — Мэрин «Белый крёстный», Пиромант «Фиолетовый жар», Трибупейнер «Ледяной дробовик», Чип «Неоновый король» */
+  marinWhite:c=>{ const [h,s,l]=rgb2hsl(c); if(l<.07||l>.8) return c;
+    if(s>.45&&l>.3&&l<.75&&((h>=34&&h<=54)||h<14||h>340)) return c;
+    if(h>=10&&h<=40&&s>.3&&l>.42&&l<.78) return c;
+    if(l<.42) return hsl2rgb(44,.2,Math.min(.9,.68+l*.45));
+    return c; },
+  pyroViolet:c=>{ const [h,s,l]=rgb2hsl(c); if(s<.12) return c;
+    if(h>=10&&h<=42&&s<.7&&l>.45&&l<.8) return c;
+    if(h<80||h>335) return hsl2rgb(278+((h<80?h:h-360))*.18,Math.min(.95,s+.05),l);
+    return c; },
+  tribuFrost:c=>{ const [h,s,l]=rgb2hsl(c); return hsl2rgb(198+(h%30)*.25, Math.min(.6,Math.max(.2,s*.5+.12)), Math.min(.95,l*.78+.2)); },
+  chipNeon:c=>{ const [h,s,l]=rgb2hsl(c); const hot=l>.6||s>.55; return hsl2rgb(hot?186:300+(h%30)*.2, Math.min(.95,Math.max(.6,s*.7+.3)), hot?Math.min(.8,l+.04):Math.max(.16,l*.95)); },
   /* 0.10.6.2 АРКАНА Васпассира: «Чёрно-белый гамбит» — монохром. Герой и «белые» копии: слоновая кость + чёрная одежда; «чёрные» копии: чернильная кожа, белые кристаллы и глаза */
   vaspassirArcana:c=>{ const [h,s,l]=rgb2hsl(c); const v=l>.62?.97:(l>.45?.72+(l-.45)*1.4:(l>.3?.3+(l-.3)*2.8:l*.32)); return hsl2rgb(0,0,Math.min(.98,v)); },
   vaspassirArcanaIvory:c=>{ const [h,s,l]=rgb2hsl(c); const v=l>.62?.97:(l>.45?.72+(l-.45)*1.4:(l>.3?.3+(l-.3)*2.8:l*.32)); return hsl2rgb(0,0,Math.min(.98,v)); },
@@ -4678,6 +4690,57 @@ if(typeof document==='undefined'&&typeof self!=='undefined'&&typeof importScript
       }
     }catch(err){ self.postMessage({t:'err',key:d.key,message:String(err&&err.message||err)}); }
   };
+}
+/* ---------- 0.10.6.3: доп. детали моделей для четырёх обычных скинов ---------- */
+{
+  const TAUX=Math.PI*2;
+  const SKX={
+    marinWhite:(S,t)=>{
+      const G='#f0c94f',G2='#b8860b';
+      for(const s of [-1,1]){
+        S.ell([s*.5,1.76,0],[.2,.06,.15],G,{rings:4,seg:8,shine:.9});
+        for(let k=0;k<3;k++) S.tube([s*(.4+k*.1),1.72,0],[s*(.4+k*.1),1.52,0],.016,.012,G,{seg:5,shine:.8});
+      }
+      S.ell([-.24,1.52,.4],[.055,.055,.03],'#e02a40',{rings:4,seg:8,shine:.7});
+      for(let i=0;i<4;i++){
+        const a=t*1.4+i*Math.PI/2, x=Math.cos(a)*.95, z=Math.sin(a)*.95, y=1.1+Math.sin(t*2+i*1.7)*.2;
+        S.tube([x,y,z],[x,y+.035,z],.11,.11,G,{seg:12,shine:.9,glow:1});
+        S.tube([x,y+.035,z],[x,y+.04,z],.07,.07,G2,{seg:10});
+      }
+    },
+    pyroViolet:(S,t)=>{
+      for(let i=0;i<5;i++){
+        const a=t*1.1+i*TAUX/5, x=Math.cos(a)*.9, z=Math.sin(a)*.9, y=.5+Math.sin(t*3+i)*.15, hh=.55+Math.sin(t*5+i)*.1;
+        S.cone([x,y,z],[x,y+hh,z],.13,'#b05cff',{seg:6,glow:1});
+        S.cone([x,y,z],[x,y+hh*.55,z],.07,'#f0d0ff',{seg:5,glow:1});
+      }
+      for(const s of [-1,1]) S.cone([s*.5,1.75,0],[s*.64,2.3,-.05],.1,'#8a3cff',{seg:5,glow:1});
+    },
+    tribuFrost:(S,t)=>{
+      for(let i=0;i<6;i++){
+        const a=t*.8+i*TAUX/6, x=Math.cos(a)*.95, z=Math.sin(a)*.95, y=1.0+Math.sin(t*2+i)*.12;
+        S.cone([x,y,z],[x*1.2,y+.4,z*1.2],.09,'#bfeaff',{seg:5,shine:.9,glow:1});
+      }
+      for(const s of [-1,1]) S.cone([s*.5,1.8,0],[s*.75,2.5,0],.12,'#d8f4ff',{seg:5,shine:.9});
+      S.ring([0,.06,0],.75,.03,'#9fdcff',{glow:1,n:18,axis:'y'});
+    },
+    chipNeon:(S,t)=>{
+      S.ring([0,1.05+Math.sin(t*2)*.1,0],.85,.025,'#00f5ff',{glow:1,n:20,axis:'y'});
+      S.ring([0,1.6-Math.sin(t*2)*.1,0],.7,.02,'#ff2bd6',{glow:1,n:20,axis:'y'});
+      for(let i=0;i<4;i++){
+        const a=-t*1.3+i*Math.PI/2, x=Math.cos(a)*.9, z=Math.sin(a)*.9, y=1.3+Math.sin(t*3+i)*.2;
+        S.box([x,y,z],[.08,.08,.08],i%2?'#00f5ff':'#ff2bd6',{glow:1,rot:[a,a,0]});
+      }
+    }
+  };
+  for(const id of ['marin','pyro','tribupainer','chip']){
+    const m=MODELS[id]; if(!m) continue;
+    MODELS[id]=function(S,d,t,pose){
+      const r=m.apply(this,arguments);
+      try{ const sk=d&&d.skinId?String(d.skinId).split('+')[0]:''; const f=SKX[sk]; if(f) f(S,t||0); }catch(e){}
+      return r;
+    };
+  }
 }
 const API={ver:'0.9.5 Slark',draw,models:MODELS,monsterIds:MON_IDS,render,battleSprite,stand,resetBudget,prewarm,has,hasAnim:id=>!!ANIM[id],_meta:meta,_pitch:BATTLE_PITCH,_fdt:FR_DT};
 (typeof window!=='undefined'?window:globalThis).Hero3D=API;

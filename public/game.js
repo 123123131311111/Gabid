@@ -11529,6 +11529,7 @@ function update(dt){
       if(attackOwner && attackOwner.def && attackOwner.def.id==='grisha') grishaHitSparkle(p.target.x,p.target.y);
       if(p.vaspCopy && !p.target.dead) vaspCopyHit(p.vaspCopy,p.target);
       if(p.vaspArc && !p.target.dead && window.vaspArcHit){ try{ window.vaspArcHit(p); }catch(e){} } /* 0.10.6.2: аркана Васпассира */
+      if(p.skFx && !p.target.dead && window.skinFxHit){ try{ window.skinFxHit(p); }catch(e){} } /* 0.10.6.3: эффект попадания обычных скинов */
       if(p.headshot && !p.target.dead){
         const slowDuration=p.headshotSlowDuration || 0.85;
         p.target.slow=Math.max(p.target.slow||0,p.headshotSlow||0.25);
@@ -14375,6 +14376,8 @@ function drawUnit(u){
   /* 0.10.3: аркана Иллюзиониста «Аметистовый Мираж» — гексаграмма и кристаллы у ног героя и его иллюзий (update0103.js) */
   if((u.type === 'hero' || (u.copyDef && u.skinId)) && window.drawIllusionistArcanaAura && !u.dead && !perfLite()) window.drawIllusionistArcanaAura(u);
   /* 0.10.6.2: аркана Васпассира «Чёрно-белый гамбит» — шахматное кольцо у ног героя и его копий (update01062.js) */
+  /* 0.10.6.3: аура обычных скинов Мэрина, Пироманта, Трибупейнера и Чипа (update01063.js) */
+  if(u.type === 'hero' && window.drawSkinAura0663 && !u.dead && !perfLite()) window.drawSkinAura0663(u);
   if((u.type === 'hero' || u.summonKind === 'vaspCopy') && window.drawVaspArcanaAura && !u.dead && !perfLite()) window.drawVaspArcanaAura(u);
   /* 0.10.4: аркана Мо3ги «Демон разума» — пентаграмма и адское пламя у ног (update0104.js) */
   if(u.type === 'hero' && window.drawMo3giArcanaAura && !u.dead && !perfLite()) window.drawMo3giArcanaAura(u);
@@ -18360,6 +18363,10 @@ function drawShop(){
   if(!h) return;
   const button = shopButtonRect();
   ctx.save();
+  /* 0.10.6.4: красивая кнопка магазина и панель быстрой покупки рисуются в update01064.js; старая отрисовка — запасной вариант */
+  let btnDone0664=false;
+  if(typeof window.drawShopButton0664==='function'){ try{ btnDone0664=window.drawShopButton0664(button,h,shopOpen)===true; }catch(e){ btnDone0664=false; } }
+  if(!btnDone0664){
   const buttonGradient=ctx.createLinearGradient(button.x,button.y,button.x,button.y+button.h);
   buttonGradient.addColorStop(0,shopOpen?'rgba(70,56,32,0.96)':'rgba(24,28,34,0.96)'); buttonGradient.addColorStop(1,'rgba(8,10,14,0.98)');
   ctx.fillStyle=buttonGradient; ctx.fillRect(button.x,button.y,button.w,button.h);
@@ -18374,6 +18381,7 @@ function drawShop(){
   ctx.fillText(String(shownGold(h)),button.x+36,button.y+button.h/2+7);
   ctx.fillStyle='rgba(255,255,255,0.78)'; ctx.font='bold 11px Segoe UI, Arial'; ctx.textAlign='right';
   ctx.fillText(shopOpen?'ЗАКРЫТЬ':'МАГАЗИН',button.x+button.w-10,button.y+button.h/2+4);
+  }
   if(!shopOpen){ ctx.restore(); return; }
 
   const L = shopLayout();
