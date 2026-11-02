@@ -2727,7 +2727,7 @@ const SCEPTER_UPGRADES = {
   vaspassir:'Гранаты летят дальше и оглушают на 2.8 с, копии живут дольше, ульта призывает +2 молниеносные копии',
   earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области',
   olex:'Турель живёт 18 секунд, Синий экран смерти длится 6,5 секунды',
-  sensed:'Огненный шквал длится 30 секунд вместо 20',
+  sensed:'Огненный шквал длится 30 секунд вместо 20, робот живёт на 4 секунды дольше',
   savely:'Форма Трансформера длится дольше, уворот срабатывает на каждом третьем ударе и Савелий получает +30% сопротивления магии'
 };
 
@@ -4813,7 +4813,7 @@ class Unit {
     return range;
   }
   getDamage(){ let d=this.dmg+newItemStat(this,'damage'); if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=SHOP_ITEMS.pt.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
-  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20*VASP_BOOST*VASP_FEVER_BOOST; if(this.def && this.def.id === 'sensed' && this.skills && this.skills[0] && this.skills[0].level>0) m+=0.85; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; if(this.buffs.some(b=>b.id==='senseUlt')) m*=2; return this.atkTime/Math.max(0.2,m); }
+  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20*VASP_BOOST*VASP_FEVER_BOOST; if(this.def && this.def.id === 'sensed' && this.skills && this.skills[0] && this.skills[0].level>0) m+=1.55; /* 0.10.6.6: +85 -> +155 */ const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; if(this.buffs.some(b=>b.id==='senseUlt')) m*=4; /* 0.10.6.6: x2 -> x4 */ return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed+newItemStat(this,'speed');
     const galeB=this.inventory&&this.inventory.find(item=>item&&item.id==='galeBoots');
@@ -5814,6 +5814,60 @@ function vaspSpawnCopy(hero, variantId, o){
   units.push(c);
   fxRing(c.x,c.y,50,'#d8ffb0',0.4);
   return c;
+}
+
+/* === 0.10.6.6: Робот-преследователь Сенсированной === */
+function senseRobotOf(hero){
+  return units.find(u => u.summonKind==='senseRobot' && u.owner===hero && !u.dead) || null;
+}
+function spawnSenseRobot(hero, lvl){
+  /* один робот за раз: новый вызов заменяет старого */
+  const old=senseRobotOf(hero); if(old) old.dead=true;
+  const angle=Number.isFinite(hero.facing)?hero.facing:0;
+  const life=10+lvl*2+(hasScepter(hero)?4:0);
+  const hp=420+lvl*230;
+  const dmg=40+lvl*38+hero.getDamage()*0.45;
+  const r=Math.max(20,hero.radius*1.05);
+  const robot=new TimedSummon(hero, clamp(hero.x+Math.cos(angle)*90,60,WORLD-60), clamp(hero.y+Math.sin(angle)*90,60,WORLD-60), {
+    kind:'senseRobot', life, hp, dmg, radius:r, speed:Math.max(200,hero.getSpeed()*1.5),
+    atkRange:105, atkTime:0.62, armor:6+lvl*2, copyColor:'#ffb347'
+  });
+  robot.senseRobot=true; robot.vision=1300; robot.senseLvl=lvl; robot.chaseTarget=null; robot.robotPulse=0;
+  robot.updateAI=function(dt){
+    this.life-=dt; this.robotPulse+=dt;
+    if(this.life<=0){ this.dead=true; fxRing(this.x,this.y,90,'#ffb347',0.5); spawnParticles(this.x,this.y,'#ffd27a',22,0.9); addText(this.x,this.y-70,'РОБОТ СЛОМАЛСЯ','#ffb347',0.9,14); return; }
+    /* цель: ближайший живой вражеский герой на всей карте; пока он жив и виден — преследуем его */
+    let t=this.chaseTarget;
+    if(!t || t.dead || t.team===this.team || isHiddenFrom(t,this.team)){
+      t=null; let best=Infinity;
+      for(const e of heroes){
+        if(e.dead || e.team===this.team || e.team===2 || isHiddenFrom(e,this.team)) continue;
+        const d=Math.hypot(e.x-this.x,e.y-this.y); if(d<best){ best=d; t=e; }
+      }
+      this.chaseTarget=t;
+    }
+    if(t){
+      this.attackTarget=t; this.moveTarget=null;
+      if(this.distTo(t)>this.atkRange+t.radius+10) this.moveTarget={x:t.x,y:t.y};
+    } else {
+      /* героев нет: бьём ближайшего врага рядом, иначе держимся у хозяйки */
+      let near=null,bd=650;
+      for(const u of units){
+        if(u.dead||u.team===this.team||u.team===2||isHiddenFrom(u,this.team)) continue;
+        const d=this.distTo(u); if(d<bd){ bd=d; near=u; }
+      }
+      if(near){ this.attackTarget=near; this.moveTarget=null; }
+      else {
+        this.attackTarget=null;
+        this.moveTarget=(Math.hypot(this.owner.x-this.x,this.owner.y-this.y)>170)?{x:this.owner.x,y:this.owner.y}:null;
+      }
+    }
+  };
+  units.push(robot);
+  fxRing(robot.x,robot.y,80,'#ffb347',0.6); fxRing(robot.x,robot.y,130,'#ff7a2a',0.45);
+  spawnParticles(robot.x,robot.y,'#ffd27a',26,1.0);
+  addText(hero.x,hero.y-80,'РОБОТ!','#ffb347',1.2,18);
+  return robot;
 }
 
 function spawnSteelCopies(hero){
@@ -7139,7 +7193,7 @@ const SKILLS = {
   sensePassive: {
     name:'Сенсированный прицел', short:'Q', type:'self', passive:true, maxLevel:1,
     cd:[0,0], mana:[0,0],
-    desc:'Пассивно: +85 к дальности атаки и +85 к скорости атаки.',
+    desc:'Пассивно: +85 к дальности атаки и +155 к скорости атаки (усилено на +70).',
     cast(){}
   },
   senseGrenade: {
@@ -7159,16 +7213,26 @@ const SKILLS = {
       return true;
     }
   },
+  senseRobot: {
+    name:'Робот-преследователь', short:'E', type:'self', maxLevel:4,
+    cd:[0,26,24,22,20], mana:[0,110,120,130,140],
+    desc:'Призывает боевого робота. Он выбирает ближайшего вражеского героя, неотступно преследует его по карте и бьёт, нанося урон. Живёт 12/14/16/18 секунд (с Аганимом +4).',
+    cast(h,x,y,lvl){
+      spawnSenseRobot(h,lvl);
+      return true;
+    }
+  },
   senseUlt: {
     name:'Огненный шквал', short:'R', type:'self', maxLevel:3,
-    cd:[0,75,62,50], mana:[0,150,190,230], ult:true,
-    desc:'На 20 секунд скорость атаки увеличивается в 2 раза.',
+    cd:[0,37.5,31,25], mana:[0,150,190,230], ult:true,
+    desc:'На 20 секунд скорость атаки увеличивается в 4 раза (было в 2). Перезарядка уменьшена вдвое.',
     cast(h,x,y,lvl){
       h.buffs=h.buffs.filter(b=>b.id!=='senseUlt');
       h.addBuff({type:'as',id:'senseUlt',t:(hasScepter(h)?30:20),val:0});
       addText(h.x,h.y-82,'ОГНЕННЫЙ ШКВАЛ','#ffb347',1.3,19);
       fxRing(h.x,h.y,130,'#ffb347',0.6);
-      spawnParticles(h.x,h.y,'#ffd27a',22,0.8);
+      fxRing(h.x,h.y,200,'#ff7a2a',0.8);
+      spawnParticles(h.x,h.y,'#ffd27a',34,1.0);
     }
   },
 
@@ -9036,7 +9100,7 @@ const HERO_DEFS = [
     baseDmg:60, dmgPerLvl:6, speed:165,
     atkRange:420, atkTime:1.0, baseArmor:3, armorPerLvl:0.5,
     vision:1150, hpRegen:1.8, mpRegen:2.3,
-    skills:['sensePassive','senseGrenade','senseUlt']
+    skills:['sensePassive','senseGrenade','senseRobot','senseUlt']
   }
 ];
 
@@ -11338,7 +11402,8 @@ function updateEnemyAI(h, dt){
     if(target){
       const d=Math.hypot(target.x-h.x,target.y-h.y);
       h.attackTarget=target; h.moveTarget=null;
-      if(h.skills[2] && h.skills[2].level>0 && h.skills[2].cd<=0 && target.type==='hero' && d<560) castSkill(h,2,h.x,h.y);
+      if(h.skills[3] && h.skills[3].level>0 && h.skills[3].cd<=0 && target.type==='hero' && d<560) castSkill(h,3,h.x,h.y);
+      else if(h.skills[2] && h.skills[2].level>0 && h.skills[2].cd<=0 && target.type==='hero' && d<1100 && !senseRobotOf(h)) castSkill(h,2,h.x,h.y);
       else if(h.skills[1] && h.skills[1].level>0 && h.skills[1].cd<=0 && target.type==='hero' && d<700) castSkill(h,1,target.x,target.y);
     } else {
       h.attackTarget=null;
@@ -14649,6 +14714,25 @@ function drawUnit(u){
       const footY = u.radius*0.7;
       ctx.save(); ctx.globalAlpha=0.45; ctx.strokeStyle='#ff5a3a'; ctx.lineWidth=2;
       ctx.beginPath(); ctx.ellipse(0,footY,u.radius*1.0,u.radius*0.5,0,0,Math.PI*2); ctx.stroke(); ctx.restore();
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+    }
+  }
+  /* 0.10.6.6: робот-преследователь Сенсированной — 3D-модель sense_robot с оранжевым свечением */
+  if(!hero3dSpr && u.type === 'summon' && u.summonKind === 'senseRobot' && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
+    const dd = {id:'sense_robot', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#ffb347'};
+    let fa = u.facing || 0;
+    if(u.isAttacking && u.attackTarget && u.attackTarget.alive) fa = Math.atan2(u.attackTarget.y-u.y, u.attackTarget.x-u.x);
+    let anim3d = null;
+    if(!perfLite() && Hero3D.hasAnim && Hero3D.hasAnim('sense_robot')){
+      if(u.isAttacking) anim3d = {kind:'attack', p:Math.min(1,u.attackAnimProgress)};
+      else if(u.moving) anim3d = {kind:'walk', p:(u.walkPhase||0)%1};
+    }
+    hero3dSpr = Hero3D.battleSprite(dd, u.radius*1.2, fa, gameTime, anim3d);
+    if(hero3dSpr){
+      const footY = u.radius*0.7;
+      ctx.save(); ctx.globalAlpha=0.55+Math.sin((u.robotPulse||0)*8)*0.12; ctx.strokeStyle='#ffb347'; ctx.lineWidth=2.2;
+      ctx.shadowColor='#ff8a2a'; ctx.shadowBlur=12;
+      ctx.beginPath(); ctx.ellipse(0,footY,u.radius*1.1,u.radius*0.55,0,0,Math.PI*2); ctx.stroke(); ctx.restore();
       ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
     }
   }
@@ -23804,6 +23888,7 @@ function loop(now){
                         [{id:'mon_golem', skinId:'t2', color:'#ffffff'}, 24], [{id:'mon_imp', skinId:'t2r', color:'#ffffff'}, 21]);
           if(heroes.some(h => h.def && h.def.id === 'mo3gi')) for(const sk of ['t0','t1']) warmList.push([{id:'mon_drone', skinId:sk, color:'#ffffff'}, 22]);
           if(heroes.some(h => h.def && h.def.id === 'mo3gi' && baseSkin(h.skinId) === 'mo3giArcana')) for(const sk of ['t0','t1']) warmList.push([{id:'mon_drone_brain', skinId:sk, color:'#ffffff'}, 22]);
+          if(heroes.some(h => h.def && h.def.id === 'sensed')) for(const sk of ['t0','t1']) warmList.push([{id:'sense_robot', skinId:sk, color:'#ffb347'}, 26]);
           Hero3D.prewarm(warmList);
         } catch(err) {}
       }
