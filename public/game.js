@@ -1249,6 +1249,15 @@ const CREATOR_BUILDS = {
       {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['sorcererCrown','-40% КД и +40% урона способностей: Синий экран смерти почти всегда готов.'],['aghanimScepter','Турель живёт 18 секунд, ульта дольше.'],['bkb','Защита, пока арена ульты работает.']]}
     ]
   },
+  sensed: {
+    title:'Сенсированная  /  Пулемётчица',
+    categories:[
+      {name:'СТАРТОВЫЙ ЗАКУП',items:[['tango','Лечение на линии.'],['mango','Мана на гранаты.']]},
+      {name:'РАННЯЯ ИГРА',items:[['joelBoots','Скорость и отход.'],['fangs','Урон в каждой пуле.']]},
+      {name:'CORE',items:[['pt','ПТ: урон и скорость атаки для пулемёта.'],['brainEye','+100 дальности атаки.'],['semenHead','+100 урона.']]},
+      {name:'ПО СИТУАЦИИ / ЛЕЙТ',items:[['kingSlayer','Урон, скорость атаки и вампиризм.'],['satanic','Здоровье и вампиризм.'],['bkb','Не даёт убить с контроля.']]}
+    ]
+  },
   malit: {
     title:'Малит  /  Тяжёлый ближний боец',
     categories:[
@@ -2718,6 +2727,7 @@ const SCEPTER_UPGRADES = {
   vaspassir:'Гранаты летят дальше и оглушают на 2.8 с, копии живут дольше, ульта призывает +2 молниеносные копии',
   earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области',
   olex:'Турель живёт 18 секунд, Синий экран смерти длится 6,5 секунды',
+  sensed:'Огненный шквал длится 30 секунд вместо 20',
   savely:'Форма Трансформера длится дольше, уворот срабатывает на каждом третьем ударе и Савелий получает +30% сопротивления магии'
 };
 
@@ -3415,7 +3425,7 @@ const ATK_STYLE = {
   /* ranged: magic — световые снаряды, bullet — трассеры */
   pyro:{r:'magic',kind:'fire'}, arcady:{r:'bullet'}, grisha:{r:'magic',kind:'rainbow'}, golly:{r:'magic',kind:'water'},
   illusionist:{r:'magic',kind:'phantom'}, shadow:{r:'magic',kind:'fire'}, mo3gi:{r:'magic',kind:'poison'},
-  tribupainer:{r:'bullet'}, chip:{r:'magic',kind:'spark'}, sniper:{r:'bullet',long:true}, vaspassir:{r:'magic',kind:'poison'}, olex:{r:'magic',kind:'spark'},
+  tribupainer:{r:'bullet'}, chip:{r:'magic',kind:'spark'}, sniper:{r:'bullet',long:true}, vaspassir:{r:'magic',kind:'poison'}, olex:{r:'magic',kind:'spark'}, sensed:{r:'bullet'},
   /* melee */
   warlord:{m:'slash',w:1.0}, juggernaut:{m:'slash',w:1.15}, savely:{m:'slash',w:0.95}, exileKnight:{m:'slash',w:0.9},
   dawnMaiden:{m:'slash',w:1.0}, sasych:{m:'claw'}, juvsyut:{m:'claw'}, malit:{m:'claw'}, regina:{m:'claw'},
@@ -4793,6 +4803,7 @@ class Unit {
   getAttackRange(){
     let range=this.atkRange;
     if(this.inventory && this.inventory.some(i => i && i.id === 'brainEye')) range+=SHOP_ITEMS.brainEye.attackRange;
+    if(this.def && this.def.id === 'sensed' && this.skills && this.skills[0] && this.skills[0].level > 0) range += 85;
     if(this.def && this.def.id === 'sniper' && this.skills && this.skills[2] && this.skills[2].level > 0){
       const takeAimLevel=this.skills[2].level;
       range += 40 + takeAimLevel * 14;
@@ -4802,7 +4813,7 @@ class Unit {
     return range;
   }
   getDamage(){ let d=this.dmg+newItemStat(this,'damage'); if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=SHOP_ITEMS.pt.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
-  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20*VASP_BOOST*VASP_FEVER_BOOST; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; return this.atkTime/Math.max(0.2,m); }
+  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20*VASP_BOOST*VASP_FEVER_BOOST; if(this.def && this.def.id === 'sensed' && this.skills && this.skills[0] && this.skills[0].level>0) m+=0.85; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; if(this.buffs.some(b=>b.id==='senseUlt')) m*=2; return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed+newItemStat(this,'speed');
     const galeB=this.inventory&&this.inventory.find(item=>item&&item.id==='galeBoots');
@@ -7124,6 +7135,43 @@ const SKILLS = {
     }
   },
 
+  /* === СЕНСИРОВАННАЯ (0.10.6.5) === */
+  sensePassive: {
+    name:'Сенсированный прицел', short:'Q', type:'self', passive:true, maxLevel:1,
+    cd:[0,0], mana:[0,0],
+    desc:'Пассивно: +85 к дальности атаки и +85 к скорости атаки.',
+    cast(){}
+  },
+  senseGrenade: {
+    name:'Граната', short:'W', type:'point', maxLevel:4,
+    cd:[0,12,11,10,9], mana:[0,60,70,80,90], range:750,
+    desc:'Бросает во врага гранату: цель получает 600 урона.',
+    cast(h,x,y,lvl){
+      const target=pickUnitAt(x,y);
+      if(!target || target.team===h.team || target.dead || isBuilding(target)){
+        flashMsg(h,'Наведите гранату на врага'); return false;
+      }
+      const pr=spawnProjectile(h.x,h.y,target,600,{team:h.team,source:h,trueDamage:true},820,'#9dff6a',13);
+      pr.senseGrenade=true; pr.life=2.5;
+      addText(h.x,h.y-80,'ГРАНАТА!','#9dff6a',1.1,17);
+      fxBeam(h.x,h.y,target.x,target.y,'#c8ff9a',0.2);
+      fxRing(h.x,h.y,60,'#9dff6a',0.35);
+      return true;
+    }
+  },
+  senseUlt: {
+    name:'Огненный шквал', short:'R', type:'self', maxLevel:3,
+    cd:[0,75,62,50], mana:[0,150,190,230], ult:true,
+    desc:'На 20 секунд скорость атаки увеличивается в 2 раза.',
+    cast(h,x,y,lvl){
+      h.buffs=h.buffs.filter(b=>b.id!=='senseUlt');
+      h.addBuff({type:'as',id:'senseUlt',t:(hasScepter(h)?30:20),val:0});
+      addText(h.x,h.y-82,'ОГНЕННЫЙ ШКВАЛ','#ffb347',1.3,19);
+      fxRing(h.x,h.y,130,'#ffb347',0.6);
+      spawnParticles(h.x,h.y,'#ffd27a',22,0.8);
+    }
+  },
+
   /* === ВАСПАССИР (0.8.8) === */
   vaspPassive: {
     name:'Лихорадка', short:'Q', type:'self', passive:true, maxLevel:3,
@@ -8980,6 +9028,15 @@ const HERO_DEFS = [
     atkRange:520, atkTime:1.05, baseArmor:2, armorPerLvl:0.45,
     vision:1100, hpRegen:1.7, mpRegen:2.2,
     skills:['olexQ','olexW','olexE','olexR','olexT']
+  },
+  {
+    id:'sensed', name:'Сенсированная', title:'Девушка с пулемётом',
+    color:'#2f3a2c', color2:'#ffb347',
+    baseHp:600, hpPerLvl:70, baseMp:310, mpPerLvl:40,
+    baseDmg:60, dmgPerLvl:6, speed:165,
+    atkRange:420, atkTime:1.0, baseArmor:3, armorPerLvl:0.5,
+    vision:1150, hpRegen:1.8, mpRegen:2.3,
+    skills:['sensePassive','senseGrenade','senseUlt']
   }
 ];
 
@@ -8994,7 +9051,8 @@ const HERO_STAT_BALANCE = {
   chip:[760,90,58,3.3,1.03], savely:[970,116,80,3.4,0.94], juggernaut:[930,110,78,3,0.94],
   earthshaker:[880,116,78,4.2,0.98], sniper:[540,58,68,3.8,1.04], vaspassir:[560,64,62,3.4,1.04],
   virsudi:[690,84,66,6.5,1],
-  olex:[752,93,71,6.3,1]
+  olex:[752,93,71,6.3,1],
+  sensed:[600,72,60,6,1]
 };
 
 for(const def of HERO_DEFS){
@@ -11275,6 +11333,21 @@ function updateEnemyAI(h, dt){
     return;
   }
 
+  /* === СЕНСИРОВАННАЯ === */
+  if(h.def.id === 'sensed'){
+    if(target){
+      const d=Math.hypot(target.x-h.x,target.y-h.y);
+      h.attackTarget=target; h.moveTarget=null;
+      if(h.skills[2] && h.skills[2].level>0 && h.skills[2].cd<=0 && target.type==='hero' && d<560) castSkill(h,2,h.x,h.y);
+      else if(h.skills[1] && h.skills[1].level>0 && h.skills[1].cd<=0 && target.type==='hero' && d<700) castSkill(h,1,target.x,target.y);
+    } else {
+      h.attackTarget=null;
+      const goal=botLaneObjective(h);
+      h.moveTarget={x:goal.x+rnd(-100,100),y:goal.y+rnd(-100,100)};
+    }
+    return;
+  }
+
   /* === ВАСПАССИР === */
   if(h.def.id === 'vaspassir'){
     if(target){
@@ -11555,6 +11628,7 @@ function update(dt){
           }
         }
       }
+      if(p.senseGrenade){ fxRing(p.target.x,p.target.y,130,'#9dff6a',0.5); spawnParticles(p.target.x,p.target.y,'#ffe08a',20,0.9); addText(p.target.x,p.target.y-70,'600','#9dff6a',1.0,20); }
       if(p.inferno){
         if(p.assassinate){ infernoBurst(p.target.x,p.target.y,190,46,0.8); fxRing(p.target.x,p.target.y,110,'#fff1b0',0.5); }
         else if(p.headshot){ infernoBurst(p.target.x,p.target.y,70,18,0.4); }

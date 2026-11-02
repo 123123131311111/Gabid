@@ -688,6 +688,12 @@ ICONS.vaspUltimate = {...VP, ult:true, draw(g){ g.glow(50, 50, 42, 'rgba(255,200
 
 ICONS.vaspDash = {...VP, draw(g){ g.line('M10 70 H58', 'rgba(150,255,100,.35)', 9); g.line('M10 70 H58', 'rgba(220,255,200,.7)', 2.4); [[18, 78], [34, 62], [50, 78]].forEach(p => g.glow(p[0], p[1], 12, 'rgba(120,255,70,.55)')); ['M54 40 L78 62 L54 84', 'M72 40 L96 62 L72 84'].forEach((d, i) => g.line(d, i ? '#ffffff' : '#9dff6a', 6)); fig(g, 40, 38, .7, '#9ae26a', '#2a6a14'); g.star(86, 22, 5, '#e8ffc0'); }};
 
+/* --- Сенсированная --- */
+const SNS = {bg:['#1a1206', '#4a2c0a'], glow:'rgba(255,179,71,.45)'};
+ICONS.sensePassive = {...SNS, draw(g){ g.circ(50, 50, 26, null, '#ffd27a', 3); g.circ(50, 50, 14, null, '#ffb347', 2.4); g.circ(50, 50, 4, '#ff5a3a'); g.line('M50 8 V26 M50 74 V92 M8 50 H26 M74 50 H92', '#ffd27a', 3.5); g.glow(50, 50, 30, 'rgba(255,179,71,.35)'); }};
+ICONS.senseGrenade = {...SNS, draw(g){ g.glow(50, 56, 34, 'rgba(160,255,110,.4)'); g.both('M26 52 Q26 32 50 32 Q74 32 74 52 V64 Q74 82 50 82 Q26 82 26 64 Z', g.lg(26, 32, 74, 82, ['#a0f070', '#3a9a24', '#164a0c']), '#d8ffc0', 2); g.line('M26 54 H74 M50 32 V82', 'rgba(0,40,0,.4)', 2); g.both('M42 20 H58 V32 H42 Z', '#8a8f98', '#e0e4ea', 1.6); g.line('M58 22 Q74 14 80 28', '#e0e4ea', 3); }};
+ICONS.senseUlt = {...SNS, ult:true, draw(g){ g.glow(50, 50, 44, 'rgba(255,150,40,.5)'); ['M10 70 L48 52', 'M10 54 L48 50', 'M10 38 L48 48'].forEach((d, i) => g.line(d, i === 1 ? '#fff2b0' : '#ffb347', 4)); g.both('M44 40 H92 V58 H44 Z', g.lg(0, 40, 0, 58, ['#7a8290', '#2a2f38']), '#e0e4ea', 2); g.line('M92 49 L100 49', '#ffd27a', 4); g.star(26, 28, 8, '#fff2b0'); g.star(78, 76, 6, '#ffb347'); }};
+
 /* --- Олекс --- */
 const OL = {bg:['#04101c', '#0c3a5a'], glow:'rgba(80,220,255,.4)'};
 ICONS.olexQ = {...OL, draw(g){ [[4, 40, 30], [0, 54, 22]].forEach(l => g.fill('M' + l[0] + ' ' + l[1] + ' L' + (l[0] + l[2]) + ' ' + (l[1] - 1.6) + ' L' + (l[0] + l[2]) + ' ' + (l[1] + 1.6) + ' Z', g.lg(l[0], 0, l[0] + l[2], 0, ['rgba(80,220,255,0)', '#5ae0ff']))); g.glow(58, 48, 30, 'rgba(80,220,255,.6)'); g.both('M30 28 H88 V68 H30 Z', 'rgba(4,20,36,.9)', '#5ae0ff', 2); txt(g, '</>', 59, 48, 22, '#8affb0'); g.line('M30 78 H70', 'rgba(90,224,255,.6)', 2); }};

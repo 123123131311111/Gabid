@@ -12,7 +12,7 @@
 const warn = (t, e) => { if(!warn[t]){ warn[t] = 1; try { console.warn('update01039 ' + t + ':', e); } catch(_) {} } };
 
 const PREFIX = 'm10_';
-const ORDER = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi','olex','psih','marin','vyselki'];
+const ORDER = ['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi','olex','sensed','psih','marin','vyselki'];
 const isMasteryAvatar = id => typeof id === 'string' && id.startsWith(PREFIX);
 const heroOf = id => id.slice(PREFIX.length);
 
