@@ -2727,7 +2727,7 @@ const SCEPTER_UPGRADES = {
   vaspassir:'Гранаты летят дальше и оглушают на 2.8 с, копии живут дольше, ульта призывает +2 молниеносные копии',
   earthshaker:'Enchant Totem превращается в прыжок с приземлением, наносящим урон и оглушение по области',
   olex:'Турель живёт 18 секунд, Синий экран смерти длится 6,5 секунды',
-  sensed:'Огненный шквал длится 30 секунд вместо 20, робот живёт на 4 секунды дольше',
+  sensed:'Огненный шквал длится 15 секунд вместо 10, робот живёт на 4 секунды дольше',
   savely:'Форма Трансформера длится дольше, уворот срабатывает на каждом третьем ударе и Савелий получает +30% сопротивления магии'
 };
 
@@ -4813,7 +4813,7 @@ class Unit {
     return range;
   }
   getDamage(){ let d=this.dmg+newItemStat(this,'damage'); if(this.inventory && this.inventory.some(i => i && i.id === 'fangs')) d+=SHOP_ITEMS.fangs.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) d+=SHOP_ITEMS.pt.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'ilyaHair')) d+=SHOP_ITEMS.ilyaHair.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'hatchet')) d+=SHOP_ITEMS.hatchet.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'kinglandia')) d+=SHOP_ITEMS.kinglandia.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'semenHead')) d+=SHOP_ITEMS.semenHead.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) d+=SHOP_ITEMS.stormbringer.damage; if(this.inventory && this.inventory.some(i => i && i.id === 'dianaPants')) d+=SHOP_ITEMS.dianaPants.damage; const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) d+=180; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) d+=SHOP_ITEMS.arcadiaScar.damage; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) d+=SHOP_ITEMS.gur.damage; for(const b of this.buffs) if(b.type === 'dmg') d+=b.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); d=Math.max(1,d+agility-drained); if(this.buffs.some(b=>b.type==='doubleDamage')) d*=2; const exileRage=this.buffs.find(b=>b.type==='exileRage'); if(exileRage) d*=1+exileRage.val; const lateAttackGrowth=this.def && this.def.lateAttackGrowth ? 1+Math.max(0,this.level-10)*this.def.lateAttackGrowth : 1; return d*this.damageMultiplier*attackLevelDamageMult(this.level)*lateAttackGrowth; }
-  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20*VASP_BOOST*VASP_FEVER_BOOST; if(this.def && this.def.id === 'sensed' && this.skills && this.skills[0] && this.skills[0].level>0) m+=1.55; /* 0.10.6.6: +85 -> +155 */ const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; if(this.buffs.some(b=>b.id==='senseUlt')) m*=4; /* 0.10.6.6: x2 -> x4 */ return this.atkTime/Math.max(0.2,m); }
+  getAttackTime(){ let m=1+newItemStat(this,'attackSpeedBonus'); if(this.inventory && this.inventory.some(i => i && i.id === 'pt')) m+=SHOP_ITEMS.pt.attackSpeedBonus; if(this.inventory && this.inventory.some(i => i && i.id === 'stormbringer')) m+=SHOP_ITEMS.stormbringer.attackSpeedBonus; const munition=this.inventory && this.inventory.find(i => i && i.id === 'munition'); if(munition && munition.activeTimer>0) m+=SHOP_ITEMS.munition.attackSpeed; const arcadiaScar=this.inventory && this.inventory.find(i => i && i.id === 'arcadiaScar'); if(arcadiaScar && arcadiaScar.activeTimer>0) m+=SHOP_ITEMS.arcadiaScar.attackSpeed; const gur=this.inventory && this.inventory.find(i => i && i.id === 'gur'); if(gur && gur.activeTimer>0) m+=SHOP_ITEMS.gur.attackSpeed; if(this.def && this.def.id === 'arcady' && this.skills && this.skills[2]) m+=this.skills[2].level*0.25; if(this.def && this.def.id === 'malit' && this.skills && this.skills[1] && this.skills[1].level>0) m+=0.18; if(this.def && this.def.id === 'vaspassir' && this.skills && this.skills[0]) m+=this.skills[0].level*0.20*VASP_BOOST*VASP_FEVER_BOOST; if(this.def && this.def.id === 'sensed' && this.skills && this.skills[0] && this.skills[0].level>0) m+=1.55; /* 0.10.6.6: +85 -> +155 */ const aghanimHead=this.inventory && this.inventory.find(i => i && i.id === 'aghanimHead'); if(aghanimHead && aghanimHead.activeTimer>0) m+=1.8; for(const b of this.buffs) if(b.type === 'as') m+=b.val; const bloodrage=this.buffs.find(b => b.type === 'bloodrage'); if(bloodrage) m+=bloodrage.val; const agility=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAgility'?b.val:0),0); const drained=this.buffs.reduce((sum,b)=>sum+(b.type==='virsudiAttrLoss'?b.val:0),0); m+=agility*0.01-drained*0.01; m+=this.getThirst()*0.5; if(this.buffs.some(b=>b.id==='senseUlt')) m*=3; /* 0.10.6.7: x4 -> x3 */ return this.atkTime/Math.max(0.2,m); }
   getSpeed(){
     let speed=this.speed+newItemStat(this,'speed');
     const galeB=this.inventory&&this.inventory.find(item=>item&&item.id==='galeBoots');
@@ -5824,13 +5824,13 @@ function spawnSenseRobot(hero, lvl){
   /* один робот за раз: новый вызов заменяет старого */
   const old=senseRobotOf(hero); if(old) old.dead=true;
   const angle=Number.isFinite(hero.facing)?hero.facing:0;
-  const life=10+lvl*2+(hasScepter(hero)?4:0);
-  const hp=420+lvl*230;
-  const dmg=40+lvl*38+hero.getDamage()*0.45;
+  const life=8+lvl*2+(hasScepter(hero)?4:0);
+  const hp=350+lvl*190;
+  const dmg=32+lvl*30+hero.getDamage()*0.35;
   const r=Math.max(20,hero.radius*1.05);
   const robot=new TimedSummon(hero, clamp(hero.x+Math.cos(angle)*90,60,WORLD-60), clamp(hero.y+Math.sin(angle)*90,60,WORLD-60), {
-    kind:'senseRobot', life, hp, dmg, radius:r, speed:Math.max(200,hero.getSpeed()*1.5),
-    atkRange:105, atkTime:0.62, armor:6+lvl*2, copyColor:'#ffb347'
+    kind:'senseRobot', life, hp, dmg, radius:r, speed:Math.max(190,hero.getSpeed()*1.35),
+    atkRange:105, atkTime:0.68, armor:4+lvl*2, copyColor:'#ffb347'
   });
   robot.senseRobot=true; robot.vision=1300; robot.senseLvl=lvl; robot.chaseTarget=null; robot.robotPulse=0;
   robot.updateAI=function(dt){
@@ -7199,13 +7199,13 @@ const SKILLS = {
   senseGrenade: {
     name:'Граната', short:'W', type:'point', maxLevel:4,
     cd:[0,12,11,10,9], mana:[0,60,70,80,90], range:750,
-    desc:'Бросает во врага гранату: цель получает 600 урона.',
+    desc:'Бросает во врага гранату: цель получает 380 урона (было 600).',
     cast(h,x,y,lvl){
       const target=pickUnitAt(x,y);
       if(!target || target.team===h.team || target.dead || isBuilding(target)){
         flashMsg(h,'Наведите гранату на врага'); return false;
       }
-      const pr=spawnProjectile(h.x,h.y,target,600,{team:h.team,source:h,trueDamage:true},820,'#9dff6a',13);
+      const pr=spawnProjectile(h.x,h.y,target,380,{team:h.team,source:h,trueDamage:true},820,'#9dff6a',13);
       pr.senseGrenade=true; pr.life=2.5;
       addText(h.x,h.y-80,'ГРАНАТА!','#9dff6a',1.1,17);
       fxBeam(h.x,h.y,target.x,target.y,'#c8ff9a',0.2);
@@ -7216,7 +7216,7 @@ const SKILLS = {
   senseRobot: {
     name:'Робот-преследователь', short:'E', type:'self', maxLevel:4,
     cd:[0,26,24,22,20], mana:[0,110,120,130,140],
-    desc:'Призывает боевого робота. Он выбирает ближайшего вражеского героя, неотступно преследует его по карте и бьёт, нанося урон. Живёт 12/14/16/18 секунд (с Аганимом +4).',
+    desc:'Призывает боевого робота. Он выбирает ближайшего вражеского героя, неотступно преследует его по карте и бьёт, нанося урон. Живёт 10/12/14/16 секунд (с Аганимом +4). Ослаблен в 0.10.6.7.',
     cast(h,x,y,lvl){
       spawnSenseRobot(h,lvl);
       return true;
@@ -7225,10 +7225,10 @@ const SKILLS = {
   senseUlt: {
     name:'Огненный шквал', short:'R', type:'self', maxLevel:3,
     cd:[0,37.5,31,25], mana:[0,150,190,230], ult:true,
-    desc:'На 20 секунд скорость атаки увеличивается в 4 раза (было в 2). Перезарядка уменьшена вдвое.',
+    desc:'На 10 секунд скорость атаки увеличивается в 3 раза. Перезарядка уменьшена вдвое по сравнению с версией 0.10.6.5.',
     cast(h,x,y,lvl){
       h.buffs=h.buffs.filter(b=>b.id!=='senseUlt');
-      h.addBuff({type:'as',id:'senseUlt',t:(hasScepter(h)?30:20),val:0});
+      h.addBuff({type:'as',id:'senseUlt',t:(hasScepter(h)?15:10),val:0});
       addText(h.x,h.y-82,'ОГНЕННЫЙ ШКВАЛ','#ffb347',1.3,19);
       fxRing(h.x,h.y,130,'#ffb347',0.6);
       fxRing(h.x,h.y,200,'#ff7a2a',0.8);
@@ -11693,7 +11693,7 @@ function update(dt){
           }
         }
       }
-      if(p.senseGrenade){ fxRing(p.target.x,p.target.y,130,'#9dff6a',0.5); spawnParticles(p.target.x,p.target.y,'#ffe08a',20,0.9); addText(p.target.x,p.target.y-70,'600','#9dff6a',1.0,20); }
+      if(p.senseGrenade){ fxRing(p.target.x,p.target.y,130,'#9dff6a',0.5); spawnParticles(p.target.x,p.target.y,'#ffe08a',20,0.9); addText(p.target.x,p.target.y-70,'380','#9dff6a',1.0,20); }
       if(p.inferno){
         if(p.assassinate){ infernoBurst(p.target.x,p.target.y,190,46,0.8); fxRing(p.target.x,p.target.y,110,'#fff1b0',0.5); }
         else if(p.headshot){ infernoBurst(p.target.x,p.target.y,70,18,0.4); }
