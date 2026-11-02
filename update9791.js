@@ -126,11 +126,11 @@ function itemAdvice(heroId, enemyIds, live){
   if(next) push(next, 'Следующий предмет по сборке героя.');
   /* 3. Ситуативное под состав врагов */
   if(enemies.length){
-    if(cnt.melee >= 3 && me.includes('squishy')) push('bkb', 'Много ближних бойцов: БКБ режет урон атак на 60% и снимает оглушение.');
+    if(cnt.melee >= 3 && me.includes('squishy')) push('bkb', 'Много ближних бойцов: БКБ режет урон атак на 72% и снимает оглушение.');
     if(cnt.ranged >= 3) push('evsyutin', 'Много дальних бойцов: +500 здоровья помогает пережить фокус.');
     if(cnt.tank >= 2) push('dagonEmpire', 'Несколько танков: магический урон 1200 игнорирует броню.');
     if(cnt.squishy >= 2 && me.includes('melee')) push('tornBrainHand', 'Хрупкие враги: телепорт к цели и 350 урона добивают их.');
-    if(cnt.squishy >= 2 && !me.includes('melee')) push('brainEye', 'Хрупкие враги: +210 дальности — бей раньше, чем они подойдут.');
+    if(cnt.squishy >= 2 && !me.includes('melee')) push('brainEye', 'Хрупкие враги: +100 дальности — бей раньше, чем они подойдут.');
     if(enemies.length >= 3) push('satanic', 'Затяжные драки: +660 HP и вампиризм.');
     push('ilyaHair', 'Оглушение выбранного врага на 4 сек. — выключай главную угрозу.');
   }
