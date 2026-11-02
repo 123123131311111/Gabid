@@ -9,7 +9,7 @@
 const AVATAR_DEFS = [
   {id:'pyro'},{id:'warlord'},{id:'grisha'},{id:'golly'},{id:'sasych'},
   {id:'ilya'},{id:'malit'},{id:'arcady'},{id:'illusionist'},{id:'shadow'},
-  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'vaspassir'},{id:'olex'},{id:'chip'},{id:'savely'},
+  {id:'mo3gi'},{id:'regina'},{id:'juggernaut'},{id:'sniper'},{id:'vaspassir'},{id:'olex'},{id:'sensed'},{id:'chip'},{id:'savely'},
   {id:'shovel', name:'Лопата', c1:'#3a2415', c2:'#d7b36a'},
   {id:'tower',  name:'Башня',  c1:'#102a4a', c2:'#8be9fd'},
   {id:'ancient',name:'Древний',c1:'#3c1010', c2:'#ff6b57'},
