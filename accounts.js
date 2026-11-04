@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const NICK_RE = /^[\p{L}\p{N}_\- ]{3,16}$/u;
 const MAX_BODY = 4096;
 const AVATAR_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','mo3gi','regina','juggernaut','sniper','vaspassir','chip','savely','shovel','tower','ancient','rune','creep','virsudi','olex','sensed']);
-const HERO_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi','olex','sensed','psih','marin','vyselki']);
+const HERO_IDS = new Set(['pyro','warlord','grisha','golly','sasych','ilya','malit','arcady','illusionist','shadow','electricGosha','mo3gi','tribupainer','mageHunter','regina','yosyp','dawnMaiden','exileKnight','juvsyut','chip','savely','juggernaut','earthshaker','sniper','vaspassir','virsudi','olex','sensed','psih','marin','vyselki','prok']);
 const MONGODB_URI = process.env.MONGODB_URI;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -57,7 +57,9 @@ const SKIN_PRICES = {
   /* 0.10.0.7: новые скины (цены обязаны совпадать с update01007.js) */
   juggernautJade: 569, reginaMoon: 910, gollyGold: 341,
   /* 0.10.2.1: иммортал-предметы для героев без скинов — «Клинки полуночной стражи» (Вождь) и «Тотем предков» (Илья), по 1138 Сенсиков (цены обязаны совпадать с game.js) */
-  warlordBlades: 1138, ilyaTotem: 1138
+  warlordBlades: 1138, ilyaTotem: 1138,
+  /* 0.10.6.8: золотой скин Сенсированной — 500 Сенсиков (цена обязана совпадать с update01068.js) */
+  sensedGold: 500
 };
 /* 0.10.3.5: цели мега-задания «Легенда арены» уменьшены в 3 раза (было 50 / 250 / 70 / 5), награда 1100 прежняя. */
 /* ===== 0.10.2.1: ВКЛАДКА «ЗАДАНИЯ». Постоянные задания (выполняются один раз за всё время) и одно МЕГА-ЗАДАНИЕ на 1100 Сенсиков.
