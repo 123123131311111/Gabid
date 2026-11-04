@@ -714,6 +714,13 @@ ICONS.psihT = {bg:['#1c0608', '#4a1236'], glow:'rgba(255,60,60,.5)', draw(g){
   g.line('M16 18 L24 26 M84 18 L76 26', '#ffd0d0', 2.6); g.star(18, 56, 4, '#ffb0b0'); g.star(84, 58, 4, '#ffb0b0');
 }};
 
+/* --- Прок --- */
+const PRK = {bg:['#1c140e', '#4a2e16'], glow:'rgba(255,177,59,.45)'};
+ICONS.prokShield = {...PRK, draw(g){ g.glow(50, 50, 40, 'rgba(160,190,230,.45)'); g.both('M50 10 L84 24 V52 C84 72 66 84 50 92 C34 84 16 72 16 52 V24 Z', g.lg(16, 10, 84, 92, ['#d4dce6', '#8a96a6', '#3e4652']), '#eef4fa', 2.2); g.line('M50 18 V84 M24 44 H76', 'rgba(20,24,30,.55)', 3); g.star(50, 44, 9, '#ffd27a'); }};
+ICONS.prokRage = {...PRK, draw(g){ g.glow(50, 52, 38, 'rgba(255,60,40,.55)'); g.both('M50 86 C20 66 18 38 36 28 C42 40 46 38 50 22 C54 38 60 40 64 28 C82 38 80 66 50 86 Z', g.lg(0, 22, 0, 86, ['#ffb13b', '#e0361a', '#6a0a08']), '#ffd9a0', 1.8); g.line('M38 62 H62', '#2a0a06', 3); g.line('M84 14 V34 M74 24 H94', '#fff2b0', 3); }};
+ICONS.prokShock = {...PRK, draw(g){ g.glow(50, 50, 40, 'rgba(255,200,90,.5)'); g.circ(50, 50, 12, g.rg(50, 50, 12, ['#fff6c8', '#ffb13b', '#c85a10']), '#fff2b0', 2); [26, 38].forEach((r, i) => g.circ(50, 50, r, null, i ? 'rgba(255,177,59,.5)' : '#ffd27a', i ? 2 : 3)); g.line('M50 8 V20 M50 80 V92 M8 50 H20 M80 50 H92', '#fff2b0', 3); }};
+ICONS.prokUlt = {...PRK, ult:true, glow:'rgba(255,60,40,.55)', draw(g){ g.glow(50, 50, 44, 'rgba(255,90,40,.55)'); g.circ(50, 50, 30, null, '#ff6a3a', 3); g.circ(50, 50, 18, null, '#ffd27a', 2.4); g.circ(50, 50, 5, '#ff3a2a'); g.line('M50 6 V28 M50 72 V94 M6 50 H28 M72 50 H94', '#fff2b0', 3.5); g.both('M50 50 L50 20 A30 30 0 0 1 76 65 Z', 'rgba(255,60,40,.55)', '#ffb13b', 1.6); }};
+
 /* ---------- кэш и рамка ---------- */
 function frame(c, spec){
   const R = 14;

@@ -4610,6 +4610,42 @@ MODELS.marin=(S,d,t,pose)=>{
 ANIM.marin=[{kind:'attack',p:.3},{kind:'attack',p:.58},{kind:'walk',p:.25},{kind:'walk',p:.75}];
 
 /* ---------- Выселки — двухголовый красный орк (0.10.1) ---------- */
+
+/* 0.10.6.9: Прок — тяжёлый стрелок с огромной пушкой */
+MODELS.prok=(S,d,t)=>{
+  const ARM='#4a3a32', STL='#9aa4b0', DRK='#23201e', ORG=d&&d.color2||'#ffb13b', GUN='#3a3f48', HOT='#ff5a2a';
+  const hy=1.95;
+  man(S,{face:true,bulk:1.2,gap:.22,headY:hy,cloth:ARM,arm:ARM,forearm:'#d9a47c',glove:DRK,legs:'#2c2622',boots:'#18161a',toe:ORG,
+    belt:DRK,trim:ORG,cuff:ORG,bracer:STL,knee:STL,pad:'#5a4a40',padTrim:ORG,
+    armR:[.45,1.2,.75],armL:[-.3,1.14,1.05],
+    fo:{eye:'#2a2a33',angry:.5,mouth:'stern',brow:'#2a1c14'}});
+  /* шлем и очки-визор */
+  S.ell([0,hy+.12,-.02],[.32,.24,.32],STL,{rings:7,seg:14,shine:.6});
+  S.tube([0,hy+.02,0],[0,hy+.08,0],.34,.34,DRK,{seg:16,shine:.3});
+  S.box([0,hy+.04,.27],[.34,.08,.03],HOT,{glow:1});
+  S.box([0,hy+.36,-.02],[.04,.16,.28],ORG,{shine:.5});
+  /* бронепластины на груди и плечах */
+  S.ell([0,1.5,.2],[.4,.3,.18],STL,{rings:6,seg:12,shine:.6});
+  S.box([0,1.5,.36],[.12,.34,.03],ORG,{shine:.7});
+  for(const s of [-1,1]) S.ell([s*.5,1.7,0],[.2,.14,.2],STL,{rings:5,seg:10,shine:.6});
+  /* пушка: длинный ствол, дульный тормоз, патронник, прицел, сошки */
+  S.tube([.4,1.22,.0],[.4,1.26,2.1],.15,.12,GUN,{seg:12,shine:.5});
+  S.tube([.4,1.22,.5],[.4,1.25,1.5],.21,.21,STL,{seg:12,shine:.7});
+  for(const z of [.8,1.2,1.6]) S.tube([.4,1.24,z],[.4,1.24,z+.06],.23,.23,ORG,{seg:12,shine:.6});
+  S.box([.4,1.18,.25],[.26,.28,.6],GUN,{shine:.4});
+  S.box([.4,.9,.3],[.24,.26,.3],'#4a4036');
+  S.tube([.4,1.26,2.1],[.4,1.27,2.36],.16,.2,DRK,{seg:10,shine:.5});
+  S.ell([.4,1.27,2.38],[.1,.1,.03],HOT,{glow:1,rings:3,seg:8});
+  S.tube([.4,1.42,.5],[.4,1.5,.5],.04,.04,STL,{seg:6});
+  S.tube([.4,1.52,.35],[.4,1.52,.85],.07,.07,GUN,{seg:8,shine:.6});
+  S.ell([.4,1.52,.87],[.05,.05,.02],'#7dff5a',{glow:1,rings:3,seg:6});
+  S.tube([.4,1.2,1.3],[.28,.82,1.6],.02,.02,STL,{seg:5});
+  S.tube([.4,1.2,1.3],[.52,.82,1.6],.02,.02,STL,{seg:5});
+  /* патронташ */
+  S.tube([-.36,1.72,.2],[.34,1.02,.32],.06,.06,'#6a4a2a',{seg:6});
+  for(let i=0;i<5;i++){ const k=i/4; S.box([-.34+k*.68,1.72-k*.7,.25+k*.1],[.07,.1,.07],ORG,{shine:.7}); }
+};
+
 MODELS.vyselki=(S,d,t,pose)=>{
   const SK='#c0302a',SK2='#8c1d19',SK3='#e0584a',DK='#3a0b0a',IRON='#2b2a30',IRON2='#4d4c57',LEA='#4a2e20',LEA2='#6b4630',
         BONE='#efe3c2',BONE2='#b9aa86',EYE='#ffd23a',GLOW=d.color2||'#ffd23a',WOOD='#5a3a22';
@@ -4761,6 +4797,7 @@ MODELS.vyselki=(S,d,t,pose)=>{
   for(let i=0;i<3;i++){ const a=t*1.1+i*2.1; S.box([Math.cos(a)*1.0,1.1+Math.sin(t*1.5+i)*.3+i*.3,Math.sin(a)*1.0],[.04,.04,.04],i%2?GLOW:'#ff5a3a',{glow:1,rot:[a,a,0]}); }
 };
 ANIM.vyselki=[{kind:'attack',p:.3},{kind:'attack',p:.58},{kind:'walk',p:.25},{kind:'walk',p:.75}];
+ANIM.prok=[{kind:'attack',p:.3},{kind:'attack',p:.58},{kind:'walk',p:.25},{kind:'walk',p:.75}];
 
 /* Пёс Выселок (призываемый): красно-бурый гончий зверь с шипами */
 MODELS.vy_dog=(S,d,t,pose)=>{

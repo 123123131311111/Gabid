@@ -5065,8 +5065,9 @@ class Unit {
             (this.def && this.def.id === 'sniper' ? '#ffe0a0' : (this.def && this.def.id === 'vaspassir' ? '#8dff5a' :
             (this.def && this.def.id === 'shadow' ? (baseSkin(this.skinId) === 'shadowVoid' ? '#b06bff' : '#ff5a1f') :
             (this.team===0 ? '#a8ffb0' : '#ffb0a8'))));
-          const projectile=spawnProjectile(this.x, this.y, t, shotDamage, shotSource, 1100,
-            shotColor, this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : (this.def && this.def.id === 'shadow' ? 10 : 7)));
+          const isProkShot = !!(this.def && this.def.id === 'prok'); /* 0.10.6.9: Прок — медленный тяжёлый снаряд */
+          const projectile=spawnProjectile(this.x, this.y, t, shotDamage, shotSource, isProkShot ? 560 : 1100,
+            isProkShot ? '#ffb13b' : shotColor, isProkShot ? 14 : (this.def && this.def.id === 'sniper' ? 8 : (this.def && this.def.id === 'arcady' ? 10 : (this.def && this.def.id === 'shadow' ? 10 : 7))));
           if(this.summonKind==='vaspCopy'){ projectile.vaspCopy=this; projectile.color=this.vaspOnHit==='chain'?'#9fc0ff':(this.vaspOnHit==='poison'?'#d9a0ff':(this.vaspOnHit==='stun'?'#fff06a':'#8fe8ff')); }
           if(infernoShot){
             projectile.inferno=true;
@@ -11409,6 +11410,24 @@ function updateEnemyAI(h, dt){
       h.attackTarget=null;
       const goal=botLaneObjective(h);
       h.moveTarget={x:goal.x+rnd(-100,100),y:goal.y+rnd(-100,100)};
+    }
+    return;
+  }
+
+  /* === ПРОК (0.10.6.9) === */
+  if(h.def.id === 'prok'){
+    if(target){
+      const d=Math.hypot(target.x-h.x,target.y-h.y);
+      const hpPct=h.hp/h.maxHp, isHero=target.type==='hero';
+      h.attackTarget=target; h.moveTarget=null;
+      if(h.skills[3] && h.skills[3].level>0 && h.skills[3].cd<=0 && isHero && d<780 && target.hp>target.maxHp*0.45) castSkill(h,3,h.x,h.y);
+      else if(h.skills[2] && h.skills[2].level>0 && h.skills[2].cd<=0 && d<280) castSkill(h,2,h.x,h.y);
+      else if(h.skills[0] && h.skills[0].level>0 && h.skills[0].cd<=0 && hpPct<0.55 && d<700) castSkill(h,0,h.x,h.y);
+      else if(h.skills[1] && h.skills[1].level>0 && h.skills[1].cd<=0 && isHero && hpPct>0.75 && d<650) castSkill(h,1,h.x,h.y);
+    } else {
+      h.attackTarget=null;
+      const goal=botLaneObjective(h);
+      h.moveTarget={x:goal.x+rnd(-120,120),y:goal.y+rnd(-120,120)};
     }
     return;
   }
