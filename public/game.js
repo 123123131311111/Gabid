@@ -78,6 +78,114 @@ window.addEventListener('keydown', e => {
   if(e.key === 'F8'){ e.preventDefault(); setPerfLevel((perfLevel + 1) % 4); }
 });
 
+/* ===== ЛИМИТ FPS (0.10.7.0) =====
+   На мониторах 120/144/240 Гц игра раньше рисовала кадр на каждый vsync — лишняя нагрузка при той же картинке.
+   Пропускаем «лишние» rAF-кадры ДО Engine.Clock.tick: dt при этом считается по реальному времени, поэтому
+   игровое время, физика и подшаги (Clock.steps) не меняются. Сетевая синхронизация идёт через setInterval и не затронута.
+   Сменить: Shift+F9 (60 → 30 → без лимита), значение хранится в localStorage 'dota-sens-fpscap'. */
+const FPSCAP = { limit:60, nextT:0, rawLast:0, rawEma:0 };
+try {
+  const sv = localStorage.getItem('dota-sens-fpscap');
+  if(sv !== null){ const v = parseInt(sv, 10); if(v === 0 || v === 30 || v === 60) FPSCAP.limit = v; }
+} catch(err) {}
+function fpsCapCycle(){
+  FPSCAP.limit = FPSCAP.limit === 60 ? 30 : (FPSCAP.limit === 30 ? 0 : 60);
+  FPSCAP.nextT = 0;
+  try { localStorage.setItem('dota-sens-fpscap', String(FPSCAP.limit)); } catch(err) {}
+}
+
+/* ===== PERF-DIAG: ВРЕМЕННАЯ диагностическая панель (F9) =====
+   Выключена по умолчанию, в консоль ничего не пишет, в выключенном состоянии стоит одну проверку булева на секцию.
+   Меряет CPU-время вызовов по секциям кадра (GPU-растеризация canvas сюда не входит — она «прилетает» в конце кадра).
+   Чтобы убрать диагностику: удалить этот блок, вызовы pdT()/pdE()/pdFrame()/drawPerfDiag() и обработчик F9 ниже. */
+const PERFD = {
+  on:false, frames:0, t0:0, lastNow:0, long:0, worstGap:0, shown:{fps:0, long:0, worstGap:0, frameMs:0},
+  keys:['update','ai','terrain','ambient','units','world','particles','fx973','hud','fog','frame'],
+  cur:{}, acc:{}, max:{}, avg:{}, pk:{}
+};
+for(const k of PERFD.keys){ PERFD.cur[k] = 0; PERFD.acc[k] = 0; PERFD.max[k] = 0; PERFD.avg[k] = 0; PERFD.pk[k] = 0; }
+function pdT(){ return PERFD.on ? performance.now() : 0; }
+function pdE(k, t0){ if(t0) PERFD.cur[k] += performance.now() - t0; }
+function pdFrame(now, frameStart){
+  const P = PERFD;
+  P.cur.frame = performance.now() - frameStart;
+  if(!P.t0){ P.t0 = now; P.lastNow = now; return; }
+  const gap = now - P.lastNow; P.lastNow = now;
+  if(gap > P.worstGap) P.worstGap = gap;
+  if(gap > 33.4) P.long++;
+  P.frames++;
+  for(const k of P.keys){ const v = P.cur[k]; P.acc[k] += v; if(v > P.max[k]) P.max[k] = v; P.cur[k] = 0; }
+  const span = now - P.t0;
+  if(span >= 500){
+    for(const k of P.keys){ P.avg[k] = P.acc[k] / P.frames; P.pk[k] = P.max[k]; P.acc[k] = 0; P.max[k] = 0; }
+    P.shown.fps = P.frames * 1000 / span; P.shown.frameMs = span / P.frames;
+    P.shown.long = P.long * 1000 / span; P.shown.worstGap = P.worstGap;
+    P.frames = 0; P.long = 0; P.worstGap = 0; P.t0 = now;
+  }
+}
+window.addEventListener('keydown', e => {
+  if(e.key !== 'F9') return;
+  e.preventDefault();
+  if(e.shiftKey){ fpsCapCycle(); return; }
+  PERFD.on = !PERFD.on;
+  for(const k of PERFD.keys){ PERFD.cur[k] = 0; PERFD.acc[k] = 0; PERFD.max[k] = 0; PERFD.avg[k] = 0; PERFD.pk[k] = 0; }
+  PERFD.frames = 0; PERFD.t0 = 0; PERFD.long = 0; PERFD.worstGap = 0;
+});
+function drawPerfDiag(){
+  if(!PERFD.on) return;
+  const P = PERFD, A = P.avg, K = P.pk;
+  const effAvg = Math.max(0, A.world - A.units) + A.fx973, effPk = Math.max(0, K.world - K.units) + K.fx973;
+  const rows = [
+    ['update (логика)',      A.update,    K.update],
+    ['  └ ИИ ботов',         A.ai,        K.ai],
+    ['отрисовка юнитов',     A.units,     K.units],
+    ['drawAmbientWorld',     A.ambient,   K.ambient],
+    ['drawTerrain*',         A.terrain,   K.terrain],
+    ['эффекты + частицы',    effAvg,      effPk],
+    ['  └ только частицы',   A.particles, K.particles],
+    ['HUD и интерфейс',      A.hud,       K.hud],
+    ['туман + bloom',        A.fog,       K.fog],
+    ['КАДР целиком (CPU)',   A.frame,     K.frame]
+  ];
+  const aliveUnits = (() => { let n = 0; for(let i = 0; i < units.length; i++) if(!units[i].dead) n++; return n; })();
+  const hz = FPSCAP.rawEma > 0 ? Math.round(1000 / FPSCAP.rawEma) : 0;
+  const W = 330, H = 44 + rows.length * 16 + 66, x = VW - W - 8, y = 30;
+  ctx.save();
+  ctx.setTransform(appliedRenderScale,0,0,appliedRenderScale,0,0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(8,9,14,0.88)'; ctx.fillRect(x, y, W, H);
+  ctx.strokeStyle = 'rgba(215,179,106,0.7)'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, W - 1, H - 1);
+  ctx.font = 'bold 11px Consolas, monospace'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffd568'; ctx.fillText('F9  ДИАГНОСТИКА ПРОИЗВОДИТЕЛЬНОСТИ (временная)', x + 8, y + 14);
+  ctx.font = '11px Consolas, monospace';
+  ctx.fillStyle = P.shown.fps >= 55 ? '#7fe3a0' : (P.shown.fps >= 30 ? '#ffd568' : '#ff7b6b');
+  ctx.fillText('FPS ' + P.shown.fps.toFixed(0) + '  кадр ' + P.shown.frameMs.toFixed(1) + ' мс  худший ' + P.shown.worstGap.toFixed(0) + ' мс', x + 8, y + 29);
+  ctx.fillStyle = P.shown.long > 0.5 ? '#ff7b6b' : '#9fb0c4';
+  ctx.fillText('фризов >33 мс: ' + P.shown.long.toFixed(1) + '/с   монитор ≈' + (hz || '?') + ' Гц  лимит: ' + (FPSCAP.limit || 'выкл'), x + 8, y + 42);
+  let yy = y + 44 + 12;
+  const barX = x + 168, barW = 70, budget = 16.7;
+  for(const r of rows){
+    const a = r[1] || 0, p = r[2] || 0;
+    ctx.fillStyle = '#c9d3df'; ctx.fillText(r[0], x + 8, yy);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(barX, yy - 8, barW, 8);
+    ctx.fillStyle = a < 2 ? '#7fe3a0' : (a < 5 ? '#ffd568' : '#ff7b6b');
+    ctx.fillRect(barX, yy - 8, Math.min(barW, barW * a / budget), 8);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#e6ecf3';
+    ctx.fillText(a.toFixed(2), x + W - 52, yy);
+    ctx.fillStyle = p > 8 ? '#ff7b6b' : '#8d9aab';
+    ctx.fillText(p.toFixed(1), x + W - 8, yy);
+    ctx.textAlign = 'left';
+    yy += 16;
+  }
+  ctx.fillStyle = '#8d9aab'; ctx.fillText('мс/кадр: среднее | пик (за 0.5 с)', x + 8, yy + 2);
+  ctx.fillStyle = '#c9d3df';
+  ctx.fillText('юнитов ' + aliveUnits + '/' + units.length + '  снарядов ' + projectiles.length + '  частиц ' + particles.length, x + 8, yy + 17);
+  ctx.fillText('зон ' + aoes.length + '  эффектов ' + fxs.length + '  текстов ' + texts.length + '  ambient ' + AMB.parts.length, x + 8, yy + 31);
+  ctx.fillStyle = '#6f7d8f';
+  ctx.fillText('* terrain — только в кадры перерисовки слоя   Shift+F9: лимит FPS', x + 8, yy + 45);
+  ctx.restore();
+}
+
 const clamp = (v,a,b) => v<a?a:(v>b?b:v);
 const rnd   = (a,b) => a + Math.random()*(b-a);
 
@@ -10709,27 +10817,47 @@ function isUnitOnBotLane(unit, lane){
 }
 
 function getBotStructureObjective(h, lane){
+  /* 0.10.7.0: один проход вместо двух filter() + sort(); результат тот же — ближайшее доступное здание врага
+     (первое в порядке units при равенстве). Дорогой canDamageStructure зовём только для тех, кто ближе текущего лучшего. */
   const defendingTeam = 1 - h.team;
-  const enemyBuildings = units.filter(unit =>
-    !unit.dead && unit.team === defendingTeam && isBuilding(unit)
-  );
-  const candidates = enemyBuildings.filter(unit =>
-    canDamageStructure(unit, null, true) &&
-    (unit.type === 'ancient' || unit.lane === lane)
-  );
-  return candidates.sort((left,right) =>
-    Math.hypot(left.x-h.x,left.y-h.y) - Math.hypot(right.x-h.x,right.y-h.y)
-  )[0] || null;
+  let best = null, bd = Infinity;
+  for(let i = 0; i < units.length; i++){
+    const unit = units[i];
+    if(unit.dead || unit.team !== defendingTeam || !isBuilding(unit)) continue;
+    if(!(unit.type === 'ancient' || unit.lane === lane)) continue;
+    const dx = unit.x - h.x, dy = unit.y - h.y, d2 = dx*dx + dy*dy;
+    if(!(d2 < bd)) continue;
+    if(!canDamageStructure(unit, null, true)) continue;
+    best = unit; bd = d2;
+  }
+  return best;
+}
+
+/* живой нейтрал каждого лагеря (первый в порядке units): строится раз за update(); пересборка, если кэшированный уже умер */
+const CAMP_FIRST = [];
+let campTick = -1;
+function botCampUnit(ci){
+  let u = CAMP_FIRST[ci];
+  if(campTick !== AI_TICK || (u && u.dead)){
+    campTick = AI_TICK;
+    CAMP_FIRST.length = NEUTRAL_CAMPS.length;
+    for(let i = 0; i < CAMP_FIRST.length; i++) CAMP_FIRST[i] = null;
+    for(let i = 0; i < units.length; i++){
+      const n = units[i];
+      if(n.type === 'neutral' && !n.dead && n.campIndex >= 0 && n.campIndex < CAMP_FIRST.length && !CAMP_FIRST[n.campIndex]) CAMP_FIRST[n.campIndex] = n;
+    }
+    u = CAMP_FIRST[ci];
+  }
+  return u || null;
 }
 
 function updateBotFarm(h){
   const lane = gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0);
   let bestCamp=null, bestScore=Infinity;
-  for(const camp of NEUTRAL_CAMPS){
+  for(let ci = 0; ci < NEUTRAL_CAMPS.length; ci++){
+    const camp = NEUTRAL_CAMPS[ci];
     const center=camp[0];
-    const campIndex = NEUTRAL_CAMPS.indexOf(camp);
-    const living=units.some(unit => unit.type==='neutral' && unit.campIndex === campIndex && !unit.dead);
-    if(!living) continue;
+    if(!botCampUnit(ci)) continue;
     const distance=Math.hypot(h.x-center.x,h.y-center.y);
     const laneOffset=laneDistanceToPoint(center.x,center.y,lane);
     const score=distance + laneOffset*0.45;
@@ -10737,7 +10865,7 @@ function updateBotFarm(h){
   }
   if(!bestCamp) return false;
   const campIndex=NEUTRAL_CAMPS.indexOf(bestCamp);
-  let target=units.find(unit => unit.type==='neutral' && unit.campIndex===campIndex && !unit.dead);
+  let target=botCampUnit(campIndex);
   if(!target) return false;
   h.laneState = 'jungle';
   h.attackTarget=target;
@@ -11057,6 +11185,87 @@ function botTacticalLayer(h){
   return res;
 }
 
+/* ===== 0.10.7.0: быстрые запросы для ИИ ботов =====
+   Раньше updateEnemyAI на каждом «думании» бота (раз в 0.18 с на бота) делал по 4–6 проходов units.filter().sort()
+   с Math.hypot для каждого юнита и вложенный units.some() внутри filter. Здесь — один проход без выделения массивов,
+   дешёвые проверки (мёртв/команда/дистанция в квадрате) идут первыми, дорогие (lane-дистанция, нужна ли «рядом союзник»)
+   — только для кандидатов, которые реально могут стать лучшими. Условия и выбор при равенстве (первый в порядке units,
+   как у стабильного sort) сохранены. */
+let AI_TICK = 0;   /* растёт на каждый вызов update() — ключ кэшей ИИ */
+const BOT_RANGE_ITEMS = ['aghanimHead','munition'];
+
+/* ближайший вражеский юнит заданного type в радиусе maxD; если laneMax>0 — только ближе laneMax к линии lane */
+function botNearestEnemyOfType(h, type, maxD, lane, laneMax){
+  let best = null, bd = Infinity;
+  const md2 = maxD * maxD, hx = h.x, hy = h.y, team = h.team;
+  for(let i = 0; i < units.length; i++){
+    const u = units[i];
+    if(u.type !== type || u.team === team || u.dead) continue;
+    const dx = u.x - hx, dy = u.y - hy, d2 = dx*dx + dy*dy;
+    if(!(d2 <= md2) || d2 >= bd) continue;
+    if(isHiddenFrom(u, team)) continue;
+    if(laneMax > 0 && !(laneDistanceToPoint(u.x, u.y, lane) < laneMax)) continue;
+    best = u; bd = d2;
+  }
+  return best;
+}
+
+/* есть ли живой союзный боец (type==='hero', не h) ближе 520 к (x,y): через HERO_HASH вместо units.some().
+   Хеш строится в начале каждого update(); +80 — запас на смещение за тик (как в botPickVisibleEnemy). */
+let _allyNear = false, _allyH = null, _allyX = 0, _allyY = 0;
+function _allyProbe(a){
+  if(_allyNear) return;
+  if(a.type === 'hero' && a.team === _allyH.team && !a.dead && a !== _allyH){
+    const dx = a.x - _allyX, dy = a.y - _allyY;
+    if(Math.sqrt(dx*dx + dy*dy) < 520) _allyNear = true;
+  }
+}
+function botAllyHeroNear(h, x, y){
+  _allyNear = false; _allyH = h; _allyX = x; _allyY = y;
+  HERO_HASH.query(x, y, 520 + 80, _allyProbe);
+  _allyH = null;
+  return _allyNear;
+}
+
+/* ближайший вражеский БОЕЦ в радиусе maxD (list — heroes или units); needAlly — как у nearbyFight: рядом с ним должен быть наш боец */
+function botNearestEnemyHero(h, list, maxD, needAlly){
+  let best = null, bd = Infinity;
+  const md2 = maxD * maxD, hx = h.x, hy = h.y, team = h.team;
+  for(let i = 0; i < list.length; i++){
+    const u = list[i];
+    if(u.type !== 'hero' || u.team === team || u.dead) continue;
+    const dx = u.x - hx, dy = u.y - hy, d2 = dx*dx + dy*dy;
+    if(!(d2 <= md2) || d2 >= bd) continue;
+    if(isHiddenFrom(u, team)) continue;
+    if(needAlly && !botAllyHeroNear(h, u.x, u.y)) continue;
+    best = u; bd = d2;
+  }
+  return best;
+}
+
+/* враг на «своей» линии: бойцы приоритетнее прочих (первый боец в порядке units, иначе первый не-боец) */
+function botLaneEnemy(h, lane){
+  let firstOther = null;
+  const v2 = h.vision * h.vision, hx = h.x, hy = h.y, team = h.team;
+  for(let i = 0; i < units.length; i++){
+    const u = units[i];
+    if(u.team === team || u.team === 2 || u.dead) continue;
+    const dx = u.x - hx, dy = u.y - hy;
+    if(!(dx*dx + dy*dy <= v2)) continue;
+    if(isHiddenFrom(u, team) || !isUnitOnBotLane(u, lane)) continue;
+    if(u.type === 'hero') return u;
+    if(!firstOther) firstOther = u;
+  }
+  return firstOther;
+}
+
+/* индекс предмета в инвентаре без замыканий findIndex (вызывается каждый кадр для каждого бота) */
+function botInvIdx(h, id){
+  const inv = h.inventory;
+  for(let i = 0; i < inv.length; i++){ const it = inv[i]; if(it && it.id === id) return i; }
+  return -1;
+}
+
 function updateEnemyAI(h, dt){
   h.aiTimer -= dt;
   h.laneTimer = Math.max(0, (h.laneTimer || 0) - dt);
@@ -11073,25 +11282,26 @@ function updateEnemyAI(h, dt){
     if(h.coins >= 70) buyBotItem(h);
   }
   if(h.hp < h.maxHp*0.55){
-    const tangoIndex = h.inventory.findIndex(i => i && i.id === 'tango');
+    const tangoIndex = botInvIdx(h, 'tango');
     if(tangoIndex >= 0) useInventoryItem(h, tangoIndex);
   }
   if(h.mp < h.maxMp*0.45){
-    const mangoIndex = h.inventory.findIndex(i => i && i.id === 'mango');
+    const mangoIndex = botInvIdx(h, 'mango');
     if(mangoIndex >= 0) useInventoryItem(h, mangoIndex);
   }
-  const bkbIndex = h.inventory.findIndex(i => i && i.id === 'bkb');
+  const bkbIndex = botInvIdx(h, 'bkb');
   if(bkbIndex >= 0 && h.inventory[bkbIndex].cooldown <= 0 && (h.hp < h.maxHp*0.35 || h.stunTimer > 0)){
     useInventoryItem(h, bkbIndex);
   }
-  const steelIndex = h.inventory.findIndex(i => i && i.id === 'mantledSteel');
+  const steelIndex = botInvIdx(h, 'mantledSteel');
   if(steelIndex >= 0 && h.inventory[steelIndex].cooldown <= 0 && h.attackTarget){
     useInventoryItem(h, steelIndex);
   }
   const botTarget = h.attackTarget && !h.attackTarget.dead && h.attackTarget.team !== h.team ? h.attackTarget : null;
   const botTargetDistance = botTarget ? Math.hypot(botTarget.x-h.x,botTarget.y-h.y) : Infinity;
-  for(const itemId of ['aghanimHead','munition']){
-    const itemIndex = h.inventory.findIndex(item => item && item.id === itemId);
+  for(let ii = 0; ii < BOT_RANGE_ITEMS.length; ii++){
+    const itemId = BOT_RANGE_ITEMS[ii];
+    const itemIndex = botInvIdx(h, itemId);
     if(itemIndex >= 0 && h.inventory[itemIndex].cooldown <= 0 && botTarget &&
        botTargetDistance <= h.getAttackRange() + botTarget.radius + 100) useInventoryItem(h,itemIndex);
   }
@@ -11115,17 +11325,10 @@ function updateEnemyAI(h, dt){
     castSkill(h, 1, h.x, h.y);
   }
 
-  const farmPhaseEnemy = gameTime < BOT_FARM_PHASE_TIME
-    ? heroes.filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
-        Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
-      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0]
-    : null;
+  const farmPhaseEnemy = gameTime < BOT_FARM_PHASE_TIME ? botNearestEnemyHero(h, heroes, h.vision, false) : null;
   if(!forcedTarget && !scenarioDirective && gameTime < BOT_FARM_PHASE_TIME && !farmPhaseEnemy){
     const farmLane = Number.isInteger(h.assignedLane) ? h.assignedLane : 0;
-    const laneCreep = units
-      .filter(unit => unit.type === 'creep' && unit.team !== h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
-        laneDistanceToPoint(unit.x,unit.y,farmLane) < 190 && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
-      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    const laneCreep = botNearestEnemyOfType(h, 'creep', h.vision, farmLane, 190) || undefined;
     if(laneCreep){
       h.laneState = 'lane';
       h.attackTarget = laneCreep;
@@ -11141,13 +11344,9 @@ function updateEnemyAI(h, dt){
     return;
   }
   if(!forcedTarget && scenarioDirective && scenarioDirective.passive){
-    const defender = units.filter(unit => unit.type==='hero' && unit.team!==h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
-      Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
-      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    const defender = botNearestEnemyHero(h, units, h.vision, false);
     if(defender){ h.attackTarget=defender; h.moveTarget=null; return; }
-    const creep = units.filter(unit => unit.type==='creep' && unit.team!==h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
-      laneDistanceToPoint(unit.x,unit.y,scenarioDirective.lane)<220 && Math.hypot(unit.x-h.x,unit.y-h.y)<=h.vision)
-      .sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    const creep = botNearestEnemyOfType(h, 'creep', h.vision, scenarioDirective.lane, 220);
     if(creep){ h.laneState='lane'; h.attackTarget=creep; h.moveTarget=null; return; }
     if(updateBotFarm(h)) return;
     h.attackTarget=null;
@@ -11157,7 +11356,11 @@ function updateEnemyAI(h, dt){
     return;
   }
   if(!forcedTarget && scenarioDirective && scenarioDirective.rune && runes.length){
-    const rune=runes.slice().sort((left,right)=>Math.hypot(left.x-h.x,left.y-h.y)-Math.hypot(right.x-h.x,right.y-h.y))[0];
+    let rune = runes[0], runeD = Infinity;
+    for(let ri = 0; ri < runes.length; ri++){
+      const rr = runes[ri], rdx = rr.x-h.x, rdy = rr.y-h.y, rd = rdx*rdx + rdy*rdy;
+      if(rd < runeD){ runeD = rd; rune = rr; }
+    }
     if(Math.hypot(rune.x-h.x,rune.y-h.y)>48){ h.attackTarget=null; h.moveTarget={x:rune.x,y:rune.y}; return; }
   }
   if(!forcedTarget && scenarioDirective && scenarioDirective.jungle && !farmPhaseEnemy && updateBotFarm(h)) return;
@@ -11165,20 +11368,11 @@ function updateEnemyAI(h, dt){
   const strategicLane = scenarioDirective ? scenarioDirective.lane :
     (gameTime >= MID_PUSH_TIME && h.midPushAssignment ? 0 : (Number.isInteger(h.assignedLane) ? h.assignedLane : 0));
   if(!scenarioDirective && gameTime >= MID_PUSH_TIME && h.midPushAssignment) h.assignedLane = 0;
-  const laneEnemy = units
-    .filter(unit => unit.team !== h.team && unit.team !== 2 && !unit.dead && !isHiddenFrom(unit,h.team) &&
-      isUnitOnBotLane(unit, strategicLane) && Math.hypot(unit.x-h.x,unit.y-h.y) <= h.vision)
-    .sort((left,right) => (right.type === 'hero') - (left.type === 'hero'))[0];
+  const laneEnemy = botLaneEnemy(h, strategicLane) || undefined;
   /* В первые 5 минут бот может помочь соседней линии, если там уже
      началась драка рядом с союзником, а не продолжать слепо идти по своей. */
-  const nearbyFight = (gameTime < MID_PUSH_TIME || h.midPushAssignment) ? units
-    .filter(unit => unit.type === 'hero' && unit.team !== h.team && !unit.dead && !isHiddenFrom(unit,h.team) &&
-      Math.hypot(unit.x-h.x,unit.y-h.y) <= Math.min(820,h.vision))
-    .filter(unit => units.some(ally =>
-      ally.type === 'hero' && ally.team === h.team && !ally.dead &&
-      ally !== h && Math.hypot(ally.x-unit.x,ally.y-unit.y) < 520
-    ))
-    .sort((left,right) => Math.hypot(left.x-h.x,left.y-h.y) - Math.hypot(right.x-h.x,right.y-h.y))[0] : null;
+  const nearbyFight = (gameTime < MID_PUSH_TIME || h.midPushAssignment)
+    ? botNearestEnemyHero(h, units, Math.min(820,h.vision), true) : null;
   const visibleEnemy = farmPhaseEnemy || nearbyFight || laneEnemy;
   if(gameTime < MID_PUSH_TIME && visibleEnemy){
     h.laneState = 'lane';
@@ -11549,6 +11743,7 @@ function updateEnemyAI(h, dt){
 
 function update(dt){
   if(gameState !== 'playing') return;
+  AI_TICK++;
   /* Подготовка к бою: мир живёт полностью (герои ходят по всей карте, бои возможны),
      но игровое время, волны крипов, доход и сценарии ботов ждут конца отсчёта. */
   rebuildHeroHash();
@@ -11590,7 +11785,9 @@ function update(dt){
   for(const h of heroes){
     if(h.dead){ h.update(dt); continue; }
     if(h !== playerHero && !h.isDummy && (!h.isOnlineRemote || h.isOnlineBot)){
+      const pdAi = pdT();
       if(pre) updatePrematchBotAI(h, dt); else updateEnemyAI(h, dt);
+      pdE('ai', pdAi);
     }
     h.update(dt);
   }
@@ -16319,10 +16516,20 @@ function isWorldPointVisible(x,y,padding=140){
    и не влияет на геометрию, столкновения и механики. Рисуется под юнитами и под туманом войны. */
 const AMB = { t:0, last:0, parts:[], fogSprite:null, glowSprite:null, seed:1 };
 function ambHash(a,b){ let h=(a*374761393 + b*668265263)|0; h=(h^(h>>>13))*1274126177|0; return ((h^(h>>>16))>>>0)/4294967295; }
-function ambLevel(){ /* множитель качества: 0 — выключено */
-  if(perfLevel >= 3 || !GFX.decor) return 0;
-  try { if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0; } catch(err) {}
-  return [1, 0.55, 0.3][perfLevel] || 0;
+/* 0.10.7.0: prefers-reduced-motion читается один раз и обновляется по событию. Раньше matchMedia() создавал новый
+   MediaQueryList и дёргал стили КАЖДЫЙ кадр. */
+let ambReduceMotion = false;
+try {
+  if(window.matchMedia){
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    ambReduceMotion = !!mq.matches;
+    const onMq = e => { ambReduceMotion = !!e.matches; };
+    if(mq.addEventListener) mq.addEventListener('change', onMq); else if(mq.addListener) mq.addListener(onMq);
+  }
+} catch(err) {}
+function ambLevel(){ /* множитель качества: 0 — выключено. 0.10.7.0: на «Низкой» и ниже окружение отключено полностью */
+  if(perfLevel >= 2 || !GFX.decor || ambReduceMotion) return 0;
+  return perfLevel === 0 ? 1 : 0.55;
 }
 function ambBuildSprites(){
   const mk=(sz,stops)=>{ const c=document.createElement('canvas'); c.width=c.height=sz; const g=c.getContext('2d');
@@ -16434,10 +16641,19 @@ function drawAmbientWorldInner(q){
   { ctx.globalCompositeOperation='lighter';
     let used=0; const maxFly=Math.round(60*q);
     const tg=ambTint('#d8ff7a'), tg2=ambTint('#ff9c5a');
-    for(let i=0;i<trees.length && used<maxFly;i++){
-      const tr=trees[i];
+    /* 0.10.7.0: из всех деревьев светлячки есть у ~22% (хеш от индекса и позиции — константа). Список кандидатов
+       строится один раз (и пересобирается при изменении числа деревьев), порядок и выбор те же, что при полном обходе. */
+    if(AMB.flyTrees !== trees || AMB.flyCount !== trees.length){
+      AMB.flyTrees = trees; AMB.flyCount = trees.length; AMB.fly = [];
+      for(let i=0;i<trees.length;i++){
+        const t0=trees[i], h0=ambHash(i|0,(t0.x|0)^(t0.y|0));
+        if(h0<=0.22) AMB.fly.push({tr:t0, h:h0});
+      }
+    }
+    const FL=AMB.fly;
+    for(let fi=0;fi<FL.length && used<maxFly;fi++){
+      const tr=FL[fi].tr, h=FL[fi].h;
       if(tr.x<x0||tr.x>x1||tr.y<y0||tr.y>y1) continue;
-      const h=ambHash(i|0,(tr.x|0)^(tr.y|0)); if(h>0.22) continue;
       used++;
       const ph=h*60, fx=tr.x+Math.sin(t*0.35+ph)*34+Math.sin(t*0.9+ph*2)*8, fy=tr.y-8+Math.cos(t*0.28+ph*1.3)*26;
       const blink=0.5+0.5*Math.sin(t*(1.1+h*3)+ph); const a=blink*blink*0.75;
@@ -16467,15 +16683,24 @@ function drawAmbientWorldInner(q){
     }
   }
 
-  /* Листва, пыль и угольки: небольшой пул частиц вокруг камеры */
+  /* Листва, пыль и угольки: небольшой пул частиц вокруг камеры.
+     0.10.7.0: движение/спавн/удаление считаются 30 раз/с (20 на «Средней»), а рисуются каждый кадр — медленный фон
+     (10–30 px/с) при этом выглядит так же, а работа на кадр на мониторах 120+ Гц сокращается в разы. */
   { ctx.globalCompositeOperation='source-over';
-    if(Math.random() < dt*10*q) ambSpawn(q,x0,y0,x1,y1);
-    if(Math.random() < dt*6*q) ambSpawn(q,x0,y0,x1,y1);
     const P=AMB.parts, tgE=ambTint('#ff7a30');
-    for(let i=P.length-1;i>=0;i--){
-      const p=P[i]; p.t+=dt;
-      if(p.t>=p.life || p.x<x0-200||p.x>x1+200||p.y<y0-200||p.y>y1+200){ P[i]=P[P.length-1]; P.pop(); continue; }
-      p.x+=(p.vx+Math.sin(t*0.8+p.ph)*8)*dt; p.y+=(p.vy+Math.cos(t*0.6+p.ph)*5)*dt;
+    AMB.simAcc=(AMB.simAcc||0)+dt;
+    if(AMB.simAcc >= (q>=1 ? 1/30 : 1/20)){
+      const sdt=Math.min(0.1, AMB.simAcc); AMB.simAcc=0;
+      if(Math.random() < sdt*10*q) ambSpawn(q,x0,y0,x1,y1);
+      if(Math.random() < sdt*6*q) ambSpawn(q,x0,y0,x1,y1);
+      for(let i=P.length-1;i>=0;i--){
+        const p=P[i]; p.t+=sdt;
+        if(p.t>=p.life || p.x<x0-200||p.x>x1+200||p.y<y0-200||p.y>y1+200){ P[i]=P[P.length-1]; P.pop(); continue; }
+        p.x+=(p.vx+Math.sin(t*0.8+p.ph)*8)*sdt; p.y+=(p.vy+Math.cos(t*0.6+p.ph)*5)*sdt;
+      }
+    }
+    for(let i=0;i<P.length;i++){
+      const p=P[i];
       const f=Math.sin(Math.min(1,p.t/p.life)*Math.PI);
       if(p.k==='ember'){
         ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=f*(0.5+0.3*Math.sin(t*6+p.ph));
@@ -16492,6 +16717,8 @@ function drawAmbientWorldInner(q){
   ctx.globalCompositeOperation=prevOp; ctx.globalAlpha=1;
 }
 
+const RENDER_LIST = [];
+function compareUnitsByY(a, b){ return a.y - b.y; }
 function drawWorldObjects(){
   for(const f of aoes){
     if(f.visual !== 'molotovFire' || f.dead) continue;
@@ -16677,16 +16904,25 @@ function drawWorldObjects(){
   const renderMargin=260;
   const viewLeft=cam.x-VW/2-renderMargin, viewRight=cam.x+VW/2+renderMargin;
   const viewTop=cam.y-VH/2-renderMargin, viewBottom=cam.y+VH/2+renderMargin;
-  const list = units.filter(unit =>
-    unit.x+unit.radius>=viewLeft && unit.x-unit.radius<=viewRight &&
-    unit.y+unit.radius>=viewTop && unit.y-unit.radius<=viewBottom
-  ).sort((a,b) => a.y-b.y);
+  /* 0.10.7.0: переиспользуемый массив + статический компаратор вместо filter().sort((a,b)=>…) на каждый кадр.
+     Array.prototype.sort стабилен — порядок равных по Y юнитов тот же, что был. */
+  const list = RENDER_LIST;
+  list.length = 0;
+  for(let ui = 0; ui < units.length; ui++){
+    const unit = units[ui];
+    if(unit.x+unit.radius>=viewLeft && unit.x-unit.radius<=viewRight &&
+       unit.y+unit.radius>=viewTop && unit.y-unit.radius<=viewBottom) list.push(unit);
+  }
+  if(list.length > 1) list.sort(compareUnitsByY);
   if(window.Hero3D) Hero3D.resetBudget();
   drawTowerRuins();
-  for(const u of list){
+  const pdUn = pdT();
+  for(let li = 0; li < list.length; li++){
+    const u = list[li];
     if((u.type === 'tower' || u.type === 'ancient') && (!u.alive || u.hp <= 0 || u.dead)) continue;
     drawUnitSafely(u);
   }
+  pdE('units', pdUn);
   drawTowerFx();
 
   for(const p of projectiles){
@@ -17167,17 +17403,20 @@ function drawWorldObjects(){
   /* 0.8.4: свечение (shadowBlur) на каждой частице — самая дорогая операция canvas;
      при большом числе частиц рисуем их без свечения */
   const particleGlow = particles.length < 120;
-  for(const p of particles){
+  /* 0.10.7.0: раньше на КАЖДУЮ частицу делались save()/restore() (до 900 пар за кадр). Теперь одна пара на весь цикл:
+     каждая частица сама выставляет alpha/fill/stroke/lineWidth, save() остался только у «лезвий» (translate+rotate). */
+  const pdPa = pdT();
+  ctx.save();
+  for(let pi = 0; pi < particles.length; pi++){
+    const p = particles[pi];
     if(!isWorldPointVisible(p.x,p.y,90)) continue;
     const k = p.t/p.life;
-    ctx.save();
     ctx.globalAlpha = (1-k)*0.9;
     ctx.fillStyle = p.color;
     ctx.strokeStyle = p.color;
     if(particleGlow){ ctx.shadowColor = p.color; ctx.shadowBlur = p.spark ? 12 : 5; }
     if(p.bubble){
       const br = p.size*(1+k*0.35);
-      ctx.globalAlpha = (1-k)*0.9;
       ctx.lineWidth = Math.max(1, br*0.22);
       ctx.strokeStyle = 'rgba(130,220,255,1)';
       ctx.fillStyle = 'rgba(60,150,255,0.22)';
@@ -17185,6 +17424,7 @@ function drawWorldObjects(){
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
       ctx.beginPath(); ctx.arc(p.x-br*0.35,p.y-br*0.35,Math.max(0.8,br*0.22),0,Math.PI*2); ctx.fill();
     } else if(p.blade){
+      ctx.save();
       ctx.translate(p.x,p.y);
       ctx.rotate(p.angle + Math.PI/2);
       ctx.beginPath();
@@ -17193,6 +17433,7 @@ function drawWorldObjects(){
       ctx.lineTo(-p.size*0.55,p.size);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
     } else if(p.spark){
       ctx.lineWidth = Math.max(1,p.size*0.55);
       ctx.beginPath();
@@ -17202,8 +17443,9 @@ function drawWorldObjects(){
     } else {
       ctx.beginPath(); ctx.arc(p.x,p.y,p.size*(1-k*0.5),0,Math.PI*2); ctx.fill();
     }
-    ctx.restore();
   }
+  ctx.restore();
+  pdE('particles', pdPa);
 
   for(const t of texts){
     if(!isWorldPointVisible(t.x,t.y,120)) continue;
@@ -23871,6 +24113,17 @@ function fx973Post(){ if(window.__fx973) window.__fx973.drawPost(); }
 function fx973Tick(dt){ if(window.__fx973) window.__fx973.tick(dt); }
 
 function loop(now){
+  /* 0.10.7.0: лимит FPS. Пропуск кадра — до любых вычислений; Clock.tick считает dt по реальному времени. */
+  if(FPSCAP.rawLast){ const rd = now - FPSCAP.rawLast; if(rd > 0 && rd < 250) FPSCAP.rawEma = FPSCAP.rawEma ? FPSCAP.rawEma * 0.95 + rd * 0.05 : rd; }
+  FPSCAP.rawLast = now;
+  if(FPSCAP.limit > 0){
+    const capIv = 1000 / FPSCAP.limit;
+    if(!FPSCAP.nextT || now - FPSCAP.nextT > 250) FPSCAP.nextT = now;      /* старт или возврат после паузы/фона */
+    if(now < FPSCAP.nextT - 1.5){ requestAnimationFrame(loop); return; }   /* 1.5 мс допуск на дрожание vsync */
+    FPSCAP.nextT += capIv;
+    if(now >= FPSCAP.nextT) FPSCAP.nextT = now + capIv;                    /* отстали больше чем на кадр — не догоняем пачкой */
+  }
+  const pdFrameStart = PERFD.on ? performance.now() : 0;
   try {
     fpsTick(now);
     /* Engine.Clock: dt=0 на первом кадре после потери фокуса/возврата вкладки, потолок 0.1 с */
@@ -23913,8 +24166,10 @@ function loop(now){
       }
       /* Подшаги: при просадке FPS симуляция идёт мелкими шагами ≤1/30 c — снаряды не «телепортируются» сквозь цели */
       const subN = Engine.Clock.steps(dt), subDt = dt / subN;
+      const pdU = pdT();
       for(let si = 0; si < subN; si++) update(subDt);
       fx973Tick(dt);
+      pdE('update', pdU);
       if(!Number.isFinite(cam.x) || !Number.isFinite(cam.y)){
         cam.x = playerHero && Number.isFinite(playerHero.x) ? playerHero.x : WORLD/2;
         cam.y = playerHero && Number.isFinite(playerHero.y) ? playerHero.y : WORLD/2;
@@ -23935,7 +24190,9 @@ function loop(now){
           terrainFrameCtx.clearRect(0,0,terrainFrameCanvas.width,terrainFrameCanvas.height);
           terrainFrameCtx.setTransform(terrainScale,0,0,terrainScale,0,0);
           terrainFrameCtx.translate(-cam.x + terrainFrameCanvas.width/terrainScale/2, -cam.y + terrainFrameCanvas.height/terrainScale/2);
+          const pdTr = pdT();
           drawTerrain();
+          pdE('terrain', pdTr);
         } finally {
           terrainFrameCtx.setTransform(1,0,0,1,0,0);
           ctx = mainCtx;
@@ -23948,16 +24205,29 @@ function loop(now){
       ctx.drawImage(terrainFrameCanvas, Math.round(terrainCamX - cam.x - TERRAIN_MARGIN + fx973SX()), Math.round(terrainCamY - cam.y - TERRAIN_MARGIN + fx973SY()), terrainFrameCanvas.width/terrainScale, terrainFrameCanvas.height/terrainScale);
       ctx.restore();
       drawItemRangePreview();
+      const pdAm = pdT();
       try { drawAmbientWorld(); } catch(err) { console.warn('ambient fx', err); }
+      pdE('ambient', pdAm);
       drawWards();
+      const pdWo = pdT();
       drawWorldObjects();
+      pdE('world', pdWo);
+      const pdFx = pdT();
       fx973World();
+      pdE('fx973', pdFx);
       drawWardPlacement();
       drawBaseOverlay();
       ctx.restore();
+      const pdFg = pdT();
       drawFog();
+      pdE('fog', pdFg);
+      const pdFp = pdT();
       fx973Post();
+      pdE('fx973', pdFp);
+      const pdBl = pdT();
       if(bloomActive()){ try { Engine.Bloom.apply(ctx, canvas, 0.2); } catch(err) {} }
+      pdE('fog', pdBl);
+      const pdHu = pdT();
       drawMinimap();
       drawHUD();
       drawTouchControls();
@@ -23966,6 +24236,7 @@ function loop(now){
       drawPrematchOverlay();
       drawScoreboard();
       drawMatchIntro();
+      pdE('hud', pdHu);
       if(performance.now() < perfNoticeUntil){
         ctx.save(); ctx.textAlign='center'; ctx.font='bold 13px Segoe UI, Arial';
         const tw=ctx.measureText(perfNoticeText).width+28;
@@ -23990,6 +24261,7 @@ function loop(now){
     ctx.fillText('Восстановление игрового кадра…', VW/2, VH/2);
   } finally {
     try { drawFps(); } catch(err) {}
+    if(PERFD.on){ try { drawPerfDiag(); pdFrame(now, pdFrameStart); } catch(err) {} }
     requestAnimationFrame(loop);
   }
 }
