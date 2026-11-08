@@ -100,37 +100,216 @@ function fpsCapCycle(){
    Чтобы убрать диагностику: удалить этот блок, вызовы pdT()/pdE()/pdFrame()/drawPerfDiag() и обработчик F9 ниже. */
 const PERFD = {
   on:false, frames:0, t0:0, lastNow:0, long:0, worstGap:0, shown:{fps:0, long:0, worstGap:0, frameMs:0},
-  keys:['update','ai','terrain','ambient','units','world','particles','fx973','hud','fog','frame'],
-  cur:{}, acc:{}, max:{}, avg:{}, pk:{}
+  /* 0.10.7.1: s_* — подсистемы update(); время «ЧИСТОЕ» (self-time, вложенные секции вычитаются), их сумма = update().
+     n_* — счётчики вызовов за кадр. */
+  keys:['update','ai','terrain','ambient','units','world','particles','fx973','hud','fog','frame',
+        's_events','s_world','s_heroes','s_creeps','s_move','s_collide','s_target','s_los','s_losC','s_combat','s_damage','s_cd','s_status',
+        's_proj','s_aoe','s_walls','s_fx','s_clean','s_cam','s_vision','s_net','s_fx973','s_other',
+        'n_update','n_los','n_canMove','n_find','n_damage','n_part'],
+  cur:{}, acc:{}, max:{}, avg:{}, pk:{},
+  hist:[],                                                    /* последние интервалы по 0.5 с — для отчёта (F10) */
+  mem:{last:0, alloc:0, gc:0, gcFrameMax:0, floors:[], shown:{allocMBs:0, gcs:0, gcFrameMax:0, heapMB:0, floorDeltaKBs:0, ok:false}}
 };
 for(const k of PERFD.keys){ PERFD.cur[k] = 0; PERFD.acc[k] = 0; PERFD.max[k] = 0; PERFD.avg[k] = 0; PERFD.pk[k] = 0; }
+/* --- стек секций: pB(k) входит в секцию, pX() выходит; время идёт только верхней секции --- */
+const PS = {k:new Array(48), n:0, mark:0};
+function pB(k){
+  if(!PERFD.on) return;
+  const now = performance.now();
+  if(PS.n > 0) PERFD.cur[PS.k[PS.n - 1]] += now - PS.mark;
+  PS.k[PS.n++] = k; PS.mark = now;
+}
+function pX(){
+  if(!PERFD.on || PS.n === 0) return;
+  const now = performance.now();
+  PERFD.cur[PS.k[PS.n - 1]] += now - PS.mark;
+  PS.n--; PS.mark = now;
+}
+function pN(k){ if(PERFD.on) PERFD.cur[k]++; }
 function pdT(){ return PERFD.on ? performance.now() : 0; }
 function pdE(k, t0){ if(t0) PERFD.cur[k] += performance.now() - t0; }
+/* --- обёртки существующих функций/методов: ставятся при включении F9 и снимаются при выключении (в выкл. состоянии нулевая цена) --- */
+const PD_WRAPS = [];      /* [объект, имя, оригинал, обёртка] */
+function pdMake(fn, key){
+  return function(a, b, c, d, e){
+    if(!PERFD.on) return fn.call(this, a, b, c, d, e);
+    pB(key);
+    try { return fn.call(this, a, b, c, d, e); } finally { pX(); }
+  };
+}
+let pdLosN = 0;
+function pdInstall(){
+  if(PD_WRAPS.length) return;
+  const put = (obj, name, key, make) => {
+    const orig = obj[name]; if(typeof orig !== 'function') return;
+    const w = make ? make(orig) : pdMake(orig, key);
+    obj[name] = w; PD_WRAPS.push([obj, name, orig, w]);
+  };
+  /* глобальные function-декларации: привязка перезаписываема; значение передаём через временный глобал */
+  const setFn = (name, key, make) => {
+    try {
+      const orig = (0, eval)(name);
+      if(typeof orig !== 'function') return;
+      const w = make ? make(orig) : pdMake(orig, key);
+      window.__pdW = w; (0, eval)(name + ' = window.__pdW'); delete window.__pdW;
+      PD_WRAPS.push([null, name, orig, w]);
+    } catch(err) { console.warn('pd wrap', name, err); }
+  };
+  for(const [n, k] of [['tickYosypEffects','s_status'],['tickRupture','s_status'],['applyDamage','s_damage'],
+                       ['updateBaseRooms','s_world'],['updateMo3giMines','s_world'],['olexTick','s_world'],['updateRoshan','s_world'],
+                       ['updateVision','s_vision'],['updateWards','s_vision'],['updateTowerFx','s_fx'],['updateDamageNumbers','s_fx'],
+                       ['resolveBaseWalls','s_collide'],['resolveTreeOverlap','s_collide'],['towerCombatTick','s_target']]) setFn(n, k);
+  setFn('canMoveTo', 's_collide', fn => function(x, y, r, it){ if(!PERFD.on) return fn(x, y, r, it); PERFD.cur.n_canMove++; pB('s_collide'); try { return fn(x, y, r, it); } finally { pX(); } });
+  /* hasTreeCover вызывается тысячи раз за кадр — время берём выборкой 1/4 и масштабируем (иначе performance.now() исказит замер).
+     s_los — вызовы из поиска цели (findTarget/aggro), s_losC — вызовы из updateCombat (проверка видимости цели при атаке). */
+  setFn('hasTreeCover', 's_los', fn => function(att, tgt){
+    if(!PERFD.on) return fn(att, tgt);
+    PERFD.cur.n_los++;
+    if((++pdLosN & 3) !== 0) return fn(att, tgt);
+    const t0 = performance.now();
+    const r = fn(att, tgt);
+    const dur = (performance.now() - t0) * 4;
+    const top = PS.n > 0 ? PS.k[PS.n - 1] : null;
+    PERFD.cur[top === 's_combat' ? 's_losC' : 's_los'] += dur;
+    if(top) PERFD.cur[top] -= dur;                               /* вычитаем из секции-вызывающего — «чистое» время сохраняется */
+    return r;
+  });
+  const P = Unit.prototype;
+  put(P, 'tickTimers', 's_status'); put(P, 'updateMove', 's_move'); put(P, 'updateCombat', 's_combat');
+  put(Creep.prototype, 'findTarget', 's_target', fn => function(){ if(!PERFD.on) return fn.call(this); PERFD.cur.n_find++; pB('s_target'); try { return fn.call(this); } finally { pX(); } });
+  put(Creep.prototype, 'updateAI', 's_target'); put(NeutralCreep.prototype, 'updateAI', 's_target');
+  put(NeutralCreep.prototype, 'updateCombat', 's_combat');
+}
+function pdUninstall(){
+  while(PD_WRAPS.length){
+    const [obj, name, orig, w] = PD_WRAPS.pop();
+    try {
+      if(obj){ if(obj[name] === w) obj[name] = orig; }
+      else { window.__pdW = orig; (0, eval)(name + ' = window.__pdW'); delete window.__pdW; }
+    } catch(err) {}
+  }
+  PS.n = 0;
+}
+function pdReset(){
+  for(const k of PERFD.keys){ PERFD.cur[k] = 0; PERFD.acc[k] = 0; PERFD.max[k] = 0; PERFD.avg[k] = 0; PERFD.pk[k] = 0; }
+  PERFD.frames = 0; PERFD.t0 = 0; PERFD.long = 0; PERFD.worstGap = 0; PERFD.hist.length = 0; PS.n = 0;
+  const M = PERFD.mem; M.last = 0; M.alloc = 0; M.gc = 0; M.gcFrameMax = 0; M.floors.length = 0;
+}
+function pdSetOn(v){
+  if(v === PERFD.on) return;
+  PERFD.on = v;
+  if(v){ pdInstall(); pdReset(); } else { pdUninstall(); PERFD.on = false; }
+}
 function pdFrame(now, frameStart){
-  const P = PERFD;
+  const P = PERFD, M = P.mem;
   P.cur.frame = performance.now() - frameStart;
+  /* память/GC (Chrome: performance.memory; для точных значений нужен флаг --enable-precise-memory-info) */
+  const pm = performance.memory;
+  let gcThisFrame = false;
+  if(pm){
+    const h = pm.usedJSHeapSize;
+    if(M.last){
+      const dh = h - M.last;
+      if(dh > 0) M.alloc += dh;
+      else if(dh < -262144){ M.gc++; gcThisFrame = true; M.floors.push([now, h]); if(M.floors.length > 120) M.floors.shift(); }
+    }
+    M.last = h; M.shown.heapMB = h / 1048576; M.shown.ok = true;
+  }
+  if(gcThisFrame && P.cur.frame > M.gcFrameMax) M.gcFrameMax = P.cur.frame;
   if(!P.t0){ P.t0 = now; P.lastNow = now; return; }
   const gap = now - P.lastNow; P.lastNow = now;
   if(gap > P.worstGap) P.worstGap = gap;
   if(gap > 33.4) P.long++;
   P.frames++;
   for(const k of P.keys){ const v = P.cur[k]; P.acc[k] += v; if(v > P.max[k]) P.max[k] = v; P.cur[k] = 0; }
+  PS.n = 0;
   const span = now - P.t0;
   if(span >= 500){
     for(const k of P.keys){ P.avg[k] = P.acc[k] / P.frames; P.pk[k] = P.max[k]; P.acc[k] = 0; P.max[k] = 0; }
     P.shown.fps = P.frames * 1000 / span; P.shown.frameMs = span / P.frames;
     P.shown.long = P.long * 1000 / span; P.shown.worstGap = P.worstGap;
+    const S = M.shown;
+    S.allocMBs = M.alloc / 1048576 * 1000 / span; S.gcs = M.gc * 1000 / span; S.gcFrameMax = M.gcFrameMax;
+    /* утечка: тренд «дна» кучи (значения сразу после GC) за последние ~30 с */
+    const fl = M.floors;
+    if(fl.length >= 3){
+      let i0 = 0; while(i0 < fl.length - 2 && now - fl[i0][0] > 30000) i0++;
+      const dt = (fl[fl.length - 1][0] - fl[i0][0]) / 1000;
+      S.floorDeltaKBs = dt > 4 ? (fl[fl.length - 1][1] - fl[i0][1]) / 1024 / dt : 0;
+    }
+    M.alloc = 0; M.gc = 0; M.gcFrameMax = 0;
+    P.hist.push({avg:Object.assign({}, P.avg), pk:Object.assign({}, P.pk), fps:P.shown.fps, frameMs:P.shown.frameMs,
+                 mem:{allocMBs:S.allocMBs, gcs:S.gcs, gcFrameMax:S.gcFrameMax, heapMB:S.heapMB, floorDeltaKBs:S.floorDeltaKBs},
+                 n:{units:units.length, proj:projectiles.length, part:particles.length, fxs:fxs.length, texts:texts.length, aoes:aoes.length, walls:walls.length, trees:trees.length}});
+    if(P.hist.length > 60) P.hist.shift();
     P.frames = 0; P.long = 0; P.worstGap = 0; P.t0 = now;
   }
 }
 window.addEventListener('keydown', e => {
+  if(e.key === 'F10'){
+    e.preventDefault();
+    const txt = pdReport();
+    try { navigator.clipboard.writeText(txt); } catch(err) {}
+    console.log(txt);
+    return;
+  }
   if(e.key !== 'F9') return;
   e.preventDefault();
   if(e.shiftKey){ fpsCapCycle(); return; }
-  PERFD.on = !PERFD.on;
-  for(const k of PERFD.keys){ PERFD.cur[k] = 0; PERFD.acc[k] = 0; PERFD.max[k] = 0; PERFD.avg[k] = 0; PERFD.pk[k] = 0; }
-  PERFD.frames = 0; PERFD.t0 = 0; PERFD.long = 0; PERFD.worstGap = 0;
+  pdSetOn(!PERFD.on);
 });
+/* Текстовый отчёт по накопленным интервалам 0.5 с (F10 — копирует в буфер обмена и пишет в консоль). Среднее — по avg, пик — максимум pk. */
+const PD_ROWS = [
+  ['События: боты-сценарии, чат, голоса, руны, волны', 's_events'],
+  ['ИИ ботов (updateEnemyAI)',                      'ai'],
+  ['Объекты мира: комнаты баз, мины, Олекс, Рошан',  's_world'],
+  ['Цикл героев / прочее в Hero.update',            's_heroes'],
+  ['Цикл крипов и нейтралов / прочее',              's_creeps'],
+  ['Передвижение (updateMove)',                     's_move'],
+  ['Столкновения (canMoveTo, деревья, стены баз)',  's_collide'],
+  ['Поиск целей (findTarget, aggro, башни)',        's_target'],
+  ['LOS через деревья при ПОИСКЕ цели (выборка)',   's_los'],
+  ['LOS через деревья при АТАКЕ (выборка)',         's_losC'],
+  ['Атаки (updateCombat)',                          's_combat'],
+  ['Урон (applyDamage + цепочка обёрток)',          's_damage'],
+  ['Перезарядки навыков и предметов',               's_cd'],
+  ['Состояния и эффекты (tickTimers, баффы)',       's_status'],
+  ['Снаряды',                                       's_proj'],
+  ['AoE-зоны',                                      's_aoe'],
+  ['Стены (Fissure/лёд)',                           's_walls'],
+  ['Частицы, FX, тексты, трава',                    's_fx'],
+  ['Очистка массивов (compact/filter)',             's_clean'],
+  ['Камера',                                        's_cam'],
+  ['Обзор и туман (updateVision, варды)',           's_vision'],
+  ['Сеть и синхронизация',                          's_net'],
+  ['fx973 tick',                                    's_fx973'],
+  ['Прочее (остаток update)',                       's_other']
+];
+const PD_SUB_KEYS = ['s_events','ai','s_world','s_heroes','s_creeps','s_move','s_collide','s_target','s_los','s_losC','s_combat','s_damage','s_cd','s_status','s_proj','s_aoe','s_walls','s_fx','s_clean','s_cam','s_vision','s_net','s_fx973','s_other'];
+function pdSum(o){ let s = 0; for(const k of PD_SUB_KEYS) s += (o[k] || 0); return s; }
+function pdReport(){
+  const H = PERFD.hist;
+  if(!H.length) return 'PERF-DIAG: нет данных (включите F9 и подождите пару секунд)';
+  const n = H.length, mean = k => H.reduce((s, h) => s + (h.avg[k] || 0), 0) / n, peak = k => Math.max(...H.map(h => h.pk[k] || 0));
+  const f = v => v.toFixed(2).padStart(7);
+  const L = [];
+  L.push('PERF-DIAG v' + (typeof GAME_VERSION !== 'undefined' ? GAME_VERSION : '?') + '  интервалов по 0.5 с: ' + n);
+  L.push('FPS ' + mean('frame').toFixed(1) + ' мс/кадр(CPU)   FPS-средний ' + (H.reduce((s, h) => s + h.fps, 0) / n).toFixed(0));
+  L.push('');
+  L.push('update() всего        среднее ' + f(mean('update')) + ' мс   пик ' + f(peak('update')) + ' мс  (подшагов/кадр ' + mean('n_update').toFixed(2) + ')');
+  L.push('--- подсистемы update(): чистое время, мс/кадр (среднее | пик) ---');
+  const rows = PD_ROWS.map(r => [r[0], mean(r[1]), peak(r[1])]).sort((a, b) => b[1] - a[1]);
+  for(const r of rows) L.push(r[0].padEnd(50) + f(r[1]) + ' |' + f(r[2]));
+  L.push('сумма подсистем'.padEnd(50) + f(PD_SUB_KEYS.reduce((s, k) => s + mean(k), 0)));
+  L.push('');
+  L.push('вызовов за кадр: hasTreeCover ' + mean('n_los').toFixed(0) + ', canMoveTo ' + mean('n_canMove').toFixed(0) + ', findTarget ' + mean('n_find').toFixed(0));
+  const ml = H[n - 1];
+  L.push('память: куча ' + ml.mem.heapMB.toFixed(1) + ' МБ, аллокации ' + (H.reduce((s, h) => s + h.mem.allocMBs, 0) / n).toFixed(2) + ' МБ/с, GC ' +
+         (H.reduce((s, h) => s + h.mem.gcs, 0) / n).toFixed(2) + '/с, худший GC-кадр ' + Math.max(...H.map(h => h.mem.gcFrameMax)).toFixed(1) + ' мс, дно кучи ' + ml.mem.floorDeltaKBs.toFixed(0) + ' КБ/с');
+  L.push('объекты: ' + Object.entries(ml.n).map(([k, v]) => k + '=' + v).join(' '));
+  return L.join('\n');
+}
+window.__perfReport = pdReport;
 function drawPerfDiag(){
   if(!PERFD.on) return;
   const P = PERFD, A = P.avg, K = P.pk;
@@ -182,7 +361,42 @@ function drawPerfDiag(){
   ctx.fillText('юнитов ' + aliveUnits + '/' + units.length + '  снарядов ' + projectiles.length + '  частиц ' + particles.length, x + 8, yy + 17);
   ctx.fillText('зон ' + aoes.length + '  эффектов ' + fxs.length + '  текстов ' + texts.length + '  ambient ' + AMB.parts.length, x + 8, yy + 31);
   ctx.fillStyle = '#6f7d8f';
-  ctx.fillText('* terrain — только в кадры перерисовки слоя   Shift+F9: лимит FPS', x + 8, yy + 45);
+  ctx.fillText('* terrain — только в кадры перерисовки слоя   Shift+F9: лимит FPS   F10: отчёт', x + 8, yy + 45);
+  /* ---- 0.10.7.1: панель подсистем update() (чистое время, мс/кадр: среднее | пик за 0.5 с) ---- */
+  const W2 = 392, rows2 = PD_ROWS.map(r => [r[0], A[r[1]] || 0, K[r[1]] || 0]);
+  const memS = P.mem.shown, H2 = 62 + (rows2.length + 1) * 15 + 58, x2 = x - W2 - 8;
+  ctx.fillStyle = 'rgba(8,9,14,0.88)'; ctx.fillRect(x2, y, W2, H2);
+  ctx.strokeStyle = 'rgba(215,179,106,0.7)'; ctx.strokeRect(x2 + 0.5, y + 0.5, W2 - 1, H2 - 1);
+  ctx.font = 'bold 11px Consolas, monospace'; ctx.fillStyle = '#ffd568';
+  ctx.fillText('update(): ПОДСИСТЕМЫ (чистое время, мс/кадр)', x2 + 8, y + 14);
+  ctx.font = '11px Consolas, monospace'; ctx.fillStyle = '#9fb0c4';
+  ctx.fillText('всего update ' + A.update.toFixed(2) + ' | пик ' + K.update.toFixed(1) + '   подшагов ' + A.n_update.toFixed(1) + '/кадр', x2 + 8, y + 29);
+  ctx.fillText('вызовов/кадр: LOS ' + A.n_los.toFixed(0) + '  canMove ' + A.n_canMove.toFixed(0) + '  findTarget ' + A.n_find.toFixed(0), x2 + 8, y + 43);
+  const order = rows2.map((r, i) => i).sort((i, j) => rows2[j][1] - rows2[i][1]);
+  const top3 = new Set(order.slice(0, 3));
+  let y2 = y + 58;
+  const bx = x2 + 262, bw = 50;
+  rows2.forEach((r, i) => {
+    const a = r[1], p = r[2];
+    ctx.fillStyle = top3.has(i) ? '#ffd568' : '#c9d3df'; ctx.textAlign = 'left';
+    ctx.fillText(r[0].length > 33 ? r[0].slice(0, 32) + '…' : r[0], x2 + 8, y2);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(bx - 4, y2 - 8, bw, 8);
+    ctx.fillStyle = a < 0.5 ? '#7fe3a0' : (a < 2 ? '#ffd568' : '#ff7b6b');
+    ctx.fillRect(bx - 4, y2 - 8, Math.min(bw, bw * a / 6), 8);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#e6ecf3';
+    ctx.fillText(a.toFixed(2), x2 + W2 - 52, y2);
+    ctx.fillStyle = p > 5 ? '#ff7b6b' : '#8d9aab';
+    ctx.fillText(p.toFixed(1), x2 + W2 - 8, y2);
+    y2 += 15;
+  });
+  ctx.textAlign = 'left'; ctx.fillStyle = '#8d9aab';
+  ctx.fillText('сумма подсистем ' + pdSum(A).toFixed(2) + '   (жёлтые — топ-3)', x2 + 8, y2 + 2);
+  ctx.fillStyle = '#c9d3df';
+  if(memS.ok){
+    ctx.fillText('куча ' + memS.heapMB.toFixed(0) + ' МБ  аллок ' + memS.allocMBs.toFixed(2) + ' МБ/с  GC ' + memS.gcs.toFixed(1) + '/с', x2 + 8, y2 + 18);
+    ctx.fillStyle = memS.floorDeltaKBs > 150 ? '#ff7b6b' : '#c9d3df';
+    ctx.fillText('худший GC-кадр ' + memS.gcFrameMax.toFixed(1) + ' мс   дно кучи ' + (memS.floorDeltaKBs >= 0 ? '+' : '') + memS.floorDeltaKBs.toFixed(0) + ' КБ/с', x2 + 8, y2 + 32);
+  } else ctx.fillText('память: performance.memory недоступна (только Chrome)', x2 + 8, y2 + 18);
   ctx.restore();
 }
 
@@ -5122,9 +5336,10 @@ class Unit {
     const t=this.attackTarget;
     if(!t||t.dead){ this.attackTarget=null; return; }
     if(this.stunTimer>0 || this.windTimer>0 || this.virsudiJump) return;
-    if((this.type==='tower' || this.type==='creep') && hasTreeCover(this,t)) return;
     const d=Math.hypot(t.x-this.x, t.y-this.y);
+    /* 0.10.7.1: линия видимости нужна только когда цель в радиусе атаки — раньше считалась каждый кадр и для далёких целей */
     if(d <= this.getAttackRange() + t.radius){
+      if((this.type==='tower' || this.type==='creep') && hasTreeCover(this,t)) return;
       if(this.atkCd<=0){
         this.atkCd = this.getAttackTime() * (this.attackSlowT > 0 ? 1 + (this.attackSlow || 0.35) : 1);
         this.facing = Math.atan2(t.y-this.y, t.x-this.x);
@@ -5365,12 +5580,19 @@ class Creep extends Unit {
   }
   findTarget(){
     let best=null, bd=this.aggroRange;
+    const sx=this.x, sy=this.y;
     for(const o of units){
       // Лайновые крипы не вмешиваются в нейтральные лагеря.
       if(o.team===this.team||o.team===2||o.dead) continue;
+      /* 0.10.7.1: сначала дешёвая проверка дистанции, и только для кандидата, который реально ближе текущего лучшего, —
+         дорогая проверка линии через деревья (раньше LOS считался для КАЖДОГО юнита карты). Итог тот же. */
+      const dx=o.x-sx, dy=o.y-sy, lim=bd+o.radius;
+      const d2=dx*dx+dy*dy;
+      if(!(d2<lim*lim)) continue;
+      const d = Math.sqrt(d2) - o.radius;
+      if(!(d<bd)) continue;
       if(hasTreeCover(this,o)) continue;
-      const d = Math.hypot(o.x-this.x, o.y-this.y) - o.radius;
-      if(d<bd){ bd=d; best=o; }
+      bd=d; best=o;
     }
     return best;
   }
@@ -5591,10 +5813,52 @@ function pointSegmentDistance(px, py, ax, ay, bx, by){
   return Math.hypot(px-(ax+dx*t), py-(ay+dy*t));
 }
 
+/* ===== 0.10.7.1: СЕТКА ДЕРЕВЬЕВ =====
+   Раньше canMoveTo / resolveTreeOverlap / hasTreeCover перебирали ВСЕ деревья (≈370) на каждый вызов, а hasTreeCover
+   вызывается тысячами раз за кадр (поиск цели каждым крипом по каждому юниту + проверка линии при каждой атаке) —
+   это и было ~95% времени update(). Теперь деревья лежат в равномерной сетке (CSR-массивы), и проверка смотрит
+   только на клетки рядом с точкой/отрезком. Результат тот же, что у полного перебора (радиус клетки учитывает
+   максимальный радиус дерева). Сетка пересобирается сама, если массив trees заменили или изменили длину (рубка деревьев). */
+const TG = {cell:128, inv:1/128, cols:0, start:null, items:null, tx:null, ty:null, tr:null, src:null, n:-1, maxR:24};
+function treeGridEnsure(){
+  if(TG.src === trees && TG.n === trees.length) return;
+  const n = trees.length, cols = Math.ceil(WORLD * TG.inv) + 1, cells = cols * cols, inv = TG.inv;
+  const start = new Int32Array(cells + 1), cellOf = new Int32Array(n);
+  const tx = new Float64Array(n), ty = new Float64Array(n), tr = new Float64Array(n);
+  let maxR = 0;
+  for(let i = 0; i < n; i++){
+    const t = trees[i];
+    tx[i] = t.x; ty[i] = t.y; tr[i] = t.radius; if(t.radius > maxR) maxR = t.radius;
+    let cx = Math.floor(t.x * inv), cy = Math.floor(t.y * inv);
+    cx = cx < 0 ? 0 : (cx >= cols ? cols - 1 : cx); cy = cy < 0 ? 0 : (cy >= cols ? cols - 1 : cy);
+    const c = cy * cols + cx; cellOf[i] = c; start[c + 1]++;
+  }
+  for(let c = 0; c < cells; c++) start[c + 1] += start[c];
+  const fill = start.slice(0, cells), items = new Int32Array(n);
+  for(let i = 0; i < n; i++) items[fill[cellOf[i]]++] = i;
+  TG.cols = cols; TG.start = start; TG.items = items; TG.tx = tx; TG.ty = ty; TG.tr = tr; TG.src = trees; TG.n = n; TG.maxR = maxR;
+}
+
 function canMoveTo(x, y, radius, ignoreTrees=false){
   if(baseWallBlocked(x, y, radius)) return false;
   if(ignoreTrees) return true;
-  for(const tree of trees) if(Math.hypot(tree.x-x, tree.y-y) < tree.radius + radius + 4) return false;
+  treeGridEnsure();
+  {
+    const cols = TG.cols, inv = TG.inv, start = TG.start, items = TG.items, tx = TG.tx, ty = TG.ty, tr = TG.tr;
+    const reach = TG.maxR + radius + 4;
+    let x0 = Math.floor((x - reach) * inv), x1 = Math.floor((x + reach) * inv);
+    let y0 = Math.floor((y - reach) * inv), y1 = Math.floor((y + reach) * inv);
+    if(x0 < 0) x0 = 0; if(y0 < 0) y0 = 0; if(x1 >= cols) x1 = cols - 1; if(y1 >= cols) y1 = cols - 1;
+    for(let cy = y0; cy <= y1; cy++){
+      for(let cx = x0; cx <= x1; cx++){
+        const c = cy * cols + cx;
+        for(let k = start[c], e = start[c + 1]; k < e; k++){
+          const i = items[k], dx = tx[i] - x, dy = ty[i] - y, lim = tr[i] + radius + 4;
+          if(dx * dx + dy * dy < lim * lim) return false;
+        }
+      }
+    }
+  }
   for(const wall of walls){
     if(!wall.blocking) continue;
     const ux=Math.cos(wall.angle), uy=Math.sin(wall.angle);
@@ -5611,15 +5875,26 @@ function canMoveTo(x, y, radius, ignoreTrees=false){
    так что застрять навсегда уже не получится, даже в самой тесной щели. */
 function resolveTreeOverlap(unit, dt){
   let pushX=0, pushY=0, overlapped=false;
-  for(const tree of trees){
-    const dx=unit.x-tree.x, dy=unit.y-tree.y;
-    const dist=Math.hypot(dx,dy);
-    const minDist=tree.radius+unit.radius+4;
-    if(dist<minDist){
-      overlapped=true;
-      const depth=minDist-dist;
-      if(dist>0.001){ pushX+=(dx/dist)*depth; pushY+=(dy/dist)*depth; }
-      else { pushX+=(Math.random()-0.5)*depth; pushY+=(Math.random()-0.5)*depth; }
+  treeGridEnsure();
+  {
+    const cols = TG.cols, inv = TG.inv, start = TG.start, items = TG.items, tx = TG.tx, ty = TG.ty, tr = TG.tr;
+    const ux = unit.x, uy = unit.y, reach = TG.maxR + unit.radius + 4;
+    let x0 = Math.floor((ux - reach) * inv), x1 = Math.floor((ux + reach) * inv);
+    let y0 = Math.floor((uy - reach) * inv), y1 = Math.floor((uy + reach) * inv);
+    if(x0 < 0) x0 = 0; if(y0 < 0) y0 = 0; if(x1 >= cols) x1 = cols - 1; if(y1 >= cols) y1 = cols - 1;
+    for(let cy = y0; cy <= y1; cy++){
+      for(let cx = x0; cx <= x1; cx++){
+        const c = cy * cols + cx;
+        for(let k = start[c], e = start[c + 1]; k < e; k++){
+          const i = items[k], dx = ux - tx[i], dy = uy - ty[i], minDist = tr[i] + unit.radius + 4;
+          if(dx * dx + dy * dy >= minDist * minDist) continue;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          overlapped = true;
+          const depth = minDist - dist;
+          if(dist > 0.001){ pushX += (dx / dist) * depth; pushY += (dy / dist) * depth; }
+          else { pushX += (Math.random() - 0.5) * depth; pushY += (Math.random() - 0.5) * depth; }
+        }
+      }
     }
   }
   if(!overlapped) return false;
@@ -5640,8 +5915,24 @@ function isHiddenFrom(target, viewerTeam){
 function hasTreeCover(attacker, target){
   if(!attacker || !target) return false;
   if(isHiddenFrom(target, attacker.team)) return true;
-  for(const tree of trees){
-    if(pointSegmentDistance(tree.x,tree.y,attacker.x,attacker.y,target.x,target.y) < tree.radius + 8) return true;
+  treeGridEnsure();
+  const cols = TG.cols, inv = TG.inv, start = TG.start, items = TG.items, tx = TG.tx, ty = TG.ty, tr = TG.tr;
+  const ax = attacker.x, ay = attacker.y, bx = target.x, by = target.y, reach = TG.maxR + 8;
+  let x0 = Math.floor((Math.min(ax, bx) - reach) * inv), x1 = Math.floor((Math.max(ax, bx) + reach) * inv);
+  let y0 = Math.floor((Math.min(ay, by) - reach) * inv), y1 = Math.floor((Math.max(ay, by) + reach) * inv);
+  if(x0 < 0) x0 = 0; if(y0 < 0) y0 = 0; if(x1 >= cols) x1 = cols - 1; if(y1 >= cols) y1 = cols - 1;
+  const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy || 1;
+  for(let cy = y0; cy <= y1; cy++){
+    for(let cx = x0; cx <= x1; cx++){
+      const c = cy * cols + cx;
+      for(let k = start[c], e = start[c + 1]; k < e; k++){
+        const i = items[k], px = tx[i], py = ty[i];
+        let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+        t = t < 0 ? 0 : (t > 1 ? 1 : t);
+        const qx = px - (ax + dx * t), qy = py - (ay + dy * t), lim = tr[i] + 8;
+        if(qx * qx + qy * qy < lim * lim) return true;
+      }
+    }
   }
   return false;
 }
@@ -9495,6 +9786,7 @@ class Hero extends Unit {
         applyDamage(this, bloodrage.hpDrain, {team:1-this.team});
       }
     }
+    pB('s_cd');
     for(const s of this.skills) if(s.cd > 0) s.cd -= dt;
     for(const key of Object.keys(this.spellCooldowns)){
       this.spellCooldowns[key] = Math.max(0, this.spellCooldowns[key] - dt);
@@ -9557,6 +9849,7 @@ class Hero extends Unit {
         }
       }
     }
+    pX();
     if(this.timurPillow > 0){
       const heal = Math.min(this.maxHp - this.hp, 60 * dt * healAmpOf(this));
       this.hp += heal;
@@ -11741,9 +12034,17 @@ function updateEnemyAI(h, dt){
   }
 }
 
+/* 0.10.7.1: update() = корневая секция 's_other' (остаток) + вложенные секции подсистем, см. PERF-DIAG */
 function update(dt){
+  if(!PERFD.on) return updateCore(dt);
+  if(gameState !== 'playing') return;
+  pB('s_other'); pN('n_update');
+  try { updateCore(dt); } finally { pX(); }
+}
+function updateCore(dt){
   if(gameState !== 'playing') return;
   AI_TICK++;
+  pB('s_events');
   /* Подготовка к бою: мир живёт полностью (герои ходят по всей карте, бои возможны),
      но игровое время, волны крипов, доход и сценарии ботов ждут конца отсчёта. */
   rebuildHeroHash();
@@ -11770,6 +12071,7 @@ function update(dt){
     waveTimer -= dt;
     if(waveTimer <= 0){ waveTimer = WAVE_INTERVAL; if(!testMode) spawnWave(); }
   }
+  pX();
 
   if(touchControlsEnabled && touchJoystick.id!==null && playerHero && !playerHero.dead){
     const length=Math.hypot(touchJoystick.dx,touchJoystick.dy);
@@ -11782,19 +12084,22 @@ function update(dt){
     }
   }
 
+  pB('s_heroes');
   for(const h of heroes){
     if(h.dead){ h.update(dt); continue; }
     if(h !== playerHero && !h.isDummy && (!h.isOnlineRemote || h.isOnlineBot)){
-      const pdAi = pdT();
+      pB('ai');
       if(pre) updatePrematchBotAI(h, dt); else updateEnemyAI(h, dt);
-      pdE('ai', pdAi);
+      pX();
     }
     h.update(dt);
   }
+  pX();
   updateBaseRooms(dt);
   updateMo3giMines(dt);
   olexTick(dt);
   updateRoshan(dt);
+  pB('s_creeps');
   for(const u of units){
     if(u.type === 'neutral' && u.dead && !u.isRoshan){
       u.respawnTimer -= dt;
@@ -11806,7 +12111,9 @@ function update(dt){
     if(u.type==='hero'||u.dead) continue;
     u.update(dt);
   }
+  pX();
 
+  pB('s_proj');
   for(const p of projectiles){
     if(p.dead) continue;
     p.prevX = p.x;
@@ -11922,8 +12229,10 @@ function update(dt){
       p.x += dx/d*step; p.y += dy/d*step;
     }
   }
-  Engine.compact(projectiles, p => !p.dead);
+  pX();
+  pB('s_clean'); Engine.compact(projectiles, p => !p.dead); pX();
 
+  pB('s_aoe');
   for(const a of aoes){
     if(a.dead) continue;
     a.t += dt;
@@ -12099,8 +12408,10 @@ function update(dt){
     }
     if(a.t > a.delay + a.life) a.dead = true;
   }
-  aoes = aoes.filter(a => !a.dead);
+  pX();
+  pB('s_clean'); aoes = aoes.filter(a => !a.dead); pX();
 
+  pB('s_walls');
   for(const wall of walls){
     wall.t += dt;
     const ux=Math.cos(wall.angle), uy=Math.sin(wall.angle);
@@ -12176,10 +12487,12 @@ function update(dt){
       }
     }
   }
-  Engine.compact(walls, w => w.t < w.life);
+  pX();
+  pB('s_clean'); Engine.compact(walls, w => w.t < w.life); pX();
 
+  pB('s_fx');
   for(const f of fxs) f.t += dt;
-  Engine.compact(fxs, f => f.t < f.life);
+  pB('s_clean'); Engine.compact(fxs, f => f.t < f.life); pX();
   for(const p of particles){
     const dk = Math.pow(p.drag, dt*60);          /* один pow на частицу вместо двух */
     p.t += dt;
@@ -12188,16 +12501,18 @@ function update(dt){
     p.vx *= dk;
     p.vy = p.vy * dk + p.gravity * dt;
   }
-  Engine.compact(particles, p => p.t < p.life, p => { if(p._pooled) PARTICLE_POOL.release(p); });
+  pB('s_clean'); Engine.compact(particles, p => p.t < p.life, p => { if(p._pooled) PARTICLE_POOL.release(p); }); pX();
   updateTowerFx(dt);
   for(const gb of grassBends) gb.t += dt;
-  Engine.compact(grassBends, gb => gb.t < gb.life);
+  pB('s_clean'); Engine.compact(grassBends, gb => gb.t < gb.life); pX();
   for(const t of texts){ t.t += dt; t.y -= 28*dt; }
   updateDamageNumbers(dt);
-  Engine.compact(texts, t => t.t < t.life);
+  pB('s_clean'); Engine.compact(texts, t => t.t < t.life); pX();
+  pX();
 
-  Engine.compact(units, u => !(u.dead && u.type !== 'hero' && u.type !== 'neutral'));
+  pB('s_clean'); Engine.compact(units, u => !(u.dead && u.type !== 'hero' && u.type !== 'neutral')); pX();
 
+  pB('s_cam');
   if(playerHero){
     const focusUnit=getControlledUnit();
     const tx = focusUnit.x, ty = focusUnit.y;
@@ -12217,6 +12532,7 @@ function update(dt){
     cam.x = VW>=WORLD ? WORLD/2 : clamp(cam.x, hw, WORLD-hw);
     cam.y = VH>=WORLD ? WORLD/2 : clamp(cam.y, hh, WORLD-hh);
   }
+  pX();
   updateWards(dt);
   visionTimer -= dt;
   if(visionTimer <= 0){ visionTimer = 0.12; updateVision(); }
@@ -24124,6 +24440,7 @@ function loop(now){
     if(now >= FPSCAP.nextT) FPSCAP.nextT = now + capIv;                    /* отстали больше чем на кадр — не догоняем пачкой */
   }
   const pdFrameStart = PERFD.on ? performance.now() : 0;
+  PS.n = 0;
   try {
     fpsTick(now);
     /* Engine.Clock: dt=0 на первом кадре после потери фокуса/возврата вкладки, потолок 0.1 с */
@@ -24168,7 +24485,7 @@ function loop(now){
       const subN = Engine.Clock.steps(dt), subDt = dt / subN;
       const pdU = pdT();
       for(let si = 0; si < subN; si++) update(subDt);
-      fx973Tick(dt);
+      pB('s_fx973'); fx973Tick(dt); pX();
       pdE('update', pdU);
       if(!Number.isFinite(cam.x) || !Number.isFinite(cam.y)){
         cam.x = playerHero && Number.isFinite(playerHero.x) ? playerHero.x : WORLD/2;
@@ -24338,6 +24655,13 @@ requestAnimationFrame(loop);
     const candidate = window.__shadowOnlineSocket;
     if(!candidate || candidate === socket) return;
     socket = candidate;
+    /* 0.10.7.1: обработчики сокета меряются как 's_net' (только при включённой диагностике) */
+    const rawOn = socket.on.bind(socket);
+    socket.on = (ev, fn) => rawOn(ev, function(){
+      if(!PERFD.on) return fn.apply(this, arguments);
+      pB('s_net');
+      try { return fn.apply(this, arguments); } finally { pX(); }
+    });
     socket.on('match:begin', beginAuthoritativeMatch);
     socket.on('gameState', state => {
       serverGameState = state;
@@ -24708,7 +25032,7 @@ requestAnimationFrame(loop);
   const originalUpdate = update;
   update = function(){
     originalUpdate.apply(this, arguments);
-    if(authoritativeMode){ applyAuthoritativeState(arguments[0]); sendAttackAnimations(); }
+    if(authoritativeMode){ pB('s_net'); try { applyAuthoritativeState(arguments[0]); sendAttackAnimations(); } finally { pX(); } }
   };
 
   function sendInput(action){
@@ -24951,6 +25275,8 @@ requestAnimationFrame(loop);
     // random unexplained damage (including right after spawning). Removed.
   }, true);
   setInterval(() => {
+    pB('s_net');
+    try {
     attachAuthoritativeSocket();
     if(authoritativeMode && playerHero) sendInput({type:'aim', angle:playerHero.facing});
     if(authoritativeMode) sendPlayerPosition();
@@ -24968,6 +25294,7 @@ requestAnimationFrame(loop);
       entry.hidden=!visible;
       entry.style.display=visible?'block':'none';
     }
+    } finally { pX(); }
   }, 50);
 })();
 
