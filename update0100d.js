@@ -23,16 +23,26 @@ function azureSparks(x, y, radius, n){
   }
 }
 
-/* отложенные эффекты по игровому времени (не срабатывают на паузе) */
+/* отложенные эффекты по игровому времени (не срабатывают на паузе).
+   0.10.7.0: раньше здесь жил вечный requestAnimationFrame-цикл, который каждый кадр проверял пустой массив.
+   Теперь цикл запускается только когда в очереди что-то есть и сам останавливается, когда очередь пуста
+   (или матч закончился — отложенные эффекты уходящего матча не должны выстреливать в следующем). */
 const later = [];
-(function loop(){
+let laterRunning = false;
+function laterLoop(){
+  laterRunning = false;
   try {
+    if(typeof gameState !== 'undefined' && gameState === 'menu'){ later.length = 0; return; }
     if(later.length && typeof gameTime === 'number'){
       for(let i = later.length - 1; i >= 0; i--) if(gameTime >= later[i].at){ const f = later[i].fn; later.splice(i, 1); try { f(); } catch(e) { warn('later', e); } }
     }
   } catch(e) { warn('loop', e); }
-  requestAnimationFrame(loop);
-})();
+  if(later.length){ laterRunning = true; requestAnimationFrame(laterLoop); }
+}
+function addLater(item){
+  later.push(item);
+  if(!laterRunning){ laterRunning = true; requestAnimationFrame(laterLoop); }
+}
 
 /* ---------- скиллы ---------- */
 const orig = {fireball: SKILLS.fireball.cast, flamewave: SKILLS.flamewave.cast, blink: SKILLS.blink.cast, meteor: SKILLS.meteor.cast};
@@ -43,7 +53,7 @@ SKILLS.fireball.cast = function(h, x, y, lvl){
   spawnAoE(x, y, r, this.dmg[lvl], h, 0.28, '#5ad0ff');
   fxMark(x, y, r, '#5ad0ff', 0.28);
   fxBeam(h.x, h.y, x, y, '#bfeaff', 0.25);
-  later.push({at: gameTime + 0.26, fn: () => { azureBurst(x, y, r * 0.8, 0.45); azureSparks(x, y, r * 0.7, 18); }});
+  addLater({at: gameTime + 0.26, fn: () => { azureBurst(x, y, r * 0.8, 0.45); azureSparks(x, y, r * 0.7, 18); }});
 };
 SKILLS.flamewave.cast = function(h, x, y, lvl){
   if(!isPyroArcana(h)) return orig.flamewave.apply(this, arguments);
@@ -72,8 +82,8 @@ SKILLS.meteor.cast = function(h, x, y, lvl){
   fxMark(x, y, r, '#5ad0ff', 1.15);
   azureBurst(h.x, h.y, 110, 0.5);
   fxBeam(x, y - 760, x, y, '#bfeaff', 0.9);
-  later.push({at: gameTime + 0.55, fn: () => { fxBeam(x - 40, y - 420, x, y, '#5ad0ff', 0.6); azureSparks(x, y, r * 0.5, 14); }});
-  later.push({at: gameTime + 1.12, fn: () => { azureBurst(x, y, r, 0.7); azureBurst(x, y, r * 0.6, 0.55); azureSparks(x, y, r * 0.9, 40); }});
+  addLater({at: gameTime + 0.55, fn: () => { fxBeam(x - 40, y - 420, x, y, '#5ad0ff', 0.6); azureSparks(x, y, r * 0.5, 14); }});
+  addLater({at: gameTime + 1.12, fn: () => { azureBurst(x, y, r, 0.7); azureBurst(x, y, r * 0.6, 0.55); azureSparks(x, y, r * 0.9, 40); }});
 };
 
 const _sfc = skillFxColor;
