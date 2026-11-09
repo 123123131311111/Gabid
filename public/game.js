@@ -23316,17 +23316,19 @@ function drawMenu(){
   const fightersTab = {x:VW/2-92,y:72,w:184,h:38};
   drawMenuButton(fightersTab,'⚔  БОЙЦЫ',{active:true,radius:7});
 
-  ctx.font = '18px Segoe UI, Arial';
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  ctx.textAlign = 'center';
-  ctx.fillText('Все бойцы в одном ростере  •  нажми на карточку для подробностей', VW/2, 128);
+  if(!window.__rosterV2){   /* 0.10.7.1: новый ростер (update01071b.js) рисует свой заголовок */
+    ctx.font = '18px Segoe UI, Arial';
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.textAlign = 'center';
+    ctx.fillText('Все бойцы в одном ростере  •  нажми на карточку для подробностей', VW/2, 128);
+  }
   ctx.textAlign = 'right';
   ctx.font = 'bold 14px Consolas, monospace';
   ctx.fillStyle = '#ffd568';
   ctx.fillText(GAME_VERSION, VW-24, 30);
 
   const pageStart = 0;
-  const pageEnd = HERO_DEFS.length;
+  const pageEnd = window.__rosterV2 ? 0 : HERO_DEFS.length;   /* 0.10.7.1: карточки рисует update01071b.js */
   for(let i=pageStart;i<pageEnd;i++){
     const def = HERO_DEFS[i];
     const r = menuCardRect(i-pageStart);
@@ -23376,11 +23378,13 @@ function drawMenu(){
     ctx.restore();
   }
 
-  ctx.textAlign = 'center';
-  ctx.font = '13px Segoe UI, Arial';
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.fillText('ЛКМ по карточке — профиль героя  •  Q W E R F — скиллы в бою  •  ПКМ — движение',
-               VW/2, VH - 16);
+  if(!window.__rosterV2){
+    ctx.textAlign = 'center';
+    ctx.font = '13px Segoe UI, Arial';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('ЛКМ по карточке — профиль героя  •  Q W E R F — скиллы в бою  •  ПКМ — движение',
+                 VW/2, VH - 16);
+  }
 }
 
 /* =========================================================

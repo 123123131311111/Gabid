@@ -2454,23 +2454,32 @@ MODELS.sniper=(S,d,t)=>{
 function sniperInfernoFx(S,t){
   const FL=['#ff3d12','#ff7a1c','#ffb02e'];
   const fl=(i,k)=>Math.sin(t*(6+k)+i*2.1)*.5+.5;
-  for(let i=0;i<8;i++){                                   // корона пламени
-    const a=i/8*Math.PI*2, r=.23, f=fl(i,1), bx=Math.cos(a)*r, bz=Math.sin(a)*r;
-    S.cone([bx,1.95,bz],[bx*.3,2.14+f*.22+(i%2)*.1,bz*.3],.075,FL[i%3],{seg:6,glow:1,shine:0});
+  for(let i=0;i<10;i++){                                  // 0.10.7.1: корона пламени стала выше и пышнее
+    const a=i/10*Math.PI*2+t*.3, r=.24, f=fl(i,1), bx=Math.cos(a)*r, bz=Math.sin(a)*r;
+    S.cone([bx,1.95,bz],[bx*.3,2.16+f*.28+(i%2)*.14,bz*.3],.075,FL[i%3],{seg:6,glow:1,shine:0});
   }
-  G(S,[0,2.02,0],.13+.02*fl(0,2),'#ffb02e');
-  for(const s of [-1,1]){                                 // огонь за плечами
-    for(let k=0;k<3;k++){ const f=fl(k+(s>0?3:0),2);
-      S.cone([s*.42,1.62,-.1-k*.05],[s*(.5+k*.06),1.95+f*.28+k*.1,-.2-k*.08],.08-.015*k,FL[k],{seg:6,glow:1,shine:0}); }
+  G(S,[0,2.04,0],.14+.025*fl(0,2),'#ffb02e');
+  S.ring([0,2.52,0],.36,.026,'#ffb02e',{glow:1,n:26,phase:t*1.2});          // 0.10.7.1: огненный нимб
+  S.ring([0,2.52,0],.26,.016,'#ffe27a',{glow:1,n:20,phase:-t*1.7});
+  for(const s of [-1,1]){                                 // 0.10.7.1: огненные крылья — пять перьев с каждой стороны
+    for(let k=0;k<5;k++){ const f=fl(k+(s>0?5:0),2);
+      S.cone([s*.34,1.6-k*.02,-.18-k*.03],[s*(.64+k*.2),1.86+k*.2+f*.26,-.5-k*.1],.095-.012*k,FL[k%3],{seg:6,glow:1,shine:0}); }
+    G(S,[s*.36,1.62,-.2],.07+.015*fl(s+2,3),'#ffe27a');
   }
+  for(let k=0;k<3;k++){ const f=fl(k,4), x=(k-1)*.18;     // 0.10.7.1: плащ из пламени за спиной
+    S.cone([x,1.48,-.3],[x*1.3,.78+f*.2,-.62-f*.08],.11,FL[k],{seg:6,glow:1,shine:0}); }
   const mz=[.42,1.34,2.3];                                // факел на дуле
-  for(let i=0;i<4;i++){ const f=fl(i,3);
-    S.cone([mz[0],mz[1],mz[2]],[mz[0]+Math.sin(t*9+i)*.04,mz[1]+.06+f*.1,mz[2]+.22+f*.24+i*.03],.075-.014*i,FL[i%3],{seg:6,glow:1,shine:0}); }
-  G(S,mz,.1+.03*fl(1,5),'#ffe27a');
-  for(const z of [.35,.8,1.25,1.7]) G(S,[.42,1.33+z*.04,z+.03],.05,'#ff7a1c');   // жар на кольцах ствола
-  for(let i=0;i<8;i++){                                   // летящие угли
-    const ph=(t*.55+i/8)%1, a=i*2.4;
-    G(S,[Math.cos(a)*.55*(1-ph*.4),.85+ph*1.7,Math.sin(a)*.42-.1],.03*(1-ph)+.012,i%2?'#ffb02e':'#ff5a1c');
+  for(let i=0;i<5;i++){ const f=fl(i,3);
+    S.cone([mz[0],mz[1],mz[2]],[mz[0]+Math.sin(t*9+i)*.04,mz[1]+.06+f*.12,mz[2]+.26+f*.3+i*.04],.08-.014*i,FL[i%3],{seg:6,glow:1,shine:0}); }
+  G(S,mz,.11+.03*fl(1,5),'#ffe27a');
+  for(const z of [.35,.8,1.25,1.7]) G(S,[.42,1.33+z*.04,z+.03],.055,'#ff7a1c');   // жар на кольцах ствола
+  S.ring([0,.04,0],.86,.03,'#ff7a1c',{glow:1,n:30,phase:t*.8});            // 0.10.7.1: огненные кольца и языки у ног
+  S.ring([0,.04,0],.64,.02,'#ffe27a',{glow:1,n:22,phase:-t*1.1});
+  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2+t*.4, f=fl(i,3), x=Math.cos(a)*.78, z=Math.sin(a)*.78;
+    S.cone([x,.02,z],[x,.28+f*.26,z],.07,FL[i%3],{seg:5,glow:1,shine:0}); }
+  for(let i=0;i<12;i++){                                  // летящие угли
+    const ph=(t*.55+i/12)%1, a=i*2.4;
+    G(S,[Math.cos(a)*.6*(1-ph*.4),.85+ph*1.9,Math.sin(a)*.46-.1],.03*(1-ph)+.012,i%2?'#ffb02e':'#ff5a1c');
   }
 }
 
@@ -4395,12 +4404,22 @@ function psihArcanaFx(S,t,hy,tw){
   for(const s of [-1,1]){                                       // плечи
     oct(s*.56,1.82,0,.085,.22,.1,'#f4fbff','#8fe8ff');
   }
-  for(const s of [-1,1]) for(let k=0;k<4;k++){                  // кристальные крылья за спиной
-    const f=fl(k+(s>0?4:0),2);
-    S.cone([s*.3,1.5,-.25],[s*(.55+k*.2),1.65+k*.26+f*.05,-.5-k*.08],.1-.014*k,k%2?'#bfeaff':'#f4fbff',{seg:4,shine:.95,glow:k%2});
+  for(const s of [-1,1]) for(let k=0;k<6;k++){                  // 0.10.7.1: кристальные крылья стали больше — шесть перьев
+    const f=fl(k+(s>0?6:0),2);
+    S.cone([s*.3,1.5,-.25],[s*(.58+k*.22),1.62+k*.3+f*.06,-.5-k*.09],.11-.011*k,k%2?'#bfeaff':'#f4fbff',{seg:4,shine:.95,glow:k%2});
   }
-  for(let i=0;i<7;i++){                                         // вращающиеся алмазы
-    const a=t*1.2+i*.9, r=.92+.08*Math.sin(t+i), y=.45+i*.27+Math.sin(t*2+i)*.08;
+  for(let i=0;i<9;i++){                                         // 0.10.7.1: радужные лучи-сияние за спиной
+    const a=(i/8-.5)*2.5, f=fl(i,4), L=1.5+f*.25, c=['#8fe8ff','#e8f8ff','#c9b8ff','#ffd1f0'][i%4];
+    S.cone([0,1.62,-.32],[Math.sin(a)*L,1.62+Math.cos(a)*L*.95,-.62],.04,c,{seg:4,shine:.9,glow:1});
+  }
+  S.ring([tw,hy+.98,0],.3,.02,'#e8f8ff',{glow:1,n:22,phase:t*1.5});     // нимб над шляпой
+  S.ring([tw,hy+.98,0],.2,.014,'#8fe8ff',{glow:1,n:16,phase:-t*2});
+  S.ring([0,.04,0],1.12,.02,'#c9b8ff',{glow:1,n:26,phase:t*.6});         // кольцо у ног и кристаллическая корона
+  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2+t*.25, x=Math.cos(a)*1.0, z=Math.sin(a)*1.0, f=fl(i,3);
+    oct(x,.02,z,.07,.28+f*.1,.04,i%2?'#e8f8ff':'#8fe8ff','#8fe8ff',{glow:i%2});
+  }
+  for(let i=0;i<10;i++){                                        // вращающиеся алмазы (0.10.7.1: десять вместо семи)
+    const a=t*1.2+i*.63, r=.92+.08*Math.sin(t+i), y=.4+i*.2+Math.sin(t*2+i)*.08;
     oct(Math.cos(a)*r,y,Math.sin(a)*r*.9,.045,.1,.075,['#e8f8ff','#8fe8ff','#c9b8ff'][i%3],'#8fe8ff',{glow:1});
   }
   S.ring([0,.04,0],.86,.022,'#8fe8ff',{glow:1,n:22,phase:t*.9});

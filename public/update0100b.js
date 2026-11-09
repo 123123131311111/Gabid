@@ -182,6 +182,7 @@ drawMenu = function(){
   const realRect = menuCardRect;
   menuCardRect = function(i){ const r = realRect(i); return {x: -5000, y: r.y, w: r.w, h: r.h}; };
   try { _drawMenu.apply(this, arguments); } finally { menuCardRect = realRect; }
+  if(window.__rosterV2) return;   /* 0.10.7.1: новые карточки рисует update01071b.js */
   try {
     const now = performance.now() / 1000;
     if(lastStage !== 'heroes') enterAt = now;
