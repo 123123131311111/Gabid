@@ -61,6 +61,25 @@ const SKIN_PRICES = {
   /* 0.10.6.8: золотой скин Сенсированной — 500 Сенсиков (цена обязана совпадать с update01068.js) */
   sensedGold: 500
 };
+/* ===== 0.10.7.2: ЗВАНИЯ РЕЙТИНГА И НАГРАДЫ ЗА НИХ =====
+   100 MMR = одна звезда, 5 звёзд = звание. Шаг k (1..45) открывается при рейтинге >= k*100: со второй звезды РЕКРУТА (k=1) и до БЕССМЕРТНОГО (k=45).
+   За каждый шаг — Сенсики, на некоторых шагах ещё и бесплатный скин. Каждый шаг забирается один раз; список названий продублирован в account-display.js. */
+const RANK_NAMES = ['РЕКРУТ', 'СТРАЖ', 'РЫЦАРЬ', 'ГЕРОЙ', 'ГЕРОЛЬД', 'ЗАЩИТНИК', 'ЛЕГЕНДА', 'БОЖЕСТВО', 'ТИТАН'];
+const RANK_BASE = [60, 100, 150, 220, 300, 400, 520, 680, 880];
+const RANK_SKINS = {
+  3: 'sniperGhillie', 5: 'psihToxic', 8: 'mo3giDesert', 10: 'grishaEmerald', 12: 'marinWhite', 14: 'gollyGold', 15: 'illusionistPrism',
+  17: 'pyroViolet', 19: 'sniperPolar', 20: 'psihFrost', 22: 'tribuFrost', 24: 'mo3giArctic', 25: 'juggernautJade', 27: 'chipNeon',
+  30: 'sniperCrimson', 35: 'psihBlood', 40: 'virsudiBloodMoon', 45: 'shadowVoid'
+};
+const RANK_STEPS = RANK_NAMES.length * 5;   /* 45 — звание «БЕССМЕРТНЫЙ» */
+const RANK_REWARDS = Array.from({ length: RANK_STEPS }, (_, i) => {
+  const k = i + 1;
+  if(k >= RANK_STEPS) return { step: k, shards: 3000, skin: RANK_SKINS[k] || null };
+  const tier = Math.floor(k / 5), star = k % 5;
+  let shards = RANK_BASE[tier] * (1 + star * 0.25);
+  if(star === 0) shards *= 2;            /* первая звезда нового звания — двойная награда */
+  return { step: k, shards: Math.round(shards / 10) * 10, skin: RANK_SKINS[k] || null };
+});
 /* 0.10.3.5: цели мега-задания «Легенда арены» уменьшены в 3 раза (было 50 / 250 / 70 / 5), награда 1100 прежняя. */
 /* ===== 0.10.2.1: ВКЛАДКА «ЗАДАНИЯ». Постоянные задания (выполняются один раз за всё время) и одно МЕГА-ЗАДАНИЕ на 1100 Сенсиков.
    Прогресс считается по общей статистике аккаунта (победы, убийства, матчи, уровень, покупки, мастерство героев) и только растёт,
@@ -158,6 +177,7 @@ const accountSchema = new mongoose.Schema({
   heroStats: { type: Map, of: Number, default: {} },
   mastery: { type: Map, of: Number, default: {} },
   masteryClaimed: { type: Map, of: Number, default: {} },
+  rankClaimed: { type: [Number], default: [] },   /* 0.10.7.2: полученные награды за звёзды рейтинга (номер шага 1..45) */
   history: { type: [matchSchema], default: [] },
   shards: { type: Number, min: 0, default: 0 },
   dsPlus: { type: Boolean, default: false },
@@ -282,7 +302,7 @@ function masteryState(acc){
   for(const id of MASTERY_HEROES) out[id] = { wins: Math.max(0, Number(wins[id]) || 0), claimed: Math.max(0, Math.min(MASTERY_WINS.length, Number(claimed[id]) || 0)) };
   return out;
 }
-const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), life: lifeState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE, skins: Array.isArray(acc.skins) ? acc.skins.filter(id => SKIN_PRICES[id]) : [], mastery: masteryState(acc), masteryCfg: { heroes: MASTERY_HEROES, wins: MASTERY_WINS, rewards: MASTERY_REWARDS } });
+const ownProfile = acc => ({ ...publicProfile(acc), shards: Math.max(0, Math.floor(acc.shards || 0)), daily: dailyState(acc), quests: extraQuestsState(acc), life: lifeState(acc), dsPlus: acc.dsPlus === true, dsPlusPrice: DSPLUS_PRICE, skins: Array.isArray(acc.skins) ? acc.skins.filter(id => SKIN_PRICES[id]) : [], mastery: masteryState(acc), masteryCfg: { heroes: MASTERY_HEROES, wins: MASTERY_WINS, rewards: MASTERY_REWARDS }, rankClaimed: Array.isArray(acc.rankClaimed) ? acc.rankClaimed.filter(n => Number.isInteger(n) && n >= 1 && n <= RANK_STEPS) : [], rankCfg: { names: RANK_NAMES, rewards: RANK_REWARDS, steps: RANK_STEPS } });
 
 async function makeSession(key){
   const token = crypto.randomBytes(24).toString('hex');
@@ -507,6 +527,29 @@ const routes = {
       return [200, { profile: ownProfile(current), claimed: false }];
     }
     return [200, { profile: ownProfile(claimed), claimed: true, reward, heroId, level }];
+  },
+
+  /* 0.10.7.2: награда за звезду рейтинга. Условие (рейтинг достаточен И шаг ещё не получен) проверяется в том же запросе, что и выдача. */
+  async claimrank(body){
+    const auth = await authed(body);
+    if(!auth) return [401, { error: 'Сессия истекла, войди заново' }];
+    const step = Math.floor(Number(body.step) || 0);
+    if(step < 1 || step > RANK_STEPS) return [400, { error: 'Неверный шаг звания' }];
+    const rw = RANK_REWARDS[step - 1];
+    const owned = Array.isArray(auth.acc.skins) && rw.skin && auth.acc.skins.includes(rw.skin);
+    const bonus = owned ? Math.round((SKIN_PRICES[rw.skin] || 0) / 2) : 0;   /* скин уже есть — вместо него половина цены в Сенсиках */
+    const upd = { $inc: { shards: rw.shards + bonus }, $push: { rankClaimed: step } };
+    if(rw.skin && !owned) upd.$addToSet = { skins: rw.skin };
+    const claimed = await Account.findOneAndUpdate({
+      _id: auth.acc._id,
+      rating: { $gte: step * 100 },
+      rankClaimed: { $ne: step }
+    }, upd, { new: true });
+    if(!claimed){
+      const current = await Account.findById(auth.acc._id);
+      return [200, { profile: ownProfile(current), claimed: false }];
+    }
+    return [200, { profile: ownProfile(claimed), claimed: true, step, reward: rw.shards + bonus, skin: rw.skin && !owned ? rw.skin : null, compensated: owned ? bonus : 0 }];
   },
 
   /* ===== РУКОВОДСТВА СБОРОК ===== */
