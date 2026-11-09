@@ -1,0 +1,144 @@
+/* ui-fx.css — 0.10.7.3: слой визуальных эффектов и плавных анимаций (грузится ПОСЛЕ ui-polish.css).
+   Только transform/opacity/box-shadow/filter. Все эффекты отключаются при perf-low и prefers-reduced-motion. */
+:root {
+  --fx-gold: 255, 214, 120;
+  --fx-red: 255, 96, 70;
+  --fx-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --fx-out: cubic-bezier(.16, 1, .3, 1);
+}
+
+/* ---------- слой частиц/кругов от кликов ---------- */
+#fx-layer { position: fixed; inset: 0; z-index: 99990; pointer-events: none; overflow: hidden; contain: strict; }
+#fx-layer > * { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform, opacity; }
+
+/* кольцо-волна */
+.fx-ring {
+  width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  border: 2px solid rgba(var(--fx-c, var(--fx-gold)), .95);
+  box-shadow: 0 0 14px rgba(var(--fx-c, var(--fx-gold)), .6), inset 0 0 8px rgba(var(--fx-c, var(--fx-gold)), .35);
+  animation: fx-ring var(--fx-t, .6s) var(--fx-out) forwards;
+}
+.fx-ring.fx-big { --fx-s: 7; --fx-t: .75s; }
+@keyframes fx-ring { from { transform: scale(.3); opacity: .95; } to { transform: scale(var(--fx-s, 4.2)); opacity: 0; } }
+
+/* мягкая вспышка в точке клика */
+.fx-flash {
+  width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--fx-c, var(--fx-gold)), .75), rgba(var(--fx-c, var(--fx-gold)), 0) 70%);
+  animation: fx-flash .38s ease-out forwards;
+}
+@keyframes fx-flash { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+
+/* искры */
+.fx-spark {
+  width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%;
+  background: rgba(var(--fx-c, var(--fx-gold)), 1);
+  box-shadow: 0 0 8px rgba(var(--fx-c, var(--fx-gold)), .9);
+  animation: fx-spark var(--fx-t, .55s) var(--fx-out) forwards;
+}
+@keyframes fx-spark {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to   { transform: translate(var(--fx-dx), var(--fx-dy)) scale(.1); opacity: 0; }
+}
+/* конфетти (покупка / награда) */
+.fx-conf {
+  width: 7px; height: 11px; margin: -5px 0 0 -3px; border-radius: 1.5px; background: hsl(var(--fx-h), 95%, 62%);
+  animation: fx-conf var(--fx-t, 1s) cubic-bezier(.2, .7, .3, 1) forwards;
+}
+@keyframes fx-conf {
+  0%   { transform: translate(0, 0) rotate(0); opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translate(var(--fx-dx), var(--fx-dy)) rotate(var(--fx-r)); opacity: 0; }
+}
+/* шевроны-«маркер движения» на правом клике по карте */
+.fx-chevrons { width: 34px; height: 34px; margin: -17px 0 0 -17px; animation: fx-chev .5s var(--fx-out) forwards; }
+.fx-chevrons::before, .fx-chevrons::after {
+  content: ''; position: absolute; left: 50%; width: 14px; height: 14px; margin-left: -7px;
+  border-right: 3px solid rgba(var(--fx-red), .95); border-bottom: 3px solid rgba(var(--fx-red), .95);
+  transform: rotate(45deg); filter: drop-shadow(0 0 5px rgba(var(--fx-red), .8));
+}
+.fx-chevrons::before { top: 2px; } .fx-chevrons::after { top: 12px; opacity: .6; }
+@keyframes fx-chev { from { transform: translateY(-14px) scale(1.3); opacity: 0; } 25% { opacity: 1; } to { transform: translateY(6px) scale(.8); opacity: 0; } }
+
+/* ---------- нажатие на кнопку: пружинистый «отклик» ---------- */
+.fx-pulse { animation: fx-pulse .45s var(--fx-out); }
+@keyframes fx-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(var(--fx-gold), .55); }
+  100% { box-shadow: 0 0 0 14px rgba(var(--fx-gold), 0); }
+}
+/* вкладки: активная вкладка слегка «выскакивает» */
+.fx-tabpop { animation: fx-tabpop .38s var(--fx-spring); }
+@keyframes fx-tabpop { 0% { transform: scale(.9); } 100% { transform: scale(1); } }
+
+/* ---------- появление окон: затемнение фона + пружинка панели ---------- */
+:where([id$="-modal"]):not([hidden]) { animation: fx-backdrop .28s ease-out both; }
+@keyframes fx-backdrop { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; } }
+:where([id$="-modal"]):not([hidden]) > :where([class*="panel"], [role="dialog"]) { animation: fx-modal-in .42s var(--fx-spring) both; }
+@keyframes fx-modal-in { from { opacity: 0; transform: translateY(18px) scale(.94); } to { opacity: 1; transform: none; } }
+/* закрытие (класс ставит скрипт перед hidden) */
+.fx-closing { animation: fx-fade-out .18s ease-in forwards !important; pointer-events: none; }
+.fx-closing > * { animation: none !important; }
+@keyframes fx-fade-out { to { opacity: 0; transform: scale(.98); } }
+
+/* контент, который только что стал видимым (смена вкладки, раскрытие блока): каскад */
+.fx-in { animation: fx-in .36s var(--fx-out) both; }
+.fx-in > * { animation: fx-in-child .42s var(--fx-out) both; animation-delay: calc(var(--fx-i, 0) * 28ms); }
+@keyframes fx-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fx-in-child { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Сенсики ---------- */
+#sensiki-amount { display: inline-block; font-variant-numeric: tabular-nums; }
+#sensiki-amount.fx-gain { animation: fx-gain .7s var(--fx-out); }
+#sensiki-amount.fx-loss { animation: fx-loss .6s var(--fx-out); }
+@keyframes fx-gain { 0% { transform: scale(1.35); color: #9dffb5; text-shadow: 0 0 14px rgba(120, 255, 160, .9); } 100% { transform: scale(1); } }
+@keyframes fx-loss { 0% { transform: scale(.85); color: #ff9a8a; text-shadow: 0 0 12px rgba(255, 90, 70, .8); } 100% { transform: scale(1); } }
+#sensiki-btn .sk-icon { transition: transform .5s var(--fx-spring), filter .3s; }
+#sensiki-btn:hover .sk-icon { transform: rotate(14deg) scale(1.12); filter: drop-shadow(0 0 6px rgba(120, 220, 255, .85)); }
+#sensiki-btn.fx-shine .sk-icon { animation: fx-shard .8s var(--fx-spring); }
+@keyframes fx-shard { 0% { transform: scale(1) rotate(0); } 40% { transform: scale(1.4) rotate(18deg); filter: drop-shadow(0 0 10px #9fe8ff); } 100% { transform: scale(1) rotate(0); } }
+#dsplus-btn .dsp-icon { transition: transform .6s var(--fx-spring); }
+#dsplus-btn:hover .dsp-icon { transform: rotate(90deg) scale(1.1); }
+
+/* ---------- кнопки верхней панели: «блик» при наведении ---------- */
+@media (hover: hover) {
+  #topbar button { overflow: hidden; }
+  #topbar button::after {
+    content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255, 240, 199, .28), transparent);
+    transform: skewX(-18deg); opacity: 0;
+  }
+  #topbar button:hover::after { animation: fx-sheen .75s ease-out; }
+  @keyframes fx-sheen { 0% { left: -60%; opacity: 0; } 20% { opacity: 1; } 100% { left: 130%; opacity: 0; } }
+}
+
+/* ---------- эффект низкого здоровья ---------- */
+#fx-lowhp {
+  position: fixed; inset: 0; z-index: 99980; pointer-events: none; opacity: 0; transition: opacity .5s ease;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(150, 10, 20, .55) 100%);
+}
+#fx-lowhp.on { opacity: 1; animation: fx-heart 1.15s ease-in-out infinite; }
+@keyframes fx-heart { 0%, 100% { opacity: .55; } 18% { opacity: 1; } 36% { opacity: .65; } 52% { opacity: .95; } }
+
+/* ---------- загрузочный экран: плавный выход ---------- */
+#boot-loader { transition: opacity .6s ease, visibility .6s ease, transform .6s var(--fx-out); }
+#boot-loader.hidden { transform: scale(1.04); }
+.boot-bar span { position: relative; }
+.boot-bar span::after {
+  content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .55) 50%, transparent 70%);
+  transform: translateX(-100%); animation: fx-bar 1.2s linear infinite;
+}
+@keyframes fx-bar { to { transform: translateX(100%); } }
+
+/* ---------- тосты Сенсиков: пружинистое появление ---------- */
+.sensiki-toast { animation: fx-toast .5s var(--fx-spring) both; }
+@keyframes fx-toast { from { opacity: 0; transform: translateY(-16px) scale(.9); } to { opacity: 1; transform: none; } }
+
+/* ---------- отключения ---------- */
+body.perf-low #fx-layer .fx-conf, body.perf-low #fx-layer .fx-spark, body.perf-low #fx-layer .fx-flash { display: none; }
+body.perf-low #fx-lowhp.on { animation: none; opacity: .8; }
+body.perf-low .fx-in, body.perf-low .fx-in > * { animation: none; }
+body.perf-low #topbar button::after { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  #fx-layer, #fx-lowhp, .fx-in, .fx-in > *, .fx-pulse, .fx-tabpop, .boot-bar span::after { display: none !important; animation: none !important; }
+  :where([id$="-modal"]):not([hidden]), :where([id$="-modal"]):not([hidden]) > * { animation: none !important; }
+}
