@@ -12,8 +12,9 @@ function accountRank(level){
   for(const [min, title] of ACCOUNT_RANKS) if(level >= min) name = title;
   return name;
 }
-const MMR_RANKS = ['РЕКРУТ','СТРАЖ','РЫЦАРЬ','ГЕРОЛЬД','ЗАЩИТНИК','ЛЕГЕНДА','БОЖЕСТВО','ТИТАН'];
-/* 100 MMR = одна звезда, 5 звёзд = ранг (500 MMR). С 4000 MMR — БЕССМЕРТНЫЙ. */
+/* 0.10.7.2: после РЫЦАРЯ добавлен ГЕРОЙ (5 звёзд), все следующие звания сдвинулись на 500 MMR выше. */
+const MMR_RANKS = ['РЕКРУТ','СТРАЖ','РЫЦАРЬ','ГЕРОЙ','ГЕРОЛЬД','ЗАЩИТНИК','ЛЕГЕНДА','БОЖЕСТВО','ТИТАН'];
+/* 100 MMR = одна звезда, 5 звёзд = ранг (500 MMR). С 4500 MMR — БЕССМЕРТНЫЙ. */
 function accountRatingRank(rating){
   rating = Math.max(0, Math.floor(rating || 0));
   const tier = Math.floor(rating / 500);
