@@ -1435,3 +1435,8 @@ body.ds-home #game-tools .dsp-name b { font-size: calc(14px * var(--ds-s)); }
 body.ds-home #game-tools #dsplus-box { border-left: 0; }
 body.ds-home #game-tools #sensiki-panel,
 body.ds-home #game-tools #dsplus-panel { top: calc(100% + 8px * var(--ds-s)); border-radius: 6px; }
+
+/* 0.10.8: размытие фона под почти непрозрачными панелями было не видно, но пересчитывалось каждый кадр
+   поверх игрового canvas (одна из самых дорогих операций композитинга). В матче — выключено. */
+#game-tools, #game-tools #sensiki-panel, #game-tools #dsplus-panel { backdrop-filter: none; -webkit-backdrop-filter: none; }
+body.in-match #mode-picker, body.in-match #account-modal, body.in-match #leaderboard-modal, body.in-match #quests-modal { backdrop-filter: none; -webkit-backdrop-filter: none; }

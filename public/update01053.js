@@ -352,9 +352,17 @@ function render(S, now){
   return mmCv;
 }
 
+/* 0.10.8: мини-карта перерисовывается 30 раз/с (на «Средней» и ниже — 15), между обновлениями — готовая картинка */
+let mmLastT = 0, mmLastS = 0, mmLastCv = null, mmLastCamX = 0, mmLastCamY = 0;
 drawMinimap = function(){
   try {
-    const S = minimapSize(), cv = render(S, performance.now());
+    const S = minimapSize(), t = performance.now();
+    const every = (typeof perfLevel === 'number' && perfLevel >= 1) ? 66 : 33;
+    const camMoved = Math.abs(cam.x - mmLastCamX) > 40 || Math.abs(cam.y - mmLastCamY) > 40;
+    let cv = mmLastCv;
+    if(!cv || S !== mmLastS || t - mmLastT >= every || camMoved){
+      cv = mmLastCv = render(S, t); mmLastT = t; mmLastS = S; mmLastCamX = cam.x; mmLastCamY = cam.y;
+    }
     ctx.drawImage(cv, 8 - PAD, VH - S - 8 - PAD);
   } catch(err) {
     warn('draw', err);

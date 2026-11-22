@@ -2255,80 +2255,7 @@ MODELS.earthshaker=(S,d,t)=>{
   for(let i=0;i<4;i++){ const a=t*.8+i*1.57; S.box([Math.cos(a)*1.3,.8+Math.sin(t*1.5+i)*.2,Math.sin(a)*1.3],[.2,.18,.2],'#6e6a60',{rot:[a,a,0]}); S.box([Math.cos(a)*1.3,.8+Math.sin(t*1.5+i)*.2,Math.sin(a)*1.3],[.08,.2,.08],'#8bd4ff',{glow:1,rot:[a,a,0]}); }
 };
 
-/* 0.10.7.2.1: АРКАНА Сенсированной «Королева кухни» — шеф-повар со сковородой вместо пулемёта */
-function sensedChefModel(S,d,t){
-  const WH='#fbf7f0', PINK='#ff8fb8', PINKD='#d9507f', RED='#e0413a', GOLD='#ffcf6a', DARK='#2a2024', HAIR='#ff8fc8', STEEL='#c9ced6', PAN='#2b2b31';
-  const hy=2.0;
-  man(S,{face:true,cloth:WH,arm:WH,forearm:'#e8b894',legs:'#3a3440',boots:'#4a2c2a',toe:PINK,belt:RED,trim:GOLD,cuff:WH,
-    hair:HAIR,fringe:HAIR,glove:WH,bracer:PINK,knee:WH,pad:WH,padTrim:PINK,
-    armR:[.42,1.2,.7],armL:[-.28,1.14,1.0],
-    fo:{eye:'#2a3a5a',angry:0,mouth:'smile',brow:HAIR}});
-  /* хвост и бант */
-  S.tube([0,hy+.1,-.2],[0,1.5,-.55],.12,.07,HAIR,{seg:8});
-  S.ell([0,1.42,-.58],[.09,.2,.09],HAIR,{rings:5,seg:8});
-  S.ell([-.1,1.5,-.58],[.1,.06,.06],PINK,{rings:4,seg:8,glow:1});
-  S.ell([.1,1.5,-.58],[.1,.06,.06],PINK,{rings:4,seg:8,glow:1});
-  S.ell([0,1.5,-.58],[.045,.045,.045],GOLD,{rings:4,seg:8,glow:1});
-  /* высокий поварской колпак с розовой лентой */
-  S.tube([0,hy+.17,-.04],[0,hy+.36,-.04],.3,.31,WH,{seg:16,shine:.3});
-  S.tube([0,hy+.17,-.04],[0,hy+.23,-.04],.315,.315,PINK,{seg:16,shine:.4});
-  S.ell([0,hy+.62,-.04],[.4,.3,.38],WH,{rings:8,seg:16,shine:.3});
-  S.ell([.22,hy+.52,-.04],[.2,.2,.2],WH,{rings:6,seg:10,shine:.3});
-  S.ell([-.22,hy+.52,-.04],[.2,.2,.2],WH,{rings:6,seg:10,shine:.3});
-  S.ell([0,hy+.5,.2],[.18,.16,.12],WH,{rings:5,seg:8,shine:.3});
-  /* красный платок с узлом */
-  S.tube([0,1.7,0],[0,1.82,0],.21,.18,RED,{seg:14,shine:.35});
-  S.ell([0,1.68,.2],[.08,.07,.05],RED,{rings:4,seg:8,shine:.5});
-  S.tube([-.04,1.66,.22],[-.09,1.48,.31],.045,.025,RED,{seg:6});
-  S.tube([.04,1.66,.22],[.1,1.5,.3],.045,.025,RED,{seg:6});
-  /* двубортный китель: золотые пуговицы */
-  for(const s of [-1,1]) for(let i=0;i<3;i++) S.ell([s*.12,1.6-i*.15,.3],[.035,.035,.025],GOLD,{rings:3,seg:6,shine:.8});
-  /* розовый фартук с карманом и сердечком */
-  S.box([0,1.36,.33],[.34,.42,.04],PINK,{shine:.2});
-  S.box([0,.98,.31],[.62,.56,.05],PINK,{shine:.2});
-  S.box([0,.68,.31],[.68,.08,.07],WH,{shine:.2});
-  S.box([0,.9,.35],[.3,.17,.03],PINKD);
-  S.box([0,1.42,.36],[.09,.09,.02],RED,{glow:1,rot:[0,0,.785]});
-  S.ell([-.03,1.455,.36],[.05,.05,.02],RED,{glow:1,rings:3,seg:6});
-  S.ell([.03,1.455,.36],[.05,.05,.02],RED,{glow:1,rings:3,seg:6});
-  S.tube([-.13,1.56,.33],[-.1,1.72,.18],.025,.025,PINKD,{seg:5});
-  S.tube([.13,1.56,.33],[.1,1.72,.18],.025,.025,PINKD,{seg:5});
-  S.ell([-.1,1.0,-.3],[.1,.06,.06],PINK,{rings:4,seg:8,glow:1});
-  S.ell([.1,1.0,-.3],[.1,.06,.06],PINK,{rings:4,seg:8,glow:1});
-  /* пояс со специями */
-  const SP=['#e5392e','#f2b84a','#7fc94a','#ff8a2a','#b05cff','#fbf7f0'];
-  for(let i=0;i<6;i++) S.ell([-.3+i*.12,1.08,.37],[.04,.065,.04],SP[i],{rings:4,seg:6,shine:.6});
-  /* сковорода-«пушка»: ручка, чаша, ободок, яйцо и огонь */
-  S.tube([.3,1.22,.2],[.3,1.25,1.2],.045,.045,DARK,{seg:8,shine:.5});
-  S.tube([.3,1.22,1.55],[.3,1.3,1.55],.36,.36,PAN,{seg:20,shine:.6});
-  S.tube([.3,1.3,1.55],[.3,1.32,1.55],.31,.31,'#4a4a52',{seg:20,shine:.5});
-  S.ring([.3,1.31,1.55],.36,.03,STEEL,{n:20,axis:'y'});
-  S.ell([.3,1.34,1.55],[.14,.03,.14],'#fffaf0',{rings:4,seg:10,shine:.4});
-  S.ell([.3,1.37,1.55],[.06,.04,.06],'#ffc93a',{glow:1,rings:4,seg:8});
-  for(let i=0;i<4;i++){
-    const a=i/4*Math.PI*2+t*.4, fx=.3+Math.cos(a)*.3, fz=1.55+Math.sin(a)*.3, fl=.2+Math.sin(t*9+i*1.7)*.06;
-    S.cone([fx,1.32,fz],[fx,1.32+fl+.1,fz],.07,'#ff7a2a',{seg:6,glow:1});
-    S.cone([fx,1.32,fz],[fx,1.32+fl*.6,fz],.04,'#ffd27a',{seg:5,glow:1});
-  }
-  /* пар над сковородой */
-  for(let i=0;i<3;i++){
-    const k=(t*.55+i/3)%1;
-    S.ell([.3+Math.sin(t*2+i*2)*.08,1.75+k*.7,1.55],[.09+k*.07,.07+k*.05,.09+k*.07],'#ffffff',{glow:1,rings:3,seg:6});
-  }
-  /* половник за спиной */
-  S.tube([.34,.95,-.4],[.34,1.95,-.42],.025,.025,STEEL,{seg:6,shine:.8});
-  S.ell([.34,2.0,-.42],[.09,.07,.09],STEEL,{rings:5,seg:8,shine:.8});
-  /* вокруг героини летают томат, блин, перец и зелень, под ногами — розовое и золотое кольца */
-  const FD=['#e5392e','#f2b84a','#e5321e','#7fc94a'];
-  for(let i=0;i<4;i++){
-    const a=t*1.2+i*1.5708;
-    S.ell([Math.cos(a)*.95,1.05+Math.sin(t*2+i)*.06,Math.sin(a)*.95],[.1,.1,.1],FD[i],{glow:1,rings:4,seg:8});
-  }
-  S.ring([0,.05,0],.95,.035,PINK,{glow:1,n:28,phase:t*.6});
-  S.ring([0,.05,0],1.12,.02,GOLD,{glow:1,n:32,phase:-t*.4});
-}
 MODELS.sensed=(S,d,t)=>{
-  if(d&&d.skinId&&String(d.skinId).split('+')[0]==='sensedChef') return sensedChefModel(S,d,t);   /* 0.10.7.2.1: аркана */
   /* Сенсированная: девушка в тактической форме с тяжёлым пулемётом */
   const OLV='#2f3a2c', ORG='#ffb347', HAIR='#ff8fc8', DARK='#1c2218', STEEL='#aeb4bd', GUN='#3a3f48';
   const hy=2.0;
@@ -2459,30 +2386,6 @@ MODELS.sense_robot=(S,d,t,pose)=>{
   }
   S.ring([0,.04,0],.7,.03,ORG,{glow:1,n:20,phase:t*1.2});
 };
-/* 0.10.7.2.1: «Кухонный комбайн» — робот Королевы кухни (skinId содержит 'chef'): поварской колпак, фартук и платок */
-{
-  const _rb=MODELS.sense_robot;
-  MODELS.sense_robot=function(S,d,t,pose){
-    const r=_rb.apply(this,arguments);
-    try{
-      if(d&&String(d.skinId||'').indexOf('chef')>=0){
-        const kind=pose&&pose.kind, p=(pose&&pose.p)||0, bob=kind==='walk'?Math.abs(Math.sin(p*Math.PI*2))*.05:0;
-        const WH='#fbf7f0', PINK='#ff8fb8', RED='#e0413a';
-        S.tube([0,2.2+bob,.04],[0,2.4+bob,.04],.27,.28,WH,{seg:14,shine:.3});
-        S.tube([0,2.2+bob,.04],[0,2.26+bob,.04],.285,.285,PINK,{seg:14,shine:.4});
-        S.ell([0,2.62+bob,.04],[.36,.28,.34],WH,{rings:7,seg:14,shine:.3});
-        S.ell([.2,2.54+bob,.04],[.18,.18,.18],WH,{rings:5,seg:8,shine:.3});
-        S.ell([-.2,2.54+bob,.04],[.18,.18,.18],WH,{rings:5,seg:8,shine:.3});
-        S.tube([0,1.72+bob,0],[0,1.82+bob,0],.34,.3,RED,{seg:12,shine:.3});
-        S.box([0,1.18+bob,.37],[.5,.5,.04],PINK,{shine:.2});
-        S.box([0,.9+bob,.36],[.56,.07,.06],WH);
-        S.box([0,1.3+bob,.4],[.08,.08,.02],RED,{glow:1,rot:[0,0,.785]});
-        for(let i=0;i<4;i++){ const a=t*3+i*1.5708; S.box([Math.cos(a)*.78,.55+bob,Math.sin(a)*.78],[.3,.03,.08],'#e8ecf2',{shine:.9,rot:[0,-a,0]}); }
-      }
-    }catch(e){}
-    return r;
-  };
-}
 MODELS.sniper=(S,d,t)=>{
   /* Снайпер (дварф, как в референсе): красная куртка, жёлтые манжеты,
      розовые уши/нос/руки, пышная белая борода, кепка с очками (зелёная линза)
@@ -2551,32 +2454,23 @@ MODELS.sniper=(S,d,t)=>{
 function sniperInfernoFx(S,t){
   const FL=['#ff3d12','#ff7a1c','#ffb02e'];
   const fl=(i,k)=>Math.sin(t*(6+k)+i*2.1)*.5+.5;
-  for(let i=0;i<10;i++){                                  // 0.10.7.1: корона пламени стала выше и пышнее
-    const a=i/10*Math.PI*2+t*.3, r=.24, f=fl(i,1), bx=Math.cos(a)*r, bz=Math.sin(a)*r;
-    S.cone([bx,1.95,bz],[bx*.3,2.16+f*.28+(i%2)*.14,bz*.3],.075,FL[i%3],{seg:6,glow:1,shine:0});
+  for(let i=0;i<8;i++){                                   // корона пламени
+    const a=i/8*Math.PI*2, r=.23, f=fl(i,1), bx=Math.cos(a)*r, bz=Math.sin(a)*r;
+    S.cone([bx,1.95,bz],[bx*.3,2.14+f*.22+(i%2)*.1,bz*.3],.075,FL[i%3],{seg:6,glow:1,shine:0});
   }
-  G(S,[0,2.04,0],.14+.025*fl(0,2),'#ffb02e');
-  S.ring([0,2.52,0],.36,.026,'#ffb02e',{glow:1,n:26,phase:t*1.2});          // 0.10.7.1: огненный нимб
-  S.ring([0,2.52,0],.26,.016,'#ffe27a',{glow:1,n:20,phase:-t*1.7});
-  for(const s of [-1,1]){                                 // 0.10.7.1: огненные крылья — пять перьев с каждой стороны
-    for(let k=0;k<5;k++){ const f=fl(k+(s>0?5:0),2);
-      S.cone([s*.34,1.6-k*.02,-.18-k*.03],[s*(.64+k*.2),1.86+k*.2+f*.26,-.5-k*.1],.095-.012*k,FL[k%3],{seg:6,glow:1,shine:0}); }
-    G(S,[s*.36,1.62,-.2],.07+.015*fl(s+2,3),'#ffe27a');
+  G(S,[0,2.02,0],.13+.02*fl(0,2),'#ffb02e');
+  for(const s of [-1,1]){                                 // огонь за плечами
+    for(let k=0;k<3;k++){ const f=fl(k+(s>0?3:0),2);
+      S.cone([s*.42,1.62,-.1-k*.05],[s*(.5+k*.06),1.95+f*.28+k*.1,-.2-k*.08],.08-.015*k,FL[k],{seg:6,glow:1,shine:0}); }
   }
-  for(let k=0;k<3;k++){ const f=fl(k,4), x=(k-1)*.18;     // 0.10.7.1: плащ из пламени за спиной
-    S.cone([x,1.48,-.3],[x*1.3,.78+f*.2,-.62-f*.08],.11,FL[k],{seg:6,glow:1,shine:0}); }
   const mz=[.42,1.34,2.3];                                // факел на дуле
-  for(let i=0;i<5;i++){ const f=fl(i,3);
-    S.cone([mz[0],mz[1],mz[2]],[mz[0]+Math.sin(t*9+i)*.04,mz[1]+.06+f*.12,mz[2]+.26+f*.3+i*.04],.08-.014*i,FL[i%3],{seg:6,glow:1,shine:0}); }
-  G(S,mz,.11+.03*fl(1,5),'#ffe27a');
-  for(const z of [.35,.8,1.25,1.7]) G(S,[.42,1.33+z*.04,z+.03],.055,'#ff7a1c');   // жар на кольцах ствола
-  S.ring([0,.04,0],.86,.03,'#ff7a1c',{glow:1,n:30,phase:t*.8});            // 0.10.7.1: огненные кольца и языки у ног
-  S.ring([0,.04,0],.64,.02,'#ffe27a',{glow:1,n:22,phase:-t*1.1});
-  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2+t*.4, f=fl(i,3), x=Math.cos(a)*.78, z=Math.sin(a)*.78;
-    S.cone([x,.02,z],[x,.28+f*.26,z],.07,FL[i%3],{seg:5,glow:1,shine:0}); }
-  for(let i=0;i<12;i++){                                  // летящие угли
-    const ph=(t*.55+i/12)%1, a=i*2.4;
-    G(S,[Math.cos(a)*.6*(1-ph*.4),.85+ph*1.9,Math.sin(a)*.46-.1],.03*(1-ph)+.012,i%2?'#ffb02e':'#ff5a1c');
+  for(let i=0;i<4;i++){ const f=fl(i,3);
+    S.cone([mz[0],mz[1],mz[2]],[mz[0]+Math.sin(t*9+i)*.04,mz[1]+.06+f*.1,mz[2]+.22+f*.24+i*.03],.075-.014*i,FL[i%3],{seg:6,glow:1,shine:0}); }
+  G(S,mz,.1+.03*fl(1,5),'#ffe27a');
+  for(const z of [.35,.8,1.25,1.7]) G(S,[.42,1.33+z*.04,z+.03],.05,'#ff7a1c');   // жар на кольцах ствола
+  for(let i=0;i<8;i++){                                   // летящие угли
+    const ph=(t*.55+i/8)%1, a=i*2.4;
+    G(S,[Math.cos(a)*.55*(1-ph*.4),.85+ph*1.7,Math.sin(a)*.42-.1],.03*(1-ph)+.012,i%2?'#ffb02e':'#ff5a1c');
   }
 }
 
@@ -2899,6 +2793,9 @@ function meta(def,radius){
    остаётся только дешёвая putImageData. Пока спрайт не готов, показывается
    ближайший уже готовый кадр. Если воркер недоступен — старый путь с бюджетом. */
 const SELF_SRC=(typeof document!=='undefined'&&document.currentScript&&document.currentScript.src)||null;
+/* 0.10.8.1: на экранах высокой плотности (телефоны, ноутбуки с масштабом 150%+) спрайты бойцов хранятся
+   в 1.5× разрешении — модели заметно чётче. Воркер и так рендерит их с запасом (2×), лишней работы нет. */
+const SPR_K=(typeof window!=='undefined'&&(window.devicePixelRatio||1)>=1.5)?1.5:1;
 let WK=null, WK_STATE=0;                       // 0 — не пробовали, 1 — работает, -1 — недоступен
 const PEND=new Set(), META_PEND=new Set(), BAD=new Set();
 let sprFrame=0, sprLast=0, sprSlow=false;
@@ -2919,9 +2816,9 @@ function onWorkerMsg(e){
     const m=SPR_META[d.mkey]; if(!m) return;
     const res={data:new Uint8ClampedArray(d.data),glow:d.glow?new Uint8ClampedArray(d.glow):null,W:d.W,H:d.H};
     const hi=toCanvas(res,'spr');
-    const cv=mkCanvas(m.W,m.H), g=cv.getContext('2d');
+    const cv=mkCanvas(Math.round(m.W*SPR_K),Math.round(m.H*SPR_K)), g=cv.getContext('2d');
     g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
-    g.drawImage(hi,0,0,m.W,m.H);
+    g.drawImage(hi,0,0,cv.width,cv.height);
     storeSprite(d.key,{canvas:cv,ax:m.ax,ay:m.ay,w:m.W,h:m.H,u:sprFrame});
   }
 }
@@ -3026,9 +2923,9 @@ function battleSprite(def,radius,facing,time,anim,probe){
   sprMade++;
   const res=spriteRaw(def,m,animated,pose,fr,ang);
   const hi=toCanvas(res,'spr');
-  const cv=mkCanvas(m.W,m.H), g=cv.getContext('2d');
+  const cv=mkCanvas(Math.round(m.W*SPR_K),Math.round(m.H*SPR_K)), g=cv.getContext('2d');
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
-  g.drawImage(hi,0,0,m.W,m.H);
+  g.drawImage(hi,0,0,cv.width,cv.height);
   s={canvas:cv,ax:m.ax,ay:m.ay,w:m.W,h:m.H,u:sprFrame};
   storeSprite(key,s); return s;
 }
@@ -4501,22 +4398,12 @@ function psihArcanaFx(S,t,hy,tw){
   for(const s of [-1,1]){                                       // плечи
     oct(s*.56,1.82,0,.085,.22,.1,'#f4fbff','#8fe8ff');
   }
-  for(const s of [-1,1]) for(let k=0;k<6;k++){                  // 0.10.7.1: кристальные крылья стали больше — шесть перьев
-    const f=fl(k+(s>0?6:0),2);
-    S.cone([s*.3,1.5,-.25],[s*(.58+k*.22),1.62+k*.3+f*.06,-.5-k*.09],.11-.011*k,k%2?'#bfeaff':'#f4fbff',{seg:4,shine:.95,glow:k%2});
+  for(const s of [-1,1]) for(let k=0;k<4;k++){                  // кристальные крылья за спиной
+    const f=fl(k+(s>0?4:0),2);
+    S.cone([s*.3,1.5,-.25],[s*(.55+k*.2),1.65+k*.26+f*.05,-.5-k*.08],.1-.014*k,k%2?'#bfeaff':'#f4fbff',{seg:4,shine:.95,glow:k%2});
   }
-  for(let i=0;i<9;i++){                                         // 0.10.7.1: радужные лучи-сияние за спиной
-    const a=(i/8-.5)*2.5, f=fl(i,4), L=1.5+f*.25, c=['#8fe8ff','#e8f8ff','#c9b8ff','#ffd1f0'][i%4];
-    S.cone([0,1.62,-.32],[Math.sin(a)*L,1.62+Math.cos(a)*L*.95,-.62],.04,c,{seg:4,shine:.9,glow:1});
-  }
-  S.ring([tw,hy+.98,0],.3,.02,'#e8f8ff',{glow:1,n:22,phase:t*1.5});     // нимб над шляпой
-  S.ring([tw,hy+.98,0],.2,.014,'#8fe8ff',{glow:1,n:16,phase:-t*2});
-  S.ring([0,.04,0],1.12,.02,'#c9b8ff',{glow:1,n:26,phase:t*.6});         // кольцо у ног и кристаллическая корона
-  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2+t*.25, x=Math.cos(a)*1.0, z=Math.sin(a)*1.0, f=fl(i,3);
-    oct(x,.02,z,.07,.28+f*.1,.04,i%2?'#e8f8ff':'#8fe8ff','#8fe8ff',{glow:i%2});
-  }
-  for(let i=0;i<10;i++){                                        // вращающиеся алмазы (0.10.7.1: десять вместо семи)
-    const a=t*1.2+i*.63, r=.92+.08*Math.sin(t+i), y=.4+i*.2+Math.sin(t*2+i)*.08;
+  for(let i=0;i<7;i++){                                         // вращающиеся алмазы
+    const a=t*1.2+i*.9, r=.92+.08*Math.sin(t+i), y=.45+i*.27+Math.sin(t*2+i)*.08;
     oct(Math.cos(a)*r,y,Math.sin(a)*r*.9,.045,.1,.075,['#e8f8ff','#8fe8ff','#c9b8ff'][i%3],'#8fe8ff',{glow:1});
   }
   S.ring([0,.04,0],.86,.022,'#8fe8ff',{glow:1,n:22,phase:t*.9});

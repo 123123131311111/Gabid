@@ -109,7 +109,7 @@ const Engine = (() => {
     },
     /* Режим масштабирования CSS: при масштабе <1 — чёткие пиксели вместо размытия. */
     applyCss(canvas, scale){
-      canvas.style.imageRendering = scale < 1 ? 'pixelated' : 'auto';
+      canvas.style.imageRendering = scale <= 0.5 ? 'pixelated' : 'auto';   /* 0.10.8: динамическое разрешение 0.55–0.95 — сглаживание, 0.5 — чёткие пиксели */
     }
   };
 
@@ -119,14 +119,14 @@ const Engine = (() => {
     /* Рисует размытую светящуюся копию кадра поверх него (режим 'lighter'). Вызывать ДО отрисовки HUD. */
     apply(ctx, canvas, strength){
       if(this.supportsFilter === null) this.supportsFilter = ('filter' in ctx);
-      const w = Math.max(16, canvas.width >> 2), h = Math.max(16, canvas.height >> 2);
+      const w = Math.max(16, canvas.width >> 3), h = Math.max(16, canvas.height >> 3);   /* 0.10.8: 1/8 — в 4 раза дешевле, при апскейле свечение всё равно мягкое */
       if(!this.small){ this.small = document.createElement('canvas'); this.sctx = this.small.getContext('2d'); }
       if(this.w !== w || this.h !== h){ this.small.width = this.w = w; this.small.height = this.h = h; }
       const s = this.sctx;
       s.globalCompositeOperation = 'source-over';
       s.imageSmoothingEnabled = true;
       /* яркостная выжимка: контраст вверх, затемнение — оставляем только ярко светящиеся пиксели */
-      s.filter = this.supportsFilter ? 'brightness(0.9) contrast(1.6) saturate(1.3) blur(3px)' : 'none';
+      s.filter = this.supportsFilter ? 'brightness(0.9) contrast(1.6) saturate(1.3) blur(1.5px)' : 'none';
       s.clearRect(0, 0, w, h);
       s.drawImage(canvas, 0, 0, w, h);
       s.filter = 'none';

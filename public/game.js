@@ -41,7 +41,12 @@ let perfNoticeText = '', perfNoticeUntil = 0, perfLastCheck = 0, perfFrameCount 
 function perfLite(){ return perfLevel >= 3; }
 let appliedRenderScale = 1;
 /* в меню разрешение полное (текст читаем), мыло включается только в матче */
-function perfRenderScale(){ return Engine.Display.scale(perfLevel, gameState !== 'menu'); }
+const DRS = {k:1, min:0.6, good:0};   /* динамическое разрешение, см. perfSample */
+function perfRenderScale(){
+  const base = Engine.Display.scale(perfLevel, gameState !== 'menu');
+  if(gameState === 'menu' || perfLevel >= 3 || DRS.k >= 1) return base;
+  return Math.max(0.5, Math.round(base * DRS.k * 20) / 20);
+}
 /* Ultra: bloom включается только на «Высокой» с максимальным свечением; при <40 FPS perfSample сам понизит тир */
 function bloomActive(){ return perfLevel === 0 && GFX.glow === 2 && gameState !== 'menu'; }
 function setPerfLevel(level, silent, opts_keepGfx){
@@ -63,6 +68,11 @@ function setPerfLevel(level, silent, opts_keepGfx){
 function terrainRefreshEvery(){ return perfLevel === 0 ? 3 : (perfLevel === 1 ? 4 : (perfLevel === 2 ? 6 : 12)); }
 function particleCap(){ return perfLevel >= 3 ? 70 : Math.round(900 * GFX_PARTICLE_MUL[GFX.particles]); }
 function fxCap(){ return perfLevel === 0 ? 220 : (perfLevel === 1 ? 150 : (perfLevel === 2 ? 90 : 28)); }
+/* 0.10.8: адаптивное качество.
+   1) Сначала плавно снижаем внутреннее разрешение (динамическое разрешение 100% → 60%, без «пикселей» —
+      на телефонах с плотным экраном это почти незаметно), эффекты при этом остаются.
+   2) Если не помогло — понижаем тир графики, вплоть до «Супер низкой».
+   3) Когда запас FPS появляется — разрешение возвращается обратно. */
 function perfSample(now){
   if(gameState !== 'playing' || gameTime < 4 || matchIntroStart >= 0){ perfLastCheck = 0; perfFrameCount = 0; return; }
   if(!perfLastCheck){ perfLastCheck = now; perfFrameCount = 0; return; }
@@ -72,10 +82,20 @@ function perfSample(now){
   const fps = perfFrameCount * 1000 / span;
   perfFrameCount = 0; perfLastCheck = now;
   if(span > 6000) return;                       /* вкладка была в фоне — замер недостоверен */
-  if(fps < 40 && perfLevel < 2) setPerfLevel(perfLevel + 1);
+  const target = FPSCAP.limit === 30 ? 28 : 40;
+  if(fps < target){
+    DRS.good = 0;
+    if(fps < target*0.5 && perfLevel < 3){ setPerfLevel(perfLevel + 1); DRS.k = perfLevel >= 3 ? 1 : 0.7; }   /* сильные лаги — сразу ступенька вниз */
+    else if(perfLevel < 3 && DRS.k > DRS.min + 0.001){ DRS.k = Math.max(DRS.min, +(DRS.k - (fps < target*0.6 ? 0.2 : 0.1)).toFixed(2)); }
+    else if(perfLevel < 2){ setPerfLevel(perfLevel + 1); DRS.k = 0.8; }
+    else if(perfLevel === 2 && fps < target*0.6){ setPerfLevel(3); DRS.k = 1; }
+  } else {
+    const ceil = FPSCAP.limit > 0 ? FPSCAP.limit * 0.93 : 70;
+    if(fps >= ceil && DRS.k < 1 && ++DRS.good >= 2){ DRS.k = Math.min(1, +(DRS.k + 0.1).toFixed(2)); DRS.good = 0; }
+  }
 }
 window.addEventListener('keydown', e => {
-  if(e.key === 'F8'){ e.preventDefault(); setPerfLevel((perfLevel + 1) % 4); }
+  if(e.key === 'F8'){ e.preventDefault(); DRS.k = 1; setPerfLevel((perfLevel + 1) % 4); }
 });
 
 /* ===== ЛИМИТ FPS (0.10.7.0) =====
@@ -5562,20 +5582,30 @@ class Creep extends Unit {
   updateAI(dt){
     if(!this.attackTarget || !this.attackTarget.alive || this.attackTarget.team === 2 ||
        this.distTo(this.attackTarget) > this.aggroRange+150){
-      this.attackTarget = this.findTarget();
+      /* 0.10.8: крип без цели ищет её раз в ~0.1 с (со сдвигом по крипам), а не каждый кадр.
+         Если цель только что потеряна — ищем сразу, реакция в бою не меняется. */
+      const lost = !!this.attackTarget;
+      this.searchCd = (this.searchCd || 0) - dt;
+      if(lost || this.searchCd <= 0){
+        this.attackTarget = this.findTarget();
+        this.searchCd = 0.08 + Math.random()*0.05;
+      }
     }
     if(!this.attackTarget){
       const wp = this.path[this.wpIdx];
+      const mt = this._mt || (this._mt = {x:0, y:0});   /* переиспользуем объект — меньше мусора для GC */
       if(wp){
         const tx=wp.x+this.offX*0.6, ty=wp.y+this.offY*0.6;
-        if(Math.hypot(tx-this.x, ty-this.y) < 110){
+        const dx=tx-this.x, dy=ty-this.y;
+        if(dx*dx+dy*dy < 110*110){
           this.wpIdx += this.dir;
           this.wpIdx = clamp(this.wpIdx,0,this.path.length-1);
         }
-        this.moveTarget = {x:tx, y:ty};
+        mt.x = tx; mt.y = ty;
       } else {
-        this.moveTarget = {x:BASES[1-this.team].x, y:BASES[1-this.team].y};
+        mt.x = BASES[1-this.team].x; mt.y = BASES[1-this.team].y;
       }
+      this.moveTarget = mt;
     } else this.moveTarget=null;
   }
   findTarget(){
@@ -12190,7 +12220,6 @@ function updateCore(dt){
       if(attackOwner && attackOwner.def && attackOwner.def.id==='grisha') grishaHitSparkle(p.target.x,p.target.y);
       if(p.vaspCopy && !p.target.dead) vaspCopyHit(p.vaspCopy,p.target);
       if(p.vaspArc && !p.target.dead && window.vaspArcHit){ try{ window.vaspArcHit(p); }catch(e){} } /* 0.10.6.2: аркана Васпассира */
-      if(p.senseChef && window.senseChefHit){ try{ window.senseChefHit(p); }catch(e){} } /* 0.10.7.2.1: аркана Сенсированной */
       if(p.skFx && !p.target.dead && window.skinFxHit){ try{ window.skinFxHit(p); }catch(e){} } /* 0.10.6.3: эффект попадания обычных скинов */
       if(p.headshot && !p.target.dead){
         const slowDuration=p.headshotSlowDuration || 0.85;
@@ -12217,7 +12246,7 @@ function updateCore(dt){
           }
         }
       }
-      if(p.senseGrenade && !p.senseChef){ fxRing(p.target.x,p.target.y,130,'#9dff6a',0.5); spawnParticles(p.target.x,p.target.y,'#ffe08a',20,0.9); addText(p.target.x,p.target.y-70,'380','#9dff6a',1.0,20); }
+      if(p.senseGrenade){ fxRing(p.target.x,p.target.y,130,'#9dff6a',0.5); spawnParticles(p.target.x,p.target.y,'#ffe08a',20,0.9); addText(p.target.x,p.target.y-70,'380','#9dff6a',1.0,20); }
       if(p.inferno){
         if(p.assassinate){ infernoBurst(p.target.x,p.target.y,190,46,0.8); fxRing(p.target.x,p.target.y,110,'#fff1b0',0.5); }
         else if(p.headshot){ infernoBurst(p.target.x,p.target.y,70,18,0.4); }
@@ -12884,47 +12913,45 @@ function drawWardPlacement(){
   ctx.restore();
 }
 
+/* 0.10.8: туман войны рисуется в 1/4 разрешения (в 16 раз меньше пикселей) и растягивается со сглаживанием —
+   края становятся мягче, а стоимость падает с ~16 мс до <1 мс на слабых устройствах.
+   Радиальный градиент «дыры обзора» заранее отрисован в спрайт — вместо createRadialGradient на каждого юнита. */
+const FOG_S = 0.25;
+let fogHoleSprite = null;
+function fogHole(){
+  if(fogHoleSprite) return fogHoleSprite;
+  const R = 96, c = document.createElement('canvas'); c.width = c.height = R*2;
+  const g2 = c.getContext('2d'), g = g2.createRadialGradient(R, R, R*0.55, R, R, R);
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  g2.fillStyle = g; g2.beginPath(); g2.arc(R, R, R, 0, Math.PI*2); g2.fill();
+  return (fogHoleSprite = c);
+}
 function drawFog(){
-  if(fogCanvas.width !== VW || fogCanvas.height !== VH){
-    fogCanvas.width = VW; fogCanvas.height = VH;
-  }
+  const fw = Math.max(1, Math.ceil(VW*FOG_S)), fh = Math.max(1, Math.ceil(VH*FOG_S));
+  if(fogCanvas.width !== fw || fogCanvas.height !== fh){ fogCanvas.width = fw; fogCanvas.height = fh; }
   fogCtx.setTransform(1,0,0,1,0,0);
   fogCtx.globalCompositeOperation = 'source-over';
-  fogCtx.clearRect(0,0,VW,VH);
-  /*
-     На смерти оставляем карту различимой под туманом. Полностью
-     непрозрачная заливка здесь и была причиной визуального чёрного экрана,
-     когда у команды игрока временно не оставалось живых источников обзора.
-  */
   fogCtx.globalAlpha = 1;
-  fogCtx.fillStyle = playerHero && playerHero.dead
-    ? 'rgba(4,6,12,0.38)'
-    : 'rgba(4,6,12,0.52)';
-  fogCtx.fillRect(0,0,VW,VH);
+  fogCtx.imageSmoothingEnabled = true;
+  fogCtx.clearRect(0,0,fw,fh);
+  /* На смерти оставляем карту различимой под туманом (полностью непрозрачная заливка давала «чёрный экран»). */
+  fogCtx.fillStyle = playerHero && playerHero.dead ? 'rgba(4,6,12,0.38)' : 'rgba(4,6,12,0.52)';
+  fogCtx.fillRect(0,0,fw,fh);
 
   const ox = -cam.x + VW/2, oy = -cam.y + VH/2;
+  const hole = fogHole();
   fogCtx.globalCompositeOperation = 'destination-out';
   for(const u of units){
     if(u.team!==0||u.dead) continue;
-    const sx = u.x+ox, sy = u.y+oy;
-    const r = u.vision;
-    if(sx<-r||sy<-r||sx>VW+r||sy>VH+r) continue;
-    const g = fogCtx.createRadialGradient(sx, sy, r*0.55, sx, sy, r);
-    g.addColorStop(0, 'rgba(0,0,0,1)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    fogCtx.fillStyle = g;
-    fogCtx.beginPath(); fogCtx.arc(sx, sy, r, 0, Math.PI*2); fogCtx.fill();
+    const sx = u.x+ox, sy = u.y+oy, r = u.vision;
+    if(!(r > 0) || sx<-r||sy<-r||sx>VW+r||sy>VH+r) continue;
+    fogCtx.drawImage(hole, (sx-r)*FOG_S, (sy-r)*FOG_S, r*2*FOG_S, r*2*FOG_S);
   }
-
   for(const w of wards){
     if(w.team !== 0 || w.life <= 0) continue;
     const sx = w.x+ox, sy = w.y+oy, r = WARD_CFG.radius;
     if(sx<-r||sy<-r||sx>VW+r||sy>VH+r) continue;
-    const g = fogCtx.createRadialGradient(sx, sy, r*0.55, sx, sy, r);
-    g.addColorStop(0, 'rgba(0,0,0,1)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    fogCtx.fillStyle = g;
-    fogCtx.beginPath(); fogCtx.arc(sx, sy, r, 0, Math.PI*2); fogCtx.fill();
+    fogCtx.drawImage(hole, (sx-r)*FOG_S, (sy-r)*FOG_S, r*2*FOG_S, r*2*FOG_S);
   }
 
   const c0x = Math.max(0, Math.floor((cam.x - VW/2)/CELL));
@@ -12933,15 +12960,23 @@ function drawFog(){
   const c1y = Math.min(GRID-1, Math.floor((cam.y + VH/2)/CELL));
   fogCtx.fillStyle = 'rgba(0,0,0,0.62)';
   for(let gy=c0y; gy<=c1y; gy++){
-    for(let gx=c0x; gx<=c1x; gx++){
-      const i = gy*GRID+gx;
-      if(explored[i] && !visGrid[i]){
-        fogCtx.fillRect(gx*CELL + ox, gy*CELL + oy, CELL, CELL);
+    const y0 = Math.round((gy*CELL + oy)*FOG_S), y1 = Math.round(((gy+1)*CELL + oy)*FOG_S);
+    let run = -1;                                   /* соседние клетки строки сливаем в один прямоугольник */
+    for(let gx=c0x; gx<=c1x+1; gx++){
+      const open = gx <= c1x && explored[gy*GRID+gx] && !visGrid[gy*GRID+gx];
+      if(open){ if(run < 0) run = gx; }
+      else if(run >= 0){
+        const x0 = Math.round((run*CELL + ox)*FOG_S), x1 = Math.round((gx*CELL + ox)*FOG_S);
+        fogCtx.fillRect(x0, y0, x1-x0, y1-y0);
+        run = -1;
       }
     }
   }
   fogCtx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(fogCanvas, 0, 0);
+  const sm = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(fogCanvas, 0, 0, VW, VH);
+  ctx.imageSmoothingEnabled = sm;
 }
 
 function screenToWorld(sx, sy){
@@ -15169,7 +15204,7 @@ function drawUnit(u){
         const bd = drawMilitaryBike(u, footY);       /* байк рисуется под всадником */
         ly -= u.radius*0.7; lx -= bd*u.radius*0.95;
       }
-      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax + lx, footY - hero3dSpr.ay + ly);
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax + lx, footY - hero3dSpr.ay + ly, hero3dSpr.w, hero3dSpr.h);
     }
   }
   /* 0.8.4: 3D-монстры для лайновых и лесных крипов */
@@ -15202,7 +15237,7 @@ function drawUnit(u){
         ctx.scale(1 - squash*0.6, 1 + squash);
         /* клоны полупрозрачны для хозяина и его команды — враги видят их как обычного бойца */
         if(isIllusionClone(u) && playerHero && u.team === playerHero.team) ctx.globalAlpha *= 0.5;
-        ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+        ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay, hero3dSpr.w, hero3dSpr.h);
         ctx.restore();
         if(isIllusionClone(u) && playerHero && u.team === playerHero.team){
           const sel = controlGroup.includes(u) || controlledUnit === u;
@@ -15229,7 +15264,7 @@ function drawUnit(u){
       ctx.globalAlpha=0.5; ctx.strokeStyle=Hero3D.models && u.copyDef ? '#ffffff' : '#fff'; ctx.lineWidth=2;
       ctx.beginPath(); ctx.ellipse(0,footY,u.radius*1.05,u.radius*0.52,0,0,Math.PI*2); ctx.stroke();
       ctx.restore();
-      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay, hero3dSpr.w, hero3dSpr.h);
     }
   }
   /* 0.10.1: псы Выселок — 3D-модель красного пса с шипами и ошейником цвета команды */
@@ -15247,12 +15282,12 @@ function drawUnit(u){
       const footY = u.radius*0.7;
       ctx.save(); ctx.globalAlpha=0.45; ctx.strokeStyle='#ff5a3a'; ctx.lineWidth=2;
       ctx.beginPath(); ctx.ellipse(0,footY,u.radius*1.0,u.radius*0.5,0,0,Math.PI*2); ctx.stroke(); ctx.restore();
-      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay, hero3dSpr.w, hero3dSpr.h);
     }
   }
   /* 0.10.6.6: робот-преследователь Сенсированной — 3D-модель sense_robot с оранжевым свечением */
   if(!hero3dSpr && u.type === 'summon' && u.summonKind === 'senseRobot' && !portraitRenderMode && window.Hero3D && Hero3D.battleSprite){
-    const dd = {id:'sense_robot', skinId:'t'+(u.team === 1 ? 1 : 0)+(u.senseChef ? 'chef' : ''), color:'#ffb347'};   /* 0.10.7.2.1: у арканы — комбайн в колпаке */
+    const dd = {id:'sense_robot', skinId:'t'+(u.team === 1 ? 1 : 0), color:'#ffb347'};
     let fa = u.facing || 0;
     if(u.isAttacking && u.attackTarget && u.attackTarget.alive) fa = Math.atan2(u.attackTarget.y-u.y, u.attackTarget.x-u.x);
     let anim3d = null;
@@ -15266,7 +15301,7 @@ function drawUnit(u){
       ctx.save(); ctx.globalAlpha=0.55+Math.sin((u.robotPulse||0)*8)*0.12; ctx.strokeStyle='#ffb347'; ctx.lineWidth=2.2;
       ctx.shadowColor='#ff8a2a'; ctx.shadowBlur=12;
       ctx.beginPath(); ctx.ellipse(0,footY,u.radius*1.1,u.radius*0.55,0,0,Math.PI*2); ctx.stroke(); ctx.restore();
-      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay, hero3dSpr.w, hero3dSpr.h);
     }
   }
   /* 0.8.6: боевой дрон Мо3ги — настоящая 3D-модель FPV-дрона с боеприпасом (вместо плоского значка) */
@@ -15291,7 +15326,7 @@ function drawUnit(u){
       ctx.save();
       ctx.translate(0, footY + bob);
       ctx.rotate(tilt*Math.cos(fa));
-      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay);
+      ctx.drawImage(hero3dSpr.canvas, -hero3dSpr.ax, -hero3dSpr.ay, hero3dSpr.w, hero3dSpr.h);
       ctx.restore();
     }
   }
@@ -21354,7 +21389,7 @@ function accountSet(token, profile){
 async function accountApi(name, payload){
   let response;
   try {
-    response = await fetch('/api/' + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) });
+    response = await fetch(dsApiUrl('/api/' + name), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) });
   } catch(err) {
     const error = new Error('Сервер недоступен. Попробуй позже.');
     error.network = true;
@@ -21378,7 +21413,7 @@ async function loadLeaderboard(){
   if(leaderboardLoading) return;
   leaderboardLoading=true; leaderboardError=''; renderLeaderboardPanel();
   try {
-    const response=await fetch('/api/leaderboard');
+    const response=await fetch(dsApiUrl('/api/leaderboard'));
     let data;
     try { data=await response.json(); }
     catch(err) { throw new Error('Мировой топ сейчас недоступен. Проверь подключение к серверу.'); }
@@ -22431,26 +22466,7 @@ function dsDrawHeroCard(card,def,now){
   ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1;
   for(let i=-3;i<14;i++){ const x=card.x+i*card.w*.14+(now*5%(card.w*.14)); ctx.beginPath(); ctx.moveTo(x,card.y+card.h*.2); ctx.lineTo(x+card.w*.7,card.y); ctx.stroke(); }
   if(!def){
-    /* 0.10.7.3: красивая заглушка — вращающиеся руны, пульсирующий «плюс» и кнопка выбора */
-    const cx=card.x+card.w/2, cy=card.y+card.h*.42, hv=dsHoverAmt('herocardEmpty',dsInside(card)), R=Math.min(card.w*.28,card.h*.22);
-    ctx.save(); ctx.globalCompositeOperation='lighter';
-    const gl=ctx.createRadialGradient(cx,cy,0,cx,cy,R*2.6); gl.addColorStop(0,'rgba(255,150,110,'+(.22+.12*hv+.05*Math.sin(now*2))+')'); gl.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=gl; ctx.fillRect(card.x,card.y,card.w,card.h);
-    ctx.translate(cx,cy);
-    for(let k=0;k<3;k++){ ctx.save(); ctx.rotate(now*(k%2?-.35:.25)*(1+hv)+k*1.3); ctx.strokeStyle='rgba(255,190,130,'+(.5-k*.12+.2*hv)+')'; ctx.lineWidth=1.5*s;
-      ctx.setLineDash(k===1?[3*s,9*s]:(k===2?[22*s,10*s]:[])); ctx.beginPath(); ctx.arc(0,0,R*(1+k*.22),0,Math.PI*2); ctx.stroke(); ctx.restore(); }
-    ctx.setLineDash([]); const pl=R*.42*(1+.06*Math.sin(now*2.6)+.12*hv);
-    ctx.strokeStyle='rgba(255,236,200,'+(.85+.15*hv)+')'; ctx.lineWidth=4*s; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(-pl,0); ctx.lineTo(pl,0); ctx.moveTo(0,-pl); ctx.lineTo(0,pl); ctx.stroke();
-    ctx.restore();
-    dsTxt('ВЫБЕРИ ЛЮБИМОГО БОЙЦА',cx,card.y+card.h*.42+R*2.0,'bold '+Math.round(15*s)+'px Georgia, serif','rgba(255,240,215,.95)','center',1.5);
-    dsTxt('Он будет стоять здесь, в центре меню',cx,card.y+card.h*.42+R*2.0+Math.round(22*s),Math.round(12*s)+'px Segoe UI, Arial','rgba(255,225,195,.6)','center');
-    { const bw=Math.round(190*s), bh=Math.round(34*s), bx=cx-bw/2, by=card.y+card.h*.42+R*2.0+Math.round(40*s);
-      ctx.save(); ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,bh/2);
-      const bg2=ctx.createLinearGradient(0,by,0,by+bh); bg2.addColorStop(0,'rgba('+(190+40*hv)+',70,55,.95)'); bg2.addColorStop(1,'rgba(110,28,30,.95)');
-      ctx.shadowColor='rgba(255,110,80,'+(.35+.4*hv)+')'; ctx.shadowBlur=(10+12*hv)*s; ctx.fillStyle=bg2; ctx.fill(); ctx.shadowBlur=0;
-      ctx.strokeStyle='rgba(255,215,150,'+(.6+.4*hv)+')'; ctx.lineWidth=1.2; ctx.stroke(); ctx.restore();
-      dsTxt('ВЫБРАТЬ БОЙЦА',cx,by+bh/2+1,'bold '+Math.round(12*s)+'px Trebuchet MS, Segoe UI, Arial','#fff4dc','center',1.4); }
+    dsTxt('Выбери любимого бойца',card.x+card.w/2,card.y+card.h/2,Math.round(15*s)+'px Segoe UI, Arial','rgba(255,230,200,.8)','center');
     ctx.restore(); return;
   }
   const key=def.id+'|'+(def.skinId||'');
@@ -22613,21 +22629,35 @@ function dsThemeTick(now){
   if(k >= 1){ DST.from = null; for(const key in to) DST.cur[key] = to[key].slice(); DST.w = {turbo:0,allpick:0,ranked:0}; DST.w[mode] = 1; }
 }
 function dsC(key, a){ const c = (DST.cur || DST_PAL.turbo)[key]; return 'rgba('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+','+(a === undefined ? 1 : a)+')'; }
+const dsBgCache = {cv:null, g:null, t:-1};
 function dsCleanBackdrop(now){
   dsThemeTick(now);
   const q = [1, .6, .4, .25][perfLevel] || .25, W = DST.w;
-  const g=ctx.createLinearGradient(0,0,0,VH);
-  g.addColorStop(0,dsC('bg0')); g.addColorStop(.55,dsC('bg1')); g.addColorStop(1,dsC('bg2'));
-  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
-  ctx.save(); ctx.globalCompositeOperation='lighter';
   const pulse = 1 + W.turbo*.22*Math.sin(now*3.1) + W.ranked*.1*Math.sin(now*1.7);   /* TURBO — пульсирующее, РЕЙТИНГ — ровное свечение */
-  const glows=[[.62,.78,.75,.32],[.85,.2,.55,.14],[.35,.35,.6,.1]];
-  glows.forEach((o,i)=>{
-    const cx=VW*(o[0]+Math.sin(now*.15+i*2)*.03), cy=VH*(o[1]+Math.cos(now*.12+i)*.03), r=Math.max(VW,VH)*o[2];
-    const rg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-    rg.addColorStop(0,dsC('glow',o[3]*pulse)); rg.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=rg; ctx.fillRect(0,0,VW,VH);
-  });
+  /* 0.10.8.1: фон (градиент + 3 больших свечения) — это 4 заливки на весь экран каждый кадр. Теперь он рисуется
+     в отдельный холст в половинном разрешении 20 раз в секунду и выводится одной картинкой: выглядит так же
+     (всё размыто и плавно), а меню на слабых устройствах перестаёт лагать. */
+  { const BW = Math.max(16, Math.ceil(VW/2)), BH = Math.max(16, Math.ceil(VH/2)), B = dsBgCache;
+    if(!B.cv){ B.cv = document.createElement('canvas'); B.g = B.cv.getContext('2d'); }
+    if(B.cv.width !== BW || B.cv.height !== BH){ B.cv.width = BW; B.cv.height = BH; B.t = -1; }
+    if(now - B.t > 0.05 || now < B.t){
+      B.t = now; const c = B.g;
+      c.setTransform(BW/VW,0,0,BH/VH,0,0); c.globalCompositeOperation='source-over'; c.globalAlpha=1;
+      const g=c.createLinearGradient(0,0,0,VH);
+      g.addColorStop(0,dsC('bg0')); g.addColorStop(.55,dsC('bg1')); g.addColorStop(1,dsC('bg2'));
+      c.fillStyle=g; c.fillRect(0,0,VW,VH);
+      c.globalCompositeOperation='lighter';
+      const glows=[[.62,.78,.75,.32],[.85,.2,.55,.14],[.35,.35,.6,.1]];
+      glows.forEach((o,i)=>{
+        const cx=VW*(o[0]+Math.sin(now*.15+i*2)*.03), cy=VH*(o[1]+Math.cos(now*.12+i)*.03), r=Math.max(VW,VH)*o[2];
+        const rg=c.createRadialGradient(cx,cy,0,cx,cy,r);
+        rg.addColorStop(0,dsC('glow',o[3]*pulse)); rg.addColorStop(1,'rgba(0,0,0,0)');
+        c.fillStyle=rg; c.fillRect(0,0,VW,VH);
+      });
+    }
+    const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(B.cv, 0, 0, VW, VH); ctx.imageSmoothingEnabled = sm; }
+  ctx.save(); ctx.globalCompositeOperation='lighter';
   const speed = 1 + W.turbo*.9 - W.allpick*.35;
   for(let i=0;i<34;i++){
     const ph=(now*(.03+dsHash(i)*.04)*speed+dsHash(i+50))%1;
@@ -22686,58 +22716,33 @@ function dsCleanBackdrop(now){
     const hl=ctx.createRadialGradient(hx,hy+hr*.1,0,hx,hy+hr*.1,hr*.8); hl.addColorStop(0,dsC('glow',.10*pulse)); hl.addColorStop(1,'rgba(0,0,0,0)');
     ctx.globalCompositeOperation='lighter'; ctx.fillStyle=hl; ctx.fillRect(hx-hr,hy-hr,hr*2,hr*2);
     ctx.restore(); }
-  const v=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.35,VW/2,VH/2,Math.max(VW,VH)*.8);
-  v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.65)');
-  ctx.fillStyle=v; ctx.fillRect(0,0,VW,VH);
+  /* виньетка — заранее нарисованная картинка в 1/4 разрешения (была ещё одна градиентная заливка на весь экран) */
+  { const B = dsVigCache, VWq = Math.max(8, Math.ceil(VW/4)), VHq = Math.max(8, Math.ceil(VH/4));
+    if(!B.cv || B.cv.width !== VWq || B.cv.height !== VHq){
+      B.cv = B.cv || document.createElement('canvas'); B.cv.width = VWq; B.cv.height = VHq;
+      const c = B.cv.getContext('2d'); c.setTransform(VWq/VW,0,0,VHq/VH,0,0);
+      const v=c.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.35,VW/2,VH/2,Math.max(VW,VH)*.8);
+      v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.65)');
+      c.fillStyle=v; c.fillRect(0,0,VW,VH);
+    }
+    const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(B.cv, 0, 0, VW, VH); ctx.imageSmoothingEnabled = sm; }
 }
+const dsVigCache = {cv:null};
 
 /* 0.9.9.6: плашка-кнопка верхней панели главного меню (единый вид для навигации и блока MMR) */
-/* 0.10.7.3: плавное наведение — «насколько наведено» (0..1) хранится по ключу и догоняет цель каждый кадр */
-const dsHA={};
-function dsHoverAmt(key,hov){ let a=dsHA[key]||0; const t=hov?1:0; a+=(t-a)*.2; if(Math.abs(t-a)<.01) a=t; dsHA[key]=a; return a; }
-/* 0.10.7.3: плашка-кнопка верхней панели — скошенные углы, плавный свет при наведении, бегущий блик и растущая золотая черта */
-function dsBarPlate(r,hov,s,key,down){
-  const a=key?dsHoverAmt(key,hov):(hov?1:0), now=performance.now()/1000;
-  const c=Math.round(7*s), oy=(down&&hov)?1:0, y0=r.y+oy;
-  const path=()=>{ ctx.beginPath(); ctx.moveTo(r.x+c,y0); ctx.lineTo(r.x+r.w,y0); ctx.lineTo(r.x+r.w,y0+r.h-c); ctx.lineTo(r.x+r.w-c,y0+r.h); ctx.lineTo(r.x,y0+r.h); ctx.lineTo(r.x,y0+c); ctx.closePath(); };
+function dsBarPlate(r,hov,s){
   ctx.save();
-  path();
-  const g=ctx.createLinearGradient(0,y0,0,y0+r.h); g.addColorStop(0,'rgba(58,40,42,.92)'); g.addColorStop(1,'rgba(18,11,13,.95)');
-  ctx.fillStyle=g; ctx.fill();
-  if(a>0.01){
-    const g2=ctx.createLinearGradient(0,y0,0,y0+r.h); g2.addColorStop(0,dsC('hl',.42*a)); g2.addColorStop(1,dsC('hl',.14*a));
-    ctx.shadowColor=dsC('hover',a); ctx.shadowBlur=14*s*a; ctx.fillStyle=g2; ctx.fill(); ctx.shadowBlur=0;
-  }
-  ctx.lineWidth=1; ctx.strokeStyle='rgba(232,168,90,.34)'; ctx.stroke();
-  if(a>0.01){ ctx.strokeStyle=dsC('hover',a); ctx.stroke(); }
-  /* верхний блик */
-  ctx.beginPath(); ctx.moveTo(r.x+c+1,y0+1.5); ctx.lineTo(r.x+r.w-2,y0+1.5); ctx.strokeStyle='rgba(255,255,255,'+(0.09+0.16*a)+')'; ctx.stroke();
-  if(a>0.02){
-    ctx.save(); path(); ctx.clip();
-    const sx=r.x+(((now*1.1)%1.8)-.4)*r.w, sg=ctx.createLinearGradient(sx-r.w*.2,0,sx+r.w*.2,0);
-    sg.addColorStop(0,'rgba(255,240,200,0)'); sg.addColorStop(.5,'rgba(255,240,200,'+(.2*a)+')'); sg.addColorStop(1,'rgba(255,240,200,0)');
-    ctx.fillStyle=sg; ctx.fillRect(r.x,y0,r.w,r.h);
-    /* золотая черта растёт от центра */
-    const lw=(r.w-Math.round(10*s))*a, ug=ctx.createLinearGradient(r.x,0,r.x+r.w,0);
-    ug.addColorStop(0,dsC('hover',0)); ug.addColorStop(.5,dsC('spark2')); ug.addColorStop(1,dsC('hover',0));
-    ctx.fillStyle=ug; ctx.fillRect(r.x+(r.w-lw)/2,y0+r.h-2.5,lw,2);
-    ctx.restore();
-  }
-  ctx.restore();
-  return a;
-}
-/* 0.10.7.3: векторные значки кнопок верхней панели */
-function dsNavIcon(kind,cx,cy,sz,col,lw){
-  const h=sz/2; ctx.save(); ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=lw; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath();
-  switch(kind){
-    case 'fighters': ctx.moveTo(cx-h,cy-h); ctx.lineTo(cx+h*.55,cy+h*.55); ctx.moveTo(cx+h,cy-h); ctx.lineTo(cx-h*.55,cy+h*.55);
-      ctx.moveTo(cx+h*.2,cy+h*.9); ctx.lineTo(cx+h*.9,cy+h*.2); ctx.moveTo(cx-h*.2,cy+h*.9); ctx.lineTo(cx-h*.9,cy+h*.2); ctx.stroke(); break;
-    case 'store': ctx.roundRect(cx-h*.85,cy-h*.3,h*1.7,h*1.3,h*.2); ctx.moveTo(cx-h*.4,cy-h*.3); ctx.arc(cx,cy-h*.3,h*.4,Math.PI,0); ctx.stroke(); break;
-    case 'inventory': ctx.roundRect(cx-h*.9,cy-h*.9,h*1.8,h*1.8,h*.2); ctx.moveTo(cx-h*.9,cy-h*.15); ctx.lineTo(cx+h*.9,cy-h*.15); ctx.moveTo(cx-h*.25,cy-h*.15); ctx.lineTo(cx-h*.25,cy+h*.25); ctx.lineTo(cx+h*.25,cy+h*.25); ctx.lineTo(cx+h*.25,cy-h*.15); ctx.stroke(); break;
-    case 'changelog': ctx.roundRect(cx-h*.7,cy-h,h*1.4,h*2,h*.18); ctx.moveTo(cx-h*.35,cy-h*.45); ctx.lineTo(cx+h*.35,cy-h*.45); ctx.moveTo(cx-h*.35,cy); ctx.lineTo(cx+h*.35,cy); ctx.moveTo(cx-h*.35,cy+h*.45); ctx.lineTo(cx+h*.1,cy+h*.45); ctx.stroke(); break;
-    case 'leaderboard': ctx.moveTo(cx-h,cy+h*.7); ctx.lineTo(cx-h,cy-h*.45); ctx.lineTo(cx-h*.4,cy+h*.05); ctx.lineTo(cx,cy-h*.75); ctx.lineTo(cx+h*.4,cy+h*.05); ctx.lineTo(cx+h,cy-h*.45); ctx.lineTo(cx+h,cy+h*.7); ctx.closePath(); ctx.stroke(); break;
-    default: ctx.arc(cx,cy-h*.4,h*.42,0,Math.PI*2); ctx.moveTo(cx-h*.95,cy+h*.9); ctx.arc(cx,cy+h*1.0,h*.95,Math.PI*1.1,Math.PI*1.9); ctx.stroke();
-  }
+  const rad=Math.round(7*s);
+  ctx.beginPath(); ctx.roundRect(r.x,r.y,r.w,r.h,rad);
+  const g=ctx.createLinearGradient(0,r.y,0,r.y+r.h);
+  if(hov){ g.addColorStop(0,dsC('hl',.34)); g.addColorStop(1,dsC('hl',.12)); }
+  else { g.addColorStop(0,'rgba(54,37,39,.9)'); g.addColorStop(1,'rgba(20,13,15,.94)'); }
+  ctx.fillStyle=g; if(hov){ ctx.shadowColor=dsC('hover'); ctx.shadowBlur=12*s; }
+  ctx.fill(); ctx.shadowBlur=0;
+  ctx.lineWidth=1; ctx.strokeStyle=hov?dsC('hover'):'rgba(232,168,90,.36)'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(r.x+rad,r.y+1.5); ctx.lineTo(r.x+r.w-rad,r.y+1.5);
+  ctx.strokeStyle='rgba(255,255,255,'+(hov?0.24:0.1)+')'; ctx.stroke();
   ctx.restore();
 }
 const dsBarSync={h:0,s:0};
@@ -22751,12 +22756,8 @@ function drawDotaSenseHome(){
     const rs=document.documentElement.style; rs.setProperty('--ds-bar-h',barH+'px'); rs.setProperty('--ds-s',String(s));
   }
   const pf=account.profile;
-  /* 0.10.7.3: плавное появление панелей при входе в меню (сверху — шапка, слева — колонка, справа — кнопка ИГРАТЬ) */
-  { const t=performance.now(); if(!window._dsHomeLast||t-window._dsHomeLast>400) window._dsEnter=now; window._dsHomeLast=t; }
-  const dsIn=d=>{ const k=clamp((now-(window._dsEnter||0)-d)/.7,0,1); return 1-Math.pow(1-k,3); };
 
   /* ---------- ВЕРХНЯЯ ПАНЕЛЬ ---------- */
-  { const e=dsIn(0); ctx.save(); ctx.globalAlpha=e; ctx.translate(0,-(1-e)*28*s); }
   ctx.save();
   const bg=ctx.createLinearGradient(0,0,0,barH);
   bg.addColorStop(0,'rgba(28,20,22,.97)'); bg.addColorStop(1,'rgba(8,5,7,.97)');
@@ -22802,22 +22803,25 @@ function drawDotaSenseHome(){
   /* навигация: 0.9.9.6 — кнопки-плашки одной высоты на одной линии с шестерёнкой, логотипом и кнопками справа */
   const btnH=Math.round(32*s), btnY=Math.round(7*s), btnCy=btnY+btnH/2+1;
   const navFont='bold '+Math.round(12*s)+'px Trebuchet MS, Segoe UI, Arial', navSp=1.4*s;
-  const navPad=Math.round(10*s), navGap=Math.round(6*s), icoW=Math.round(13*s), icoGap=Math.round(7*s);
+  const navPad=Math.round(11*s), navGap=Math.round(6*s);
   const navItems=[
     {t:'БОЙЦЫ',a:'fighters'},{t:'МАГАЗИН',a:'store'},{t:'ИНВЕНТАРЬ',a:'inventory'},{t:'ОБНОВЛЕНИЯ',a:'changelog'},
     {t:'МИРОВОЙ ТОП',a:'leaderboard'},{t:'ПРОФИЛЬ',a:'account'}
   ];
   let nx=tabX+tabW+Math.round(18*s);
   navItems.forEach((it,i)=>{
-    const tw=dsTxtW(it.t,navFont,navSp), r={x:nx,y:btnY,w:Math.round(tw+navPad*2+icoW+icoGap),h:btnH};
-    const hov=dsInside(r), dn=!!window._dsDown;
+    const tw=dsTxtW(it.t,navFont,navSp), r={x:nx,y:btnY,w:Math.round(tw+navPad*2),h:btnH};
+    const hov=dsInside(r);
     dsRegister(r,it.a,'nav'+i);
-    const a=dsBarPlate(r,hov,s,'nav'+i,dn), lift=-a*1.2+((hov&&dn)?2:0);
-    const icx=r.x+navPad+icoW/2, tx=r.x+navPad+icoW+icoGap;
-    dsNavIcon(it.a,icx,btnCy+lift,icoW,'rgba(214,168,106,'+(.8-.8*a)+')',1.5*s);
-    if(a>0.01) dsNavIcon(it.a,icx,btnCy+lift,icoW*(1+.08*a),'rgba(255,242,208,'+a+')',1.5*s);
-    dsTxt(it.t,tx,btnCy+lift*.5,navFont,'#d6c9b8','left',navSp);
-    if(a>0.01){ ctx.save(); ctx.globalAlpha=a; ctx.shadowColor=dsC('hover'); ctx.shadowBlur=10*s; dsTxt(it.t,tx,btnCy+lift*.5,navFont,'#fff2d0','left',navSp); ctx.restore(); }
+    dsBarPlate(r,hov,s);
+    ctx.save(); if(hov){ ctx.shadowColor=dsC('hover'); ctx.shadowBlur=10*s; }
+    dsTxt(it.t,r.x+navPad,btnCy,navFont,hov?'#fff2d0':'#d6c9b8','left',navSp);
+    ctx.restore();
+    if(hov){
+      const ug=ctx.createLinearGradient(r.x,0,r.x+r.w,0);
+      ug.addColorStop(0,dsC('hover',0)); ug.addColorStop(.5,dsC('spark2')); ug.addColorStop(1,dsC('hover',0));
+      ctx.fillStyle=ug; ctx.fillRect(r.x+Math.round(6*s),r.y+r.h-3,r.w-Math.round(12*s),2);
+    }
     nx+=r.w+navGap;
   });
   const navEnd=nx-navGap+Math.round(14*s);   /* справа от этой линии рисуем только то, что помещается */
@@ -22828,7 +22832,7 @@ function drawDotaSenseHome(){
   { const rw=Math.round(136*s), r={x:rx-rw,y:btnY,w:rw,h:btnH};
     if(r.x>navEnd){
       const hov=dsInside(r); dsRegister(r,'account','mmr');
-      dsBarPlate(r,hov,s,'mmr',!!window._dsDown);
+      dsBarPlate(r,hov,s);
       dsMedal(r.x+rw-Math.round(17*s),btnY+btnH/2,Math.round(11*s),pf?String(pf.level):null);
       const tx=r.x+rw-Math.round(38*s);
       dsTxt(pf?accountRatingRank(rankRating):'ГОСТЬ',tx,btnY+Math.round(btnH*.31),F(10,'bold '),hov?'#fff0c7':'#e8c984','right',.4);
@@ -22848,9 +22852,7 @@ function drawDotaSenseHome(){
       ctx.fillStyle=off?'#d46b62':'#63e4a4'; ctx.beginPath(); ctx.arc(rx-w-Math.round(9*s),btnCy,3.2*s,0,Math.PI*2); ctx.fill();
     } }
 
-  ctx.restore();   /* конец шапки (intro) */
   /* ---------- ЛЕВАЯ КОЛОНКА ---------- */
-  { const e=dsIn(.12); ctx.save(); ctx.globalAlpha=e; ctx.translate(-(1-e)*60*s,0); }
   const colX=Math.round(18*s), colW=Math.round(340*s);
   let y=barH+Math.round(16*s);
 
@@ -22877,8 +22879,8 @@ function drawDotaSenseHome(){
   y+=profH+Math.round(4*s);
 
   const favDef=getFavoriteHeroDef();
-  /* 0.10.7.3: блок новостей убран — карточка любимого героя занимает всю колонку вниз */
-  const cardH=Math.max(Math.round(120*s),VH-y-Math.round(26*s)-Math.round(30*s));
+  const rowsMin=2, newsBlockMin=Math.round(26*s)+rowsMin*Math.round(44*s)+Math.round(28*s)+Math.round(18*s);
+  const cardH=Math.max(Math.round(120*s),Math.min(Math.round(620*s),VH-y-Math.round(26*s)-Math.round(16*s)-newsBlockMin));
   const card={x:colX,y,w:colW,h:cardH};
   dsDrawHeroCard(card,favDef,now); dsRegister(card,favDef?'favHero':'fighters','herocard');
   y+=cardH;
@@ -22894,9 +22896,67 @@ function drawDotaSenseHome(){
   }
   y+=strip.h+Math.round(12*s);
 
-  ctx.restore();   /* конец левой колонки (intro) */
+  /* ---------- НОВОСТИ (вместо списка друзей) ---------- */
+  const news=[
+    {tag:'0.9.9.7',title:'Скины в 4 раза дешевле + новый предмет',art:'hero',hero:'Ригина',action:'store',kind:'магазин'},
+    {tag:'0.9.9.7',title:'Красивые профили бойцов и +8% трём героям',art:'hero',hero:'Вирсуди',action:'changelog',kind:'обновление'},
+    {tag:'0.9.9.5',title:'Новый герой Мэрин: машины, жара и автомат',art:'hero',hero:'Мэрин',action:'store',kind:'герой'},
+    {tag:'0.9.9.5',title:'Йосып стал сильнее на 25%',art:'hero',hero:'Йосып',action:'store',kind:'баланс'},
+    {tag:'0.9.9.4',title:'Скины подешевели на 9% + новые для Вирсуди, Шмедика и Гриши',art:'hero',hero:'Вирсуди',action:'store',kind:'магазин'},
+    {tag:'0.9.9.4',title:'Дотасенс +: вкладка «Прогноз»',art:'hero',hero:'Йосып',action:'store',kind:'помощник'},
+    {tag:'0.9.9.3',title:'Новый магазин: 9 скинов за Сенсики',art:'hero',hero:'Снайпер',action:'store',kind:'магазин'},
+    {tag:'0.9.9.3',title:'Вкладка «Инвентарь» в меню',art:'hero',hero:'Мо3ги',action:'inventory',kind:'инвентарь'},
+    {tag:'0.9.9.0.2',title:'Crimson Rush: новый навык Ригины',art:'hero',hero:'Ригина',action:'changelog',kind:'обновление'},
+    {tag:'0.9.9.0.2',title:'Псих +7% и умные боты',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
+    {tag:'0.9.9.0.1',title:'Бошка Ильи: новый навык Психа',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
+    {tag:'0.9.9.0.1',title:'Око Бездны и Плащ Тихого Часа',art:'item',itemId:'abyssEye',action:'store',kind:'магазин'},
+    {tag:'0.9.7.5',title:'Псих: чумной доктор',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
+    {tag:'0.9.7.4',title:'Новый герой: Псих',art:'hero',hero:'Псих',action:'changelog',kind:'обновление'},
+    {tag:'0.9.7.4',title:'3 особых предмета',art:'item',itemId:'reaperScythe',action:'store',kind:'магазин'},
+    {tag:'0.9.1',title:'Octarine Core: новый предмет',art:'item',itemId:'octarineCore',action:'store',kind:'магазин'},
+    {tag:'0.9.1',title:'Баланс Сасыча и предметов',art:'hero',hero:'Сасыч',action:'changelog',kind:'обновление'},
+    {tag:'0.9.0',title:'Новые скины в магазине',art:'hero',hero:'Шадоу',action:'store',kind:'магазин'},
+    {tag:'0.9.0',title:'Рефрешер орб: новый предмет',art:'item',itemId:'refresherOrb',action:'store',kind:'магазин'},
+    {tag:'0.9.0',title:'Киска дианы: новый предмет',art:'item',itemId:'dianaKitty',action:'store',kind:'магазин'},
+    {tag:'ФРАЗА',title:'Лопата челлендж',art:'shovel',action:'store',kind:'новая фраза'},
+    {tag:'0.8.3',title:'Любимый боец в меню',art:'hero',hero:'Пиромант',action:'changelog',kind:'обновление'},
+    {tag:'0.8.2',title:'Новые иконки бойцов',art:'hero',hero:'Вождь',action:'changelog',kind:'обновление'},
+    {tag:'0.8.1',title:'Анимации всех бойцов',art:'map',action:'changelog',kind:'обновление'},
+    {tag:'0.8.0',title:'All Pick: новый режим',art:'allpick',action:'changelog',kind:'обновление'},
+    {tag:'0.7.7',title:'Замисть: новый актив',art:'item',itemId:'zamist',action:'store',kind:'магазин'},
+    {tag:'0.7.7',title:'Диспёрсер: новый предмет',art:'item',itemId:'disperser',action:'store',kind:'магазин'},
+    {tag:'0.7.4b',title:'Карьера и история матчей',art:'heart',action:'account',kind:'профиль'}
+  ];
+  const hdrH=Math.round(26*s), rowH=Math.round(44*s), footH=Math.round(28*s), bottomPad=Math.round(18*s);
+  const maxRows=Math.max(1,Math.min(news.length,Math.floor((VH-y-hdrH-footH-bottomPad)/rowH)));
+  ctx.fillStyle='rgba(10,7,9,.86)'; ctx.fillRect(colX,y,colW,hdrH+maxRows*rowH+footH);
+  ctx.fillStyle='#e65a46'; ctx.beginPath(); ctx.moveTo(colX+Math.round(10*s),y+hdrH/2-3*s); ctx.lineTo(colX+Math.round(20*s),y+hdrH/2-3*s); ctx.lineTo(colX+Math.round(15*s),y+hdrH/2+4*s); ctx.closePath(); ctx.fill();
+  dsTxt('НОВОСТИ',colX+Math.round(28*s),y+hdrH/2+1,F(12,'bold '),'#e2d8c8','left',1.2);
+  dsTxt('('+news.length+')',colX+Math.round(28*s)+dsTxtW('НОВОСТИ',F(12,'bold '),1.2)+Math.round(6*s),y+hdrH/2+1,F(12,'bold '),'#8a7f78','left');
+  ctx.fillStyle='rgba(168,45,38,.45)'; ctx.fillRect(colX,y+hdrH-1,colW,1);
+  const listY=y+hdrH;
+  for(let i=0;i<maxRows;i++){
+    const e=news[i], r={x:colX,y:listY+i*rowH,w:colW,h:rowH};
+    const hov=dsInside(r);
+    dsRegister(r,e.action,'news'+i);
+    if(hov){ ctx.fillStyle='rgba(255,255,255,.07)'; ctx.fillRect(r.x,r.y,r.w,r.h); }
+    const th=Math.round(32*s);
+    dsNewsThumb(e,r.x+Math.round(10*s),r.y+(rowH-th)/2,th,now);
+    const tx=r.x+Math.round(10*s)+th+Math.round(10*s), maxW=r.x+r.w-tx-Math.round(28*s);
+    dsTxt(dsFit(e.title,maxW,F(14,'bold ')),tx,r.y+Math.round(16*s),F(14,'bold '),hov?'#fff':'#ece6da','left');
+    dsTxt(e.tag+' · '+e.kind,tx,r.y+Math.round(33*s),F(11),'#7f93a8','left');
+    ctx.fillStyle=e.action==='store'?'#e0a43a':e.action==='account'?'#67c9df':'#e65a46';
+    const bx=r.x+r.w-Math.round(18*s), by=r.y+(rowH-14*s)/2;
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+11*s,by); ctx.lineTo(bx+11*s,by+14*s); ctx.lineTo(bx+5.5*s,by+10*s); ctx.lineTo(bx,by+14*s); ctx.closePath(); ctx.fill();
+  }
+  const foot={x:colX,y:listY+maxRows*rowH,w:colW,h:footH};
+  { const hov=dsInside(foot); dsRegister(foot,'changelog','newsall');
+    ctx.fillStyle=hov?'#2a1a1d':'#150d10'; ctx.fillRect(foot.x,foot.y,foot.w,foot.h);
+    ctx.fillStyle=dsC('strip'); ctx.fillRect(foot.x,foot.y,foot.w,1);
+    dsTxt('ВСЕ ОБНОВЛЕНИЯ',foot.x+Math.round(14*s),foot.y+foot.h/2+1,F(11,'bold '),hov?'#fff':'#dcd2c4','left',1);
+    dsTxt('›',foot.x+foot.w-Math.round(16*s),foot.y+foot.h/2,F(16,'bold '),'#e8c984','center'); }
+
   /* ---------- PLAY (справа снизу) ---------- */
-  { const e=dsIn(.22); ctx.save(); ctx.globalAlpha=e; ctx.translate((1-e)*60*s,0); }
   const pw=Math.round(340*s), px=VW-Math.round(30*s)-pw;
   const onlineH=Math.round(44*s), playH=Math.round(74*s), tabsH=Math.round(38*s), descH=Math.round(20*s), g8=Math.round(10*s);
   const onlineR={x:px,y:VH-Math.round(26*s)-onlineH,w:pw,h:onlineH};
@@ -22977,7 +23037,7 @@ function drawDotaSenseHome(){
     ctx.shadowColor='rgba(0,0,0,.75)'; ctx.shadowBlur=8; ctx.shadowOffsetY=2;
     dsTxt('ИГРАТЬ',cx0,R.y+R.h*.43,'bold '+Math.round(34*s)+'px Georgia, serif','#fff6e0','center',5*s);
     ctx.restore();
-    dsTxt(modes.find(m=>m.id===dsPlayMode).t+' · 4 НА 4   ·   ENTER',cx0,R.y+R.h*.8,F(11,'bold '),'rgba(255,225,185,.9)','center',1.5);
+    dsTxt(modes.find(m=>m.id===dsPlayMode).t+' · 4 НА 4',cx0,R.y+R.h*.8,F(11,'bold '),'rgba(255,225,185,.9)','center',1.5);
   }
   /* ОНЛАЙН */
   { const hov=dsInside(onlineR), pr=hov&&down, R=onlineR, pul=.5+.5*Math.sin(now*3);
@@ -23002,7 +23062,6 @@ function drawDotaSenseHome(){
     dsTxt('3 · 3',R.x+R.w-Math.round(16*s)-(sz*6+gp*5)-Math.round(10*s),dy+1,F(11,'bold '),'rgba(235,225,212,.7)','right',1);
   }
 
-  ctx.restore();   /* конец блока PLAY (intro) */
   /* версия */
   dsTxt('v'+GAME_VERSION,colX,VH-Math.round(8*s),Math.round(10*s)+'px Consolas, monospace','rgba(255,255,255,.35)','left');
   ctx.textBaseline='alphabetic';
@@ -23316,19 +23375,17 @@ function drawMenu(){
   const fightersTab = {x:VW/2-92,y:72,w:184,h:38};
   drawMenuButton(fightersTab,'⚔  БОЙЦЫ',{active:true,radius:7});
 
-  if(!window.__rosterV2){   /* 0.10.7.1: новый ростер (update01071b.js) рисует свой заголовок */
-    ctx.font = '18px Segoe UI, Arial';
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    ctx.textAlign = 'center';
-    ctx.fillText('Все бойцы в одном ростере  •  нажми на карточку для подробностей', VW/2, 128);
-  }
+  ctx.font = '18px Segoe UI, Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.textAlign = 'center';
+  ctx.fillText('Все бойцы в одном ростере  •  нажми на карточку для подробностей', VW/2, 128);
   ctx.textAlign = 'right';
   ctx.font = 'bold 14px Consolas, monospace';
   ctx.fillStyle = '#ffd568';
   ctx.fillText(GAME_VERSION, VW-24, 30);
 
   const pageStart = 0;
-  const pageEnd = window.__rosterV2 ? 0 : HERO_DEFS.length;   /* 0.10.7.1: карточки рисует update01071b.js */
+  const pageEnd = HERO_DEFS.length;
   for(let i=pageStart;i<pageEnd;i++){
     const def = HERO_DEFS[i];
     const r = menuCardRect(i-pageStart);
@@ -23378,13 +23435,11 @@ function drawMenu(){
     ctx.restore();
   }
 
-  if(!window.__rosterV2){
-    ctx.textAlign = 'center';
-    ctx.font = '13px Segoe UI, Arial';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText('ЛКМ по карточке — профиль героя  •  Q W E R F — скиллы в бою  •  ПКМ — движение',
-                 VW/2, VH - 16);
-  }
+  ctx.textAlign = 'center';
+  ctx.font = '13px Segoe UI, Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText('ЛКМ по карточке — профиль героя  •  Q W E R F — скиллы в бою  •  ПКМ — движение',
+               VW/2, VH - 16);
 }
 
 /* =========================================================
@@ -24604,9 +24659,9 @@ function resize(){
   canvas.width  = Math.max(1, Math.round(VW * appliedRenderScale));
   canvas.height = Math.max(1, Math.round(VH * appliedRenderScale));
   Engine.Display.applyCss(canvas, appliedRenderScale);   /* <1 → image-rendering: pixelated (чёткие пиксели вместо «мыла») */
-  fogCanvas.width  = VW;
-  fogCanvas.height = VH;
-  terrainScale = Math.max(1, appliedRenderScale);
+  fogCanvas.width  = Math.max(1, Math.ceil(VW*FOG_S));
+  fogCanvas.height = Math.max(1, Math.ceil(VH*FOG_S));
+  terrainScale = appliedRenderScale < 1 ? Math.max(0.5, appliedRenderScale) : appliedRenderScale;   /* 0.10.8.1: при пониженном разрешении и рельеф считается в меньшем разрешении */
   terrainFrameCanvas.width = Math.round((VW + TERRAIN_MARGIN*2) * terrainScale);
   terrainFrameCanvas.height = Math.round((VH + TERRAIN_MARGIN*2) * terrainScale);
   terrainFrameValid = false;
@@ -25256,15 +25311,21 @@ requestAnimationFrame(loop);
     return PHYSICAL_KEY_LETTER[event.code] || (event.key || '').toLowerCase();
   }
   window.addEventListener('keydown', event => {
-    if(!authoritativeMode) return;
+    if(!authoritativeMode || event.repeat) return;      /* автоповтор зажатой клавиши не шлём — сервер помнит, что она нажата */
     sendInput({type:'key', key:onlineKeyFromEvent(event), down:true, angle:playerHero ? playerHero.facing : 0});
   }, true);
   window.addEventListener('keyup', event => {
     if(!authoritativeMode) return;
     sendInput({type:'key', key:onlineKeyFromEvent(event), down:false});
   }, true);
+  /* 0.10.8: угол поворота шлём не чаще 20 раз/с (раньше — на каждое движение мыши, до 500+ пакетов/с) */
+  let lastAimSent = 0;
   canvas.addEventListener('mousemove', () => {
-    if(authoritativeMode && playerHero) sendInput({angle:playerHero.facing});
+    if(!authoritativeMode || !playerHero) return;
+    const t = performance.now();
+    if(t - lastAimSent < 50) return;
+    lastAimSent = t;
+    sendInput({angle:playerHero.facing});
   }, true);
   canvas.addEventListener('mousedown', event => {
     if(!authoritativeMode || !playerHero) return;

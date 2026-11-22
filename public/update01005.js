@@ -390,6 +390,7 @@ try {
     ctx.restore();
   }
 
+  const stageCache = {cv: null, g: null, t: -1};
   dsDrawWarriorArt = function(now){
     if(bad >= 3 || perfLevel >= 3) return prevArt.apply(this, arguments);
     const s = (typeof menuScale === 'function') ? menuScale() : 1;
@@ -398,7 +399,20 @@ try {
     const cx = Math.max(VW * 0.4, Math.min(VW * 0.62, (leftEdge + rightEdge) / 2)), gy = VH * 0.95, u = VH * 0.0062 * scale;
     G.menuDemonScale = scale;
     try {
-      stageBack(now, cx, gy, u);
+      /* 0.10.8.1: сияние, лучи и кольца за демоном — десятки крупных градиентных заливок. Теперь они рисуются в
+         отдельный холст в половинном разрешении 20 раз/с и накладываются одной картинкой (всё равно мягкое свечение). */
+      { const C = stageCache, BW = Math.max(16, Math.ceil(VW / 2)), BH = Math.max(16, Math.ceil(VH / 2));
+        if(!C.cv){ C.cv = document.createElement('canvas'); C.g = C.cv.getContext('2d'); }
+        if(C.cv.width !== BW || C.cv.height !== BH){ C.cv.width = BW; C.cv.height = BH; C.t = -1; }
+        if(now - C.t > 0.05 || now < C.t){
+          C.t = now;
+          const main = ctx;
+          C.g.setTransform(1, 0, 0, 1, 0, 0); C.g.clearRect(0, 0, BW, BH); C.g.setTransform(BW / VW, 0, 0, BH / VH, 0, 0);
+          ctx = C.g;
+          try { stageBack(now, cx, gy, u); } finally { ctx = main; }
+        }
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(C.cv, 0, 0, VW, VH); ctx.restore(); }
       stageFloor(now, cx, gy, u);
       if(!menuDemon973.draw(cx, gy, u, now)){ prevArt.apply(this, arguments); return; }   /* запасной вариант — прежний 2D-арт */
       stageFront(now, cx, gy, u);
