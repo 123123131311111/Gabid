@@ -6,7 +6,8 @@ const accounts = require('./accounts');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000 });
+/* 0.10.8: CORS — к серверу подключается и сайт, и скачанное приложение (у него другой origin) */
+const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000, cors: { origin: true, methods: ['GET', 'POST'] } });
 const PORT = process.env.PORT || 3000;
 accounts.connect().catch(() => console.error('accounts: MongoDB unavailable; account API will retry when requested'));
 const SLOTS_PER_TEAM = 4;
@@ -32,10 +33,20 @@ const TOWER_SPOTS = [
 ];
 /* Баланс башен (те же числа в public/game.js → TOWER_BAL) */
 const TOWER_BAL = {dmg:66, atkTime:1.15, rangeT1:720, rangeT2:680, ancientDmg:190, rankedHpMul:2.1};
+/* 0.10.8: «Закалка» ближников — −15% урона от башен (то же в public/js/data/balance-0108.js) */
+const MELEE_HEROES = new Set(['malit','exileKnight','warlord','sasych','mageHunter','juvsyut','earthshaker','psih','ilya','regina','dawnMaiden','savely','juggernaut','virsudi','vyselki','yosyp','electricGosha','shadow']);
+const MELEE_TOWER_MUL = 0.85;
 const rooms = Object.create(null);
 const socketRooms = new Map();
 let nextBulletId = 1;
 
+app.use('/api', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if(req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 app.get('/api/healthz', (_req, res) => res.json({ status: 'ok' }));
 app.use((req, res, next) => { if(!accounts.handle(req, res)) next(); });
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -498,7 +509,8 @@ function tickTowerCombat(room, dt){
       dmg: tower.dmg
     });
 
-    target.hp = Math.max(0, target.hp - tower.dmg);
+    const towerDmg = MELEE_HEROES.has(target.heroId) ? tower.dmg * MELEE_TOWER_MUL : tower.dmg;
+    target.hp = Math.max(0, target.hp - towerDmg);
     target.damageVersion = (target.damageVersion || 0) + 1;
     if(target.hp <= 0) killPlayer(room, target, {respawn:8});
     emitPlayerVitals(room, target);
